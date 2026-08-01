@@ -1,0 +1,21 @@
+{
+  "name": "vidimera",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.18.0",
+  "scripts": {
+    "typecheck": "tsc -p packages/record --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "test": "vitest run",
+    "contract-scan": "node scripts/contract-scan.mjs"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.6",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}
