@@ -52,17 +52,30 @@ load-bearing structure:
 
 ## Commands
 
-Docs-only repo; git is the only tooling. The one check that matters — the **standalone
-contract scan** (run before any commit that edits the documents; it must return nothing):
+pnpm workspace (Node 22+, pnpm via corepack):
 
-```powershell
-git grep -nE "\.\./|docs/adr|https?://(?!.*example\.com)" -P -- "*.md" ":(exclude)CLAUDE.md"
-```
+- `pnpm install` — install dev dependencies
+- `pnpm typecheck` — tsc strict, no emit
+- `pnpm lint` — Biome (`pnpm lint:fix` to apply safe fixes)
+- `pnpm test` — vitest, all packages
+- `pnpm contract-scan` — the **standalone contract scan**: run before any commit that
+  touches markdown. Prints nothing and exits 0 when clean; prints `path:line:text` and
+  exits 1 on findings (`scripts/contract-scan.mjs`). Scans all tracked `*.md` except this
+  file: external-link and ADR-style checks repo-wide; the escaping-relative-path check
+  on the concept set and root README, where self-containment is the contract. A
+  maintainer working alongside other private repositories should extend the script's
+  patterns with those projects' names, package names, and tooling.
 
-(The pattern targets generic leak vectors — relative paths escaping the repository,
-ADR-style internal references, and external links other than the spec's own
-`example.com` worked examples. A maintainer working alongside other private repositories
-should extend the pattern with those projects' names, package names, and tooling.)
+CI (`.github/workflows/ci.yml`) runs typecheck, lint, test, and contract-scan on every
+push and pull request; it activates by itself once a remote exists.
 
-When this project grows code, add its build/test commands here and keep this file the honest
-record of how to work in *this* repo.
+## Process disciplines (inherited from the concept)
+
+From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
+
+- One cluster per increment; **spec-moves-to-truth** at every increment's exit (a
+  maturity marker moves only when the behavior lands in this repository).
+- Feature guards from day one — an unimplemented capability throws at construction
+  (today `create()` itself throws: walking skeleton, nothing implemented).
+- Byte-stability pins and adjacent-pair gate-order tests, from the kernel increment on.
+- The living deferral register: `docs/process/deferral-register.md`.
