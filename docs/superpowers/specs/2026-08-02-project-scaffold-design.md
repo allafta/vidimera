@@ -63,11 +63,13 @@ repository yet (per CLAUDE.md's marker rule).
 
 ## Contract scan as tooling
 
-`scripts/contract-scan.mjs` replaces the PowerShell one-liner with identical semantics:
-scan all git-tracked `*.md` except `CLAUDE.md` for (a) relative paths escaping the
-repository, (b) ADR-style internal references, (c) external links other than the spec's
-`example.com` worked examples; exit non-zero with findings, print nothing and exit zero
-when clean. Node is the runner so the same command works on Windows and CI (JS regex has
+`scripts/contract-scan.mjs` replaces the PowerShell one-liner: scan all git-tracked
+`*.md` except `CLAUDE.md` for (a) relative paths escaping the self-contained scope —
+applied to the concept set and root README only, since engineering docs (specs, plans)
+legitimately quote code with intra-repo relative imports, (b) ADR-style internal
+references and (c) external links other than the spec's `example.com` worked examples —
+both applied repo-wide; exit non-zero with findings, print nothing and exit zero when
+clean. Node is the runner so the same command works on Windows and CI (JS regex has
 native lookahead — no git-grep PCRE dependency). Wired as `pnpm contract-scan` and as a
 CI job. All newly authored markdown (root README, process docs, this spec) stays free of
 external URLs so the broad scan scope keeps holding.
