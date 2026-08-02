@@ -67,7 +67,8 @@ pnpm workspace (Node 22+, pnpm via corepack):
   patterns with those projects' names, package names, and tooling.
 
 CI (`.github/workflows/ci.yml`) runs typecheck, lint, test, and contract-scan on every
-push and pull request; it activates by itself once a remote exists.
+push to `main` and every pull request, with read-only token permissions and one
+cancel-on-supersede concurrency group per ref.
 
 ## Process disciplines (inherited from the concept)
 
