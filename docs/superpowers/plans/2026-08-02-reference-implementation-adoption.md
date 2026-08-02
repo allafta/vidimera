@@ -557,7 +557,7 @@ test('sorts object keys recursively by UTF-16 code unit', () => {
   assert.equal(serializeJcs({ b: 1, a: { d: 2, c: 3 } }), '{"a":{"c":3,"d":2},"b":1}');
   // A lead surrogate (U+D83D) sorts before U+FB33 under code UNITS, after it
   // under code POINTS. RFC 8785 section 3.2.3 mandates code units.
-  assert.equal(Object.keys({ '\u{1F600}': 1, 'דּ': 2 }).sort()[0], '\u{1F600}');
+  assert.deepEqual(['\uFB33', '\u{1F600}'].sort(), ['\u{1F600}', '\uFB33']);
 });
 
 test('delegates number and string forms to ECMAScript, as RFC 8785 requires', () => {
@@ -565,7 +565,7 @@ test('delegates number and string forms to ECMAScript, as RFC 8785 requires', ()
     serializeJcs([1e20, 1e21, 1e-6, 1e-7, -0]),
     '[100000000000000000000,1e+21,0.000001,1e-7,0]',
   );
-  assert.equal(serializeJcs('a b\tc"d\\e/f'), '"a\\u0000b\\tc\\"d\\\\e/f"');
+  assert.equal(serializeJcs('a\u0000b\tc"d\\e/f'), '"a\\u0000b\\tc\\"d\\\\e/f"');
 });
 
 test('throws rather than yielding undefined for values with no JCS form', () => {
