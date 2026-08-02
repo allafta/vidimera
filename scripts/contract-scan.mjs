@@ -24,10 +24,28 @@ const trackedMarkdown = execFileSync('git', ['ls-files', '-z', '--', '*.md'], {
 const conceptScope = /^(docs\/concept\/|README\.md$)/;
 
 const escapePattern = /\.\.\//; // relative path escaping the self-contained scope
-const repoWidePatterns = [
-  /docs\/adr/, // ADR-style internal reference
-  /https?:\/\/(?!.*example\.com)/, // external link (spec's worked examples excepted)
-];
+const adrPattern = /docs\/adr/; // ADR-style internal reference
+
+// External link exception applies per URL, not per line: a line can carry
+// more than one URL, and a substring match on "example.com" anywhere in the
+// line would blanket-whitelist a real leak sharing the line, or wave through
+// a lookalike host that merely contains the string. Extract every URL and
+// flag the line unless each one resolves to example.com or a subdomain of it
+// (the spec's worked examples are the intended exception).
+const urlPattern = /https?:\/\/([^\s\/)\]>"']+)/g;
+const allowedHost = /(^|\.)example\.com$/;
+
+function hasExternalLink(line) {
+  for (const match of line.matchAll(urlPattern)) {
+    const host = match[1].split(':')[0]; // drop a port, if present
+    if (!allowedHost.test(host)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+const repoWidePatterns = [adrPattern, hasExternalLink];
 
 let findings = 0;
 for (const path of trackedMarkdown) {
@@ -36,7 +54,10 @@ for (const path of trackedMarkdown) {
     : repoWidePatterns;
   const lines = readFileSync(join(repoRoot, path), 'utf8').split('\n');
   lines.forEach((line, index) => {
-    if (activePatterns.some((pattern) => pattern.test(line))) {
+    const flagged = activePatterns.some((pattern) =>
+      typeof pattern === 'function' ? pattern(line) : pattern.test(line),
+    );
+    if (flagged) {
       findings += 1;
       console.log(`${path}:${index + 1}:${line.trim()}`);
     }
