@@ -7,6 +7,12 @@ test('sorts object keys recursively by UTF-16 code unit', () => {
   // A lead surrogate (U+D83D) sorts before U+FB33 under code UNITS, after it
   // under code POINTS. RFC 8785 section 3.2.3 mandates code units.
   assert.deepEqual(['\uFB33', '\u{1F600}'].sort(), ['\u{1F600}', '\uFB33']);
+  // The same ordering, driven through serializeJcs itself: a code-POINT
+  // comparator would emit these two keys the other way round.
+  assert.equal(
+    serializeJcs({ '\uFB33': 1, '\u{1F600}': 2 }),
+    `{${JSON.stringify('\u{1F600}')}:2,${JSON.stringify('\uFB33')}:1}`,
+  );
 });
 
 test('delegates number and string forms to ECMAScript, as RFC 8785 requires', () => {
@@ -33,6 +39,7 @@ test('applies JSON.stringify structural rules to directly-present unrepresentabl
   // A hole is not a member: for...of yields undefined, so it becomes null.
   // biome-ignore lint/suspicious/noSparseArray: the hole IS the case under test
   assert.equal(serializeJcs([1, , 3]), '[1,null,3]');
+  assert.equal(serializeJcs({ a: 1, b: () => 1 }), '{"a":1}');
 });
 
 test('honors toJSON with no arguments, and throws if it yields no JCS form', () => {
