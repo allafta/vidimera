@@ -1,0 +1,133 @@
+// @vidimera/record — canonicalize()/digest() (design §3 "EXPORTED HELPERS", §8 "One
+// runtime dependency", §5 "Digest agility"): the library-owned RFC-8785 JCS wrapper
+// over `canonicalize@3.0.0`, the digest primitive over `node:crypto`, and
+// canonicalizer-registry resolution (consumed by config/create, Task 6).
+
+import { createHash } from 'node:crypto';
+
+import { serializeJcs } from './jcs.js';
+
+import type { Digest } from './types.js';
+
+/**
+ * Adopter-supplied, pre-JCS content transform (design §3 `Config.canonicalizers`,
+ * keyed by `profile.subject.canonicalizerRef`): projects domain content into a plain
+ * JSON-compatible structure BEFORE library JCS canonicalization. MUST NOT emit BigInt
+ * (JCS-unsupported — `canonicalize@3.0.0` has no BigInt handling, design §8).
+ */
+export type Canonicalizer = (content: unknown) => unknown;
+
+/**
+ * Digest algorithms `digest()` will accept when MINTING a new digest. Design §5
+ * "Digest agility" — slice 3 records under exactly one algorithm; the union type
+ * leaves room for a future addition without widening today's runtime behavior.
+ */
+export const SUPPORTED_ALGORITHMS = ['sha256'] as const;
+export type DigestAlgorithm = (typeof SUPPORTED_ALGORITHMS)[number];
+
+function isSupportedAlgorithm(alg: string): alg is DigestAlgorithm {
+  return (SUPPORTED_ALGORITHMS as readonly string[]).includes(alg);
+}
+
+/**
+ * Algorithms still RESOLVABLE (via `algorithmOf`, for re-verifying an existing
+ * recorded digest) but no longer used to MINT new ones — the deprecation-warning
+ * surface design §5/§8 call for. Empty at slice 3: `sha256` is the only algorithm
+ * that has ever existed, so nothing is deprecated yet. A future algorithm addition
+ * retires an old one by moving it here (and out of the "preferred" set `digest()`
+ * defaults to) rather than deleting it outright, so `algorithmOf()` on an
+ * already-recorded old digest keeps resolving instead of throwing.
+ */
+export const DEPRECATED_ALGORITHMS: ReadonlySet<DigestAlgorithm> = new Set<DigestAlgorithm>([]);
+
+/**
+ * Library-owned RFC-8785 JSON Canonicalization Scheme (JCS) wrapper (design §8 "One
+ * runtime dependency"). Wraps `canonicalize@3.0.0`, which:
+ *  (a) returns `string | undefined` — `undefined` only for a top-level `undefined`
+ *      input (the raw library call silently returns `undefined` rather than
+ *      throwing); this wrapper THROWS instead, never silently passing `undefined`
+ *      through to a caller expecting bytes, and
+ *  (b) delegates primitive (number/string) serialization to `JSON.stringify`, which
+ *      already implements the ECMAScript `Number::toString` algorithm and the JSON
+ *      string-escaping rules RFC 8785 itself specifies — so the only genuinely
+ *      JCS-specific behavior the library adds on top is recursive lexicographic
+ *      (UTF-16 code unit) object-key sorting.
+ * The returned JCS text is UTF-8-encoded to bytes: JCS is a byte-exact encoding (two
+ * independent implementations must produce identical bytes to verify each other's
+ * chains), and `digest()` hashes bytes, never JS string code units directly.
+ */
+export function canonicalize(structure: unknown): Uint8Array {
+  // The `undefined` guard is gone because serializeJcs returns `string` and every
+  // unrepresentable input throws at the point of the value. TypeScript will NOT
+  // catch a regression here — TextEncoder.encode is typed `encode(input?: string)`,
+  // so a widened return type compiles clean. If serializeJcs ever returns
+  // `string | undefined`, the guard comes back in the same commit.
+  return new TextEncoder().encode(serializeJcs(structure));
+}
+
+/**
+ * `digest()` (design §3 "EXPORTED HELPERS" / §5 "Digest agility"): hashes `input`
+ * (raw bytes, or a string UTF-8-encoded first) under `algorithm` (default `sha256`,
+ * the only slice-3 MINTING algorithm) via `node:crypto`, returning
+ * `"<alg>:<lowercase-hex>"`. An `algorithm` outside `SUPPORTED_ALGORITHMS` THROWS
+ * rather than silently deferring to `node:crypto`'s own much larger algorithm list —
+ * digest agility means the library controls which algorithms are recordable, not
+ * every algorithm the underlying runtime happens to support.
+ */
+export function digest(input: Uint8Array | string, algorithm: DigestAlgorithm = 'sha256'): Digest {
+  if (!isSupportedAlgorithm(algorithm)) {
+    throw new Error(
+      `digest: unsupported algorithm '${algorithm}' (supported: ${SUPPORTED_ALGORITHMS.join(', ')})`,
+    );
+  }
+  const bytes = typeof input === 'string' ? new TextEncoder().encode(input) : input;
+  const hex = createHash(algorithm).update(bytes).digest('hex');
+  return `${algorithm}:${hex.toLowerCase()}`;
+}
+
+/**
+ * Splits a recorded `Digest` (`"<alg>:<hex>"`) back into its algorithm, so a
+ * re-verify (chain-verify, content-drift re-check — Tasks 4/8) hashes under the
+ * digest's OWN recorded algorithm rather than a hardcoded one (design §5: "a record
+ * verified under its own recorded algorithm"). Throws on a malformed digest (no
+ * `:` separator) or an algorithm outside `SUPPORTED_ALGORITHMS ∪ DEPRECATED_ALGORITHMS`.
+ * Emits a runtime deprecation warning (does not throw) when the resolved algorithm is
+ * in `DEPRECATED_ALGORITHMS` — the deprecation-warning surface; currently unreachable
+ * since that set is empty at slice 3.
+ */
+export function algorithmOf(recorded: Digest): DigestAlgorithm {
+  const sep = recorded.indexOf(':');
+  if (sep <= 0) {
+    throw new Error(`algorithmOf: malformed digest '${recorded}' (expected "<alg>:<hex>")`);
+  }
+  const alg = recorded.slice(0, sep);
+  const recognized = isSupportedAlgorithm(alg) || DEPRECATED_ALGORITHMS.has(alg as DigestAlgorithm);
+  if (!recognized) {
+    throw new Error(`algorithmOf: unrecognized digest algorithm '${alg}' in '${recorded}'`);
+  }
+  const resolved = alg as DigestAlgorithm;
+  if (DEPRECATED_ALGORITHMS.has(resolved)) {
+    process.emitWarning(`digest algorithm '${resolved}' is deprecated`, 'DeprecationWarning');
+  }
+  return resolved;
+}
+
+/**
+ * Canonicalizer-registry resolution (design §3 `Config.canonicalizers` /
+ * `profile.subject.canonicalizerRef`): fails CLOSED — throws when `ref` is absent
+ * from `registry`, rather than returning `undefined` and letting a missing
+ * canonicalizer surface later as a confusing runtime error deep inside
+ * `stage()`/`finalize()`. Consumed by `config.ts`/`create.ts` (Task 6) at
+ * construction time (design §3: "every profile.subject.canonicalizerRef must
+ * resolve" at `create()`).
+ */
+export function resolveCanonicalizer(
+  registry: Record<string, Canonicalizer>,
+  ref: string,
+): Canonicalizer {
+  const c = registry[ref];
+  if (c === undefined) {
+    throw new Error(`resolveCanonicalizer: unresolved canonicalizerRef '${ref}'`);
+  }
+  return c;
+}
