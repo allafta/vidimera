@@ -174,36 +174,40 @@ A pure-capture, single-leg confirmation of an expense draft — the base shape, 
   "consultations": [
     { "kind": "chain-verify", "verdict": "pass",
       "checker": { "principal": "system:chain-verify", "authority": "system:vidimera-record" },
-      "at": "2030-01-15T10:03:44Z", "payloadDigest": "sha256:3d9f…" },
+      "at": "2030-01-15T10:03:44.612Z", "payloadDigest": "sha256:3d9f…" },
     { "kind": "facts", "verdict": "pass",
       "checker": { "principal": "svc:review-surface", "authority": "session:expenses-web" },
-      "at": "2030-01-15T10:03:44Z", "payloadDigest": "sha256:71aa…" }
+      "at": "2030-01-15T10:03:44.612Z", "payloadDigest": "sha256:71aa…" }
   ],
   "transitions": [
-    { "recordId": "rec_7f3a…", "seq": 1, "at": "2030-01-15T09:58:00Z", "kind": "opened",
+    { "recordId": "rec_7f3a…", "seq": 1, "at": "2030-01-15T09:58:00.000Z", "kind": "opened",
       "payload": { "profileId": "example.expense-report.v1", "profileDigest": "sha256:0b7d…",
                    "legId": "approver-decide", "subjectRef": "expense:e-4711",
                    "contentDigest": "sha256:9c1e…" },
       "prevHash": "sha256:ff6a…" },
-    { "recordId": "rec_7f3a…", "seq": 2, "at": "2030-01-15T10:03:44Z",
+    { "recordId": "rec_7f3a…", "seq": 2, "at": "2030-01-15T10:03:44.612Z",
       "kind": "consultation-recorded",
       "payload": { "kind": "chain-verify", "verdict": "pass", "payloadDigest": "sha256:3d9f…",
                    "checker": { "principal": "system:chain-verify", "authority": "system:vidimera-record" },
-                   "at": "2030-01-15T10:03:44Z" },
+                   "at": "2030-01-15T10:03:44.612Z" },
       "prevHash": "sha256:3d9f…" },
-    { "recordId": "rec_7f3a…", "seq": 3, "at": "2030-01-15T10:03:44Z",
+    { "recordId": "rec_7f3a…", "seq": 3, "at": "2030-01-15T10:03:44.612Z",
       "kind": "consultation-recorded",
       "payload": { "kind": "facts", "verdict": "pass", "payloadDigest": "sha256:71aa…",
                    "checker": { "principal": "svc:review-surface", "authority": "session:expenses-web" },
-                   "at": "2030-01-15T10:03:44Z" },
+                   "at": "2030-01-15T10:03:44.612Z" },
       "prevHash": "sha256:5c40…" },
-    { "recordId": "rec_7f3a…", "seq": 4, "at": "2030-01-15T10:03:44Z", "kind": "confirmed",
+    { "recordId": "rec_7f3a…", "seq": 4, "at": "2030-01-15T10:03:44.612Z", "kind": "confirmed",
       "payload": { "actor": { "principal": "pseud:a81f", "authority": "oidc:https://login.example.com" } },
       "prevHash": "sha256:82ce…" }
   ],
   "state": "confirmed"
 }
 ```
+
+Two encoding notes on the JSON above. `seq` is shown as the integer it is in the transition
+and in storage; the digest input stringifies it (§4). The timestamps carry the millisecond
+precision §4 requires — the example is a record, not a rounding.
 
 The `chain-verify` consultation at seq 2 is not host-supplied: `finalize` appends it itself,
 as the first of its confirming appends, recording the mandatory pre-seam chain-verify (§5) — a
@@ -270,7 +274,7 @@ Every state-bearing change appends a **transition**:
 |---|---|---|
 | `recordId` | string | Owning record |
 | `seq` | integer | 1-based, increments by exactly 1 per record |
-| `at` | timestamp | RFC 3339 UTC |
+| `at` | timestamp | RFC 3339 UTC, millisecond precision (see the digest input below) |
 | `kind` | enum | see the payload table |
 | `payload` | per-kind structure | below |
 | `prevHash` | digest | the preceding transition's `transitionDigest`; genesis per the rule below |
@@ -280,6 +284,28 @@ JCS serialization of `{recordId, seq, at, kind, payload, prevHash}` with all dig
 their string forms — using the record's recorded algorithm (§7). It is **not** the adopter's
 content canonicalizer (§3): because the transition encoding is library-owned, two
 implementations verify each other's chains.
+
+**The digest input, stated exactly.** Two conventions of that encoding are not implied by the
+field table above, and both are stated here because cross-implementation verification is what
+they buy:
+
+- **`seq` is serialized as a string.** It is the envelope's one non-string field, and the
+  encoding stringifies it — `1` is fed to JCS as `"1"`. The reason is the claim just made: the
+  envelope must not depend on ECMAScript-specific number formatting, so no envelope field ever
+  reaches JCS's number rules; only `payload` can, and only where an adopter's own content
+  carries numbers. `seq` stays an integer in the transition and in storage (§12's C2) — the
+  stringification belongs to the digest input alone.
+- **Every timestamp the library stamps carries millisecond precision** — the table's RFC 3339
+  UTC form (an ISO-8601 profile), with exactly three fractional-second digits and a `Z` suffix
+  (`2030-01-15T10:03:44.612Z`). This covers the envelope's `at`, a recorded Consultation's `at`
+  (§11.1), and an `expired`, `redemption-failed` or `redeeming` payload's `bound`. The digest
+  is over bytes: the same instant written at a coarser precision is a different digest.
+
+Both are the library's own behaviour, stated descriptively per §1, and both buy exactly
+*verification* — a second implementation can recompute the digests of any chain it is handed.
+Neither makes a chain *reproducible* from the same inputs: how many times a seam reads the
+clock, and which appends share one reading, is implementation detail (§2.1's finalize batch
+shares one) and is deliberately left unstated.
 
 **Genesis.** `seq` starts at 1. The genesis transition's `prevHash` is the digest, under the
 record's recorded algorithm, of the UTF-8 bytes of `vidimera:genesis:<recordId>`.
