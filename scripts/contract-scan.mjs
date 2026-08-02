@@ -62,7 +62,7 @@ const repoWidePatterns = [adrPattern, hasExternalLink];
 // not a code one — a TypeScript import of `../types.js` is ordinary and stays
 // legal.
 const designSectionPattern = /\bdesign\s+§/i;
-const incrementPattern = /\bslices?[\s-]\d/i;
+const incrementPattern = /\bslices?[\s-]?\d/i;
 const taskPattern = /\btasks?[\s-]\d/i;
 const openQuestionPattern = /\bOQ\d*-\d/i;
 
