@@ -3,5 +3,5 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Durable, content-bound, hash-chained, operator-replayable records of human confirmations over AI-drafted actions. Walking skeleton - nothing implemented yet."
+  "description": "Durable, content-bound, hash-chained, operator-replayable records of human confirmations over AI-drafted actions."
 }

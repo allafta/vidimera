@@ -1,7 +1,7 @@
 // @vidimera/record — canonicalize()/digest() (design §3 "EXPORTED HELPERS", §8 "One
-// runtime dependency", §5 "Digest agility"): the library-owned RFC-8785 JCS wrapper
-// over `canonicalize@3.0.0`, the digest primitive over `node:crypto`, and
-// canonicalizer-registry resolution (consumed by config/create, Task 6).
+// runtime dependency", §5 "Digest agility"): RFC-8785 JCS canonicalization via the
+// library-owned serializer in `./jcs.js`, the digest primitive over `node:crypto`,
+// and canonicalizer-registry resolution (consumed by config/create, Task 6).
 
 import { createHash } from 'node:crypto';
 
@@ -13,7 +13,7 @@ import type { Digest } from './types.js';
  * Adopter-supplied, pre-JCS content transform (design §3 `Config.canonicalizers`,
  * keyed by `profile.subject.canonicalizerRef`): projects domain content into a plain
  * JSON-compatible structure BEFORE library JCS canonicalization. MUST NOT emit BigInt
- * (JCS-unsupported — `canonicalize@3.0.0` has no BigInt handling, design §8).
+ * (JCS-unsupported — `serializeJcs` (`./jcs.js`) throws on any BigInt it receives).
  */
 export type Canonicalizer = (content: unknown) => unknown;
 
@@ -41,16 +41,16 @@ function isSupportedAlgorithm(alg: string): alg is DigestAlgorithm {
 export const DEPRECATED_ALGORITHMS: ReadonlySet<DigestAlgorithm> = new Set<DigestAlgorithm>([]);
 
 /**
- * Library-owned RFC-8785 JSON Canonicalization Scheme (JCS) wrapper (design §8 "One
- * runtime dependency"). Wraps `canonicalize@3.0.0`, which:
- *  (a) returns `string | undefined` — `undefined` only for a top-level `undefined`
- *      input (the raw library call silently returns `undefined` rather than
- *      throwing); this wrapper THROWS instead, never silently passing `undefined`
- *      through to a caller expecting bytes, and
- *  (b) delegates primitive (number/string) serialization to `JSON.stringify`, which
- *      already implements the ECMAScript `Number::toString` algorithm and the JSON
- *      string-escaping rules RFC 8785 itself specifies — so the only genuinely
- *      JCS-specific behavior the library adds on top is recursive lexicographic
+ * Library-owned RFC-8785 JSON Canonicalization Scheme (JCS) canonicalizer (design §8
+ * "One runtime dependency"): serializes `structure` to canonical JSON text via
+ * `serializeJcs` (`./jcs.js`), then UTF-8-encodes the text to bytes.
+ *  (a) Every input with no JCS representation throws inside `serializeJcs` itself
+ *      (see `./jcs.js`) — `canonicalize()` has no `undefined` case of its own to
+ *      guard against; a caller either gets bytes back or the call throws, and
+ *  (b) `serializeJcs` delegates primitive (number/string) serialization to
+ *      `JSON.stringify`, which already implements the ECMAScript `Number::toString`
+ *      algorithm and the JSON string-escaping rules RFC 8785 itself specifies — so the
+ *      only genuinely JCS-specific behavior it adds on top is recursive lexicographic
  *      (UTF-16 code unit) object-key sorting.
  * The returned JCS text is UTF-8-encoded to bytes: JCS is a byte-exact encoding (two
  * independent implementations must produce identical bytes to verify each other's
