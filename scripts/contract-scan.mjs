@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Standalone-contract scan (see CLAUDE.md): tracked markdown, except CLAUDE.md
-// itself, must reference nothing outside this repository. Clean: no output,
-// exit 0. Findings: path:line:text on stdout, exit 1.
+// itself, must reference nothing outside this repository. Tracked TypeScript is
+// scanned too, under the checks that apply to code. Clean: no output, exit 0.
+// Findings: path:line:text on stdout, exit 1.
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -10,12 +11,17 @@ const repoRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], {
   encoding: 'utf8',
 }).trim();
 
-const trackedMarkdown = execFileSync('git', ['ls-files', '-z', '--', '*.md'], {
-  cwd: repoRoot,
-  encoding: 'utf8',
-})
-  .split('\0')
-  .filter((path) => path !== '' && path !== 'CLAUDE.md');
+function tracked(...globs) {
+  return execFileSync('git', ['ls-files', '-z', '--', ...globs], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  })
+    .split('\0')
+    .filter((path) => path !== '' && path !== 'CLAUDE.md');
+}
+
+const trackedMarkdown = tracked('*.md');
+const trackedTypeScript = tracked('*.ts', '*.mts', '*.cts');
 
 // Self-containment (no relative paths escaping scope) is the contract for the
 // concept set and the root README; engineering docs elsewhere may quote code
@@ -47,14 +53,37 @@ function hasExternalLink(line) {
 
 const repoWidePatterns = [adrPattern, hasExternalLink];
 
+// Code-only checks. Inherited source carries pointers into a design-document,
+// per-increment and open-question numbering scheme that does not exist in this
+// repository: `design §4`, `slice 7`, `Task 5`, `OQ2-10`. A reader cannot
+// resolve them here, so they are external references in the contract's sense.
+// These patterns are code-only on purpose: this repository's own plans number
+// their tasks, and the escaping-relative-path check is a document contract,
+// not a code one — a TypeScript import of `../types.js` is ordinary and stays
+// legal.
+const designSectionPattern = /\bdesign\s+§/i;
+const incrementPattern = /\bslices?[\s-]\d/i;
+const taskPattern = /\btasks?[\s-]\d/i;
+const openQuestionPattern = /\bOQ\d*-\d/i;
+
+const codeOnlyPatterns = [designSectionPattern, incrementPattern, taskPattern, openQuestionPattern];
+
+const files = [
+  ...trackedMarkdown.map((path) => ({
+    path,
+    patterns: conceptScope.test(path) ? [escapePattern, ...repoWidePatterns] : repoWidePatterns,
+  })),
+  ...trackedTypeScript.map((path) => ({
+    path,
+    patterns: [...repoWidePatterns, ...codeOnlyPatterns],
+  })),
+];
+
 let findings = 0;
-for (const path of trackedMarkdown) {
-  const activePatterns = conceptScope.test(path)
-    ? [escapePattern, ...repoWidePatterns]
-    : repoWidePatterns;
+for (const { path, patterns } of files) {
   const lines = readFileSync(join(repoRoot, path), 'utf8').split('\n');
   lines.forEach((line, index) => {
-    const flagged = activePatterns.some((pattern) =>
+    const flagged = patterns.some((pattern) =>
       typeof pattern === 'function' ? pattern(line) : pattern.test(line),
     );
     if (flagged) {

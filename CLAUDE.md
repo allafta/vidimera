@@ -59,10 +59,15 @@ pnpm workspace (Node 22+, pnpm via corepack):
 - `pnpm lint` — Biome (`pnpm lint:fix` to apply safe fixes)
 - `pnpm test` — vitest, all packages
 - `pnpm contract-scan` — the **standalone contract scan**: run before any commit that
-  touches markdown. Prints nothing and exits 0 when clean; prints `path:line:text` and
-  exits 1 on findings (`scripts/contract-scan.mjs`). Scans all tracked `*.md` except this
-  file: external-link and ADR-style checks repo-wide; the escaping-relative-path check
-  on the concept set and root README, where self-containment is the contract. A
+  touches markdown or TypeScript. Prints nothing and exits 0 when clean; prints
+  `path:line:text` and exits 1 on findings (`scripts/contract-scan.mjs`). Scans all
+  tracked `*.md` except this file, and all tracked `*.ts`/`*.mts`/`*.cts`: external-link
+  and ADR-style checks repo-wide; the escaping-relative-path check on the concept set and
+  root README, where self-containment is the contract (a document-only check — a
+  TypeScript relative import stays legal). Tracked code is additionally checked for
+  pointers into a design-document, slice/increment, task and open-question numbering
+  scheme that has no counterpart here (`design §4`, `slice 7`, `Task 5`, `OQ2-10`) — such
+  a reader-unresolvable pointer is an external reference in the contract's sense. A
   maintainer working alongside other private repositories should extend the script's
   patterns with those projects' names, package names, and tooling.
 
