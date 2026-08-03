@@ -1,10 +1,11 @@
-// @vidimera/record — hand-authored PURE-JCS / RFC-8785 vectors (design §6/§7/§9 "M2",
-// task-3 brief Step 1). These are LIBRARY-owned vectors exercising RFC-8785 behavior
+// @vidimera/record — hand-authored PURE-JCS / RFC-8785 vectors. These are LIBRARY-owned
+// vectors exercising RFC-8785 behavior
 // itself (recursive object-key ordering, number formatting incl. exponentials +
-// negative zero, non-ASCII + control-character string escaping) — they are NOT tide's
-// cl4 adopter fixtures (those relocate to the tide example in Task 10; cl4 encodes
-// tide's *adopter* array-sort on top of JCS, not JCS alone, so anchoring the library
-// test on cl4 would be unpassable and conflate the two ownership layers per design §9).
+// negative zero, non-ASCII + control-character string escaping) — they are NOT an
+// adopter's own domain-canonicalization fixtures (an adopter's array-sort convention
+// layered on top of JCS is a different, adopter-owned concern; anchoring the library
+// test on adopter-specific fixtures would conflate the two ownership layers, SPEC §3's
+// canonicalization split).
 //
 // Provenance: every `expected` value below was cross-checked before being hardcoded
 // here against an independent from-scratch reference JCS serializer (recursive
@@ -13,10 +14,9 @@
 // `canonicalize@3.0.0`) and found to agree byte-for-byte. `JSON.stringify` is trusted
 // as the primitive (number/string) serializer oracle because it already implements
 // the ECMAScript `Number::toString` algorithm and JSON string-escaping rules that RFC
-// 8785 itself specifies (design §7/§9); the only genuinely JCS-specific step layered
+// 8785 itself specifies; the only genuinely JCS-specific step layered
 // on top is recursive lexicographic (UTF-16 code unit) object-key sorting, which is
-// exactly what these vectors are chosen to exercise. See task-3-report.md for the
-// full cross-check transcript.
+// exactly what these vectors are chosen to exercise.
 
 export interface JcsVector {
   readonly name: string;
