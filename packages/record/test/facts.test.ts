@@ -1,5 +1,5 @@
-// @vidimera/record — facts.test.ts (design §5 "Facts enforced-by-default" / §6 facts test
-// / §9 "Facts consultation checker (S1) + figures path (O1)"): finalize() requires a fresh
+// @vidimera/record — facts.test.ts (SPEC §3's reviewed-surface (`facts`) binding,
+// enforced by default per SPEC §9): finalize() requires a fresh
 // reviewed-surface digest — missing/malformed `facts` → `consultation-missing`. Present
 // facts are recorded as a `consultation-recorded` kind:`facts` whose `checker` is the
 // REVIEW-SURFACE identity `facts.checker` (distinct from the finalizing actor) and whose

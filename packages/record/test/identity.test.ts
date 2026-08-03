@@ -1,5 +1,5 @@
-// @vidimera/record — identity.test.ts (design §5 "Identity by transport, both branches →
-// identity-authority-refused" / §6 identity test): finalize()'s identity check has TWO
+// @vidimera/record — identity.test.ts (SPEC §6 "Identity by transport", both branches →
+// `identity-authority-refused`): finalize()'s identity check has TWO
 // refusal branches, both → `identity-authority-refused`:
 //   (a) the identity ARG is missing/malformed (no principal / no authority) — the library
 //       reads identity ONLY from the explicit arg; a payload-carried id is never trusted;
@@ -7,7 +7,7 @@
 //       transport-established low-trust `dev-stub` the leg does not allow).
 // Default leg: the refusal does NOT append (record stays open, no transitionRef). A leg
 // listing `identity-authority-refused` in `terminalRefusals` appends `open→refused`
-// (transitionRef present) — the general refusal-append rule (design §5/§9 appendsOn).
+// (transitionRef present) — the general refusal-append rule (SPEC §8's `appendsOn`).
 
 import assert from 'node:assert/strict';
 import { test } from 'vitest';

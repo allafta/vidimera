@@ -1,5 +1,4 @@
-// @vidimera/record — review.test.ts (design §3 OperatorSurface.review / §5 "Facts
-// enforced-by-default" (review() stays a pure read) / §9 "review() test coverage" S4):
+// @vidimera/record — review.test.ts (SPEC §9 `review(recordId)`):
 // `review()` is a PURE content-free read. On both an open AND a confirmed record the
 // returned `ReviewView` carries METADATA + `contentDigest` only — no content body,
 // consultations surfaced as `payloadDigest` — and `chainHead` / `readChain` length / the
@@ -150,7 +149,7 @@ test('T3.4: review() on a REFUSED record carries refusalCode = the refusal reaso
   );
 });
 
-test("review() on a NONEXISTENT record THROWS (via replay()'s empty-chain guard) — the surface's replay-throws posture; no fitting unknown-record RefusalCode this slice (flagged to Task 12)", async () => {
+test("review() on a NONEXISTENT record THROWS (via replay()'s empty-chain guard) — the surface's replay-throws posture; no fitting unknown-record RefusalCode exists", async () => {
   const handles = create(makeConfig([captureProfile()]));
   await assert.rejects(() => handles.operator.review('no-such-record'), /empty chain/);
 });

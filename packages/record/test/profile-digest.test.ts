@@ -1,8 +1,9 @@
-// @vidimera/record — profile-digest.test.ts (design §5 "opened snapshot" / §6 / §9 O4):
+// @vidimera/record — profile-digest.test.ts (SPEC §4's "opened" snapshot):
 // `profileDigest` is a DATA-ONLY projection of a ConfirmProfile (declarative fields only;
-// function members excluded) fed through library JCS + digest. This task exports the
-// helper and proves its three properties; it is RECORDED into `opened` at Task 7 and
-// COMPARED at slice 4 (no slice-3 detector — O4). The projection is validation-free:
+// function members excluded) fed through library JCS + digest. This file exports the
+// helper and proves its three properties; it is RECORDED into `opened` and is meant to be
+// COMPARED against a later live read once a drift detector exists (none in this build).
+// The projection is validation-free:
 // `profileDigest` digests a profile's data regardless of whether `create()` would accept it.
 
 import assert from 'node:assert/strict';

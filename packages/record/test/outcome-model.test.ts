@@ -1,7 +1,8 @@
-// @vidimera/record — outcome-model.test.ts (design §6): Outcome<T> constructors are
+// @vidimera/record — outcome-model.test.ts (DECISIONS.md #10 "Result-first outcomes"):
+// Outcome<T> constructors are
 // result-first (never throw for a domain refusal), `class` is derived from `code` via
 // the CORE registry (never caller-supplied), and `transitionRef` is representable as
-// present-or-absent per the design §3 presence rule.
+// present-or-absent per that same result-first discipline.
 
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
@@ -99,7 +100,7 @@ test('domain refusals are returned values: refused() never throws, for any Refus
   }
 });
 
-// --- refusal-codes.ts: appendsOn() append-decision helper (design §5 / §9) ---
+// --- refusal-codes.ts: appendsOn() append-decision helper (SPEC §8) ---
 
 test('appendsOn: compromise-class code always appends, regardless of leg config', () => {
   assert.equal(appendsOn('chain-compromise', {}), true);
