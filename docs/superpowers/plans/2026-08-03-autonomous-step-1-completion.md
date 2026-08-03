@@ -40,18 +40,22 @@ Unchanged from the earlier plan, plus three additions forced by measurement:
   `git diff <BASE> HEAD -- '*.ts' | grep -nE '^\+.*[A-Za-z_)\]]!\.'` must return nothing.
 - **NEW — a forbidden-token grep with a re-baselined count per unit.** The contract scan
   structurally cannot see provenance leaks. Measured baseline: **1 today**
-  (`packages/record/src/index.ts:22` names a sibling project), **25 expected after U3**, and
+  (`packages/record/src/index.ts:22` names a sibling project), **25 expected after U2**, and
   **0 required at U9's exit**. `contract-scan` exiting 0 certifies nothing about this.
+  **This is a single-token grep for one sibling project's name — it is not a general
+  provenance detector.** If a later unit imports material naming a *different* external
+  project, this grep stays silent about it; only that one name is checked.
 - **U0 baselines, recorded 2026-08-03 at HEAD `061f38f` before any implementation unit starts**
   — later units compare against these, not against a re-derivation:
   - `node scripts/contract-scan.mjs | wc -l` → **210**.
   - `grep -rn "tide" packages/record/src --include=*.ts | wc -l` → **1**
     (`packages/record/src/index.ts:22`, the same sibling-project name the bullet above pins).
-    Flagged, not resolved: this bullet says **25 expected after U3**; the halt-discipline
-    table below says "outside U2's expected 1 → 25". The two disagree on which unit produces
-    the jump. U0 did not guess which is right — that requires seeing what U2 and U3 actually
-    land — so both readings stand until whichever unit lands the corpus that moves this count
-    settles it.
+    **Resolved (fix round 1): the jump to 25 lands at U2, not U3.** The bullet above and the
+    halt-discipline table below disagreed on this until an owner ruling settled it — the 24
+    additional occurrences are carried by the base test corpus, and that corpus lands in U2
+    (Task 17); U3 (Task 14 — head's `stage.ts` and its fan-out) touches four source files and
+    one test file and carries none of them. The halt-discipline table's "U2" reading was
+    right; the Global Constraints bullet's "U3" was corrected to match.
   - `npx biome check --error-on-warnings .` → **exit 1**. Biome's own report: "Found 1 warning.
     Found 1 info." — one `lint/correctness/noUnusedVariables` on `interface ExpiredPayload`
     (`packages/record/src/chain/replay.ts:43`, unused, scheduled for U9), one pre-existing
@@ -86,7 +90,7 @@ rather than real findings.
 | Task 21 says insert `(5.7)` between the `(5.5)` and `(6)` rungs | **`(5.5)` does not exist.** `finalize.ts:6-8` is a **six**-rung ladder (`load chain → (1) chain-verify → (2) state/expiry → (3) identity → (4) content-drift → (5) facts → (6) success batch`); `grep -n '3\.5\|4\.5\|5\.5\|5\.7'` exits 1. Rewrite Task 21 to reserve `(5.7)` after rung **(5)**. |
 | Task 17 says "one import line per file, nothing else changes" | It lands **66 typecheck errors**, 0 in `src` — TS2532×33, TS2345×16, TS2322×12, TS18048×5, concentrated in chain-verify 19, exclusivity 12, replay-verify 9, construction-validation 8. Add an explicit error budget and the single repair idiom. |
 | Task 15 edits `construction-validation.test.ts` | That file arrives at Task 17. Reorder per D7. |
-| Tasks 14/16 reference `kernel/context.ts` | It does not exist here. Remove the reference; the `mintId` seam lands in `create.ts` + `open.ts`. |
+| Task 16 references `kernel/context.ts` | It does not exist here. Remove the reference; the `mintId` seam lands in `create.ts` + `open.ts`. (Corrected, fix round 1: Task 14 was named here too, but its Files line never referenced `kernel/context.ts` — verified during U0. Only Task 16 carried the defect.) |
 | "No non-null assertions" | Ungated. Adopt `--error-on-warnings` and the `!` diff grep (Global Constraints). |
 
 ---
