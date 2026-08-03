@@ -1,14 +1,13 @@
-// @vidimera/record — create.ts (design §2 "create.ts" / §3 FACTORY / §1 the two frozen
-// handles over shared kernel closures): the factory. It (1) fail-fast validates every
+// @vidimera/record — create.ts: the factory. It (1) fail-fast validates every
 // profile (config.ts's fail-closed guards), (2) detects duplicate profile ids, (3)
 // resolves every profile's `canonicalizerRef` against the registry (canonical.ts's
 // fail-closed `resolveCanonicalizer`), then (4) assembles the SHARED kernel closures over
 // the injected Store + the resolved profiles and hands them to the two capability-split
 // surface factories.
 //
-// The "shared kernel closures" (design §1/§2) all live here so the capability split
-// (agent-surface.ts / operator-surface.ts) stays a pure select-and-freeze. As of Task 9
-// every record-transitioning closure (`stage`/`open`/`review`/`finalize`/`redeem`) calls
+// The "shared kernel closures" all live here so the capability split
+// (agent-surface.ts / operator-surface.ts) stays a pure select-and-freeze. Every
+// record-transitioning closure (`stage`/`open`/`review`/`finalize`/`redeem`) calls
 // into `kernel/*.ts` — `redeem` delegates to `kernel/redeem.ts`, which refuses
 // `unredeemable-state` on every profile/state except one: a confirmed effect-seam record
 // now throws a build-capability error instead (the real effect-seam behavior is still not
@@ -37,7 +36,7 @@ import type { Store } from './store/store.js';
 
 /**
  * A validated profile paired with its resolved canonicalizer and precomputed effect-seam
- * flag — the per-profile bundle the KERNEL behaviors (Tasks 7-9) look up by profileId.
+ * flag — the per-profile bundle the KERNEL behaviors look up by profileId.
  */
 export interface ResolvedProfile {
   profile: ConfirmProfile;
@@ -91,7 +90,7 @@ export interface Kernel {
 
 /**
  * Assembles the shared kernel closures over `ctx`. All five transitioning/read closures
- * (`stage`/`open`/`review`/`finalize`/`redeem`) now delegate to `kernel/*.ts` (Tasks 7-9);
+ * (`stage`/`open`/`review`/`finalize`/`redeem`) delegate to `kernel/*.ts`;
  * `redeem` still has no real effect-seam behavior, but it no longer always refuses: a
  * confirmed effect-seam record now throws a build-capability error instead of silently
  * returning `unredeemable-state`, so a host declaring that profile shape finds out at the
@@ -174,10 +173,11 @@ export function createWithClock(
 }
 
 /**
- * `create(config)` (design §3 FACTORY): fail-fast, FAIL-CLOSED at construction. Every
- * profile is validated (config.ts's GOVERNED throws + structural rejections), duplicate
- * ids are rejected, and every `canonicalizerRef` must resolve. Returns the two frozen
- * capability-split handles over the shared kernel closures. Profiles are never persisted.
+ * `create(config)`: fail-fast, FAIL-CLOSED at construction (SPEC §9.1 "Construction is
+ * loud"). Every profile is validated (config.ts's GOVERNED throws + structural
+ * rejections), duplicate ids are rejected, and every `canonicalizerRef` must resolve.
+ * Returns the two frozen capability-split handles over the shared kernel closures.
+ * Profiles are never persisted.
  * The public factory: it fixes the clock to real time and delegates to `createWithClock`.
  */
 export function create(config: Config): { agent: AgentSurface; operator: OperatorSurface } {

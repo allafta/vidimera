@@ -1,5 +1,4 @@
-// @vidimera/record — config.ts (design §2 "config.ts" / §3 Config/ConfirmProfile/LegSpec
-// / §5 "Construction guards (fail-closed)" / §9 "Fail-closed construction guards"): the
+// @vidimera/record — config.ts: the
 // profile/config TYPES, the fail-CLOSED structural profile validation, and the
 // `profile-declares-effect-seam` predicate.
 //
@@ -15,7 +14,7 @@ import type { Store } from './store/store.js';
 
 export type { Canonicalizer };
 
-// --- types (design §3, verbatim) -----------------------------------------------------
+// --- types (SPEC §9.1's ConfirmProfile field table) ------------------------------------
 
 export interface LegSpec {
   id: string;
@@ -33,10 +32,10 @@ export interface LegSpec {
 export interface ConfirmProfile {
   id: string; // RECOMMENDED "<domain>.<subject>.v<n>"
   subject: { canonicalizerRef: string };
-  legs: LegSpec[]; // ordered; >1 switches SoD on (slice 5)
+  legs: LegSpec[]; // ordered; >1 switches on separation of duties (SPEC §10.1)
   captureMode: 'staged' | 'live';
   expiry: { ttl: number } | 'none';
-  policySource?: string; // slice 5
+  policySource?: string; // SPEC §10.3
   redeem?: { confirmToRedeem?: number; redeemBound?: number; reverify?: boolean }; // presence ⇒ effect seam
 }
 
@@ -44,14 +43,14 @@ export interface Config {
   profiles: ConfirmProfile[];
   store: Store;
   canonicalizers: Record<string, Canonicalizer>; // keyed by canonicalizerRef
-  // signer?: Signer — joins at slice 6 (AL2)
+  // signer?: Signer — not built in this build; the AL2 signing upgrade (SPEC §14)
 }
 
-// --- the effect-seam predicate (design §3 line / §5 "Profile-derived terminality") ----
+// --- the effect-seam predicate (SPEC §9.1 "The effect-seam predicate") ----------------
 
 /**
  * `profile-declares-effect-seam := (profile.redeem present) OR (profile.captureMode ===
- * 'live')` (design §3). Written completely even though at slice 3 a `captureMode:'live'`
+ * 'live')` (SPEC §9.1). Written completely even though in this build a `captureMode:'live'`
  * profile is GOVERNED-throw-rejected at construction, so the only reachable effect-seam
  * trigger post-validation is a `redeem` block — the disjunct is kept whole (matching
  * `nonterminal.ts`'s "full formula, not the narrowed reachable subset" posture) so the
@@ -79,9 +78,10 @@ export function governedUnavailable(field: string, contract: string): string {
 }
 
 /**
- * The three redemption FIELDS (design §3 `redeem`): they are only ever valid INSIDE a
+ * The three redemption FIELDS (`confirmToRedeem`, `redeemBound`, `reverify` — SPEC §9.1's
+ * `redeem` block): they are only ever valid INSIDE a
  * `redeem` block. Appearing as a direct own-key on the profile or a leg is a
- * misplacement — refused structurally (design §9 O3 rework: the former redeem-field guard
+ * misplacement — refused structurally (the former redeem-field guard
  * was logically vacuous, so it is replaced by this real "stray key outside redeem" check).
  */
 const REDEMPTION_KEYS = ['confirmToRedeem', 'redeemBound', 'reverify'] as const;
@@ -96,9 +96,9 @@ function assertNoStrayRedemptionKeys(profileId: string, where: string, obj: obje
   }
 }
 
-/** Per-leg GOVERNED guards (design §5): every not-yet-enforceable leg control throws. */
+/** Per-leg GOVERNED guards: every not-yet-enforceable leg control throws. */
 function validateLeg(profileId: string, leg: LegSpec): void {
-  // proposer gets its OWN throw (design §9 S-1): it is a per-leg SoD control that a
+  // proposer gets its OWN throw: it is a per-leg SoD control that a
   // single-leg profile would otherwise slip past the `legs.length>1` multi-leg guard.
   if (leg.sod !== undefined)
     throw new Error(
@@ -154,15 +154,16 @@ function validateLeg(profileId: string, leg: LegSpec): void {
 }
 
 /**
- * Fail-CLOSED structural validation of a single profile (design §5/§9). Order:
- *  1. structural: exactly one leg (O2 — internal legId derivation must be well-defined);
- *  2. GOVERNED `legs.length>1` (multi-leg SoD, slice 5);
- *  3. GOVERNED `captureMode:'live'` (live capture, slice 5) — checked BEFORE the reverify
+ * Fail-CLOSED structural validation of a single profile. Order:
+ *  1. structural: exactly one leg (internal legId derivation must be well-defined);
+ *  2. GOVERNED `legs.length>1` (multi-leg SoD, SPEC §10.1);
+ *  3. GOVERNED `captureMode:'live'` (live capture, SPEC §9.2) — checked BEFORE the reverify
  *     guard so a live profile throws GOVERNED(captureMode), never the reverify refusal;
- *  4. GOVERNED `policySource` (policy drift, slice 5);
+ *  4. GOVERNED `policySource` (policy drift, SPEC §10.3);
  *  5. per-leg GOVERNED guards + stray-redemption-key check;
- *  6. structural: stray redemption key on the profile itself (O3);
- *  7. structural: `reverify` on a non-live profile (deferred; no live profiles at slice 3).
+ *  6. structural: stray redemption key on the profile itself;
+ *  7. structural: `reverify` on a non-live profile — not built in this build (SPEC §9.2's
+ *     live mode).
  * The sweep is TOTAL: a profile declaring any governed feature throws — the first one
  * reached wins, but none slips through. Canonicalizer resolution + duplicate-id detection
  * are `create.ts`'s (they need the registry / the whole profile list).
@@ -199,12 +200,14 @@ export function validateProfile(profile: ConfirmProfile): void {
     validateLeg(profile.id, leg);
   }
   assertNoStrayRedemptionKeys(profile.id, 'top-level profile', profile);
-  // `reverify` on a non-live profile is refused (deferred; no live profiles at slice 3).
-  // Reaching here, `captureMode` is already narrowed to 'staged' (the 'live' guard above
-  // threw GOVERNED), so any `reverify:true` present is BY DEFINITION on a non-live profile.
+  // `reverify` on a non-live profile is refused — not built in this build (SPEC §9.2's
+  // live mode). Reaching here, `captureMode` is already narrowed to 'staged' (the 'live'
+  // guard above threw GOVERNED), so any `reverify:true` present is BY DEFINITION on a
+  // non-live profile.
   if (profile.redeem?.reverify === true) {
     throw new Error(
-      `invalid profile '${profile.id}': 'reverify' is not available on a non-live profile (deferred; no live profiles at slice 3)`,
+      `invalid profile '${profile.id}': 'reverify' is not available on a non-live profile ` +
+        '(live capture is not implemented in this build — SPEC §9.2)',
     );
   }
 }

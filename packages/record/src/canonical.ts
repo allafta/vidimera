@@ -1,7 +1,6 @@
-// @vidimera/record — canonicalize()/digest() (design §3 "EXPORTED HELPERS", §8 "One
-// runtime dependency", §5 "Digest agility"): RFC-8785 JCS canonicalization via the
+// @vidimera/record — canonicalize()/digest(): RFC-8785 JCS canonicalization via the
 // library-owned serializer in `./jcs.js`, the digest primitive over `node:crypto`,
-// and canonicalizer-registry resolution (consumed by config/create, Task 6).
+// and canonicalizer-registry resolution (consumed by config.ts/create.ts).
 
 import { createHash } from 'node:crypto';
 
@@ -10,16 +9,16 @@ import { serializeJcs } from './jcs.js';
 import type { Digest } from './types.js';
 
 /**
- * Adopter-supplied, pre-JCS content transform (design §3 `Config.canonicalizers`,
- * keyed by `profile.subject.canonicalizerRef`): projects domain content into a plain
- * JSON-compatible structure BEFORE library JCS canonicalization. MUST NOT emit BigInt
+ * Adopter-supplied, pre-JCS content transform, keyed by `profile.subject.canonicalizerRef`
+ * (SPEC §3): projects domain content into a plain JSON-compatible structure BEFORE
+ * library JCS canonicalization. MUST NOT emit BigInt
  * (JCS-unsupported — `serializeJcs` (`./jcs.js`) throws on any BigInt it receives).
  */
 export type Canonicalizer = (content: unknown) => unknown;
 
 /**
- * Digest algorithms `digest()` will accept when MINTING a new digest. Design §5
- * "Digest agility" — slice 3 records under exactly one algorithm; the union type
+ * Digest algorithms `digest()` will accept when MINTING a new digest (SPEC §7 "Digest
+ * agility") — this build records under exactly one algorithm; the union type
  * leaves room for a future addition without widening today's runtime behavior.
  */
 export const SUPPORTED_ALGORITHMS = ['sha256'] as const;
@@ -32,7 +31,7 @@ function isSupportedAlgorithm(alg: string): alg is DigestAlgorithm {
 /**
  * Algorithms still RESOLVABLE (via `algorithmOf`, for re-verifying an existing
  * recorded digest) but no longer used to MINT new ones — the deprecation-warning
- * surface design §5/§8 call for. Empty at slice 3: `sha256` is the only algorithm
+ * surface SPEC §7 calls for. Empty in this build: `sha256` is the only algorithm
  * that has ever existed, so nothing is deprecated yet. A future algorithm addition
  * retires an old one by moving it here (and out of the "preferred" set `digest()`
  * defaults to) rather than deleting it outright, so `algorithmOf()` on an
@@ -41,9 +40,9 @@ function isSupportedAlgorithm(alg: string): alg is DigestAlgorithm {
 export const DEPRECATED_ALGORITHMS: ReadonlySet<DigestAlgorithm> = new Set<DigestAlgorithm>([]);
 
 /**
- * Library-owned RFC-8785 JSON Canonicalization Scheme (JCS) canonicalizer (design §8
- * "One runtime dependency"): serializes `structure` to canonical JSON text via
- * `serializeJcs` (`./jcs.js`), then UTF-8-encodes the text to bytes.
+ * Library-owned RFC-8785 JSON Canonicalization Scheme (JCS) canonicalizer: serializes
+ * `structure` to canonical JSON text via `serializeJcs` (`./jcs.js`), then UTF-8-encodes
+ * the text to bytes.
  *  (a) Every input with no JCS representation throws inside `serializeJcs` itself
  *      (see `./jcs.js`) — `canonicalize()` has no `undefined` case of its own to
  *      guard against; a caller either gets bytes back or the call throws, and
@@ -66,12 +65,12 @@ export function canonicalize(structure: unknown): Uint8Array {
 }
 
 /**
- * `digest()` (design §3 "EXPORTED HELPERS" / §5 "Digest agility"): hashes `input`
+ * `digest()`: hashes `input`
  * (raw bytes, or a string UTF-8-encoded first) under `algorithm` (default `sha256`,
- * the only slice-3 MINTING algorithm) via `node:crypto`, returning
+ * the only MINTING algorithm this build supports) via `node:crypto`, returning
  * `"<alg>:<lowercase-hex>"`. An `algorithm` outside `SUPPORTED_ALGORITHMS` THROWS
  * rather than silently deferring to `node:crypto`'s own much larger algorithm list —
- * digest agility means the library controls which algorithms are recordable, not
+ * digest agility (SPEC §7) means the library controls which algorithms are recordable, not
  * every algorithm the underlying runtime happens to support.
  */
 export function digest(input: Uint8Array | string, algorithm: DigestAlgorithm = 'sha256'): Digest {
@@ -87,13 +86,13 @@ export function digest(input: Uint8Array | string, algorithm: DigestAlgorithm = 
 
 /**
  * Splits a recorded `Digest` (`"<alg>:<hex>"`) back into its algorithm, so a
- * re-verify (chain-verify, content-drift re-check — Tasks 4/8) hashes under the
- * digest's OWN recorded algorithm rather than a hardcoded one (design §5: "a record
- * verified under its own recorded algorithm"). Throws on a malformed digest (no
+ * re-verify (chain-verify, content-drift re-check) hashes under the
+ * digest's OWN recorded algorithm rather than a hardcoded one — SPEC §7: "a record
+ * verified under its own recorded algorithm". Throws on a malformed digest (no
  * `:` separator) or an algorithm outside `SUPPORTED_ALGORITHMS ∪ DEPRECATED_ALGORITHMS`.
  * Emits a runtime deprecation warning (does not throw) when the resolved algorithm is
  * in `DEPRECATED_ALGORITHMS` — the deprecation-warning surface; currently unreachable
- * since that set is empty at slice 3.
+ * since that set is empty in this build.
  */
 export function algorithmOf(recorded: Digest): DigestAlgorithm {
   const sep = recorded.indexOf(':');
@@ -113,13 +112,13 @@ export function algorithmOf(recorded: Digest): DigestAlgorithm {
 }
 
 /**
- * Canonicalizer-registry resolution (design §3 `Config.canonicalizers` /
- * `profile.subject.canonicalizerRef`): fails CLOSED — throws when `ref` is absent
+ * Canonicalizer-registry resolution, keyed by `profile.subject.canonicalizerRef`
+ * (SPEC §3): fails CLOSED — throws when `ref` is absent
  * from `registry`, rather than returning `undefined` and letting a missing
  * canonicalizer surface later as a confusing runtime error deep inside
- * `stage()`/`finalize()`. Consumed by `config.ts`/`create.ts` (Task 6) at
- * construction time (design §3: "every profile.subject.canonicalizerRef must
- * resolve" at `create()`).
+ * `stage()`/`finalize()`. Consumed by `config.ts`/`create.ts` at
+ * construction time — construction is loud (SPEC §9.1): every
+ * `profile.subject.canonicalizerRef` must resolve, or `create()` throws.
  */
 export function resolveCanonicalizer(
   registry: Record<string, Canonicalizer>,

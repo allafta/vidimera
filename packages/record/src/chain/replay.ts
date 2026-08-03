@@ -1,7 +1,6 @@
-// @vidimera/record — chain/replay.ts (design §2 "chain/replay.ts" / §3 PURE CORE /
-// §5 "Chain integrity" / §9 "replay/verifyChain arity"): the ONE pure core shared by
-// the mandatory pre-seam chain-verify (kernel `finalize()`, Task 8) and the operator
-// `verifyChain()`/`replay()` audit wrappers (`operator-surface.ts`, Task 6) —
+// @vidimera/record — chain/replay.ts: the ONE pure core shared by
+// the mandatory pre-seam chain-verify (kernel `finalize()`, SPEC §5) and the operator
+// `verifyChain()`/`replay()` audit wrappers (`operator-surface.ts`) —
 //   `replay(chain)` folds a `DecisionRecord` from genesis, and
 //   `verifyChain(chain)` recomputes every transition's digest linkage and reports the
 //   FIRST break, if any.
@@ -19,11 +18,11 @@ import type {
 } from '../types.js';
 import { genesisPrevHash, transitionDigest } from './encoding.js';
 
-// --- payload shapes (design §3, the "Payload shapes" paragraph) --------------------
+// --- payload shapes (SPEC §4's payload table) ---------------------------------------
 // These are NOT part of the public Transition/DecisionRecord contract (Transition.payload
 // is `unknown` by design — the chain is the persisted, opaque wire format); they are
-// this module's own understanding of what each slice-3-emitted TransitionKind's
-// payload carries, used only to fold replay(). Kept local rather than added to
+// this module's own understanding of what each TransitionKind this build emits
+// carries, used only to fold replay(). Kept local rather than added to
 // types.ts because they describe an internal reading convention, not a public type.
 
 interface OpenedPayload {
@@ -40,18 +39,15 @@ interface ConfirmedPayload {
 interface RefusedPayload {
   code: RefusalCode;
 }
-interface ExpiredPayload {
-  bound: string;
-}
 
 /**
- * `replay(chain)` (design §3 PURE CORE): folds a `DecisionRecord` by walking `chain`
+ * `replay(chain)`: folds a `DecisionRecord` by walking `chain`
  * in the order given (the caller — `Store.readChain()`, or a verified-intact chain —
  * is responsible for supplying it in seq order; `replay` does not itself validate
  * seq/prevHash linkage, that is `verifyChain`'s job, kept as a separate concern so
  * each function does exactly one thing).
  *
- * Folding rules (design §3 "Payload shapes" paragraph):
+ * Folding rules (SPEC §4's payload table):
  *  - `opened` (`{profileId, profileDigest, legId, subjectRef, contentDigest,
  *    policyDigest?}`) seeds `id` (from `transition.recordId`, NOT a payload field —
  *    the payload has no self-identifying id), `profileId`, `legId`, `subjectRef`,
@@ -59,26 +55,26 @@ interface ExpiredPayload {
  *    `state: 'open'`. MUST be the first transition — there is no other source for
  *    these required `DecisionRecord` fields.
  *  - `consultation-recorded` payload is itself a `Consultation` — pushed onto
- *    `consultations` in chain order (design §5 "chain-verify"/"facts" consultations
- *    accumulate this way).
+ *    `consultations` in chain order (SPEC §5's chain-verify / §3's facts
+ *    consultations accumulate this way).
  *  - `confirmed` (`{actor}`) sets `actor` and `state: 'confirmed'`.
  *  - `refused` (`{code}`) sets `state: 'refused'` and `refusalCode: code`.
  *  - `expired` (`{bound}`) sets `state: 'expired'` (`bound` is not itself part of
  *    `DecisionRecord` — it names which expiry clause fired, informational only).
- *  - `state` follows the LAST state-changing transition kind seen (design §3): e.g. an
- *    `open→confirmed→refused` chain — the C3 `confirmed→refused` compromise
- *    carve-out, design §5 — folds to `state:'refused'`, even though `actor` (set by
+ *  - `state` follows the LAST state-changing transition kind seen: e.g. an
+ *    `open→confirmed→refused` chain — the §12 (C3) `confirmed→refused` compromise
+ *    carve-out — folds to `state:'refused'`, even though `actor` (set by
  *    the earlier `confirmed`) is untouched by the later `refused` (only
  *    `state`/`refusalCode` are refusal-owned fields).
- *  - Any other `TransitionKind` (design §3: `sealed`, `finding-raised`,
+ *  - Any other `TransitionKind` (`sealed`, `finding-raised`,
  *    `acknowledged`, `redeeming`, `redeemed`, `redemption-failed`) is not yet emitted
- *    by the slice-3 KERNEL (design §3: "slice-3 KERNEL EMITS ONLY: opened,
- *    consultation-recorded, confirmed, refused, expired") — `replay` THROWS on one
- *    rather than silently ignoring it, matching the codebase's fail-closed posture
- *    (an unhandled kind reaching this fold is either a not-yet-wired future slice or
- *    chain corruption; both should be loud, not silently dropped state).
+ *    in this build — this kernel emits only opened, consultation-recorded, confirmed,
+ *    refused, and expired — `replay` THROWS on one rather than silently ignoring it,
+ *    matching the codebase's fail-closed posture (an unhandled kind reaching this fold
+ *    is either a not-yet-wired future capability or chain corruption; both should be
+ *    loud, not silently dropped state).
  *
- * Empty-chain choice (task-4 brief; not specified by the design): THROWS. Replaying a
+ * Empty-chain choice: THROWS. Replaying a
  * record that doesn't exist (no `opened` transition to seed the required fields) is a
  * caller error, not a valid zero-value `DecisionRecord` — there is no honest "empty"
  * state to return (e.g. `profileId`/`legId`/`subjectRef`/`contentDigest` are all
@@ -126,14 +122,14 @@ export function replay(chain: readonly Transition[]): DecisionRecord {
         break;
       }
       case 'expired': {
-        // The payload's `bound` (ExpiredPayload, design §3) names which expiry clause
-        // fired; it is not itself reflected in DecisionRecord — only `state` changes.
+        // `bound` (SPEC §4's `expired` payload) names which expiry clause fired;
+        // it is not itself reflected in DecisionRecord — only `state` changes.
         record.state = 'expired';
         break;
       }
       default: {
         throw new Error(
-          `replay: unhandled TransitionKind '${transition.kind}' (not emitted by the slice-3 KERNEL)`,
+          `replay: unhandled TransitionKind '${transition.kind}' (not emitted in this build)`,
         );
       }
     }
@@ -143,7 +139,7 @@ export function replay(chain: readonly Transition[]): DecisionRecord {
 }
 
 /**
- * `ChainVerifyReport` (design §3 PURE CORE: `{ intact; firstBreakSeq?; detail? }`).
+ * `ChainVerifyReport`: `{ intact; firstBreakSeq?; detail? }`.
  * Modeled as a discriminated union (this codebase's house style, matching
  * `Outcome<T>` in outcome.ts) rather than optional fields on one shape: on
  * `intact:true` there is genuinely nothing else to report; on `intact:false`,
@@ -154,16 +150,16 @@ export type ChainVerifyReport =
   | { intact: false; firstBreakSeq: number; detail: string };
 
 /**
- * `verifyChain(chain)` (design §3 PURE CORE / §5 "Chain integrity"): recomputes every
+ * `verifyChain(chain)` (SPEC §5 "Chain integrity"): recomputes every
  * transition's digest linkage —
  *  1. genesis: `chain[0].prevHash` must equal `genesisPrevHash(chain[0].recordId)`;
  *  2. every subsequent `chain[i].prevHash` must equal `transitionDigest(chain[i-1])`
  *     (recomputed under `chain[i-1]`'s own recorded algorithm, via `encoding.ts`);
  *  3. seq continuity: `chain[i].seq` must equal `i + 1` for every `i` (1-based, +1
- *     per transition — design §3/§5).
+ *     per transition).
  * Reports `{intact:true}` if every check passes, or `{intact:false, firstBreakSeq,
  * detail}` on the FIRST index (1-based) at which any check fails — later breaks in
- * the same chain are not reported (design: "report first break").
+ * the same chain are not reported.
  *
  * Honesty limit (documented, not a bug): a mutation to a transition's OWN prevHash
  * field, or to the LAST transition in the chain, is not distinguishable from that
@@ -173,12 +169,12 @@ export type ChainVerifyReport =
  * at transition N+1 (whose stored `prevHash` was computed by the honest chain-builder
  * from transition N's ORIGINAL payload and no longer matches the recomputed digest of
  * the tampered version) — `firstBreakSeq` in that case is `N+1`, not `N`. This is the
- * same AL1 honesty limit design §5's chain-compromise discussion documents for the
- * compromise-refusal edge; detached signing (AL2/slice-6) is the eventual upgrade.
+ * same AL1 honesty limit SPEC §5's chain-compromise discussion documents for the
+ * compromise-refusal edge; detached signing (SPEC §14) is the eventual upgrade.
  *
- * Empty-chain choice (task-4 brief only names `replay`'s; extended here for
- * consistency): THROWS, for the same reason — verifying the integrity of a chain that
- * does not exist is a caller error, not a vacuous `{intact:true}`.
+ * Empty-chain choice: THROWS, for the same reason as `replay`'s — verifying the
+ * integrity of a chain that does not exist is a caller error, not a vacuous
+ * `{intact:true}`.
  */
 export function verifyChain(chain: readonly Transition[]): ChainVerifyReport {
   if (chain.length === 0) {
