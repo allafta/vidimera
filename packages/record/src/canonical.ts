@@ -125,7 +125,14 @@ export function resolveCanonicalizer(
   registry: Record<string, Canonicalizer>,
   ref: string,
 ): Canonicalizer {
-  const c = registry[ref];
+  // `Object.hasOwn` is load-bearing, not a style choice: `registry[ref]` alone walks
+  // the prototype chain, so a ref naming an inherited Object.prototype member (e.g.
+  // "toString", "constructor", "valueOf", "hasOwnProperty") would resolve to that
+  // inherited function instead of throwing — silently handing back a canonicalizer
+  // that produces every content digest. The `=== undefined` check below is still
+  // required alongside it, only to satisfy noUncheckedIndexedAccess's typing of the
+  // indexed read; it is not on its own a sufficient fail-closed guard.
+  const c = Object.hasOwn(registry, ref) ? registry[ref] : undefined;
   if (c === undefined) {
     throw new Error(`resolveCanonicalizer: unresolved canonicalizerRef '${ref}'`);
   }

@@ -1,0 +1,135 @@
+// @vidimera/record — test/helpers/stores.ts: shared Store test-doubles, down-ported to
+// this build step's five-method Store contract (`putStaged`/`getStaged`/
+// `appendTransition`/`readChain`/`chainHead` — no `appendBatch`, `findNonTerminal` or
+// `listDue`; those are a later-phase Store surface). Three shapes fold the near-identical
+// inline classes that would otherwise be hand-copied across the test corpus:
+//   - `TamperingStore` — `readChain` returns a TAMPERED copy of one targeted record's
+//     chain (a `tamperFn` over the real chain); every write delegates to a real inner
+//     MemoryStore. Used here by chain-verify.test.ts and refusal-matrix.test.ts.
+//   - `CountingStore` — counts `putStaged`/`appendTransition` calls while delegating to
+//     an inner MemoryStore (its own by default, or a caller-supplied one). Used here by
+//     agent-unreachability.test.ts, content-binding.test.ts and unknown-ids.test.ts.
+//   - `RaceOnceStore` — the FIRST `appendTransition` call matching `match` fires a
+//     one-shot `run` hook BEFORE delegating; `run` may mutate `inner` directly (a racing
+//     writer wins the CAS) and return `undefined`, or return an `AppendResult` to
+//     SHORT-CIRCUIT the caller's append. No file in this corpus consumes it yet —
+//     exclusivity.test.ts's own race scenario is a hand-rolled, differently-shaped
+//     fixture (counts every genesis/expire attempt, not just the matched one) and stays
+//     local to that file, same as terminality.test.ts's ConfirmBlockingStore. This class
+//     is included so a later phase, when it rewrites that scenario, has it ready.
+//
+// This is a TEST-ONLY helper module (not `.test.ts`), same convention as
+// helpers/chain.ts and helpers/profiles.ts.
+
+import { MemoryStore } from '../../src/store/memory.js';
+import type { AppendResult, Store } from '../../src/store/store.js';
+import type { Digest, RecordState, StagedDraft, Transition } from '../../src/types.js';
+
+/**
+ * A Store wrapper whose `readChain` returns a TAMPERED copy of the target record's chain
+ * (so finalize's pre-seam verify — and the operator `verifyChain()` wrapper — see the
+ * tamper), while EVERY write delegates to a real inner MemoryStore (so any compromise
+ * `refused` edge lands under real CAS/C3 semantics). Callers hold `inner` directly to
+ * inspect the REAL (untampered) persisted chain.
+ */
+export class TamperingStore implements Store {
+  constructor(
+    public readonly inner: MemoryStore,
+    private readonly targetRecordId: string,
+    private readonly tamperFn: (chain: Transition[]) => Transition[],
+  ) {}
+  putStaged(s: StagedDraft): Promise<void> {
+    return this.inner.putStaged(s);
+  }
+  getStaged(r: string): Promise<StagedDraft | null> {
+    return this.inner.getStaged(r);
+  }
+  chainHead(r: string): Promise<Digest | null> {
+    return this.inner.chainHead(r);
+  }
+  appendTransition(e: RecordState | null, t: Transition, n: boolean): Promise<AppendResult> {
+    return this.inner.appendTransition(e, t, n);
+  }
+  async readChain(recordId: string): Promise<Transition[]> {
+    const chain = await this.inner.readChain(recordId);
+    return recordId === this.targetRecordId ? this.tamperFn(chain) : chain;
+  }
+}
+
+/**
+ * A Store decorator that counts `putStaged`/`appendTransition` invocations while
+ * delegating everything to an inner MemoryStore (a fresh one unless the caller supplies
+ * its own — needed when the test must reach the SAME backing store by another route).
+ */
+export class CountingStore implements Store {
+  putStagedCalls = 0;
+  appendCalls = 0;
+  private readonly inner: MemoryStore;
+
+  constructor(inner: MemoryStore = new MemoryStore()) {
+    this.inner = inner;
+  }
+
+  putStaged(staged: StagedDraft): Promise<void> {
+    this.putStagedCalls += 1;
+    return this.inner.putStaged(staged);
+  }
+  getStaged(stagedRef: string): Promise<StagedDraft | null> {
+    return this.inner.getStaged(stagedRef);
+  }
+  appendTransition(
+    expectedCurrentState: RecordState | null,
+    transition: Transition,
+    nonTerminal: boolean,
+  ): Promise<AppendResult> {
+    this.appendCalls += 1;
+    return this.inner.appendTransition(expectedCurrentState, transition, nonTerminal);
+  }
+  readChain(recordId: string): Promise<Transition[]> {
+    return this.inner.readChain(recordId);
+  }
+  chainHead(recordId: string): Promise<Digest | null> {
+    return this.inner.chainHead(recordId);
+  }
+}
+
+/**
+ * A Store wrapper whose FIRST `appendTransition` matching `match` fires a one-shot `run`
+ * hook BEFORE delegating. `run` may mutate `inner` (a racing writer wins the CAS) and
+ * return `undefined` — the caller's append then delegates and now conflicts against the
+ * moved state — OR return an `AppendResult` to SHORT-CIRCUIT the caller's append (a
+ * synthetic residual conflict with the record left byte-for-byte untouched). Every other
+ * method delegates straight through; the hook never re-fires, so a plain re-invoke after
+ * a refusal behaves like an unwrapped store.
+ */
+export class RaceOnceStore implements Store {
+  private fired = false;
+  constructor(
+    public readonly inner: MemoryStore,
+    private readonly match: (expected: RecordState | null, t: Transition) => boolean,
+    private readonly run: (
+      inner: MemoryStore,
+      recordId: string,
+    ) => Promise<AppendResult | undefined>,
+  ) {}
+  putStaged(s: StagedDraft): Promise<void> {
+    return this.inner.putStaged(s);
+  }
+  getStaged(r: string): Promise<StagedDraft | null> {
+    return this.inner.getStaged(r);
+  }
+  chainHead(r: string): Promise<Digest | null> {
+    return this.inner.chainHead(r);
+  }
+  async appendTransition(e: RecordState | null, t: Transition, n: boolean): Promise<AppendResult> {
+    if (!this.fired && this.match(e, t)) {
+      this.fired = true;
+      const short = await this.run(this.inner, t.recordId);
+      if (short !== undefined) return short;
+    }
+    return this.inner.appendTransition(e, t, n);
+  }
+  readChain(recordId: string): Promise<Transition[]> {
+    return this.inner.readChain(recordId);
+  }
+}
