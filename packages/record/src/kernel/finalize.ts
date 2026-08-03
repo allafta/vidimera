@@ -5,7 +5,8 @@
 // and every refusal path wins over the ones after it:
 //
 //   load chain → (1) pre-seam chain-verify → (2) state/expiry gate → (3) identity (both
-//   branches) → (4) content-drift → (5) facts → (6) success append batch.
+//   branches) → (4) content-drift → (5) facts → (5.7) ack coverage [reserved] → (6) success
+//   append batch.
 //
 // (1) Chain-verify is FIRST after load. A DETECTED BREAK → refuse `chain-compromise` (class
 //     compromise, TERMINAL) and append ONE `refused` edge at head via NORMAL C2 (seq=max+1,
@@ -23,6 +24,8 @@
 // (4) Content-drift — re-canonicalize the `content` arg through the profile's adopter
 //     canonicalizer + library JCS; mismatch vs the bound `contentDigest` → `content-drift`.
 // (5) Facts — missing/malformed `facts` (no figures / no checker) → `consultation-missing`.
+// (5.7) Ack coverage — RESERVED. No producer at this build step; arrives with findings and
+//       acknowledgments (SPEC §10.2).
 // (6) Success batch — best-effort SEQUENTIAL appends [chain-verify consultation, facts
 //     consultation, confirmed] under the single-writer / no-concurrent-finalize-per-record
 //     slice-3 bound (NOT a cross-append atomic batch — OQ2-9 is slice 4). A residual
