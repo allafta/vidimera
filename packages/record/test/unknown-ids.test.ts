@@ -106,6 +106,43 @@ test('open() on a staged draft naming an unconfigured profileId -> refused unkno
   );
 });
 
+// === open(): unknown legId — the SECOND unknown-leg producer (SPEC §8) ================
+//
+// A staged draft's legId can go stale between stage() and open() — e.g. two create()
+// instances sharing one Store with different leg ids configured for the same profile id
+// (a profile redeploy while a stagedRef from the old configuration is still
+// outstanding). open() must re-validate staged.legId against the profile it resolves
+// under, the same way stage() validates a caller-named legId (kernel/stage.ts).
+
+test("open() on a staged draft whose legId is absent from the profile it resolves under -> refused unknown-leg, fail-closed, no append (SPEC §8's SECOND unknown-leg producer)", async () => {
+  const store = new CountingStore();
+
+  // Stage under a profile whose one leg is 'approver-decide'.
+  const { agent } = create(makeConfig([captureProfile({ legId: 'approver-decide' })], { store }));
+  const staged = await agent.stage(CONTENT, 'test.capture.v1', DEFAULT_SUBJECT_REF);
+  assert.equal(staged.status, 'ok');
+  if (staged.status !== 'ok') return;
+
+  const appendsBefore = store.appendCalls;
+
+  // A second create() instance over the SAME store resolves the SAME profile id, but its
+  // one leg has been renamed since — modeling a profile redeploy while the staged draft
+  // above is still outstanding.
+  const { operator } = create(makeConfig([captureProfile({ legId: 'renamed-leg' })], { store }));
+  const outcome = await operator.open(staged.value.stagedRef);
+
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'unknown-leg');
+  assert.equal(outcome.class, 'refusal');
+  assert.equal(outcome.transitionRef, undefined, 'unknown-leg never carries a transitionRef');
+  assert.equal(
+    store.appendCalls,
+    appendsBefore,
+    'open() appends nothing when the staged legId is unknown to the resolved profile',
+  );
+});
+
 // === open(): unknown/missing stagedRef -> THROWS (caller error — SPEC §8 "Caller ===
 // === errors are not refusals") =========================================================
 //

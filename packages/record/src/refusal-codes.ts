@@ -20,8 +20,9 @@ export type RefusalCode =
 //   conflict:'state-mismatch' on the finalize confirmed-append CAS.
 // unknown-leg: class 'refusal'. SPEC §8 names two producers — a caller-named leg absent
 //   from the profile at `stage()`, and a staged draft's leg absent from the profile it
-//   resolves under at `open()`. Only the first is built in this build (`stage()`'s
-//   caller-named-legId check, kernel/stage.ts); the second is not yet wired.
+//   resolves under at `open()`. BOTH are built in this build (`stage()`'s
+//   caller-named-legId check, kernel/stage.ts; `open()`'s staged-legId re-check,
+//   kernel/open.ts).
 
 export type RefusalClass = 'refusal' | 'compromise';
 

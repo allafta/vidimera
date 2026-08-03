@@ -85,6 +85,18 @@ export async function open(
   }
   const { profile, effectSeam } = resolved;
 
+  // The staged draft's legId must still name a leg of the profile it resolves under here
+  // (SPEC §8's SECOND `unknown-leg` producer — the FIRST is `stage()`'s own caller-named-
+  // legId check, kernel/stage.ts). A profile can be reconfigured between stage() and
+  // open() (e.g. two create() instances sharing one Store under different leg ids for the
+  // same profile id) — without this re-check a stale legId would mint a record that can
+  // never resolve a leg at finalize() time. Fail-closed, pre-record: no draft is consumed
+  // into a record, no append, no transitionRef (`unknown-leg` never appends).
+  const legIndex = profile.legs.findIndex((leg) => leg.id === staged.legId);
+  if (legIndex === -1) {
+    return refused('unknown-leg');
+  }
+
   // Build the genesis `opened` transition (SPEC §4's payload shapes / opened snapshot).
   const recordId = mintId();
   const openedPayload: {
@@ -111,7 +123,11 @@ export async function open(
     prevHash: genesisPrevHash(recordId),
   };
   // state 'open' -> always non-terminal (computed via the helper for honesty).
-  const openedNonTerminal = nonTerminal('open', isFinalLeg(0, profile.legs.length), effectSeam);
+  const openedNonTerminal = nonTerminal(
+    'open',
+    isFinalLeg(legIndex, profile.legs.length),
+    effectSeam,
+  );
 
   const first = await store.appendTransition(null, openedTransition, openedNonTerminal);
   if (first.appended) {
