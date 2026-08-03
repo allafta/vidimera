@@ -1,10 +1,10 @@
-// @vidimera/record — store/memory.ts (design §2 "store/memory.ts" / §4 "Provisional
-// Store" IN FULL): the slice-3 in-memory (Map-backed) `Store` implementation. Zero
-// native dep, day-one CI-able (design §4 "Slice-3 backing = in-memory only"). Hand-
+// @vidimera/record — store/memory.ts: the in-memory (Map-backed) `Store` implementation
+// (DECISIONS.md #24: "reference semantics, never durable evidence"). Zero
+// native dep, day-one CI-able. Hand-
 // implements C1 exclusivity / C2 sequencing / C3 monotonicity to match SQLite/Postgres
-// semantics EXACTLY so the slice-4 real adapters port this behavior 1:1 — a bare
-// `WHERE state=...` predicate is explicitly called out by the design as wrong (design
-// §4 C1), so every constraint here is checked atomically INSIDE `appendTransition`,
+// semantics EXACTLY so a future real adapter can port this behavior 1:1 — a bare
+// `WHERE state=...` predicate is explicitly called out by SPEC §12 as wrong (its C1),
+// so every constraint here is checked atomically INSIDE `appendTransition`,
 // never as a separate advisory pre-check a concurrent caller could race past.
 //
 // Transactional-shape note (self-review requirement): although this Map is accessed
@@ -22,8 +22,8 @@ import type { AppendResult, StagedDraft, Store } from './store.js';
 
 /**
  * The `opened` transition's payload, read only for the two fields C1 exclusivity
- * needs (design task-5 brief: "profileId/subjectRef for a record come from its opened
- * transition's payload"). Mirrors `chain/replay.ts`'s own local `OpenedPayload`
+ * needs — `profileId`/`subjectRef` for a record come from its opened
+ * transition's payload. Mirrors `chain/replay.ts`'s own local `OpenedPayload`
  * convention: `Transition.payload` is `unknown` by design (the chain is the persisted,
  * opaque wire format), so each module that needs to read specific fields off a
  * transition's payload declares its own minimal local reading-convention interface
@@ -45,8 +45,8 @@ interface RefusedPayload {
  * serves. `nonTerminal` and `state` are both maintained INCREMENTALLY as transitions
  * are appended (never recomputed by re-folding the whole chain) — `state` from the
  * TransitionKind→RecordState mapping below (`stateOf`), `nonTerminal` from whatever
- * boolean the library passed to THIS append (design §4: "library-derived nonTerminal"
- * — the Store persists it verbatim, never recomputes the formula itself).
+ * boolean the library passed to THIS append (SPEC §12: "the library derives them, the
+ * store never recomputes them" — persisted verbatim).
  */
 interface StoredRecord {
   id: string;
@@ -59,9 +59,9 @@ interface StoredRecord {
 
 /**
  * The `RecordState` a given `TransitionKind` transitions a record TO, or `null` if the
- * kind is state-PRESERVING (design task-5 brief: "the transition kind drives state:
+ * kind is state-PRESERVING: the transition kind drives state —
  * opened->open, confirmed->confirmed, refused->refused, expired->expired;
- * consultation-recorded/sealed are state-preserving"). Written as an exhaustive
+ * consultation-recorded/sealed are state-preserving. Written as an exhaustive
  * `switch` over the full `TransitionKind` union (no `default` arm) so a future kind
  * added to `types.ts` fails this file to COMPILE rather than silently falling through
  * to some guessed behavior — the same fail-loud posture `chain/replay.ts`'s `replay()`
@@ -72,11 +72,11 @@ interface StoredRecord {
  * consulted in practice (a non-genesis `opened` transition is not a real scenario),
  * but is still given a real mapping (`'open'`) rather than `null`, for the same
  * completeness-over-narrowing reason `nonterminal.ts` writes its formula's full three
- * disjuncts rather than only the slice-3-reachable ones.
+ * disjuncts rather than only the disjuncts this build can reach.
  *
- * `finding-raised`/`acknowledged` (slice-5+ GOVERNED annotations, not emitted by the
- * slice-3 kernel) are read as state-preserving on the same reasoning as `sealed` —
- * they record a fact ABOUT a record without themselves deciding it.
+ * `finding-raised`/`acknowledged` (GOVERNED annotations SPEC §10.2 defines, not emitted
+ * by this build's kernel) are read as state-preserving on the same reasoning as
+ * `sealed` — they record a fact ABOUT a record without themselves deciding it.
  */
 function stateOf(kind: TransitionKind): RecordState | null {
   switch (kind) {
@@ -105,24 +105,24 @@ function stateOf(kind: TransitionKind): RecordState | null {
   }
 }
 
-/** A kind is "state-leaving" (design §4 C3) iff it maps to a new `RecordState`. */
+/** A kind is "state-leaving" (SPEC §12's C3) iff it maps to a new `RecordState`. */
 function isStateLeaving(kind: TransitionKind): boolean {
   return stateOf(kind) !== null;
 }
 
 /**
- * C3's second carve-out (design §4/task-5 brief): "a compromise-classed refusal edge
+ * C3's second carve-out (SPEC §12's C3): "a compromise-classed refusal edge
  * (`confirmed->refused`, `redeeming->refused`) — i.e. a `kind:'refused'` append whose
  * `expectedCurrentState` is `'confirmed'` or `'redeeming'` is allowed through C3 (it
  * still must pass the state CAS)." Deliberately keyed off the code's CLASS (via the
  * `refusal-codes.ts` `CORE` registry), not the literal string `'chain-compromise'` —
- * "compromise-classed" is the design's own framing, and `CORE` is already the single
+ * "compromise-classed" is the SPEC's own framing, and `CORE` is already the single
  * source of truth for which codes are compromise-classed.
  *
  * The FIRST carve-out (a state-preserving `sealed` append) needs no corresponding
  * check here: `sealed` maps to `null` in `stateOf`, so `isStateLeaving('sealed')` is
  * already `false` and the C3 gate below never even reaches this predicate for it. That
- * is `sealed`'s carve-out "implemented honestly" (task-5 brief) — the true reason a
+ * is `sealed`'s carve-out implemented honestly — the true reason a
  * `sealed` append is never blocked is that it never leaves the state in the first
  * place, not a hardcoded `kind === 'sealed'` bypass that would say otherwise.
  */
@@ -134,13 +134,14 @@ function isCompromiseCarveOut(transition: Transition, expectedCurrentState: Reco
 }
 
 /**
- * The provisional in-memory `Store` (design §4 slice-3 backing). Re-exported from the
- * library's public index (Task 10 review, adjudicated) as the seam adopters should wire
+ * The provisional in-memory `Store` (DECISIONS.md #24: "reference semantics, never
+ * durable evidence"). Re-exported from the
+ * library's public index as the seam adopters should wire
  * rather than hand-rolling a byte-identical copy.
  *
  * PUBLIC BUT EXPLICITLY UNSTABLE PRE-1.0 — same marking as the `Store` interface it
  * implements (`store/store.ts`): this class is provisional scaffolding standing in for
- * the slice-4 real SQLite/Postgres adapters, not a frozen contract. Chain/encoding
+ * a future real SQLite/Postgres adapter, not a frozen contract. Chain/encoding
  * internals (`chain/encoding.ts`'s `transitionDigest`, etc.) remain unexported; only
  * this class is the seam.
  */
@@ -181,7 +182,7 @@ export class MemoryStore implements Store {
   }
 
   /**
-   * Genesis append (design §4: "null for genesis; the CAS target state"). Check order
+   * Genesis append (SPEC §12: "null" is the genesis CAS target). Check order
    * (all inside this one synchronous call, no `await`):
    *  1. state CAS — the record must NOT already exist.
    *  2. C1 exclusivity — no OTHER record sharing (profileId, subjectRef) may currently
@@ -195,9 +196,9 @@ export class MemoryStore implements Store {
     existing: StoredRecord | undefined,
   ): AppendResult {
     if (existing) {
-      // expectedCurrentState:null requires the record not to exist yet (design §4
-      // "State CAS: ... Genesis: expectedCurrentState null requires the record NOT to
-      // exist yet"). Modeled as 'state-mismatch' — the same arm a non-genesis CAS
+      // expectedCurrentState:null requires the record not to exist yet (SPEC §12: "a
+      // genesis append targets a record that MUST NOT yet exist"). Modeled as
+      // 'state-mismatch' — the same arm a non-genesis CAS
       // failure uses — since this genuinely IS a CAS failure (claimed target state
       // "does not exist" vs. actual "exists"), not a distinct fourth conflict shape.
       return { appended: false, conflict: 'state-mismatch' };
@@ -205,9 +206,8 @@ export class MemoryStore implements Store {
 
     const payload = transition.payload as GenesisPayload;
 
-    // C1 exclusivity (design §4: "Fires on a GENESIS append (new record) when another
-    // record for the same (profileId, subjectRef) is currently flagged nonTerminal ->
-    // conflict:'exclusivity' + that blocker's recordId"). A partial-UNIQUE-index scan,
+    // C1 exclusivity (SPEC §12's C1: a partial `UNIQUE(profileId, subjectRef)` over the
+    // persisted non-terminal flag). A partial-UNIQUE-index scan,
     // hand-simulated as a linear scan over every currently-tracked record — correct
     // for the provisional in-memory backing; a real adapter enforces the same
     // predicate via an actual partial unique index.
@@ -262,8 +262,8 @@ export class MemoryStore implements Store {
     }
 
     if (!existing.nonTerminal) {
-      // The record is TERMINAL. Design §4 C3: "no state-leaving append after a
-      // terminal state ... EXCEPT the two carve-outs."
+      // The record is TERMINAL. SPEC §12's C3: "no state-leaving append after a
+      // terminal state ... except the two carved exceptions."
       if (
         isStateLeaving(transition.kind) &&
         !isCompromiseCarveOut(transition, expectedCurrentState)
