@@ -1,13 +1,13 @@
-// @vidimera/record — construction-validation.test.ts (design §5 "Construction guards
-// (fail-closed)" / §6 / §9 "Fail-closed construction guards"): `create()` is fail-CLOSED
+// @vidimera/record — construction-validation.test.ts (SPEC §9.1 "Construction is loud"):
+// `create()` is fail-CLOSED
 // at construction. Every not-yet-enforceable GOVERNED declaration THROWS a message whose
 // HEAD is byte-preserved —
 //   "GOVERNED feature not available in this build (<field>)"
 // — with per-guard prose (what is unavailable, which SPEC section lifts it) appended after
 // it (guards lift feature-by-feature as later build steps add enforcement). Structural
-// rejections throw a DIFFERENT (non-GOVERNED) error: zero legs (exactly one required — O2),
-// a stray redemption key placed outside a `redeem` block (O3), `reverify` on a non-live
-// profile (O3), an unresolved `canonicalizerRef`, and a duplicate profile id. The final
+// rejections throw a DIFFERENT (non-GOVERNED) error: zero legs (exactly one required),
+// a stray redemption key placed outside a `redeem` block, `reverify` on a non-live
+// profile, an unresolved `canonicalizerRef`, and a duplicate profile id. The final
 // section below covers `open()`'s `supersedes` options guard — not construction-time, but
 // the same GOVERNED shape and the same `governedUnavailable` helper.
 
@@ -101,9 +101,9 @@ test('GOVERNED: a leg declaring sod throws (sod)', () => {
   assertGoverned({ ...p, legs: [{ ...leg, sod: { notActorOf: ['proposer'] } }] }, 'sod');
 });
 
-test('GOVERNED: a SINGLE-LEG profile declaring proposer throws (proposer) — the S-1 case', () => {
+test('GOVERNED: a SINGLE-LEG profile declaring proposer throws (proposer)', () => {
   // proposer is a per-leg SoD control that legs.length>1 would silently miss on a single
-  // leg, so it gets its own throw (design §9 S-1). The profile is otherwise valid single-leg.
+  // leg, so it gets its own throw. The profile is otherwise valid single-leg.
   const p = captureProfile();
   const leg = p.legs[0];
   if (leg === undefined)
@@ -167,7 +167,7 @@ test('GOVERNED: a leg declaring eligibility throws (eligibility)', () => {
 });
 
 test('GOVERNED: a profile declaring policySource throws (policySource)', () => {
-  assertGoverned({ ...captureProfile(), policySource: 'opa://tide/week' }, 'policySource');
+  assertGoverned({ ...captureProfile(), policySource: 'opa://x' }, 'policySource');
 });
 
 // === the guard sweep is TOTAL ========================================================
@@ -201,7 +201,7 @@ test('structural: a stray redemption key on a LEG (outside a redeem block) is re
   assertStructural(strayed, /redemption key .*redeemBound/i);
 });
 
-test('structural: reverify:true on a non-live (staged) profile is refused (deferred; no live profiles at slice 3)', () => {
+test('structural: reverify:true on a non-live (staged) profile is refused (live capture is not implemented in this build)', () => {
   const p = effectSeamProfile();
   const withReverify: ConfirmProfile = { ...p, redeem: { ...p.redeem, reverify: true } };
   assertStructural(withReverify, /reverify/i);
