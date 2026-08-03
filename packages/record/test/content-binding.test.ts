@@ -1,13 +1,12 @@
-// @vidimera/record — content-binding.test.ts, HELPERS PORTION (design §5 "Content
-// binding": `contentDigest = digest(canonicalize(adopterCanonicalizer(content)))`;
-// task-3 brief Step 2). This task (Task 3) covers only the helper-level assertions —
-// `canonicalize`/`digest` composed together are order-insensitive on object keys but
-// value-sensitive, and a host-side recompute over an independently-constructed but
-// content-equal structure reproduces the identical bound digest. The stage()-level
-// portions (binding at `stage()`, re-checking at `finalize()`, `content-drift`
-// detection, the adopter-canonicalizer seam) arrive in Task 7 — this file is
-// structured so Task 7 appends new `test(...)` blocks below rather than restructuring
-// what's here (see the "Task 7 extends below" marker at the bottom).
+// @vidimera/record — content-binding.test.ts. Two portions: the HELPERS portion (below)
+// covers the bare `canonicalize`/`digest`/`deriveStagedRef` composition — content
+// binding is `contentDigest = digest(canonicalize(adopterCanonicalizer(content)))`
+// (SPEC §3); `canonicalize`/`digest` composed together are order-insensitive on object
+// keys but value-sensitive, and a host-side recompute over an independently-constructed
+// but content-equal structure reproduces the identical bound digest. The stage()-level
+// portion (binding at `stage()`, re-checking at `finalize()`, `content-drift`
+// detection, the adopter-canonicalizer seam) is appended below the "stage()-level
+// content-binding assertions" marker.
 
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
@@ -18,8 +17,9 @@ import { deriveStagedRef } from '../src/id.js';
 import { captureProfile, DEFAULT_SUBJECT_REF, makeConfig } from './helpers/profiles.js';
 import { CountingStore } from './helpers/stores.js';
 
-/** Small helper mirroring the design §5 content-binding formula sans an adopter hook
- * (Task 3 has no adopter canonicalizer yet — that's Task 7's `stage()`). */
+/** Small helper mirroring the SPEC §3 content-binding formula sans an adopter hook —
+ * used for the bare canonicalize()/digest() assertions above; the stage()-level tests
+ * below exercise the full path including the adopter canonicalizer. */
 function boundDigest(content: unknown): string {
   return digest(canonicalize(content));
 }
@@ -61,7 +61,7 @@ test('value-sensitive: an added or removed key changes the bound digest', () => 
 // --- host recompute equals the bound digest --------------------------------------
 
 test('a host recompute over an independently-reconstructed but content-equal structure equals the originally bound digest', () => {
-  // Simulates the finalize()-time re-check (Task 8): the "host" builds its own copy
+  // Simulates the finalize()-time re-check: the "host" builds its own copy
   // of the content from scratch (different key-insertion order, as a real deserialize
   // from a different transport encoding would produce) and recomputes the digest
   // independently; it must land on the SAME digest bound at stage() time.
@@ -100,20 +100,18 @@ test('a host recompute over a content-DIFFERENT structure does NOT equal the ori
   );
 });
 
-// --- deriveStagedRef(): idempotent + collision-resistant (id.ts, consumed by stage() in Task 7) --
+// --- deriveStagedRef(): idempotent + collision-resistant (id.ts, consumed by stage()) --
 //
-// deriveStagedRef gains a REQUIRED 4th `legId` parameter (design §9 "deriveStagedRef
-// folds the leg id"): every call site below now supplies one. This is a signature
-// change, not a value-pinning flip — none of these tests ever asserted a LITERAL digest
-// value (only idempotence/collision-resistance across recomputations), so the leg-fold
-// changes single-leg stagedRef VALUES without invalidating any assertion here.
+// deriveStagedRef() takes a REQUIRED 4th `legId` parameter (id.ts): every call site
+// below supplies one. None of these tests ever assert a LITERAL digest
+// value (only idempotence/collision-resistance across recomputations).
 
 const LEG_ID = 'approver-decide'; // the default single-leg id (matches captureProfile()'s default)
 
 test('deriveStagedRef() is idempotent: same contentDigest+profileId+subjectRef+legId -> same stagedRef', () => {
   const contentDigest = boundDigest({ subject: 'week-1', total: 40 });
-  const a = deriveStagedRef(contentDigest, 'tide.week.v1', 'consultant:42', LEG_ID);
-  const b = deriveStagedRef(contentDigest, 'tide.week.v1', 'consultant:42', LEG_ID);
+  const a = deriveStagedRef(contentDigest, 'test.week.v1', 'consultant:42', LEG_ID);
+  const b = deriveStagedRef(contentDigest, 'test.week.v1', 'consultant:42', LEG_ID);
   assert.equal(a, b);
 });
 
@@ -121,14 +119,14 @@ test('deriveStagedRef() is idempotent across the SAME content presented with dif
   const contentDigestA = boundDigest({ subject: 'week-1', total: 40 });
   const contentDigestB = boundDigest({ total: 40, subject: 'week-1' });
   assert.equal(
-    deriveStagedRef(contentDigestA, 'tide.week.v1', 'consultant:42', LEG_ID),
-    deriveStagedRef(contentDigestB, 'tide.week.v1', 'consultant:42', LEG_ID),
+    deriveStagedRef(contentDigestA, 'test.week.v1', 'consultant:42', LEG_ID),
+    deriveStagedRef(contentDigestB, 'test.week.v1', 'consultant:42', LEG_ID),
   );
 });
 
 test('deriveStagedRef() emits a Digest-shaped value ("sha256:<64-lowercase-hex>")', () => {
   const contentDigest = boundDigest({ subject: 'week-1' });
-  const ref = deriveStagedRef(contentDigest, 'tide.week.v1', 'consultant:42', LEG_ID);
+  const ref = deriveStagedRef(contentDigest, 'test.week.v1', 'consultant:42', LEG_ID);
   assert.match(ref, /^sha256:[0-9a-f]{64}$/);
 });
 
@@ -136,24 +134,24 @@ test('deriveStagedRef() is collision-resistant across a different contentDigest'
   const digestA = boundDigest({ subject: 'week-1', total: 40 });
   const digestB = boundDigest({ subject: 'week-1', total: 41 });
   assert.notEqual(
-    deriveStagedRef(digestA, 'tide.week.v1', 'consultant:42', LEG_ID),
-    deriveStagedRef(digestB, 'tide.week.v1', 'consultant:42', LEG_ID),
+    deriveStagedRef(digestA, 'test.week.v1', 'consultant:42', LEG_ID),
+    deriveStagedRef(digestB, 'test.week.v1', 'consultant:42', LEG_ID),
   );
 });
 
 test('deriveStagedRef() is collision-resistant across a different profileId (same content+subject+leg)', () => {
   const contentDigest = boundDigest({ subject: 'week-1', total: 40 });
   assert.notEqual(
-    deriveStagedRef(contentDigest, 'tide.week.v1', 'consultant:42', LEG_ID),
-    deriveStagedRef(contentDigest, 'tide.week.v2', 'consultant:42', LEG_ID),
+    deriveStagedRef(contentDigest, 'test.week.v1', 'consultant:42', LEG_ID),
+    deriveStagedRef(contentDigest, 'test.week.v2', 'consultant:42', LEG_ID),
   );
 });
 
 test('deriveStagedRef() is collision-resistant across a different subjectRef (same content+profile+leg)', () => {
   const contentDigest = boundDigest({ subject: 'week-1', total: 40 });
   assert.notEqual(
-    deriveStagedRef(contentDigest, 'tide.week.v1', 'consultant:42', LEG_ID),
-    deriveStagedRef(contentDigest, 'tide.week.v1', 'consultant:99', LEG_ID),
+    deriveStagedRef(contentDigest, 'test.week.v1', 'consultant:42', LEG_ID),
+    deriveStagedRef(contentDigest, 'test.week.v1', 'consultant:99', LEG_ID),
   );
 });
 
@@ -165,7 +163,7 @@ test('deriveStagedRef() is collision-resistant across a different legId (same co
   );
 });
 
-// --- Task 7 extends below: stage()-level content-binding assertions --------------
+// --- stage()-level content-binding assertions --------------------------------------
 // (binding at stage() via the adopter canonicalizer, re-check at finalize(),
 // content-drift detection through the KERNEL, not just the bare helpers above).
 
