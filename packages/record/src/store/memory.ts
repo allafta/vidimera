@@ -111,13 +111,22 @@ function isStateLeaving(kind: TransitionKind): boolean {
 }
 
 /**
- * C3's second carve-out (SPEC §12's C3): "a compromise-classed refusal edge
- * (`confirmed->refused`, `redeeming->refused`) — i.e. a `kind:'refused'` append whose
- * `expectedCurrentState` is `'confirmed'` or `'redeeming'` is allowed through C3 (it
- * still must pass the state CAS)." Deliberately keyed off the code's CLASS (via the
- * `refusal-codes.ts` `CORE` registry), not the literal string `'chain-compromise'` —
- * "compromise-classed" is the SPEC's own framing, and `CORE` is already the single
- * source of truth for which codes are compromise-classed.
+ * C3's second carve-out (SPEC §12's C3): "a `compromise`-classed refusal edge against a
+ * terminal `confirmed` (decided) record — never against terminal `expired` or `refused`".
+ * Implemented here as: a `kind:'refused'` append whose `expectedCurrentState` is
+ * `'confirmed'` is allowed past the C3 gate below (it still must pass the state CAS).
+ * Deliberately keyed off the code's CLASS (via the `refusal-codes.ts` `CORE` registry),
+ * not the literal string `'chain-compromise'` — "compromise-classed" is the SPEC's own
+ * framing, and `CORE` is already the single source of truth for which codes are
+ * compromise-classed.
+ *
+ * The predicate ALSO accepts `expectedCurrentState === 'redeeming'`, which §12's C3 does
+ * not name: that arm is defence in depth, not a C3 grant. §12's C1 counts any `redeeming`
+ * as non-terminal, so a `redeeming` record never reaches the terminal branch that consults
+ * this predicate at all, and SPEC §5 admits `redeeming → refused` directly — "both are
+ * non-terminal states" — rather than through the carve-out. Keeping the arm costs nothing
+ * and would still be correct if a later build step made that state reachable; claiming C3
+ * grants it would not be.
  *
  * The FIRST carve-out (a state-preserving `sealed` append) needs no corresponding
  * check here: `sealed` maps to `null` in `stateOf`, so `isStateLeaving('sealed')` is

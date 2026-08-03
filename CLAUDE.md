@@ -106,7 +106,11 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   Neither throw nor a refusal releases the `(profile, subject)` pair such a record
   holds — the hold lives in the Store's C1 exclusivity, not in what `redeem()` returns or
   throws — so the throw is loud, not silent; real closure needs a later build step's
-  `seal()` or a `confirmToRedeem` expiry edge. Recorded in the deferral register (an
-  earlier framing of this remedy was itself wrong and has been corrected there).
+  redemption edge (SPEC §11.2) or a `confirmToRedeem` expiry edge (SPEC §9.1). `seal()`
+  is **not** a release path: SPEC §12 admits it only against a derived-terminal record,
+  and a final-leg `confirmed` on an effect-seam profile is non-terminal (SPEC §2).
+  Recorded in the deferral register (an earlier framing of this remedy was itself wrong
+  and has been corrected there; the `seal()`-as-release half was a second error, found by
+  the citation audit and corrected in the same place).
 - Byte-stability pins and adjacent-pair gate-order tests, from the kernel increment on.
 - The living deferral register: `docs/process/deferral-register.md`.

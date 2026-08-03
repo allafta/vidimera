@@ -1,9 +1,11 @@
 // @vidimera/record — kernel/expiry.ts: the en-passant expiry helper (SPEC §4
-// "Clock-driven edges are appended en passant"): "A due `expired` is appended
-// lazily at the next operator-side mutating seam via the Store CAS BEFORE that seam's
-// verdict; no public `expire()`." This build covers ONLY `open → expired`
-// (`confirmed → expired` / `confirmToRedeem` is SPEC §9.1's effect-seam edge, not built
-// in this build).
+// "Clock-driven edges are appended en passant"): the library ships "no scheduler and no
+// public `expire()`", and a due `expired` is "appended lazily at the next operator-side
+// mutating seam that observes the bound has passed". This helper does that append via the
+// Store's compare-and-swap (SPEC §12), ahead of the calling seam's own verdict — finalize's
+// gate ladder puts the state/expiry rung (2) ahead of every later rung (SPEC §9). This build
+// covers ONLY `open → expired` (`confirmed → expired` / `confirmToRedeem` is SPEC §9.1's
+// effect-seam edge, not built in this build).
 //
 // Two seams share this helper:
 //  - `open()`: on a `conflict:'exclusivity'` against a still-OPEN but LAPSED

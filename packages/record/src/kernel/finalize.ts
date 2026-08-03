@@ -120,7 +120,8 @@ export async function finalize(
     return refused('leg-expired');
   }
   if (record.state !== 'open') {
-    // A DECIDED record (confirmed / refused) — `record-not-open` (M-B): no append, no
+    // A DECIDED record (confirmed / refused) — `record-not-open` (SPEC §8's never-appends
+    // set): no append, no
     // transitionRef. Covers double-finalize on a capture-terminal confirmed record, finalize
     // on an effect-seam confirmed record awaiting redemption, and finalize on a refused record.
     return refused('record-not-open');
@@ -177,7 +178,8 @@ export async function finalize(
     payloadDigest: headDigest,
     verdict: 'pass',
   };
-  // Facts figures go through LIBRARY JCS ONLY (never the adopter content-canonicalizer, O1)
+  // Facts figures go through LIBRARY JCS ONLY (never the adopter content-canonicalizer —
+  // SPEC §3)
   // — figures are the reviewed-surface rendering artifact, not the bound content. The canonical
   // bytes were already computed (and proven canonicalizable) by isValidFacts at gate (5); reuse
   // them directly — the SAME `canonicalize(facts.figures)` result, digested once.
@@ -306,7 +308,8 @@ async function appendChainCompromise(
   }
   // No candidate CAS target admitted the edge (not reachable for the tested tampers, which
   // always replay to `open`/`confirmed`). Last-resort: refuse without a transitionRef rather
-  // than throw — the compromise is still surfaced. Documented fallback (design/brief).
+  // than throw — the compromise is still surfaced: SPEC §5 admits no edge against an already-
+  // terminal record and surfaces the compromise result-first with no transition reference.
   return refused('chain-compromise');
 }
 

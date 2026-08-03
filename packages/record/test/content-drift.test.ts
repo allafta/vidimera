@@ -54,7 +54,7 @@ test('finalize() with the SAME content presented in a different key order does N
   assert.equal(outcome.value.state, 'confirmed');
 });
 
-test('a leg with terminalRefusals:[content-drift] appends open→refused with a transitionRef (O11 terminal branch)', async () => {
+test('a leg with terminalRefusals:[content-drift] appends open→refused with a transitionRef (the appendsOn rule, SPEC §8)', async () => {
   const handles = create(makeConfig([captureProfile({ terminalRefusals: ['content-drift'] })]));
   const recordId = await openRecord(handles, STAGED_CONTENT, PROFILE_ID, DEFAULT_SUBJECT_REF);
 

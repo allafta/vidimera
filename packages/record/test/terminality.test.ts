@@ -78,7 +78,7 @@ test('an effect-seam final-leg CONFIRMED is non-terminal (awaits redemption): a 
  * A Store wrapper that lets the two consultation appends land but forces the CONFIRMED
  * append to `state-mismatch` — modelling a residual CAS conflict on the confirmed edge. It
  * proves finalize()'s batch is SEQUENTIAL (the consultations are on the chain) not atomic,
- * and that the residual confirmed-append conflict maps to `record-not-open` (M-B).
+ * and that the residual confirmed-append conflict maps to `record-not-open` (SPEC §8).
  */
 class ConfirmBlockingStore implements Store {
   private readonly inner = new MemoryStore();

@@ -1,14 +1,20 @@
 // @vidimera/record — Outcome<T> (result-first; DECISIONS.md #10 "Result-first outcomes;
 // refusals returned, never thrown"). Domain refusals are RETURNED VALUES: constructors
-// never throw for a domain refusal. Exceptions are reserved for store/infra faults where
-// nothing was recorded.
+// never throw for a domain refusal. Exceptions are reserved for caller/config errors and
+// storage faults where nothing was recorded — the loud-throw half of #10 (see #11 and
+// SPEC §8's "Caller errors are not refusals."; e.g. config.ts's construction guards and
+// open.ts's missing-stagedRef throw).
 
 import { CORE, type RefusalCode } from './refusal-codes.js';
 import type { Digest } from './types.js';
 
 // `class` is DERIVED from `code` via the CORE registry — never a caller-supplied
 // field. `transitionRef` is present ONLY when a transition was actually appended
-// (compromise always; record-exists / unknown-profile / unknown-leg / pre-record /
+// (compromise wherever the record's state admits a state-leaving append, per SPEC §8 — the
+// Store's C3/C4 admit no edge against an already-terminal `expired`/`refused` or sealed
+// record, where the compromise surfaces result-first with no ref, via
+// `appendChainCompromise`'s fallback in kernel/finalize.ts; record-exists /
+// unknown-profile / unknown-leg / pre-record /
 // terminal-record (incl. record-not-open) never; a refusal-class code only when
 // appended per `appendsOn`). `unavailable` has no producer in this build — forward-compat
 // for external-authority availability (SPEC §8's `availability` class; not built until a

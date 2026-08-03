@@ -6,8 +6,11 @@
 //     `'exclusivity'` and names the BLOCKER's recordId (the minimal locator).
 //   C2 sequencing   — UNIQUE(recordId, seq), server-authoritative seq = max+1.
 //   C3 monotonicity — no state-leaving append after a terminal record (persisted
-//     `nonTerminal === false`), except the `sealed` (state-preserving) and
-//     compromise-classed-refusal-from-confirmed/redeeming carve-outs.
+//     `nonTerminal === false`), except §12's two carve-outs: the state-preserving
+//     `sealed` append, and a compromise-classed `refused` edge against a terminal
+//     `confirmed`. (`isCompromiseCarveOut` also accepts a `redeeming` CAS target, but
+//     §12's C1 makes any `redeeming` non-terminal, so per §5 that edge is admitted
+//     directly and never reaches this gate.)
 // Transitions are built by hand via `chain/encoding.ts`
 // (`genesisPrevHash`/`transitionDigest`), driven one append at a time through the
 // Store under test — NOT via `tests/helpers/chain.ts`'s `buildChain`, which

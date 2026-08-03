@@ -1,8 +1,10 @@
 // @vidimera/record — store/store.ts: the provisional `Store` interface + its
 // `AppendResult` union.
 //
-// PUBLIC BUT EXPLICITLY UNSTABLE PRE-1.0 (SPEC §12: "public, explicitly
-// unstable pre-1.0"). A host may inject its own `Store` implementation today (there is
+// PUBLIC BUT EXPLICITLY UNSTABLE PRE-1.0 (SPEC §12: "provisional pre-1.0" —
+// "method signatures are unstable while 0.x and freeze only at 1.0"). The header line is
+// this file's own paraphrase; the two quoted fragments are §12's own words.
+// A host may inject its own `Store` implementation today (there is
 // no other way to run the library — `Config.store` is required), but this interface's
 // shape is provisional scaffolding for a future real SQLite/Postgres adapter, not
 // a frozen contract: it WILL change (most likely gaining a caller-transaction seam and a
@@ -20,7 +22,13 @@ import type { Digest, RecordState, StagedDraft, Transition } from '../types.js';
 export type { StagedDraft };
 
 /**
- * `AppendResult` (SPEC §12's constraints, verbatim union):
+ * `AppendResult` — this build's encoding of SPEC §12's C1-C3 constraints, NOT a union §12
+ * declares. §12 states its constraints as four prose bullets and no result type at all, and
+ * says signatures are provisional: "What is durable is the *behaviour* each method
+ * guarantees, not its argument list." §12's C4 seal-finality is unbuilt here; per §12 it
+ * would surface through the same terminal-state-mismatch arm as C3, "no separate conflict
+ * shape".
+ *
  *  - `{appended:true; seq; transitionDigest}` — the accepted transition's own
  *    server-authoritative `seq` (§12's C2) and its `transitionDigest` (computed the same way
  *    `chainHead` computes one — via `chain/encoding.ts`'s `transitionDigest`, never a
@@ -45,9 +53,16 @@ export type AppendResult =
   | { appended: false; conflict: 'exclusivity'; blockingRecordId: string };
 
 /**
- * The provisional Store (SPEC §12, verbatim interface). Async throughout —
- * committing now avoids a breaking sync->async flip once a real Postgres adapter and
- * caller-transaction seam land — even though
+ * The provisional Store — a strict SUBSET of the storage surface SPEC §12 names, not a
+ * transcription of it. Shipped here: `putStaged`/`getStaged`/`appendTransition`/
+ * `readChain`/`chainHead`. NOT built in this build step: `appendBatch`, `findNonTerminal`,
+ * `listDue`, `seal`, and the optional caller-supplied transaction §12 puts on every write;
+ * §12's `meta = { nonTerminal, dueAt? }` is narrowed here to a bare `nonTerminal` boolean
+ * (no `dueAt` — nothing yet lists due records). §12 is explicit that what is durable is the
+ * behaviour each method guarantees rather than its argument list, so this subset conforms
+ * behaviourally without mirroring §12's signatures — but a reader must not take it for the
+ * whole adapter contract. Async throughout — committing now avoids a breaking sync->async
+ * flip once a real Postgres adapter and caller-transaction seam land — even though
  * `store/memory.ts`'s Map-backed implementation has no genuine I/O to await.
  */
 export interface Store {

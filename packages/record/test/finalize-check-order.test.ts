@@ -1,4 +1,4 @@
-// @vidimera/record — finalize-check-order.test.ts (SPEC §5 finalize check order): pins the
+// @vidimera/record — finalize-check-order.test.ts (SPEC §9 "The finalize gate ladder"): pins the
 // check-order INVARIANT itself — every finalize() refusal path wins over the ones after it
 // in the six-rung ladder (kernel/finalize.ts header):
 //   load chain → (1) pre-seam chain-verify → (2) state/expiry gate → (3) identity

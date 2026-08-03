@@ -87,7 +87,7 @@ function makeDeterministicSeams(): { now: () => Date; mintId: () => string } {
   };
 }
 
-// === the pinned pre-slice digests (captured from main @ 3355f33, UNCHANGED src) =======
+// === the pinned baseline digests (frozen fixtures; the oracle, never regenerated) ======
 //
 // The FOUR transitions of a no-consultations single-leg capture finalize, in chain order:
 //   [0] opened
@@ -146,7 +146,7 @@ test('byte-stability: a no-consultations finalize produces the pinned 4-transiti
   );
 });
 
-test('byte-stability: the four transition digests match the pinned pre-slice literals (byte-for-byte)', async () => {
+test('byte-stability: the four transition digests match the pinned baseline literals (byte-for-byte)', async () => {
   const chain = await runNoConsultationFlow();
   const digests = chain.map((t) => transitionDigest(t));
   assert.deepEqual(

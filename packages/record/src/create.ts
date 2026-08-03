@@ -53,8 +53,10 @@ export interface ResolvedProfile {
  * en-passant expiry gate (`openedAt + ttl < now`). It defaults to real time
  * (`() => new Date()`) via `create()`; `createWithClock()` overrides it so expiry tests
  * are deterministic WITHOUT sleeping. Deliberately NOT a public `Config` field and NOT
- * re-exported from `index.ts` — the clock seam stays off the published surface (design is
- * silent on a clock; deterministic tests require one; this is the minimal knob).
+ * re-exported from `index.ts` — the clock seam stays off the published surface
+ * (`docs/concept/SPEC.md` names no injectable clock: its preamble leaves construction
+ * deliberately unfrozen and SPEC §4 leaves clock reads implementation detail;
+ * deterministic tests require one; this is the minimal knob).
  *
  * `mintId` is the injectable `recordId` minter: it defaults to `id.ts`'s `mintRecordId`
  * and is overridden ONLY by `createWithClock` (a fixed id sequence is what lets a

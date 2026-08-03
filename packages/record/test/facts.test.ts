@@ -5,7 +5,7 @@
 // REVIEW-SURFACE identity `facts.checker` (distinct from the finalizing actor) and whose
 // `payloadDigest = digest(canonicalize(facts.figures))` through LIBRARY JCS ONLY — NOT the
 // profile's content-adopter canonicalizer (figures are the reviewed-surface rendering
-// artifact, not the bound content, O1). On success the batch appends [chain-verify, facts,
+// artifact, not the bound content — SPEC §3). On success the batch appends [chain-verify, facts,
 // confirmed].
 
 import assert from 'node:assert/strict';
@@ -61,14 +61,14 @@ test('finalize() with facts MISSING checker → consultation-missing', async () 
   assert.equal(outcome.code, 'consultation-missing');
 });
 
-test('T3.3: finalize() with facts figures that are NOT canonicalizable (a BigInt) → consultation-missing, NO throw, the record stays open', async () => {
+test('finalize() with facts figures that are NOT canonicalizable (a BigInt) → consultation-missing, NO throw, the record stays open', async () => {
   const handles = create(makeConfig([captureProfile()]));
   const recordId = await openRecord(handles, CONTENT, PROFILE_ID, DEFAULT_SUBJECT_REF);
 
   // figures carry a BigInt — library JCS (`canonicalize`, RFC-8785) THROWS on it ("Do not know
   // how to serialize a BigInt"). A present-but-UNUSABLE facts payload is not a valid facts
   // payload: isValidFacts must guard canonicalizability and refuse `consultation-missing`, NOT
-  // let the throw escape mid-batch at the facts-digest step. (Pre-T3.3 isValidFacts returned a
+  // let the throw escape mid-batch at the facts-digest step. (An earlier isValidFacts returned a
   // bare boolean without canonicalizing, so the BigInt threw uncaught at the batch digest.)
   const bigIntFigures = {
     figures: { total: 10n },
@@ -177,9 +177,9 @@ test('the success batch is [chain-verify, facts, confirmed] and the resulting ch
   assert.equal(outcome.value.transitionRef, await handles.operator.chainHead(recordId));
 });
 
-// === O1 pin: an adopter canonicalizer does NOT affect the facts figures digest =======
+// === SPEC §3 pin: an adopter canonicalizer does NOT affect the facts figures digest ===
 
-test('the facts payloadDigest goes through LIBRARY JCS ONLY — an adopter canonicalizer that WOULD change the figures encoding does not affect it (O1)', async () => {
+test('the facts payloadDigest goes through LIBRARY JCS ONLY — an adopter canonicalizer that WOULD change the figures encoding does not affect it (SPEC §3)', async () => {
   // A NON-identity adopter canonicalizer: it injects a marker key. It is the profile's
   // CONTENT canonicalizer — used to bind/re-check content — but MUST NOT touch facts.figures.
   const touchingCanonicalizer: Canonicalizer = (c) => ({

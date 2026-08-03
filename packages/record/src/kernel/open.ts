@@ -14,8 +14,8 @@
 // obtained it from a prior `stage()`. No CORE RefusalCode fits (`unknown-profile` names a
 // profile, not a staged draft; the union is contract-fixed — do not invent one),
 // so open() THROWS, mirroring `replay()`/`verifyChain()`'s "a record that does not exist is
-// a caller error" posture (SPEC §8). This is distinct from the reserved store/infra-fault
-// exceptions; nothing was recorded here either.
+// a caller error" posture (SPEC §8). This is the caller-error half of the exceptions
+// `outcome.ts` reserves; nothing was recorded here either.
 
 import { genesisPrevHash } from '../chain/encoding.js';
 import { replay } from '../chain/replay.js';

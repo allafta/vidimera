@@ -152,8 +152,8 @@ export type ChainVerifyReport =
   | { intact: false; firstBreakSeq: number; detail: string };
 
 /**
- * `verifyChain(chain)` (SPEC §5 "Chain integrity"): recomputes every
- * transition's digest linkage —
+ * `verifyChain(chain)` (SPEC §5 "Operator audit functions", the run of §5 that defines
+ * both this and `replay`): recomputes every transition's digest linkage —
  *  1. genesis: `chain[0].prevHash` must equal `genesisPrevHash(chain[0].recordId)`;
  *  2. every subsequent `chain[i].prevHash` must equal `transitionDigest(chain[i-1])`
  *     (recomputed under `chain[i-1]`'s own recorded algorithm, via `encoding.ts`);

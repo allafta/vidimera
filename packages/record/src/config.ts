@@ -78,8 +78,10 @@ export function governedUnavailable(field: string, contract: string): string {
 }
 
 /**
- * The three redemption FIELDS (`confirmToRedeem`, `redeemBound`, `reverify` — SPEC §9.1's
- * `redeem` block): they are only ever valid INSIDE a
+ * The three redemption FIELDS: `confirmToRedeem` and `redeemBound` — SPEC §9.1's `redeem`
+ * block, which names exactly those two — plus `reverify`, introduced only by SPEC §9.2's
+ * live mode (§9.1 never names it; nesting it in the same `redeem` block is this build's
+ * structuring). They are only ever valid INSIDE a
  * `redeem` block. Appearing as a direct own-key on the profile or a leg is a
  * misplacement — refused structurally (the former redeem-field guard
  * was logically vacuous, so it is replaced by this real "stray key outside redeem" check).

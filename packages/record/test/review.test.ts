@@ -46,7 +46,7 @@ test('review() on an OPEN record: ReviewView carries metadata + contentDigest on
   assert.deepEqual(view.consultations, []);
   assert.ok(!('content' in view), 'ReviewView carries NO content body');
   assert.ok(!('figures' in view), 'ReviewView carries NO figures body');
-  // T3.4: refusalCode is present-iff-present — an OPEN (non-refused) record carries NO key.
+  // refusalCode is present-iff-present (SPEC §2) — an OPEN (non-refused) record carries NO key.
   assert.equal(
     'refusalCode' in view,
     false,
@@ -85,7 +85,8 @@ test('review() on a CONFIRMED record: consultations surfaced as payloadDigest (n
   assert.equal(view.state, 'confirmed');
   assert.match(view.contentDigest, /^sha256:[0-9a-f]{64}$/);
   assert.ok(!('content' in view), 'ReviewView carries NO content body even when confirmed');
-  // T3.4: a CONFIRMED (non-refused) record carries NO refusalCode key either (present-iff-present).
+  // A CONFIRMED (non-refused) record carries NO refusalCode key either (present-iff-present,
+  // SPEC §2).
   assert.equal('refusalCode' in view, false, 'a CONFIRMED record carries NO refusalCode key');
 
   // The two success-batch consultations (chain-verify + facts) are surfaced, each carrying a
@@ -116,7 +117,7 @@ test('review() on a CONFIRMED record: consultations surfaced as payloadDigest (n
   );
 });
 
-test('T3.4: review() on a REFUSED record carries refusalCode = the refusal reason (present-iff-present, the policyDigest rule); an audit surface must not hide it', async () => {
+test('review() on a REFUSED record carries refusalCode = the refusal reason (present-iff-present, the policyDigest rule); an audit surface must not hide it', async () => {
   const handles = create(makeConfig([captureProfile({ terminalRefusals: ['content-drift'] })]));
   const content = { subject: 'week-1', total: 40 };
   const recordId = await openRecord(handles, content, PROFILE_ID, DEFAULT_SUBJECT_REF);
@@ -140,7 +141,8 @@ test('T3.4: review() on a REFUSED record carries refusalCode = the refusal reaso
   const view = outcome.value;
   assert.equal(view.state, 'refused');
   // The KEY is present on a refused record, and it carries the refusal reason. (Cast keeps the
-  // test compilable against the pre-T3.4 ReviewView; post-change the field is native.)
+  // test compilable against the ReviewView shape that predated the field; post-change it is
+  // native.)
   assert.equal('refusalCode' in view, true, 'a REFUSED record surfaces the refusalCode key');
   assert.equal(
     (view as { refusalCode?: string }).refusalCode,

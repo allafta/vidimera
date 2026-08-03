@@ -1,5 +1,5 @@
-// @vidimera/record — chain-verify.test.ts (SPEC §5 "Chain integrity" / "Mandatory
-// pre-seam chain-verify"): finalize()'s
+// @vidimera/record — chain-verify.test.ts (SPEC §5 "Chaining & replay/verify" — its
+// "Mandatory pre-seam chain-verify" rule): finalize()'s
 // FIRST step after loading the chain is a pre-seam chain-verify sharing ONE replay/
 // verifyChain core with the operator `verifyChain()` audit wrapper.
 //   - clean verify → a `verdict:'pass'` `chain-verify` consultation is appended as the FIRST
@@ -47,7 +47,7 @@ function aConsultation(payloadDigest: string): Consultation {
   };
 }
 
-// === clean verify: chain-verify consultation is the FIRST success-batch element (O3) ===
+// === clean verify: chain-verify consultation is the FIRST success-batch element (SPEC §5) ===
 
 test('a clean pre-seam verify appends a verdict:pass chain-verify consultation as the FIRST success-batch element', async () => {
   const handles = create(makeConfig([captureProfile()]));
@@ -174,9 +174,10 @@ test('a tampered chain on an UNCONFIRMED (open) record: NO chain-verify consulta
   );
 });
 
-// === detected break, CONFIRMED effect-seam record → confirmed→refused via C3 carve-out (S-4) ===
+// === detected break on a CONFIRMED effect-seam record → confirmed→refused (SPEC §5's
+// === admission rule) ===
 
-test('a post-confirmed NON-LAST tamper on a CONFIRMED effect-seam record: confirmed→refused via the C3 carve-out (S-4)', async () => {
+test('a post-confirmed NON-LAST tamper on a CONFIRMED effect-seam record: confirmed→refused via the C3 carve-out', async () => {
   const inner = new MemoryStore();
   const profile = effectSeamProfile(); // effect-seam ⇒ confirmed is NON-terminal
   const leg = profile.legs[0];

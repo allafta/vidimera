@@ -1,7 +1,8 @@
 // @vidimera/record — transition-encoding.test.ts (SPEC §4 "Transitions & the encoding"):
 // the genesis rule, `transitionDigest`'s
-// exact digest-over-JCS shape (`{recordId,seq,at,kind,payload,prevHash}`, digest
-// fields serialized as strings), algorithm derivation via `algorithmOf` (never a
+// exact digest-over-JCS shape (`{recordId,seq,at,kind,payload,prevHash}`, `seq`
+// stringified, digest fields in their string forms), algorithm derivation via
+// `algorithmOf` (never a
 // hardcoded 'sha256'), and `encodeTransition`'s canonical-bytes contract.
 
 import assert from 'node:assert/strict';
@@ -80,7 +81,7 @@ test('transitionDigest() equals an INDEPENDENT canonicalize+digest recomputation
   // digest-compared-to-itself tautology.
   const independentInput = {
     recordId: transition.recordId,
-    seq: String(transition.seq), // <-- the "digest fields serialized as strings" clause
+    seq: String(transition.seq), // <-- SPEC §4's "`seq` is serialized as a string" convention
     at: transition.at,
     kind: transition.kind,
     payload: transition.payload,

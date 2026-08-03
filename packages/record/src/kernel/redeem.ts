@@ -1,7 +1,7 @@
 // @vidimera/record — kernel/redeem.ts: the operator-only
 // redemption seam is EXPORTED ON EVERY PROFILE (capture-only AND effect-seam alike —
-// SPEC §8: "`redeem()`... [is a] call on every profile, with fail-closed domain outcomes
-// in every deployment"). It is still mostly a stub in this build: it refuses
+// SPEC §8: "`redeem()` and `seal()` are calls on every profile, with fail-closed domain
+// outcomes in every deployment"). It is still mostly a stub in this build: it refuses
 // `unredeemable-state`, result-first, on every profile and every record state — WITH ONE
 // EXCEPTION. A confirmed effect-seam record (the exact "awaiting redemption" case) now
 // throws a build-capability error instead of silently refusing (below). The real
@@ -51,7 +51,9 @@ export async function redeem(
       // record holds stays held — the hold lives in the Store's C1 exclusivity, a
       // structural property of the append log, not in whatever redeem() returns or
       // throws. Nothing this function does can lift it. Real closure needs a later build
-      // step's `seal()` or a `confirmToRedeem` expiry edge; neither exists yet. What DOES
+      // step's redemption edge (§11.2) or a `confirmToRedeem` expiry edge (§9.1); neither
+      // exists yet. `seal()` is NOT a release path — §12 admits it only against a
+      // derived-terminal record, and this record is non-terminal by §2. What DOES
       // change here: the host finds out at the seam, now, instead of discovering an
       // unopenable subject much later via an unrelated open()'s `record-exists`.
       throw new Error(
@@ -59,9 +61,11 @@ export async function redeem(
           'redeem',
           'the effect-seam redemption seam (redeeming/redeemed/redemption-failed) is not ' +
             'implemented in this build. A confirmed record on this profile stays held — ' +
-            'its (profile, subject) pair remains exclusive under the Store — until a ' +
-            "later build step's seal() or a confirmToRedeem expiry edge releases it. " +
-            'Contract: §11.2 and §12.',
+            'its (profile, subject) pair remains exclusive under the Store — until ' +
+            'redemption resolves it or a declared confirmToRedeem bound expires it ' +
+            '(confirmed -> expired). seal() is not a release path: §12 admits seal() only ' +
+            'against a derived-terminal record, and a final-leg confirmed on an ' +
+            'effect-seam profile is non-terminal (§2). Contract: §11.2, §12 and §9.1.',
         ),
       );
     }

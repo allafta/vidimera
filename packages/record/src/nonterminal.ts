@@ -7,19 +7,20 @@
 import type { RecordState } from './types.js';
 
 /**
- * `nonTerminal(state, isFinalLeg, effectSeam)` (SPEC §2 "States and terminality",
- * verbatim formula):
+ * `nonTerminal(state, isFinalLeg, effectSeam)` — this build's boolean transcription of the
+ * derivation SPEC §2 states as prose under "States and terminality" (see also §12's C1,
+ * which names the same three inputs). §2 gives no expression to be verbatim against:
  *   state==='open' || (state==='confirmed' && isFinalLeg && effectSeam) || state==='redeeming'
  *
  * Read per disjunct:
  *  - `open` is always non-terminal (the record has not yet been decided).
  *  - `confirmed` is non-terminal ONLY when it is BOTH the profile's final leg AND the
  *    profile declares an effect seam (a `redeem` block) — i.e. confirmation still
- *    awaits redemption (SPEC §2: "effect-seam ⇒ non-terminal — it awaits redemption").
- *    A capture-only profile's final-leg `confirmed`
+ *    awaits redemption (SPEC §2: "non-terminal — it awaits redemption", of a final-leg
+ *    `confirmed` on an effect-seam profile). A capture-only profile's final-leg `confirmed`
  *    (no effect seam) is terminal — this function returns `false` for it.
  *  - `redeeming` is always non-terminal — unreachable in this build (no
- *    caller here can ever produce this state, but the formula is written completely
+ *    caller here can ever produce this state, but the disjunction is written completely
  *    per the SPEC rather than narrowed to only the reachable disjuncts).
  *  - Every other `RecordState` (`refused`, `expired`, `redeemed`, `redemption-failed`)
  *    is terminal: `false`.

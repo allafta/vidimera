@@ -91,9 +91,9 @@ test('finalize() against an ALREADY-expired record → leg-expired, no append', 
   );
 });
 
-// === M-B: state !== 'open' (confirmed / refused) → record-not-open =====================
+// === state !== 'open' (confirmed / refused) → record-not-open (SPEC §8) ================
 
-test('M-B: double-finalize on a capture-terminal CONFIRMED record → record-not-open (no append, no transitionRef)', async () => {
+test('double-finalize on a capture-terminal CONFIRMED record → record-not-open (no append, no transitionRef)', async () => {
   const handles = create(makeConfig([captureProfile()]));
   const recordId = await openRecord(handles, CONTENT, PROFILE_ID, DEFAULT_SUBJECT_REF);
 
@@ -115,7 +115,7 @@ test('M-B: double-finalize on a capture-terminal CONFIRMED record → record-not
   );
 });
 
-test('M-B: finalize on an effect-seam CONFIRMED record awaiting redemption → record-not-open (no append)', async () => {
+test('finalize on an effect-seam CONFIRMED record awaiting redemption → record-not-open (no append)', async () => {
   const handles = create(makeConfig([effectSeamProfile()]));
   const recordId = await openRecord(handles, CONTENT, 'test.effect.v1', DEFAULT_SUBJECT_REF);
 
@@ -137,7 +137,7 @@ test('M-B: finalize on an effect-seam CONFIRMED record awaiting redemption → r
   );
 });
 
-test('M-B: finalize on a REFUSED record → record-not-open (no append)', async () => {
+test('finalize on a REFUSED record → record-not-open (no append)', async () => {
   // Drive the record into a refused terminal state via a terminalRefusals:[content-drift] leg.
   const handles = create(makeConfig([captureProfile({ terminalRefusals: ['content-drift'] })]));
   const recordId = await openRecord(handles, CONTENT, PROFILE_ID, DEFAULT_SUBJECT_REF);

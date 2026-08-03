@@ -17,9 +17,10 @@ import type { Digest } from './types.js';
 export type Canonicalizer = (content: unknown) => unknown;
 
 /**
- * Digest algorithms `digest()` will accept when MINTING a new digest (SPEC §7 "Digest
- * agility") — this build records under exactly one algorithm; the union type
- * leaves room for a future addition without widening today's runtime behavior.
+ * Digest algorithms `digest()` will accept when MINTING a new digest
+ * (SPEC §7 "Digest identifiers & agility") — this build records under exactly one
+ * algorithm; the union type leaves room for a future addition without widening
+ * today's runtime behavior.
  */
 export const SUPPORTED_ALGORITHMS = ['sha256'] as const;
 export type DigestAlgorithm = (typeof SUPPORTED_ALGORITHMS)[number];
@@ -87,7 +88,7 @@ export function digest(input: Uint8Array | string, algorithm: DigestAlgorithm = 
 /**
  * Splits a recorded `Digest` (`"<alg>:<hex>"`) back into its algorithm, so a
  * re-verify (chain-verify, content-drift re-check) hashes under the
- * digest's OWN recorded algorithm rather than a hardcoded one — SPEC §7: "a record
+ * digest's OWN recorded algorithm rather than a hardcoded one — SPEC §7: "A record is
  * verified under its own recorded algorithm". Throws on a malformed digest (no
  * `:` separator) or an algorithm outside `SUPPORTED_ALGORITHMS ∪ DEPRECATED_ALGORITHMS`.
  * Emits a runtime deprecation warning (does not throw) when the resolved algorithm is

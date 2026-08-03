@@ -1,6 +1,6 @@
 // @vidimera/record — chain/encoding.ts: library-owned transition encoding — JCS over
-// `{recordId, seq, at, kind, payload, prevHash}` (digest fields serialized as
-// strings), `transitionDigest` under the record's RECORDED algorithm (derived via
+// `{recordId, seq, at, kind, payload, prevHash}` (`seq` stringified; digest fields in
+// their string forms), `transitionDigest` under the record's RECORDED algorithm (derived via
 // `algorithmOf`, never a hardcoded 'sha256'), and the genesis rule
 // `prevHash = digest(UTF-8 "vidimera:genesis:<recordId>")` (SPEC §4).
 //

@@ -1,4 +1,4 @@
-// @vidimera/record — replay-verify.test.ts (SPEC §5 "Chain integrity"): the pure
+// @vidimera/record — replay-verify.test.ts (SPEC §5 "Operator audit functions"): the pure
 // `replay(chain) -> DecisionRecord` fold
 // from genesis, and `verifyChain(chain) -> ChainVerifyReport` digest-linkage
 // recomputation — `{intact:true}` on a good chain, `{intact:false, firstBreakSeq,

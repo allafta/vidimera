@@ -66,7 +66,43 @@ const incrementPattern = /\bslices?[\s-]?\d/i;
 const taskPattern = /\btasks?[\s-]\d/i;
 const openQuestionPattern = /\bOQ\d*-\d/i;
 
-const codeOnlyPatterns = [designSectionPattern, incrementPattern, taskPattern, openQuestionPattern];
+// The same class of unresolvable pointer, in four shapes the patterns above miss. Each
+// was measured over the whole tracked-TypeScript corpus before landing: every hit was a
+// true positive, and the sweep that cleared all 24 of them is what took this file back
+// to exit 0.
+
+// A git-style abbreviated object name. The left/right guards stop an exponent tail
+// inside a numeric literal (9.999999999999999e20) reading as one; requiring both a
+// letter and a digit stops all-digit literals and all-letter words. A bare SHA in a
+// comment points into a git history, and the scan cannot tell whose — so none belong in
+// code, and a provenance claim is deleted rather than repointed.
+const commitRefPattern =
+  /(?<![\w.])(?=[0-9a-f]{7,40}(?![\w.]))(?=[0-9a-f]*[a-f])(?=[0-9a-f]*\d)[0-9a-f]{7,40}(?![\w.])/;
+
+// The increment vocabulary, with or without a number. The left guard keeps the ordinary
+// `.slice()` method call legal.
+const sliceWordPattern = /(?<![.\w-])(?:pre-)?slices?\b/i;
+
+// `design` as a document referent. "by design" is ordinary English and is excluded.
+const designWordPattern = /(?<!\bby\s)\bdesign\b/i;
+
+// The specific foreign matrix/ledger/task label shapes. Deliberately NOT "any short
+// tag": C1-C4 are docs/concept/SPEC.md §12's own store-constraint names and T0 is a
+// local test date constant (`const T0 = '2026-07-24T00:00:00.000Z'`), and a broader
+// pattern flags all nine of them. `O\d+` not `O\d` — otherwise `O11` slips through the
+// word boundary.
+const foreignLabelPattern = /\b(?:M-[A-Z]\b|S-\d\b|O\d+\b|T\d+\.\d+\b)/;
+
+const codeOnlyPatterns = [
+  designSectionPattern,
+  incrementPattern,
+  taskPattern,
+  openQuestionPattern,
+  commitRefPattern,
+  sliceWordPattern,
+  designWordPattern,
+  foreignLabelPattern,
+];
 
 // ---------------------------------------------------------------------------
 // Citation integrity (per-file, code-only)
