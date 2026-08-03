@@ -5,8 +5,9 @@
 // Like agent-surface.ts, this file's job is the CAPABILITY SPLIT — select the
 // operator-reachable subset of the shared kernel closures (assembled in `create.ts`) and
 // FREEZE it. As of Task 9 every transitioning closure delegates to a real `kernel/*.ts`
-// behavior (`redeem` to Task 9's slice-3 stub, which unconditionally refuses
-// `unredeemable-state` — the effect-seam behavior is slice 5); the reads +
+// behavior (`redeem` to `kernel/redeem.ts`, which refuses `unredeemable-state` on every
+// profile/state except one: a confirmed effect-seam record now throws a build-capability
+// error instead — the real effect-seam behavior is still not implemented); the reads +
 // replay/verifyChain wrappers are already real.
 
 import type { ChainVerifyReport } from './chain/replay.js';
@@ -31,7 +32,7 @@ export interface OperatorSurface {
     content: unknown,
     facts: { figures: unknown; checker: IdentityAssertion }, // checker = review-surface identity (≠ actor)
   ): Promise<Outcome<{ recordId: string; state: 'confirmed'; transitionRef: Digest }>>;
-  redeem(recordId: string, content: unknown): Promise<Outcome<{ state: RecordState }>>; // slice3 → unredeemable-state
+  redeem(recordId: string, content: unknown): Promise<Outcome<{ state: RecordState }>>; // unredeemable-state, except throws on a confirmed effect-seam record
   replay(recordId: string): Promise<DecisionRecord>; // audit wrapper (not Outcome)
   verifyChain(recordId: string): Promise<ChainVerifyReport>; // audit wrapper (not Outcome)
   getRecord(recordId: string): Promise<DecisionRecord | null>;

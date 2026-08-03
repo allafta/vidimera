@@ -2,35 +2,70 @@
 // slice-3 stub" / §9 "unredeemable-state always-present (O2)"): the operator-only
 // redemption seam is EXPORTED ON EVERY PROFILE (capture-only AND effect-seam alike — §8's
 // profile-conditional redemption is reconciled by O2 in favor of §11.2/OQ2-7's
-// every-profile export), but at slice 3 it is a STUB: it unconditionally refuses
-// `unredeemable-state`, result-first, on EVERY profile and EVERY record state. The real
-// effect-seam edges (`redeeming`/`redeemed`/`redemption-failed`) are GOVERNED, slice 5.
+// every-profile export). At this build step it is still mostly a stub: it refuses
+// `unredeemable-state`, result-first, on every profile and every record state — WITH ONE
+// EXCEPTION. A confirmed effect-seam record (the exact "awaiting redemption" case) now
+// throws a build-capability error instead of silently refusing (below). The real
+// effect-seam edges (`redeeming`/`redeemed`/`redemption-failed`) remain unimplemented
+// either way — the throw does not build them, it only stops the caller discovering their
+// absence by surprise. See the throw's own comment for what it does and does not do.
 //
-// Load-or-not (task brief): this stub does NOT load the record. Every path refuses the
-// same way regardless of what `readChain(recordId)` would show, so a load buys nothing —
-// it would be a read performed only to throw its result away. The honest consequence: a
-// `recordId` that does not exist ALSO gets `unredeemable-state` rather than a
+// Load-or-not: this stub now loads the chain (`store.readChain`) because the one new
+// path needs it — telling a confirmed effect-seam record apart from every other state.
+// Every OTHER path still ignores what the load showed, exactly as before: an unknown
+// recordId, an open/refused/expired record, and a confirmed capture-only record all fall
+// through to the same `unredeemable-state` refusal the load never needed to reach for
+// them. A `recordId` that does not exist still gets `unredeemable-state` rather than a
 // caller-error throw (unlike open()'s missing-stagedRef or finalize()'s unknown-recordId,
-// which DO need to load to do anything useful and so THROW on a genuinely nonexistent
-// target). That asymmetry is fine here — redeem() has no "useful" path yet at slice 3;
-// every state, real or not, is unredeemable. Slice 5, when this stub grows a real
-// effect-seam body, will need to load the chain and will regain the same
-// caller-error-on-nonexistent-record posture the other operator seams already have.
+// which DO throw on a genuinely nonexistent target) — this build step does not extend
+// that posture to redeem() generally; it adds a throw for exactly the one state that
+// would otherwise strand a host silently.
 //
-// Result-first (Outcome, never throws for a domain refusal) and NOT APPENDED: `refused()`
-// is called with no `transitionRef` argument, so the field is genuinely ABSENT (never
-// `undefined`-valued) per outcome.ts's contract — matching `unredeemable-state`'s
-// registration in refusal-codes.ts's NEVER_APPENDS set. Nothing is written to the Store.
+// Result-first (Outcome, never throws) on the refusal path: `refused()` is called with no
+// `transitionRef` argument, so the field is genuinely ABSENT (never `undefined`-valued)
+// per outcome.ts's contract — matching `unredeemable-state`'s registration in
+// refusal-codes.ts's NEVER_APPENDS set. Nothing is written to the Store on that path
+// either. The new throw below is the one exception to "never throws": a genuine `Error`
+// rejection, not a domain refusal — the caller must handle it as an exception. Nothing is
+// written to the Store there either; a throw is not an append, and it is not a release of
+// anything the Store already holds (see the throw's comment).
 
+import { replay } from '../chain/replay.js';
+import { governedUnavailable } from '../config.js';
 import type { KernelContext } from '../create.js';
 import type { Outcome } from '../outcome.js';
 import { refused } from '../outcome.js';
 import type { RecordState } from '../types.js';
 
 export async function redeem(
-  _ctx: KernelContext,
-  _recordId: string,
+  ctx: KernelContext,
+  recordId: string,
   _content: unknown,
 ): Promise<Outcome<{ state: RecordState }>> {
+  const chain = await ctx.store.readChain(recordId);
+  if (chain.length > 0) {
+    const record = replay(chain);
+    const resolved = ctx.profiles.get(record.profileId);
+    if (resolved?.effectSeam === true && record.state === 'confirmed') {
+      // Loudness, not closure (an earlier framing of this remedy was corrected: neither
+      // this throw nor a refusal releases anything). The `(profile, subject)` pair this
+      // record holds stays held — the hold lives in the Store's C1 exclusivity, a
+      // structural property of the append log, not in whatever redeem() returns or
+      // throws. Nothing this function does can lift it. Real closure needs a later build
+      // step's `seal()` or a `confirmToRedeem` expiry edge; neither exists yet. What DOES
+      // change here: the host finds out at the seam, now, instead of discovering an
+      // unopenable subject much later via an unrelated open()'s `record-exists`.
+      throw new Error(
+        governedUnavailable(
+          'redeem',
+          'the effect-seam redemption seam (redeeming/redeemed/redemption-failed) is not ' +
+            'implemented in this build. A confirmed record on this profile stays held — ' +
+            'its (profile, subject) pair remains exclusive under the Store — until a ' +
+            "later build step's seal() or a confirmToRedeem expiry edge releases it. " +
+            'Contract: §11.2 and §12.',
+        ),
+      );
+    }
+  }
   return refused('unredeemable-state');
 }

@@ -135,13 +135,17 @@ test("finalize()'s batch is sequential, not atomic: a residual confirmed-append 
   );
 });
 
-// === redeem() slice-3 stub: unredeemable-state on BOTH profile shapes (design §5 "redeem()
-// slice-3 stub" / §9 "unredeemable-state always-present (O2)"): exported on every profile,
-// returns `unredeemable-state` result-first, NOT appended, NO transitionRef — on every
-// profile/state at slice 3 (the effect edges are slice 5). Both cases below finalize first
-// so the record is CONFIRMED — the capture-only case is capture-terminal (redundant but
-// still refused: the stub does not special-case terminality either), and the effect-seam
-// case is exactly the "awaiting redemption" non-terminal state the stub must refuse. =====
+// === redeem(): unredeemable-state on a capture-only profile; a build-capability throw on
+// an effect-seam profile's confirmed record ============================================
+//
+// redeem() is exported on every profile (capture-only and effect-seam alike). On a
+// capture-only profile it still refuses `unredeemable-state`, result-first, NOT appended,
+// NO transitionRef, on every state — that stub behavior is untouched here. On an
+// effect-seam profile's confirmed record specifically, it now THROWS instead (see the test
+// below and its inversion note for why). Both cases finalize first so the record is
+// CONFIRMED — the capture-only case is capture-terminal (redundant but still refused: the
+// stub does not special-case terminality), and the effect-seam case is exactly the
+// "awaiting redemption" non-terminal state the throw targets. =========================
 
 test('redeem() on a capture-terminal CONFIRMED record (capture-only profile) -> unredeemable-state, not appended, no transitionRef', async () => {
   const handles = create(makeConfig([captureProfile()]));
@@ -170,7 +174,20 @@ test('redeem() on a capture-terminal CONFIRMED record (capture-only profile) -> 
   );
 });
 
-test('redeem() on an effect-seam CONFIRMED record awaiting redemption -> unredeemable-state, not appended, no transitionRef', async () => {
+// INVERTED (this build step, authorized — exactly one inherited assertion may invert): the
+// reference implementation's stub silently refused `unredeemable-state` here, same as the
+// capture-only case above. That silence is what this build step corrects: a host that
+// declares an effect-seam profile and calls redeem() on a just-confirmed record was left to
+// discover — only much later, and only indirectly, via a `record-exists` refusal on some
+// unrelated future open() — that the pair it holds can never advance. `redeem()` now throws
+// a build-capability error loudly, at the seam, instead. This is loudness, not closure: the
+// throw does not release anything. The `(profile, subject)` pair STAYS held — the hold lives
+// in the Store's C1 exclusivity, not in redeem()'s refusal, so a throw here cannot lift it
+// any more than the silent refusal it replaces could. Real closure needs a later build
+// step's `seal()` or a `confirmToRedeem` expiry edge; see the deferral register for the
+// corrected framing (an earlier entry there had described this as something redeem() or
+// open() could itself close — that was wrong).
+test('redeem() on an effect-seam CONFIRMED record awaiting redemption throws a build-capability error at the seam (the held pair is not released)', async () => {
   const handles = create(makeConfig([effectSeamProfile()]));
   const recordId = await openRecord(handles, CONTENT, 'test.effect.v1', DEFAULT_SUBJECT_REF);
 
@@ -184,22 +201,29 @@ test('redeem() on an effect-seam CONFIRMED record awaiting redemption -> unredee
   );
   const chainBefore = await handles.operator.readChain(recordId);
 
-  const outcome = await handles.operator.redeem(recordId, CONTENT);
-  assert.equal(outcome.status, 'refused');
-  if (outcome.status !== 'refused') return;
-  assert.equal(outcome.code, 'unredeemable-state');
-  assert.equal(outcome.class, 'refusal');
-  assert.equal(outcome.transitionRef, undefined);
+  await assert.rejects(
+    () => handles.operator.redeem(recordId, CONTENT),
+    (err: unknown) => {
+      assert.ok(err instanceof Error);
+      assert.ok(
+        err.message.startsWith('GOVERNED feature not available in this build (redeem)'),
+        `expected the GOVERNED message to start with the byte-preserved head, got: ${err.message}`,
+      );
+      return true;
+    },
+    'redeem() on a confirmed effect-seam record must throw, not silently refuse',
+  );
 
   const chainAfter = await handles.operator.readChain(recordId);
   assert.deepEqual(
     chainAfter,
     chainBefore,
-    'redeem() appends nothing — the chain is byte-for-byte unchanged',
+    'the throw appends nothing — the chain is byte-for-byte unchanged',
   );
   assert.equal(
     (await handles.operator.getRecord(recordId))?.state,
     'confirmed',
-    'the record stays confirmed/non-terminal — redeem() is a stub, not a real seam',
+    'the record stays confirmed/non-terminal — the (profile, subject) pair remains held, ' +
+      'not released, by this throw',
   );
 });

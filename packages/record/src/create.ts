@@ -9,10 +9,13 @@
 // The "shared kernel closures" (design §1/§2) all live here so the capability split
 // (agent-surface.ts / operator-surface.ts) stays a pure select-and-freeze. As of Task 9
 // every record-transitioning closure (`stage`/`open`/`review`/`finalize`/`redeem`) calls
-// into `kernel/*.ts` — `redeem` delegates to `kernel/redeem.ts`'s slice-3 stub, which
-// unconditionally refuses `unredeemable-state` (the real effect-seam behavior is slice 5).
-// The reads (`getRecord`/`readChain`/`chainHead`) and the `replay`/`verifyChain` `recordId`
-// audit wrappers are REAL: direct Store delegation + the pure `chain/replay.ts` core.
+// into `kernel/*.ts` — `redeem` delegates to `kernel/redeem.ts`, which refuses
+// `unredeemable-state` on every profile/state except one: a confirmed effect-seam record
+// now throws a build-capability error instead (the real effect-seam behavior is still not
+// implemented; the throw only makes its absence loud instead of silent — see
+// kernel/redeem.ts). The reads (`getRecord`/`readChain`/`chainHead`) and the
+// `replay`/`verifyChain` `recordId` audit wrappers are REAL: direct Store delegation + the
+// pure `chain/replay.ts` core.
 
 import { type AgentSurface, makeAgentSurface } from './agent-surface.js';
 import { type Canonicalizer, resolveCanonicalizer } from './canonical.js';
@@ -89,8 +92,11 @@ export interface Kernel {
 /**
  * Assembles the shared kernel closures over `ctx`. All five transitioning/read closures
  * (`stage`/`open`/`review`/`finalize`/`redeem`) now delegate to `kernel/*.ts` (Tasks 7-9);
- * `redeem` is Task 9's slice-3 stub — it always refuses `unredeemable-state` (the real
- * effect-seam behavior is slice 5). The reads + replay/verifyChain wrappers are real.
+ * `redeem` still has no real effect-seam behavior, but it no longer always refuses: a
+ * confirmed effect-seam record now throws a build-capability error instead of silently
+ * returning `unredeemable-state`, so a host declaring that profile shape finds out at the
+ * seam rather than discovering it only later. The reads + replay/verifyChain wrappers are
+ * real.
  */
 function makeKernel(ctx: KernelContext): Kernel {
   const { store } = ctx;
@@ -104,7 +110,8 @@ function makeKernel(ctx: KernelContext): Kernel {
     finalize: (recordId, identity, content, facts) =>
       finalizeKernel(ctx, recordId, identity, content, facts),
 
-    // --- redeem(): Task 9 — slice-3 stub (kernel/redeem.ts): unredeemable-state, always ---
+    // --- redeem(): kernel/redeem.ts — unredeemable-state, except a confirmed effect-seam
+    // record, which now throws a build-capability error instead ---
     redeem: (recordId, content) => redeemKernel(ctx, recordId, content),
 
     // --- reads: REAL (direct Store delegation) ---
