@@ -20,10 +20,10 @@
 //   (5) facts          -> consultation-missing                      (1 code)
 //   (6) success batch  -> record-not-open, but ONLY as a CAS-race residual on the
 //       confirmed-append — kernel/finalize.ts's success-batch comment and
-//       refuseMaybeAppend's docstring both describe that residual as "not producible under
-//       the single-writer slice-3 bound" at this build step. There is no way to construct a
-//       RECORD whose data trips it — only a store that violates the bound — so (5)->(6) is
-//       NOT jointly constructible here and is excluded below.
+//       refuseMaybeAppend's docstring both describe that residual as not producible under
+//       this build step's single-writer bound. There is no way to construct a RECORD whose
+//       data trips it — only a store that violates the bound — so (5)->(6) is NOT jointly
+//       constructible here and is excluded below.
 //
 // Consecutive-rung pairs and their tests:
 //   (1)->(2) x 2 — chain-compromise over each of rung (2)'s two codes. ALREADY COVERED in
