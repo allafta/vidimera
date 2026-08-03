@@ -1,9 +1,8 @@
-// @vidimera/record — transition-encoding.test.ts (design §2 "chain/encoding.ts" / §3
-// PURE CORE / §5 "Transition encoding" / §6): the genesis rule, `transitionDigest`'s
+// @vidimera/record — transition-encoding.test.ts (SPEC §4 "Transitions & the encoding"):
+// the genesis rule, `transitionDigest`'s
 // exact digest-over-JCS shape (`{recordId,seq,at,kind,payload,prevHash}`, digest
 // fields serialized as strings), algorithm derivation via `algorithmOf` (never a
-// hardcoded 'sha256'), and `encodeTransition`'s canonical-bytes contract. Task-4
-// brief Step 1.
+// hardcoded 'sha256'), and `encodeTransition`'s canonical-bytes contract.
 
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -43,7 +42,7 @@ test('genesisPrevHash() does NOT go through library JCS (it is a raw-string dige
   // If it were canonicalize({recordId})-based instead of the literal
   // "vidimera:genesis:<recordId>" string, it would collide with a differently-shaped
   // recordId whose JSON-quoted form matches the raw string. This pins the "raw UTF-8
-  // string" reading of design §4/§5 against a "JCS of a wrapper object" misreading.
+  // string" reading of SPEC §4 against a "JCS of a wrapper object" misreading.
   const viaRawString = createHash('sha256')
     .update(Buffer.from('vidimera:genesis:rec-x', 'utf8'))
     .digest('hex');
@@ -66,7 +65,7 @@ function sampleTransition(overrides: Partial<Transition> = {}): Transition {
     seq: 1,
     at: '2026-07-24T00:00:00.000Z',
     kind: 'opened',
-    payload: { profileId: 'tide.week.v1', legId: 'approver-decide' },
+    payload: { profileId: 'test.week.v1', legId: 'approver-decide' },
     prevHash: genesisPrevHash('rec-777'),
     ...overrides,
   };
@@ -148,7 +147,7 @@ test('transitionDigest() is order-insensitive on payload object keys (JCS key-so
   assert.equal(transitionDigest(a), transitionDigest(b));
 });
 
-test('transitionDigest() emits a Digest-shaped value ("sha256:<64-lowercase-hex>") at slice 3', () => {
+test('transitionDigest() emits a Digest-shaped value ("sha256:<64-lowercase-hex>")', () => {
   assert.match(transitionDigest(sampleTransition()), /^sha256:[0-9a-f]{64}$/);
 });
 

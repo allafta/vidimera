@@ -1,15 +1,14 @@
-// @vidimera/record — store-constraints.test.ts (design §2 "store/store.ts"/"store/memory.ts",
-// §4 "Provisional Store" IN FULL, §6 "store-constraints.test.ts"): the provisional
-// in-memory `Store` — `putStaged`/`getStaged` idempotence, the CAS `appendTransition`
-// (`expectedCurrentState`), and the three hand-implemented constraints:
+// @vidimera/record — store-constraints.test.ts (SPEC §12's storage interface): the
+// provisional in-memory `Store` — `putStaged`/`getStaged` idempotence, the CAS
+// `appendTransition` (`expectedCurrentState`), and the three hand-implemented constraints:
 //   C1 exclusivity — partial UNIQUE(profileId, subjectRef) over the persisted
 //     `nonTerminal` flag: a second genesis for a still-live subject conflicts
-//     `'exclusivity'` and names the BLOCKER's recordId (OQ2-10 minimal locator).
+//     `'exclusivity'` and names the BLOCKER's recordId (the minimal locator).
 //   C2 sequencing   — UNIQUE(recordId, seq), server-authoritative seq = max+1.
 //   C3 monotonicity — no state-leaving append after a terminal record (persisted
 //     `nonTerminal === false`), except the `sealed` (state-preserving) and
 //     compromise-classed-refusal-from-confirmed/redeeming carve-outs.
-// Task-5 brief Step 1. Transitions are built by hand via `chain/encoding.ts`
+// Transitions are built by hand via `chain/encoding.ts`
 // (`genesisPrevHash`/`transitionDigest`), driven one append at a time through the
 // Store under test — NOT via `tests/helpers/chain.ts`'s `buildChain`, which
 // assembles an already-linked chain independent of any Store and would bypass the
@@ -19,11 +18,11 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { genesisPrevHash, transitionDigest } from '../src/chain/encoding.js';
 import { MemoryStore } from '../src/store/memory.js';
-import type { Digest, IdentityAssertion, RecordState, Transition } from '../src/types.js';
+import type { IdentityAssertion, Transition } from '../src/types.js';
 
 // --- fixtures ------------------------------------------------------------------------
 
-const APPROVER: IdentityAssertion = { principal: 'approver:1', authority: 'session:tide-web' };
+const APPROVER: IdentityAssertion = { principal: 'approver:1', authority: 'session:test-app' };
 
 function openedPayload(profileId: string, subjectRef: string) {
   return {
@@ -305,7 +304,7 @@ test('appendTransition: C3 — the SEALED carve-out (state-preserving) is allowe
   await store.appendTransition('open', confirmed, false); // terminal
 
   const sealed = nextTransition(confirmed, 'sealed', {
-    note: 'slice-4, not emitted by the slice-3 kernel',
+    note: 'not emitted by this kernel build',
   });
   // A sealed append preserves state, so the record's nonTerminal flag is unchanged (false).
   const result = await store.appendTransition('confirmed', sealed, false);
