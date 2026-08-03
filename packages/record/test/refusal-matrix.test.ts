@@ -1,15 +1,16 @@
-// @vidimera/record — refusal-matrix.test.ts (design §6 "refusal-matrix.test.ts" / §9
-// "unredeemable-state always-present (O2)" + "unknown-leg deferral (S3)"): ONE
-// production-path assertion per SLICE-3-PRODUCIBLE CORE RefusalCode, driven through the
-// PUBLIC agent/operator surfaces (a fixture may ARRANGE store state via direct appends,
+// @vidimera/record — refusal-matrix.test.ts: ONE
+// production-path assertion per CORE RefusalCode this build can produce, driven through
+// the PUBLIC agent/operator surfaces (a fixture may ARRANGE store state via direct appends,
 // mirroring the existing per-behavior suites — e.g. chain-verify.test.ts's TamperingStore —
 // but the OUTCOME under test always comes from a public call). Per-code depth (multiple
 // scenarios, edge cases) lives in each code's own per-behavior file; this file is the
 // cross-cutting summary + the transitionRef presence matrix + per-outcome `class`
-// correctness. `unknown-leg` has NO slice-3 producer (single-leg; legId is derived
-// internally, never caller-named) — it is asserted at registry/type level only.
+// correctness. `unknown-leg` DOES have a producer in this build (stage()'s
+// caller-named-leg check, production-path-tested in unknown-ids.test.ts) but is
+// asserted here at registry/type level only, to keep this file's per-code coverage
+// uniform without duplicating that test.
 //
-// transitionRef presence matrix (design §5/§9 "Refusal registry + result-first"):
+// transitionRef presence matrix (SPEC §8's "Append semantics"):
 //   - chain-compromise: PRESENT — a compromise-class refusal ALWAYS appends one `refused`
 //     edge at head (normal C2) and returns its digest. The ONE documented exception — the
 //     C3-forced corner where a tampered chain's REAL persisted state is already terminal
@@ -278,7 +279,7 @@ test('unknown-profile: stage() naming an unconfigured profileId -> refused/refus
 });
 
 // === unredeemable-state (ONE production-path assertion here; both profile-shape depth ===
-// === lives in terminality.test.ts, Task 9) ===============================================
+// === lives in terminality.test.ts) ========================================================
 
 test('unredeemable-state: redeem() on a confirmed record -> refused/refusal, no transitionRef (both-profile-shape depth: terminality.test.ts)', async () => {
   const handles = create(makeConfig([captureProfile()]));
@@ -294,9 +295,10 @@ test('unredeemable-state: redeem() on a confirmed record -> refused/refusal, no 
   assert.equal(outcome.transitionRef, undefined);
 });
 
-// === unknown-leg: registry/type-level presence + class ONLY (no slice-3 producer) =======
+// === unknown-leg: registry/type-level presence + class ONLY (production path is
+// === unknown-ids.test.ts, not this file) =================================================
 
-test('unknown-leg: registry/type presence + class only — NO slice-3 producer (single-leg; legId is derived internally, never caller-named)', () => {
+test('unknown-leg: registry/type presence + class only in this file — the production-path assertion lives in unknown-ids.test.ts', () => {
   // `code: RefusalCode = 'unknown-leg'` is itself a COMPILE-TIME union-membership check
   // (this file fails to type-check if 'unknown-leg' is ever removed from the union).
   const code: RefusalCode = 'unknown-leg';
@@ -305,7 +307,7 @@ test('unknown-leg: registry/type presence + class only — NO slice-3 producer (
 
 // === registry totality sanity (cross-check against outcome-model.test.ts's own total) ===
 
-test('every CORE RefusalCode is accounted for in this matrix (9 slice-3-producible + unknown-leg registry-only = 10)', () => {
+test('every CORE RefusalCode is accounted for in this matrix (9 production-path-tested here + unknown-leg registry-only = 10)', () => {
   const allCodes = Object.keys(CORE) as RefusalCode[];
   assert.equal(allCodes.length, 10);
 });
