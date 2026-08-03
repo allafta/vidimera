@@ -1,5 +1,6 @@
-// @vidimera/record — core shapes (design §3 "CORE TYPES"). Field-for-field verbatim
-// from the design doc; comments preserve the doc's semantic constraints.
+// @vidimera/record — core shapes (SPEC §2 "The record model" / §4 "Transitions & the
+// encoding"). Field-for-field with the SPEC's tables; comments preserve its semantic
+// constraints.
 
 import type { RefusalCode } from './refusal-codes.js';
 
@@ -28,7 +29,7 @@ export type RecordState =
   | 'expired'
   | 'redeeming'
   | 'redeemed'
-  | 'redemption-failed'; // last three: slice 5, not produced here
+  | 'redemption-failed'; // last three: effect-seam states (SPEC §2), not produced in this build
 
 export type TransitionKind =
   | 'opened'
@@ -42,7 +43,7 @@ export type TransitionKind =
   | 'redeeming'
   | 'redeemed'
   | 'redemption-failed';
-// slice-3 KERNEL EMITS ONLY: opened, consultation-recorded, confirmed, refused, expired
+// this build's kernel emits only: opened, consultation-recorded, confirmed, refused, expired
 
 export interface Transition {
   recordId: string;
@@ -83,10 +84,9 @@ export interface ReviewView {
 }
 
 /**
- * Store-facing staged draft (design §4 "Provisional Store"): `stage()` writes one of
+ * Store-facing staged draft (SPEC §12's "Staged-draft surface"): `stage()` writes one of
  * these (digest-only, content never persisted); `open()` reads it by `stagedRef` to
- * mint the record. Listed under Task 2's core types per the task brief even though the
- * `Store` interface itself is Task 5.
+ * mint the record.
  */
 export interface StagedDraft {
   id: string;

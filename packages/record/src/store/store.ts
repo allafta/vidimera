@@ -1,31 +1,28 @@
-// @vidimera/record — store/store.ts (design §2 "store/store.ts" / §4 "Provisional
-// Store" IN FULL): the provisional `Store` interface + its `AppendResult` union.
+// @vidimera/record — store/store.ts: the provisional `Store` interface + its
+// `AppendResult` union.
 //
-// PUBLIC BUT EXPLICITLY UNSTABLE PRE-1.0 (design §4 heading: "public, explicitly
+// PUBLIC BUT EXPLICITLY UNSTABLE PRE-1.0 (SPEC §12: "public, explicitly
 // unstable pre-1.0"). A host may inject its own `Store` implementation today (there is
 // no other way to run the library — `Config.store` is required), but this interface's
-// shape is provisional scaffolding for the slice-4 real SQLite/Postgres adapters, not
-// a frozen contract: it WILL change (most likely gaining a caller-transaction seam,
-// OQ2-9, and a committed-read surface, OQ2-10-full) when slice 4 lands. Do not build
-// long-lived external adapters against this exact shape yet.
+// shape is provisional scaffolding for a future real SQLite/Postgres adapter, not
+// a frozen contract: it WILL change (most likely gaining a caller-transaction seam and a
+// committed-read surface — both named but not built in this build, SPEC §12) at a later
+// build step. Do not build long-lived external adapters against this exact shape yet.
 //
-// Placement note (task-5 report): `StagedDraft` already lives in `types.ts` (added
-// under Task 2's core-types file, ahead of this module, per that file's own doc
-// comment). Design §2 nominally places `StagedDraft`/`AppendResult` together under
-// "store/store.ts" — here that is satisfied by RE-EXPORTING the existing `types.ts`
-// definition (so callers can still `import type { StagedDraft } from
-// './store/store.js'` and get the design's intended grouping) rather than
-// duplicating/redefining it. `AppendResult` has no earlier home, so it is defined here,
-// as the design's file listing implies.
+// Placement note: `StagedDraft` lives in `types.ts` alongside the other core shapes;
+// this module RE-EXPORTS the existing `types.ts` definition (so callers can still
+// `import type { StagedDraft } from './store/store.js'` and get it grouped alongside
+// `AppendResult`) rather than duplicating/redefining it. `AppendResult` has no earlier
+// home, so it is defined here.
 
 import type { Digest, RecordState, StagedDraft, Transition } from '../types.js';
 
 export type { StagedDraft };
 
 /**
- * `AppendResult` (design §4, verbatim union):
+ * `AppendResult` (SPEC §12's constraints, verbatim union):
  *  - `{appended:true; seq; transitionDigest}` — the accepted transition's own
- *    server-authoritative `seq` (C2) and its `transitionDigest` (computed the same way
+ *    server-authoritative `seq` (§12's C2) and its `transitionDigest` (computed the same way
  *    `chainHead` computes one — via `chain/encoding.ts`'s `transitionDigest`, never a
  *    caller-supplied value the Store merely echoes back unchecked).
  *  - `{appended:false; conflict:'state-mismatch'}` — the CAS `expectedCurrentState`
@@ -33,13 +30,13 @@ export type { StagedDraft };
  *    C3 monotonicity blocking a state-leaving, non-carve-out append on an already
  *    terminal record — see `store/memory.ts` for why C3 reuses this conflict arm
  *    rather than inventing a fourth).
- *  - `{appended:false; conflict:'seq'}` — C2 sequencing: the proposed `transition.seq`
+ *  - `{appended:false; conflict:'seq'}` — §12's C2 sequencing: the proposed `transition.seq`
  *    was not the store's authoritative `max+1` for that record.
- *  - `{appended:false; conflict:'exclusivity'; blockingRecordId}` — C1 exclusivity: a
+ *  - `{appended:false; conflict:'exclusivity'; blockingRecordId}` — §12's C1 exclusivity: a
  *    GENESIS append was rejected because another record for the same
  *    `(profileId, subjectRef)` is currently flagged `nonTerminal`; `blockingRecordId`
- *    names THAT blocker (never the rejected/new record) — the OQ2-10 minimal locator
- *    `open()`'s expire-then-retry path (design §5/§9, Task 7) reads to decide whether
+ *    names THAT blocker (never the rejected/new record) — the minimal locator
+ *    `open()`'s expire-then-retry path reads to decide whether
  *    to auto-expire and retry.
  */
 export type AppendResult =
@@ -48,16 +45,16 @@ export type AppendResult =
   | { appended: false; conflict: 'exclusivity'; blockingRecordId: string };
 
 /**
- * The provisional Store (design §4, verbatim interface). Async throughout (design §9
- * "Sync vs async": "uniformly async ... committing now avoids a breaking sync->async
- * flip" once slice 4's Postgres adapter and OQ2-9 caller-txn seam land) even though
+ * The provisional Store (SPEC §12, verbatim interface). Async throughout —
+ * committing now avoids a breaking sync->async flip once a real Postgres adapter and
+ * caller-transaction seam land — even though
  * `store/memory.ts`'s Map-backed implementation has no genuine I/O to await.
  */
 export interface Store {
   /** Idempotent by `staged.id` (content-derived — `id.ts`'s `deriveStagedRef`). */
   putStaged(staged: StagedDraft): Promise<void>;
 
-  /** Read by `open()` (Task 7); `null` for an unknown `stagedRef`. */
+  /** Read by `open()`; `null` for an unknown `stagedRef`. */
   getStaged(stagedRef: string): Promise<StagedDraft | null>;
 
   /**
@@ -78,8 +75,8 @@ export interface Store {
   readChain(recordId: string): Promise<Transition[]>;
 
   /**
-   * The last transition's `transitionDigest` (design task-5 brief: "compute via
-   * chain/encoding's transitionDigest"); `null` for an unknown recordId.
+   * The last transition's `transitionDigest`, computed via
+   * `chain/encoding.ts`'s `transitionDigest`; `null` for an unknown recordId.
    */
   chainHead(recordId: string): Promise<Digest | null>;
 }
