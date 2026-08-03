@@ -64,8 +64,10 @@ export function profileDeclaresEffectSeam(profile: ConfirmProfile): boolean {
 // --- construction guards (fail-CLOSED) -----------------------------------------------
 
 /**
- * The exact GOVERNED throw message (design §5): guards lift feature-by-feature. The head
- * through the closing parenthesis — `GOVERNED feature not available in this build
+ * The exact GOVERNED throw message (§9.1: "a feature field for an unimplemented capability
+ * fails fast with an explicit 'feature not available in this build' error rather than
+ * silently degrading"). Guards lift feature-by-feature as build steps add enforcement. The
+ * head through the closing parenthesis — `GOVERNED feature not available in this build
  * (<field>)` — is byte-preserved (pinned by construction-validation.test.ts); the
  * caller-supplied `contract` is the appended tail: what is unavailable, and the SPEC
  * section(s) that lift it. Arity-2 because it serves three consumers: the per-field
