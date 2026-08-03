@@ -64,7 +64,7 @@ count-comparison said nothing about content; syntax says nothing about reference
 
 ## Units
 
-### R1 — the base-vs-head source audit (no code changes)
+### R1 — the base-vs-head source audit (no code changes) — COMPLETE (`ab412e6`..`cde4b5b`)
 
 For every file in `packages/record/src`, diff the adopted version against the reference's head
 (`git -C <REF> diff c0f0f75 c688ce4 -- packages/record/src/<path>`). Triage **every** delta into
@@ -80,7 +80,13 @@ durable answer to "how does our kernel differ from its source", which nothing cu
 
 **Exit:** every delta classified; the INHERIT list is R2's work-list. **No source edited in R1.**
 
-### R2 — apply the INHERIT list
+**Done:** the triage table landed at `docs/process/adopted-source-provenance.md` (`ab412e6`),
+then gained the recovered spec-conformance dimension's findings, folded into a fourth class
+(`cde4b5b`) and into the companion whole-branch review at
+`docs/analysis/2026-08-03-step-1-review.md`. Ten INHERIT items confirmed, ranked; no source
+touched.
+
+### R2 — apply the INHERIT list — COMPLETE (`201ccb7`..`b159a9f`)
 
 Fix everything R1 bucketed INHERIT. Known members before the audit runs:
 
@@ -95,6 +101,18 @@ Fix everything R1 bucketed INHERIT. Known members before the audit runs:
 Any further INHERIT items land here too. Each needs its own failing test before its fix.
 
 **Exit:** every INHERIT item fixed with a red-first test; 218+ tests green; digests unmoved.
+
+**Done:** all nine applicable INHERIT items fixed, each red-first. The four `MemoryStore`
+aliasing sites (items 1-4: `readChain`, `putStaged`, `appendGenesis`, `appendSubsequent`) landed
+in `201ccb7`, along with the two missing SPEC §12 freshness tests and the resolution of the
+`structuredClone`/`DataCloneError` hazard the audit flagged (see
+`docs/process/adopted-source-provenance.md`'s "as shipped" section). `open()`'s staged-`legId`
+re-check (item 5) landed in `8c78083`. The three documentation-only items (6-9: `store.ts`'s
+`putStaged` collision rule and `getStaged`/`readChain` freshness docs; the three `bound`
+comments) landed in `b159a9f`. Item 10 (`index.ts`'s missing `OpenOptions` export) was
+reclassified as a local improvement rather than an inherited fix and left unapplied — see its
+own entry in the provenance document. 226 tests green (up from 218), zero skips; the four
+byte-compatibility digests unmoved.
 
 ### R3 — citation repair and a resolver gate
 
@@ -153,12 +171,14 @@ and what is explicitly still outstanding. For step 1 specifically:
 - that the package is **unconsumable today** — `private`, version `0.0.0`, no `exports`/`types`, no
   build, `noEmit`.
 
-Then fix what its absence left stale: `README.md:36` still says the contract scan is "currently
-red" (it exits 0); `CLAUDE.md`'s three status claims are 31 commits old; deferral row 7's trigger
-has fired while the row is still tabled. Retire rows 7 and 8 in the same commit.
+**Partly pre-empted by a documentation housekeeping sweep, ahead of this unit running:** the
+stale `README.md:36` "currently red" line, `CLAUDE.md`'s stale status claims, and deferral row
+7's already-fired trigger were all fixed and retired outside R5, once it became clear their
+staleness did not need to wait on the exit-record artifact itself. What R5 still owes: the
+`docs/process/implementation-status.md` record itself, and retiring row 8 once that record
+exists.
 
-**Exit:** the record exists and is accurate; every status claim in both front doors is true; rows 7
-and 8 retired.
+**Exit:** the record exists and is accurate; row 8 retired.
 
 ---
 

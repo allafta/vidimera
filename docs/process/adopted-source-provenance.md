@@ -9,8 +9,16 @@ from the implementation it was adopted from, and why?**
 It is the deliverable of an audit internally called **R1**: a systematic, file-by-file diff of
 every line we adopted against that reference project's own later history, triaging every
 difference into exactly one of three buckets. R1 changed no source — it is a read-only audit.
-Where R1 found something we should take, that is recorded here as a to-do for later work, not
-already applied.
+Where R1 found something we should take, that is recorded here as a to-do for later work.
+
+**R2 status: nine of the ten INHERIT items below are now APPLIED** (each marked with its own
+commit in its section heading). The tenth — the `index.ts` `OpenOptions` export — was
+**reclassified** rather than applied: on review it is a local completeness improvement this
+repository can make on its own terms, not a fix this repository failed to inherit from the
+reference project's later history, so it does not belong on R2's INHERIT work-list (see its own
+entry for the reasoning). R2 also had to resolve, not just apply, a hazard the audit flagged in
+the three-item `structuredClone` fix — see "The `structuredClone` decision, as shipped" below,
+appended after the cross-cutting caveat that originally raised it.
 
 Per this repository's standing rule, the source project is never named, linked, or dated
 beyond "the reference implementation." Its commits are cited only by short hash.
@@ -64,10 +72,12 @@ contribute zero deltas each (see "Two negative results") and are not separate ro
 ## The 10 confirmed INHERIT items, ranked
 
 Ranked by consequence: aliasing defects that let a caller silently corrupt persisted evidence
-first, then a missing fail-closed check, then documentation-only corrections. None of these
-have been applied yet — this is R1's work-list for a follow-up unit.
+first, then a missing fail-closed check, then documentation-only corrections. This was R1's
+work-list for a follow-up unit, R2; each item below now carries its own status.
 
 ### 1 — `readChain` hands out live references to stored transitions (critical)
+
+**Status: APPLIED (commit `201ccb7`).**
 
 **File:** `packages/record/src/store/memory.ts:290-296` (the return at line 295).
 
@@ -114,6 +124,8 @@ clone-on-read discipline `getStaged` already has (`memory.ts:168`); update the c
 
 ### 2 — `appendSubsequent` stores the caller's own `Transition` object (important)
 
+**Status: APPLIED (commit `201ccb7`).**
+
 **File:** `packages/record/src/store/memory.ts:254-288` (the mutation at line 281:
 `existing.chain.push(transition)`).
 
@@ -137,6 +149,8 @@ chain.
 comment naming the caller-retention risk (finalize's embedded `identity`/`checker`).
 
 ### 3 — `putStaged` stores the caller's `StagedDraft` object (important)
+
+**Status: APPLIED (commit `201ccb7`).**
 
 **File:** `packages/record/src/store/memory.ts:152-161` (the store at line 160:
 `this.staged.set(staged.id, staged)`).
@@ -165,6 +179,8 @@ snapshot can be deleted and `draft` used directly as the expected value.
 
 ### 4 — `appendGenesis` stores the caller's genesis `Transition` object (important)
 
+**Status: APPLIED (commit `201ccb7`).**
+
 **File:** `packages/record/src/store/memory.ts:193-239` (the insert at line 236:
 `chain: [transition]`).
 
@@ -186,6 +202,8 @@ genesis append and re-reads.
 cross-referencing the `appendSubsequent` fix (item 2).
 
 ### 5 — `open()` never re-validates the staged draft's `legId` (important)
+
+**Status: APPLIED (commit `8c78083`).**
 
 **Files:** `packages/record/src/kernel/open.ts` (insertion point: after line 86 — `const {
 profile, effectSeam } = resolved;` — and before line 88); companion doc fix in
@@ -240,6 +258,8 @@ only the leaf-and-config write-up carries.
 
 ### 6 — `store.ts`'s `putStaged` doc omits the collision rule it implements (minor)
 
+**Status: APPLIED (commit `b159a9f`).**
+
 **File:** `packages/record/src/store/store.ts:54`.
 
 **The defect in our code.** The public `Store` interface documents `putStaged` as only
@@ -259,6 +279,8 @@ content differs."
 
 ### 7 — `store.ts`'s `getStaged`/`readChain` docs omit the freshness requirement (minor)
 
+**Status: APPLIED (commit `b159a9f`).**
+
 **File:** `packages/record/src/store/store.ts:57-58` and `:74-75`.
 
 **The defect in our code.** Neither doc comment states a no-aliasing requirement, even though
@@ -277,6 +299,8 @@ corrupt store-internal state. This is a REQUIREMENT on every conforming Store, n
 implementation detail of the memory backing" to `readChain`'s doc (`store.ts:74-75`).
 
 ### 8 — `chain/replay.ts`'s two `bound` comments contradict our own SPEC (minor, doc-only)
+
+**Status: APPLIED (commit `b159a9f`).**
 
 **Files:** `packages/record/src/chain/replay.ts:62-63` (the `replay` docblock bullet) and
 `:125-126` (the `case 'expired'` comment).
@@ -298,6 +322,8 @@ fired."
 
 ### 9 — `kernel/expiry.ts`'s own `bound` comment has the same error (minor, doc-only)
 
+**Status: APPLIED (commit `b159a9f`).**
+
 **File:** `packages/record/src/kernel/expiry.ts:65`.
 
 **The defect in our code.** The same misdescription as item 8, in the file that actually
@@ -312,6 +338,12 @@ where a future reader is most likely to look before adding a second expiry claus
 distinguishes which expiry clause fired, SPEC §4," keeping this repository's `SPEC §4` anchor.
 
 ### 10 — `index.ts` does not export `OpenOptions` (minor)
+
+**Status: SKIPPED — reclassified, not applied.** On review this is not an INHERIT item: it is
+not a fix the reference project's later history made and this repository failed to take, it is
+a completeness improvement this repository could choose to make on its own terms at any time,
+independent of anything the reference project did or did not do. R2 left it as recorded R1
+output rather than folding it into the nine genuine inherited fixes above.
 
 **File:** `packages/record/src/index.ts:13`.
 
@@ -328,10 +360,13 @@ the parameter type and must fall back to
 **Why our 218 tests do not catch it.** No test in this corpus imports from the package entry
 point with an eye to export completeness; the omission is compile-clean.
 
-**The fix.** Add `OpenOptions` to the re-export at `index.ts:13`: `export type { Canonicalizer,
-Config, ConfirmProfile, LegSpec, OpenOptions } from './config.js';`. Type-only; zero runtime
-effect. (This closes exactly one gap under a broader export-completeness policy the reference
-implementation later adopted in full — see the LATER-STEP summary.)
+**The fix, if ever applied.** Add `OpenOptions` to the re-export at `index.ts:13`: `export type
+{ Canonicalizer, Config, ConfirmProfile, LegSpec, OpenOptions } from './config.js';`. Type-only;
+zero runtime effect. This would close exactly one gap under a broader export-completeness
+policy the reference implementation later adopted in full (see the LATER-STEP summary) — but
+that broader policy is itself LATER-STEP work, not something this build step reaches, which is
+why R2 left this one piece of it unapplied rather than singling it out ahead of the rest (see
+the status note above).
 
 ---
 
@@ -363,6 +398,32 @@ This must be resolved — by validating `identity`/`checker` shape more strictly
 cloning only the parts that need write-isolation rather than the whole transition, or by an
 explicit decision that this narrows an accepted input shape — **before** any of items 1, 2, or
 4's hunks land, not as a follow-up.
+
+## The `structuredClone` decision, as shipped (R2, commit `201ccb7`)
+
+**Resolved: plain `structuredClone`, with the `DataCloneError` throw accepted as a deliberate
+behaviour narrowing, not designed around.** A host's `identity`/`facts.checker` argument that
+carries a function- or symbol-valued own property — a class instance with a method, rather than
+a plain `{principal, authority, proofRef?}` literal — now throws `DataCloneError` at the
+clone-on-write seam (`store/memory.ts`'s `putStaged`/`appendGenesis`/`appendSubsequent`) and at
+the clone-on-read seam (`readChain`), where the identical call shape silently succeeded before
+this fix landed. This is narrower than what `transitionDigest()`'s own JCS pass tolerates (JCS
+*omits* such a member rather than throwing, matching `JSON.stringify`) — the two seams now
+disagree on purpose, not by oversight.
+
+The reasoning recorded beside the decision in `store/memory.ts`: this is the reference
+implementation's own choice for this same fix, so diverging here would introduce a fresh,
+unaudited difference in the very change meant to close an inherited gap; a value
+`structuredClone` cannot copy cannot be considered durable evidence either, under this
+repository's own "reference semantics, never durable evidence" class of decision; and a
+clone helper that faithfully mirrored JCS's tolerance (including its `toJSON`-takes-precedence
+rule) would be new-code risk disproportionate to the actual need, since SPEC's identity shape is
+plain data and a host needing a richer object can project it to a literal at the call site.
+
+Pinned by three tests in `packages/record/test/store-constraints.test.ts` (the "DataCloneError
+decision pin" block): a function-valued payload member throws `DataCloneError` on the
+non-genesis append path, on the genesis append path, and on `putStaged`, so this choice cannot
+drift silently in either direction.
 
 ## The byte-safety answer
 

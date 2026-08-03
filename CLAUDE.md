@@ -15,12 +15,17 @@ parts:
   meaningful only to an outside party are out of scope by design.
 - **The implementation** (`packages/`): a TypeScript pnpm-workspace monorepo implementing
   the concept in the proven build order (`docs/concept/SCOPING-GUIDE.md` §7). Build-order
-  step 1 — the kernel — is landing increment by increment; `packages/record/src` is real
-  code today, not a skeleton (23 files, ~2,500 lines; `create()` is implemented).
-  Outstanding before this increment can close: a test subset that actually exercises the
-  imported kernel (today one file, six tests, none of it), the byte-compatibility pins
-  against the reference implementation, and the comment scrub the imported source still
-  needs (see `pnpm contract-scan` below).
+  step 1 — the kernel — was adopted from a reference implementation of the same spec and
+  is landing increment by increment; `packages/record/src` is real code today, not a
+  skeleton (23 files, ~2,850 lines; `create()` is implemented and exercised by 226 tests
+  across 22 files, zero skips). A base-vs-head provenance audit
+  (`docs/process/adopted-source-provenance.md`) found ten fixes the reference project had
+  already made that this build had not taken; the nine that were genuinely applicable are
+  now applied, and the tenth was reclassified as a local improvement rather than an
+  inherited fix (see that document). Outstanding before this increment can close: a
+  citation-integrity resolver for the comment scrub's `SPEC §N` references, one mis-mapped
+  refusal code on a partial-success batch, and the step's own exit record — tracked as
+  units R3–R5 in `docs/superpowers/plans/2026-08-03-step-1-remediation.md`.
 
 ## The standalone contract
 
@@ -74,18 +79,19 @@ pnpm workspace (Node 22+, pnpm via corepack):
   scheme that has no counterpart here (`design §4`, `slice 7`, `Task 5`, `OQ2-10`) — such
   a reader-unresolvable pointer is an external reference in the contract's sense. A
   maintainer working alongside other private repositories should extend the script's
-  patterns with those projects' names, package names, and tooling. **Currently red on
-  this branch:** exactly 210 findings, exit 1, all under `packages/record/src` — the
-  imported kernel's own comments carry exactly those pointers, and this repository has
-  no counterpart for them. That baseline is expected and already scheduled to close; a
-  reader should diff a new run against it before treating a red scan as a regression.
-  The flagged comments get rewritten one at a time — the comment layer is roughly half
-  of `packages/record/src` by line count and is the imported code's highest-value asset,
-  so the remedy is never a bulk delete to reach silence.
+  patterns with those projects' names, package names, and tooling. **Exits 0 today, zero
+  findings** — the imported kernel's comment scrub that rewrote every reference-project
+  pointer is complete. The scan validates that a citation is syntactically well-formed
+  (`SPEC §N`, `DECISIONS.md`), never that it *resolves* to real text — a still-open gap a
+  later unit closes (`docs/superpowers/plans/2026-08-03-step-1-remediation.md`'s R3). A
+  reader should diff a new run's output, never just compare totals, before treating any
+  red result as a regression — a scan total moving has hidden an equal-sized regression
+  in the opposite direction on this branch before.
 
-CI (`.github/workflows/ci.yml`) runs typecheck, lint, test, and contract-scan on every
-push to `main` and every pull request, with read-only token permissions and one
-cancel-on-supersede concurrency group per ref.
+CI (`.github/workflows/ci.yml`) runs typecheck, test, lint, contract-scan, and the
+stricter `lint:strict` (`biome check --error-on-warnings`) on every push to `main` and
+every pull request, with read-only token permissions and one cancel-on-supersede
+concurrency group per ref.
 
 ## Process disciplines (inherited from the concept)
 
@@ -94,9 +100,13 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
 - One cluster per increment; **spec-moves-to-truth** at every increment's exit (a
   maturity marker moves only when the behavior lands in this repository).
 - Feature guards from day one — an unimplemented capability throws at construction
-  (`config.ts` `validateProfile`; ten of the eleven governed fields are armed — `redeem`
-  is NOT, and an effect-seam profile silently strands its `(profile, subject)` pair; the
-  agreed remedy is to close the strand rather than arm the guard, and it is recorded in
-  the deferral register).
+  (`config.ts` `validateProfile`; ten governed profile fields throw there). `redeem` is
+  the eleventh governed capability: it throws at the call seam instead
+  (`kernel/redeem.ts`), on a confirmed effect-seam record, rather than at construction.
+  Neither throw nor a refusal releases the `(profile, subject)` pair such a record
+  holds — the hold lives in the Store's C1 exclusivity, not in what `redeem()` returns or
+  throws — so the throw is loud, not silent; real closure needs a later build step's
+  `seal()` or a `confirmToRedeem` expiry edge. Recorded in the deferral register (an
+  earlier framing of this remedy was itself wrong and has been corrected there).
 - Byte-stability pins and adjacent-pair gate-order tests, from the kernel increment on.
 - The living deferral register: `docs/process/deferral-register.md`.
