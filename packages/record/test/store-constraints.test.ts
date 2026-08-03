@@ -385,3 +385,194 @@ test('readChain: a failed append does not mutate the stored chain', async () => 
   assert.equal(conflict.appended, false);
   assert.deepEqual(await store.readChain('rec-immut'), [genesis]);
 });
+
+// === SPEC §12 freshness — readChain / appendTransition / putStaged must not alias ======
+//
+// `readChain` used to return `[...existing.chain]` — a copy of the ARRAY, but not of its
+// elements, handing back the store's own Transition objects (and their payloads) by
+// reference. `readChain` is agent-reachable (agent-surface.ts), so an agent holding only
+// that handle could silently rewrite persisted chain state through the returned
+// reference. Each test below captures an INDEPENDENT snapshot of the expected values
+// BEFORE any mutation (never itself passed to the store) — a snapshot built from the same
+// object the store might retain by reference would be mutated right along with it,
+// making the assertion vacuously pass regardless of whether the defect is fixed.
+
+test('readChain: returns FRESH transitions — mutating a returned transition\'s payload can never corrupt store-internal state (SPEC §12: "a caller mutating a returned chain, head, or staged draft can never corrupt store-internal state")', async () => {
+  const store = new MemoryStore();
+  const genesis = genesisTransition('rec-fresh-read', 'profile.p1', 'subject:fresh-read');
+  await store.appendTransition(null, genesis, true);
+  const confirmed = nextTransition(genesis, 'confirmed', { actor: { ...APPROVER } });
+  await store.appendTransition('open', confirmed, false);
+
+  // Independent snapshot, taken BEFORE any mutation.
+  const expectedHead = transitionDigest(confirmed);
+  const expectedActorPrincipal = APPROVER.principal;
+
+  const firstRead = await store.readChain('rec-fresh-read');
+  const target = firstRead[1];
+  if (target === undefined) throw new Error('expected the confirmed transition at index 1');
+  (target.payload as { actor: { principal: string } }).actor.principal = 'tampered-by-caller';
+
+  const secondRead = await store.readChain('rec-fresh-read');
+  const secondTransition = secondRead[1];
+  if (secondTransition === undefined) {
+    throw new Error('expected the confirmed transition at index 1');
+  }
+  assert.equal(
+    (secondTransition.payload as { actor: { principal: string } }).actor.principal,
+    expectedActorPrincipal,
+    "mutating a previously-read transition's payload must not be visible to a later readChain call",
+  );
+  assert.equal(
+    await store.chainHead('rec-fresh-read'),
+    expectedHead,
+    'chainHead must recompute from the STORED (untampered) transition, not a mutated live reference',
+  );
+});
+
+test("appendTransition (non-genesis): does NOT retain the caller's own Transition object — mutating the ORIGINAL object after a successful append does not corrupt store-internal state (kernel/finalize.ts's real risk: `payload: { actor: identity }` embeds the caller-supplied identity verbatim)", async () => {
+  const store = new MemoryStore();
+  const genesis = genesisTransition('rec-write-retain', 'profile.p1', 'subject:write-retain');
+  await store.appendTransition(null, genesis, true);
+
+  const confirmed = nextTransition(genesis, 'confirmed', { actor: { ...APPROVER } });
+  const result = await store.appendTransition('open', confirmed, false);
+  assert.equal(result.appended, true);
+
+  // Mutate the CALLER's OWN object directly (not something returned by the store).
+  (confirmed.payload as { actor: { principal: string } }).actor.principal = 'tampered-by-caller';
+
+  const chain = await store.readChain('rec-write-retain');
+  const stored = chain[1];
+  if (stored === undefined) throw new Error('expected the confirmed transition at index 1');
+  assert.equal(
+    (stored.payload as { actor: { principal: string } }).actor.principal,
+    APPROVER.principal,
+    "mutating the caller's own transition object after a successful append must not corrupt the stored chain",
+  );
+});
+
+test("putStaged: does NOT retain the caller's own StagedDraft object — mutating the ORIGINAL draft after a successful put does not corrupt store-internal state", async () => {
+  const store = new MemoryStore();
+  const draft = {
+    id: 'staged-caller-retain',
+    profileId: 'p1',
+    legId: 'leg-1',
+    subjectRef: 'subj-caller-retain',
+    contentDigest: 'sha256:' + 'f'.repeat(64),
+  };
+  // Independent snapshot, taken BEFORE the put (and before any mutation) — see the
+  // section comment above for why `draft` itself cannot serve as the expected value.
+  const originalSnapshot = { ...draft };
+  await store.putStaged(draft);
+
+  // Mutate the CALLER's OWN object directly (not something returned by getStaged) — the
+  // risk this test names: a host builds a StagedDraft, calls the Store, then mutates its
+  // own object afterward.
+  draft.profileId = 'tampered-by-caller';
+  draft.subjectRef = 'tampered-by-caller';
+
+  const read = await store.getStaged('staged-caller-retain');
+  assert.deepEqual(
+    read,
+    originalSnapshot,
+    "mutating the caller's own draft object after a successful put must not corrupt the stored draft",
+  );
+});
+
+test("appendTransition (genesis): does NOT retain the caller's own Transition object — mutating the ORIGINAL object after a successful genesis append does not corrupt store-internal state (kernel/open.ts reuses one openedTransition object across its first attempt and an expire-then-retry, so aliasing here is easy to introduce by accident)", async () => {
+  const store = new MemoryStore();
+  const genesis = genesisTransition('rec-genesis-retain', 'profile.p1', 'subject:genesis-retain');
+  const result = await store.appendTransition(null, genesis, true);
+  assert.equal(result.appended, true);
+
+  // Mutate the CALLER's OWN genesis object directly.
+  (genesis.payload as { profileId: string }).profileId = 'tampered-by-caller';
+
+  const chain = await store.readChain('rec-genesis-retain');
+  const stored = chain[0];
+  if (stored === undefined) throw new Error('expected the genesis transition at index 0');
+  assert.equal(
+    (stored.payload as { profileId: string }).profileId,
+    'profile.p1',
+    "mutating the caller's own genesis transition object after a successful append must not corrupt the stored chain",
+  );
+});
+
+// === DataCloneError decision pin (see store/memory.ts's store-clone decision comment) ==
+//
+// `structuredClone` — used above to isolate store-internal state from a caller's own
+// object — THROWS `DataCloneError` on a function- or symbol-valued member anywhere in the
+// object graph. This is a DELIBERATE choice (memory.ts documents the full reasoning): a
+// payload that digests fine today (JCS silently OMITS such a member rather than throwing,
+// jcs.ts's `hasNoJsonForm`) now fails LOUDLY at the store seam instead of being silently
+// accepted by reference. These tests pin that choice so it cannot change by accident.
+
+test('appendTransition (non-genesis): a payload member carrying a FUNCTION (e.g. a class-instance identity with a method, not a plain literal) throws DataCloneError rather than being silently stored', async () => {
+  const store = new MemoryStore();
+  const genesis = genesisTransition(
+    'rec-dataclone-subsequent',
+    'profile.p1',
+    'subject:dataclone-subsequent',
+  );
+  await store.appendTransition(null, genesis, true);
+
+  const actorWithMethod = {
+    principal: 'approver:1',
+    authority: 'session:test-app',
+    describe(): string {
+      return this.principal;
+    },
+  };
+  const confirmed = nextTransition(genesis, 'confirmed', { actor: actorWithMethod });
+
+  await assert.rejects(
+    () => store.appendTransition('open', confirmed, false),
+    (err: unknown) => err instanceof Error && err.name === 'DataCloneError',
+    'a function-valued payload member must throw DataCloneError at the clone-on-write seam',
+  );
+});
+
+test('appendTransition (genesis): a payload member carrying a FUNCTION throws DataCloneError rather than being silently stored', async () => {
+  const store = new MemoryStore();
+  const genesisPayloadWithMethod = {
+    ...openedPayload('profile.p1', 'subject:dataclone-genesis'),
+    describe(): string {
+      return 'not a plain literal';
+    },
+  };
+  const genesis: Transition = {
+    recordId: 'rec-dataclone-genesis',
+    seq: 1,
+    at: '2026-07-24T00:00:00.000Z',
+    kind: 'opened',
+    payload: genesisPayloadWithMethod,
+    prevHash: genesisPrevHash('rec-dataclone-genesis'),
+  };
+
+  await assert.rejects(
+    () => store.appendTransition(null, genesis, true),
+    (err: unknown) => err instanceof Error && err.name === 'DataCloneError',
+    'a function-valued payload member must throw DataCloneError at the genesis clone-on-write seam',
+  );
+});
+
+test('putStaged: a StagedDraft carrying an extra FUNCTION-valued property throws DataCloneError rather than being silently stored', async () => {
+  const store = new MemoryStore();
+  const draftWithMethod = {
+    id: 'staged-dataclone',
+    profileId: 'p1',
+    legId: 'leg-1',
+    subjectRef: 'subj-dataclone',
+    contentDigest: 'sha256:' + '2'.repeat(64),
+    describe(): string {
+      return 'not a plain StagedDraft literal';
+    },
+  };
+
+  await assert.rejects(
+    () => store.putStaged(draftWithMethod),
+    (err: unknown) => err instanceof Error && err.name === 'DataCloneError',
+    'a function-valued extra property must throw DataCloneError at the clone-on-write seam',
+  );
+});

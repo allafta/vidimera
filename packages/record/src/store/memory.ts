@@ -134,6 +134,42 @@ function isCompromiseCarveOut(transition: Transition, expectedCurrentState: Reco
 }
 
 /**
+ * Store-clone decision: `putStaged`/`readChain`/`appendGenesis`/`appendSubsequent` below
+ * all isolate store-internal state from a caller's own object by cloning with
+ * `structuredClone` before storing or returning it. `structuredClone` THROWS
+ * `DataCloneError` on a function- or symbol-valued member anywhere in the object graph —
+ * a STRICTER tolerance than `jcs.ts`'s own JCS pass (`hasNoJsonForm`), which SILENTLY
+ * OMITS such a member rather than throwing (matching `JSON.stringify`). Concretely:
+ * `kernel/finalize.ts` embeds the caller-supplied `identity` argument verbatim as
+ * `payload.actor` (and `facts.checker` into a Consultation payload) — an `IdentityAssertion`
+ * that is a plain `{principal, authority, proofRef?}` literal (SPEC §6) clones fine, but one
+ * built as a class instance carrying a method would newly THROW at this seam, even though
+ * `transitionDigest` already accepts it today (the method is silently dropped by JCS before
+ * this clone ever runs, since the digest is always computed BEFORE the clone at both write
+ * sites below).
+ *
+ * DECISION: use plain `structuredClone` and accept the throw as a deliberate narrowing —
+ *  1. it is the reference implementation's own choice for this same fix; diverging here
+ *     would introduce a fresh, unaudited difference in the very change meant to close an
+ *     inherited gap, not close one;
+ *  2. a value that `structuredClone` cannot copy cannot be considered durable evidence
+ *     either —
+ *     this class is documented as "reference semantics, never durable evidence"
+ *     (DECISIONS.md #24), so requiring clone-safety is a step TOWARD what any real backing
+ *     will need, not an arbitrary new restriction;
+ *  3. a helper that faithfully mirrored `jcs.ts`'s tolerance would also have to honor its
+ *     `toJSON`-takes-precedence rule to genuinely match "what the digest accepts" (`jcs.ts`
+ *     calls `toJSON` before ever checking a member for omission, `jcs.ts:88-91`) —
+ *     reimplementing that recursive traversal a second time, on this hot path, is new-code
+ *     risk disproportionate to the actual need: SPEC §6's `IdentityAssertion` shape is
+ *     plain data, and a host needing a richer object can project it to a literal at the
+ *     call site.
+ *
+ * Pinned by store-constraints.test.ts's "a payload member carrying a FUNCTION ... throws
+ * DataCloneError" tests, so this choice cannot drift silently.
+ */
+
+/**
  * The provisional in-memory `Store` (DECISIONS.md #24: "reference semantics, never
  * durable evidence"). Re-exported from the
  * library's public index as the seam adopters should wire
@@ -157,7 +193,10 @@ export class MemoryStore implements Store {
     if (this.staged.has(staged.id)) {
       return;
     }
-    this.staged.set(staged.id, staged);
+    // Clone on write (SPEC §12 freshness — see the store-clone decision comment above the
+    // class): the caller's own object must not become a live write handle into
+    // store-internal state. Symmetric with `getStaged`'s existing clone-on-read.
+    this.staged.set(staged.id, structuredClone(staged));
   }
 
   async getStaged(stagedRef: string): Promise<StagedDraft | null> {
@@ -226,6 +265,9 @@ export class MemoryStore implements Store {
       return { appended: false, conflict: 'seq' };
     }
 
+    // The digest is computed from the ORIGINAL object, before the clone-on-write below —
+    // the two write paths' clone choice (see the store-clone decision comment above the
+    // class) never moves a canonical byte, because it runs strictly after this line.
     const digest = transitionDigest(transition);
     this.records.set(transition.recordId, {
       id: transition.recordId,
@@ -233,7 +275,10 @@ export class MemoryStore implements Store {
       subjectRef: payload.subjectRef,
       state: 'open',
       nonTerminal,
-      chain: [transition],
+      // Clone on write: `open()` deliberately reuses the same `openedTransition` object
+      // across its first attempt and an expire-then-retry (kernel/open.ts:116,157) — the
+      // caller's object must not become a live write handle into what gets persisted here.
+      chain: [structuredClone(transition)],
     });
     return { appended: true, seq: transition.seq, transitionDigest: digest };
   }
@@ -277,8 +322,14 @@ export class MemoryStore implements Store {
       return { appended: false, conflict: 'seq' };
     }
 
+    // The digest is computed from the ORIGINAL object, before the clone-on-write below —
+    // see the note in `appendGenesis` and the store-clone decision comment above the class.
     const digest = transitionDigest(transition);
-    existing.chain.push(transition);
+    // Clone on write: `kernel/finalize.ts` embeds the caller-supplied `identity` argument
+    // verbatim as `payload.actor` (and `facts.checker` into a consultation payload) — after
+    // a successful append the host still holds live references INTO those objects; without
+    // cloning, mutating them afterward would rewrite the stored chain's head.
+    existing.chain.push(structuredClone(transition));
     existing.nonTerminal = nonTerminal;
     const nextState = stateOf(transition.kind);
     if (nextState !== null) {
@@ -289,10 +340,12 @@ export class MemoryStore implements Store {
 
   async readChain(recordId: string): Promise<Transition[]> {
     const existing = this.records.get(recordId);
-    // A defensive copy: callers must not be able to corrupt store-internal state by
-    // mutating the array they get back (the Transition objects themselves are treated
-    // as immutable once appended, same as every other module in this codebase).
-    return existing ? [...existing.chain] : [];
+    // A deep clone (SPEC §12 freshness — see the store-clone decision comment above the
+    // class): `[...existing.chain]` alone would copy only the ARRAY, handing back the
+    // store's own Transition objects (and their payloads) by reference. `readChain` is
+    // agent-reachable (agent-surface.ts) — an agent holding only that handle could
+    // otherwise silently rewrite persisted chain state through the returned reference.
+    return existing ? structuredClone(existing.chain) : [];
   }
 
   async chainHead(recordId: string): Promise<Digest | null> {
