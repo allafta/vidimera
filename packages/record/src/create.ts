@@ -14,22 +14,22 @@
 // The reads (`getRecord`/`readChain`/`chainHead`) and the `replay`/`verifyChain` `recordId`
 // audit wrappers are REAL: direct Store delegation + the pure `chain/replay.ts` core.
 
-import { resolveCanonicalizer, type Canonicalizer } from './canonical.js';
+import { type AgentSurface, makeAgentSurface } from './agent-surface.js';
+import { type Canonicalizer, resolveCanonicalizer } from './canonical.js';
 import { replay as replayCore, verifyChain as verifyChainCore } from './chain/replay.js';
 import {
-  validateProfile,
-  profileDeclaresEffectSeam,
   type Config,
   type ConfirmProfile,
+  profileDeclaresEffectSeam,
+  validateProfile,
 } from './config.js';
-import type { Store } from './store/store.js';
-import { makeAgentSurface, type AgentSurface } from './agent-surface.js';
-import { makeOperatorSurface, type OperatorSurface } from './operator-surface.js';
-import { stage as stageKernel } from './kernel/stage.js';
-import { open as openKernel } from './kernel/open.js';
-import { review as reviewKernel } from './kernel/review.js';
 import { finalize as finalizeKernel } from './kernel/finalize.js';
+import { open as openKernel } from './kernel/open.js';
 import { redeem as redeemKernel } from './kernel/redeem.js';
+import { review as reviewKernel } from './kernel/review.js';
+import { stage as stageKernel } from './kernel/stage.js';
+import { makeOperatorSurface, type OperatorSurface } from './operator-surface.js';
+import type { Store } from './store/store.js';
 
 /**
  * A validated profile paired with its resolved canonicalizer and precomputed effect-seam
@@ -91,7 +91,8 @@ function makeKernel(ctx: KernelContext): Kernel {
     stage: (content, profileId, subjectRef) => stageKernel(ctx, content, profileId, subjectRef),
     open: (stagedRef) => openKernel(ctx, stagedRef),
     review: (recordId) => reviewKernel(ctx, recordId),
-    finalize: (recordId, identity, content, facts) => finalizeKernel(ctx, recordId, identity, content, facts),
+    finalize: (recordId, identity, content, facts) =>
+      finalizeKernel(ctx, recordId, identity, content, facts),
 
     // --- redeem(): Task 9 — slice-3 stub (kernel/redeem.ts): unredeemable-state, always ---
     redeem: (recordId, content) => redeemKernel(ctx, recordId, content),
@@ -133,7 +134,10 @@ export function createWithClock(
     if (profiles.has(profile.id)) {
       throw new Error(`create: duplicate profile id '${profile.id}'`);
     }
-    const canonicalizer = resolveCanonicalizer(config.canonicalizers, profile.subject.canonicalizerRef);
+    const canonicalizer = resolveCanonicalizer(
+      config.canonicalizers,
+      profile.subject.canonicalizerRef,
+    );
     profiles.set(profile.id, {
       profile,
       canonicalizer,

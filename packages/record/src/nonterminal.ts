@@ -26,7 +26,9 @@ import type { RecordState } from './types.js';
  *    is terminal: `false`.
  */
 export function nonTerminal(state: RecordState, isFinalLeg: boolean, effectSeam: boolean): boolean {
-  return state === 'open' || (state === 'confirmed' && isFinalLeg && effectSeam) || state === 'redeeming';
+  return (
+    state === 'open' || (state === 'confirmed' && isFinalLeg && effectSeam) || state === 'redeeming'
+  );
 }
 
 /**

@@ -15,10 +15,10 @@
 // `await` anywhere in between. That is what "checked atomically inside the append,
 // never an advisory pre-check" means when ported to a real transaction.
 
-import type { Digest, RecordState, Transition, TransitionKind } from '../types.js';
 import { transitionDigest } from '../chain/encoding.js';
 import { CORE, type RefusalCode } from '../refusal-codes.js';
-import type { AppendResult, Store, StagedDraft } from './store.js';
+import type { Digest, RecordState, Transition, TransitionKind } from '../types.js';
+import type { AppendResult, StagedDraft, Store } from './store.js';
 
 /**
  * The `opened` transition's payload, read only for the two fields C1 exclusivity
@@ -204,7 +204,11 @@ export class MemoryStore implements Store {
     // for the provisional in-memory backing; a real adapter enforces the same
     // predicate via an actual partial unique index.
     for (const other of this.records.values()) {
-      if (other.nonTerminal && other.profileId === payload.profileId && other.subjectRef === payload.subjectRef) {
+      if (
+        other.nonTerminal &&
+        other.profileId === payload.profileId &&
+        other.subjectRef === payload.subjectRef
+      ) {
         return { appended: false, conflict: 'exclusivity', blockingRecordId: other.id };
       }
     }
@@ -252,7 +256,10 @@ export class MemoryStore implements Store {
     if (!existing.nonTerminal) {
       // The record is TERMINAL. Design §4 C3: "no state-leaving append after a
       // terminal state ... EXCEPT the two carve-outs."
-      if (isStateLeaving(transition.kind) && !isCompromiseCarveOut(transition, expectedCurrentState)) {
+      if (
+        isStateLeaving(transition.kind) &&
+        !isCompromiseCarveOut(transition, expectedCurrentState)
+      ) {
         return { appended: false, conflict: 'state-mismatch' };
       }
     }

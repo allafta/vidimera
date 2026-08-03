@@ -12,11 +12,11 @@
 // (missing-stagedRef) and `replay()`/`verifyChain()` (empty chain) already take. Flagged for
 // the Task-12 SPEC reconciliation (whether the registry wants an `unknown-record` code).
 
+import { replay } from '../chain/replay.js';
 import type { KernelContext } from '../create.js';
 import type { Outcome } from '../outcome.js';
 import { ok } from '../outcome.js';
 import type { ReviewView } from '../types.js';
-import { replay } from '../chain/replay.js';
 
 export async function review(ctx: KernelContext, recordId: string): Promise<Outcome<ReviewView>> {
   const chain = await ctx.store.readChain(recordId);

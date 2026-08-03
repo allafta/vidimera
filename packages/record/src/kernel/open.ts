@@ -19,18 +19,21 @@
 // wants an `unknown-staged` code). This is distinct from the reserved store/infra-fault
 // exceptions; nothing was recorded here either.
 
+import { genesisPrevHash } from '../chain/encoding.js';
+import { replay } from '../chain/replay.js';
 import type { KernelContext } from '../create.js';
+import { mintRecordId } from '../id.js';
+import { isFinalLeg, nonTerminal } from '../nonterminal.js';
 import type { Outcome } from '../outcome.js';
 import { ok, refused } from '../outcome.js';
-import type { Transition } from '../types.js';
 import { profileDigest } from '../profile-digest.js';
-import { mintRecordId } from '../id.js';
-import { genesisPrevHash } from '../chain/encoding.js';
-import { isFinalLeg, nonTerminal } from '../nonterminal.js';
-import { replay } from '../chain/replay.js';
+import type { Transition } from '../types.js';
 import { expireIfDue } from './expiry.js';
 
-export async function open(ctx: KernelContext, stagedRef: string): Promise<Outcome<{ recordId: string }>> {
+export async function open(
+  ctx: KernelContext,
+  stagedRef: string,
+): Promise<Outcome<{ recordId: string }>> {
   const { store, profiles, now } = ctx;
 
   const staged = await store.getStaged(stagedRef);

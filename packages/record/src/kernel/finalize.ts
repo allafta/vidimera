@@ -31,17 +31,17 @@
 // (3)/(4)/(5) are refusal-class: each appends `open→refused` (terminal) IFF the leg's
 // `terminalRefusals` lists it (Task 2 `appendsOn`), else no append and the record stays open.
 
+import { canonicalize, digest } from '../canonical.js';
+import { transitionDigest } from '../chain/encoding.js';
+import { replay, verifyChain } from '../chain/replay.js';
+import type { LegSpec } from '../config.js';
 import type { KernelContext, ResolvedProfile } from '../create.js';
+import { isFinalLeg, nonTerminal } from '../nonterminal.js';
 import type { Outcome } from '../outcome.js';
 import { ok, refused } from '../outcome.js';
-import type { Consultation, Digest, IdentityAssertion, RecordState, Transition } from '../types.js';
-import type { LegSpec } from '../config.js';
-import type { Store } from '../store/store.js';
 import { appendsOn, type RefusalCode } from '../refusal-codes.js';
-import { canonicalize, digest } from '../canonical.js';
-import { replay, verifyChain } from '../chain/replay.js';
-import { transitionDigest } from '../chain/encoding.js';
-import { isFinalLeg, nonTerminal } from '../nonterminal.js';
+import type { Store } from '../store/store.js';
+import type { Consultation, Digest, IdentityAssertion, RecordState, Transition } from '../types.js';
 import { expireIfDue } from './expiry.js';
 
 /** The finalize `facts` arg (design §3): the reviewed-surface figures + the review-surface checker. */
@@ -129,7 +129,15 @@ export async function finalize(
 
   // --- (3) identity — both branches → identity-authority-refused -----------------------
   if (!isValidIdentity(identity) || !leg.allowedAuthorities.includes(identity.authority)) {
-    return refuseMaybeAppend(store, 'identity-authority-refused', leg, chain, resolved, finalLeg, now);
+    return refuseMaybeAppend(
+      store,
+      'identity-authority-refused',
+      leg,
+      chain,
+      resolved,
+      finalLeg,
+      now,
+    );
   }
 
   // --- (4) content-drift ----------------------------------------------------------------
@@ -213,7 +221,11 @@ export async function finalize(
     payload: { actor: identity },
     prevHash,
   };
-  const confirmedRes = await store.appendTransition('open', confirmedTransition, confirmedNonTerminal);
+  const confirmedRes = await store.appendTransition(
+    'open',
+    confirmedTransition,
+    confirmedNonTerminal,
+  );
   if (!confirmedRes.appended) {
     // Residual CAS conflict on the confirmed edge (state-mismatch) → record-not-open (M-B
     // residual). The already-landed consultations stay on the chain — the batch is sequential

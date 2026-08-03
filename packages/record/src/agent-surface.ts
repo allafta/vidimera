@@ -7,12 +7,16 @@
 // the record-transitioning calls are unreachable-by-construction (the honest in-process
 // limit design §1 states, asserted by agent-unreachability.test.ts).
 
-import type { DecisionRecord, Digest, Transition } from './types.js';
-import type { Outcome } from './outcome.js';
 import type { Kernel } from './create.js';
+import type { Outcome } from './outcome.js';
+import type { DecisionRecord, Digest, Transition } from './types.js';
 
 export interface AgentSurface {
-  stage(content: unknown, profileId: string, subjectRef: string): Promise<Outcome<{ stagedRef: string }>>;
+  stage(
+    content: unknown,
+    profileId: string,
+    subjectRef: string,
+  ): Promise<Outcome<{ stagedRef: string }>>;
   getRecord(recordId: string): Promise<DecisionRecord | null>;
   readChain(recordId: string): Promise<Transition[]>;
   chainHead(recordId: string): Promise<Digest | null>;

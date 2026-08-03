@@ -94,7 +94,8 @@ function validateLeg(profileId: string, leg: LegSpec): void {
   if (leg.proposer !== undefined) throw new Error(governedUnavailable('proposer'));
   if (leg.ackMode !== undefined) throw new Error(governedUnavailable('ackMode'));
   if (leg.requiredAcks !== undefined) throw new Error(governedUnavailable('requiredAcks'));
-  if (leg.requiredConsultations !== undefined) throw new Error(governedUnavailable('requiredConsultations'));
+  if (leg.requiredConsultations !== undefined)
+    throw new Error(governedUnavailable('requiredConsultations'));
   if (leg.freshness !== undefined) throw new Error(governedUnavailable('freshness'));
   if (leg.eligibility !== undefined) throw new Error(governedUnavailable('eligibility'));
   assertNoStrayRedemptionKeys(profileId, 'leg', leg);

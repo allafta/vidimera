@@ -15,11 +15,11 @@
 // It APPENDS NOTHING and creates NO record — `open()` (kernel/open.ts) is what mints the
 // record and appends the genesis `opened` transition.
 
+import { canonicalize, digest } from '../canonical.js';
 import type { KernelContext } from '../create.js';
+import { deriveStagedRef } from '../id.js';
 import type { Outcome } from '../outcome.js';
 import { ok, refused } from '../outcome.js';
-import { canonicalize, digest } from '../canonical.js';
-import { deriveStagedRef } from '../id.js';
 
 export async function stage(
   ctx: KernelContext,

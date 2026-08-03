@@ -14,12 +14,12 @@
 // pre-check) means a race that flips the record away from 'open' surfaces as a
 // non-appended result the caller maps, never as a lost update.
 
-import type { ResolvedProfile } from '../create.js';
-import type { Transition } from '../types.js';
-import type { AppendResult, Store } from '../store/store.js';
-import type { ConfirmProfile } from '../config.js';
 import { transitionDigest } from '../chain/encoding.js';
+import type { ConfirmProfile } from '../config.js';
+import type { ResolvedProfile } from '../create.js';
 import { isFinalLeg, nonTerminal } from '../nonterminal.js';
+import type { AppendResult, Store } from '../store/store.js';
+import type { Transition } from '../types.js';
 
 type Expiry = ConfirmProfile['expiry'];
 

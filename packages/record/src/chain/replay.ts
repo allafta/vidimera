@@ -9,8 +9,14 @@
 // callers (kernel, operator surface) are responsible for fetching the chain via
 // `Store.readChain()` first.
 
-import type { Consultation, DecisionRecord, Digest, IdentityAssertion, Transition } from '../types.js';
 import type { RefusalCode } from '../refusal-codes.js';
+import type {
+  Consultation,
+  DecisionRecord,
+  Digest,
+  IdentityAssertion,
+  Transition,
+} from '../types.js';
 import { genesisPrevHash, transitionDigest } from './encoding.js';
 
 // --- payload shapes (design §3, the "Payload shapes" paragraph) --------------------
@@ -176,7 +182,9 @@ export type ChainVerifyReport =
  */
 export function verifyChain(chain: readonly Transition[]): ChainVerifyReport {
   if (chain.length === 0) {
-    throw new Error('verifyChain: empty chain (verifying a chain that does not exist is a caller error)');
+    throw new Error(
+      'verifyChain: empty chain (verifying a chain that does not exist is a caller error)',
+    );
   }
 
   let expectedPrevHash: Digest | undefined;

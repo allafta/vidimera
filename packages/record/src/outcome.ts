@@ -2,8 +2,8 @@
 // shape"). Domain refusals are RETURNED VALUES: constructors never throw for a domain
 // refusal. Exceptions are reserved for store/infra faults where nothing was recorded.
 
-import type { Digest } from './types.js';
 import { CORE, type RefusalCode } from './refusal-codes.js';
+import type { Digest } from './types.js';
 
 // `class` is DERIVED from `code` via the CORE registry — never a caller-supplied
 // field. `transitionRef` is present ONLY when a transition was actually appended
@@ -13,7 +13,12 @@ import { CORE, type RefusalCode } from './refusal-codes.js';
 // for external-authority availability (slice 5+).
 export type Outcome<T> =
   | { status: 'ok'; value: T }
-  | { status: 'refused'; code: RefusalCode; class: 'refusal' | 'compromise'; transitionRef?: Digest }
+  | {
+      status: 'refused';
+      code: RefusalCode;
+      class: 'refusal' | 'compromise';
+      transitionRef?: Digest;
+    }
   | { status: 'unavailable'; code: RefusalCode; authority: string };
 
 export function ok<T>(value: T): Outcome<T> {

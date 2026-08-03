@@ -5,33 +5,18 @@
 // subpath exports — the agent/operator split is a runtime capability split (two frozen
 // handles from `create`), not a module split.
 
-// --- factory ---
-export { create } from './create.js';
-
+export type { AgentSurface } from './agent-surface.js';
+export type { DigestAlgorithm } from './canonical.js';
 // --- exported helpers (design §3 EXPORTED HELPERS) ---
 export { canonicalize, digest } from './canonical.js';
-
+export type { ChainVerifyReport } from './chain/replay.js';
 // --- public types ---
-export type { Config, ConfirmProfile, LegSpec, Canonicalizer } from './config.js';
-export type { AgentSurface } from './agent-surface.js';
+export type { Canonicalizer, Config, ConfirmProfile, LegSpec } from './config.js';
+// --- factory ---
+export { create } from './create.js';
 export type { OperatorSurface } from './operator-surface.js';
 export type { Outcome } from './outcome.js';
 export type { RefusalCode } from './refusal-codes.js';
-export type { DigestAlgorithm } from './canonical.js';
-export type {
-  Digest,
-  IdentityAssertion,
-  Consultation,
-  Transition,
-  TransitionKind,
-  RecordState,
-  DecisionRecord,
-  ReviewView,
-  StagedDraft,
-} from './types.js';
-export type { Store, AppendResult } from './store/store.js';
-export type { ChainVerifyReport } from './chain/replay.js';
-
 // --- provisional in-memory Store implementation (design §4 slice-3 backing) ---
 // Re-exported (Task 10 review, adjudicated) so adopters wire the library's own
 // reference `Store` instead of hand-rolling a byte-identical copy (the tide example
@@ -40,3 +25,15 @@ export type { ChainVerifyReport } from './chain/replay.js';
 // seam. PUBLIC BUT EXPLICITLY UNSTABLE PRE-1.0 — see `MemoryStore`'s own doc comment
 // and the `Store` interface's (same marking).
 export { MemoryStore } from './store/memory.js';
+export type { AppendResult, Store } from './store/store.js';
+export type {
+  Consultation,
+  DecisionRecord,
+  Digest,
+  IdentityAssertion,
+  RecordState,
+  ReviewView,
+  StagedDraft,
+  Transition,
+  TransitionKind,
+} from './types.js';

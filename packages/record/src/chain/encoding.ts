@@ -11,7 +11,7 @@
 // assemble a payload) — that is kernel territory (Tasks 7-8), which will call these
 // three exports to build the transitions it appends.
 
-import { canonicalize, digest, algorithmOf } from '../canonical.js';
+import { algorithmOf, canonicalize, digest } from '../canonical.js';
 import type { Digest, Transition } from '../types.js';
 
 /**

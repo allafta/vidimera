@@ -38,7 +38,7 @@ const adrPattern = /docs\/adr/; // ADR-style internal reference
 // a lookalike host that merely contains the string. Extract every URL and
 // flag the line unless each one resolves to example.com or a subdomain of it
 // (the spec's worked examples are the intended exception).
-const urlPattern = /https?:\/\/([^\s\/)\]>"']+)/g;
+const urlPattern = /https?:\/\/([^\s/)\]>"']+)/g;
 const allowedHost = /(^|\.)example\.com$/;
 
 function hasExternalLink(line) {

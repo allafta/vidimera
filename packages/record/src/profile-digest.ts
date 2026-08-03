@@ -4,9 +4,9 @@
 // comparison can detect a profile that drifted out from under an open record. At THIS
 // task the helper + its properties are what ship; there is NO slice-3 detector (O4).
 
+import { canonicalize, digest } from './canonical.js';
 import type { ConfirmProfile } from './config.js';
 import type { Digest } from './types.js';
-import { canonicalize, digest } from './canonical.js';
 
 /**
  * Recursively strips function-valued members from a value, yielding a data-only clone

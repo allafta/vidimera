@@ -3,9 +3,8 @@
 // `stage()`. Deliberately has NO dependency on config.ts/create.ts — a leaf module.
 
 import { randomUUID } from 'node:crypto';
-
-import type { Digest } from './types.js';
 import { canonicalize, digest } from './canonical.js';
+import type { Digest } from './types.js';
 
 /**
  * Mints a fresh `recordId` at `open()` (design §2/§9 "recordId minting"): an OPAQUE,
@@ -43,6 +42,10 @@ export function mintRecordId(): string {
  * content, while staying idempotent for repeated staging of the identical triple —
  * `Store.putStaged` is idempotent by `staged.id` (design §4), which is this value.
  */
-export function deriveStagedRef(contentDigest: Digest, profileId: string, subjectRef: string): Digest {
+export function deriveStagedRef(
+  contentDigest: Digest,
+  profileId: string,
+  subjectRef: string,
+): Digest {
   return digest(canonicalize({ contentDigest, profileId, subjectRef }));
 }

@@ -9,10 +9,17 @@
 // `unredeemable-state` — the effect-seam behavior is slice 5); the reads +
 // replay/verifyChain wrappers are already real.
 
-import type { DecisionRecord, Digest, IdentityAssertion, RecordState, ReviewView, Transition } from './types.js';
-import type { Outcome } from './outcome.js';
 import type { ChainVerifyReport } from './chain/replay.js';
 import type { Kernel } from './create.js';
+import type { Outcome } from './outcome.js';
+import type {
+  DecisionRecord,
+  Digest,
+  IdentityAssertion,
+  RecordState,
+  ReviewView,
+  Transition,
+} from './types.js';
 
 export interface OperatorSurface {
   open(stagedRef: string): Promise<Outcome<{ recordId: string }>>;
