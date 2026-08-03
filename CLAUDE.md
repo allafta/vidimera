@@ -14,8 +14,13 @@ parts:
   operator-assurance tier. The operator is the sole consumer of the records; capabilities
   meaningful only to an outside party are out of scope by design.
 - **The implementation** (`packages/`): a TypeScript pnpm-workspace monorepo implementing
-  the concept in the proven build order (`docs/concept/SCOPING-GUIDE.md` §7). Currently a
-  walking skeleton — no build-order increment has landed yet.
+  the concept in the proven build order (`docs/concept/SCOPING-GUIDE.md` §7). Build-order
+  step 1 — the kernel — is landing increment by increment; `packages/record/src` is real
+  code today, not a skeleton (23 files, ~2,500 lines; `create()` is implemented).
+  Outstanding before this increment can close: a test subset that actually exercises the
+  imported kernel (today one file, six tests, none of it), the byte-compatibility pins
+  against the reference implementation, and the comment scrub the imported source still
+  needs (see `pnpm contract-scan` below).
 
 ## The standalone contract
 
@@ -69,7 +74,14 @@ pnpm workspace (Node 22+, pnpm via corepack):
   scheme that has no counterpart here (`design §4`, `slice 7`, `Task 5`, `OQ2-10`) — such
   a reader-unresolvable pointer is an external reference in the contract's sense. A
   maintainer working alongside other private repositories should extend the script's
-  patterns with those projects' names, package names, and tooling.
+  patterns with those projects' names, package names, and tooling. **Currently red on
+  this branch:** exactly 210 findings, exit 1, all under `packages/record/src` — the
+  imported kernel's own comments carry exactly those pointers, and this repository has
+  no counterpart for them. That baseline is expected and already scheduled to close; a
+  reader should diff a new run against it before treating a red scan as a regression.
+  The flagged comments get rewritten one at a time — the comment layer is roughly half
+  of `packages/record/src` by line count and is the imported code's highest-value asset,
+  so the remedy is never a bulk delete to reach silence.
 
 CI (`.github/workflows/ci.yml`) runs typecheck, lint, test, and contract-scan on every
 push to `main` and every pull request, with read-only token permissions and one
@@ -82,6 +94,9 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
 - One cluster per increment; **spec-moves-to-truth** at every increment's exit (a
   maturity marker moves only when the behavior lands in this repository).
 - Feature guards from day one — an unimplemented capability throws at construction
-  (today `create()` itself throws: walking skeleton, nothing implemented).
+  (`config.ts` `validateProfile`; ten of the eleven governed fields are armed — `redeem`
+  is NOT, and an effect-seam profile silently strands its `(profile, subject)` pair; the
+  agreed remedy is to close the strand rather than arm the guard, and it is recorded in
+  the deferral register).
 - Byte-stability pins and adjacent-pair gate-order tests, from the kernel increment on.
 - The living deferral register: `docs/process/deferral-register.md`.
