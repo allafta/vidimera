@@ -1,17 +1,20 @@
-// @vidimera/record — kernel/finalize.ts (design §3 finalize signature / §5 "finalize()
-// check order" IN FULL / §9 "finalize check order (2nd-pass)" + "record-not-open (M-B)" +
-// "chain-compromise failure path (S6, AL1-honest)" + "Facts consultation checker (S1) +
-// figures path (O1)"): the operator-only `open → confirmed` seam. THE check order is fixed
+// @vidimera/record — kernel/finalize.ts: the operator-only `open → confirmed` seam
+// (SPEC §9 "The finalize gate ladder"). THE check order is fixed
 // and every refusal path wins over the ones after it:
 //
 //   load chain → (1) pre-seam chain-verify → (2) state/expiry gate → (3) identity (both
 //   branches) → (4) content-drift → (5) facts → (5.7) ack coverage [reserved] → (6) success
 //   append batch.
 //
+// This build implements rungs (1)/(2)/(3)/(4)/(5)/(6) of the SPEC's full ladder; the
+// SPEC's (3.5) separation-of-duties, (4.5) policy-drift, and (5.5) consultations/eligibility
+// rungs are not built in this build (their profile fields throw GOVERNED at construction,
+// so no profile that would need them can exist).
+//
 // (1) Chain-verify is FIRST after load. A DETECTED BREAK → refuse `chain-compromise` (class
 //     compromise, TERMINAL) and append ONE `refused` edge at head via NORMAL C2 (seq=max+1,
 //     prevHash=chainHead) — `open→refused` unconfirmed, or `confirmed→refused` via the Store
-//     C3 compromise carve-out (S-4). NO chain-verify consultation is appended on failure (the
+//     C3 compromise carve-out. NO chain-verify consultation is appended on failure (the
 //     fact folds into the single `refused` edge); the payload is `{code}`-only (AL1-honest —
 //     `verifyChain` still reports only the original tamper). Because chain-verify precedes the
 //     state gate, a tampered non-open record refuses `chain-compromise`, not `record-not-open`.
@@ -28,11 +31,11 @@
 //       acknowledgments (SPEC §10.2).
 // (6) Success batch — best-effort SEQUENTIAL appends [chain-verify consultation, facts
 //     consultation, confirmed] under the single-writer / no-concurrent-finalize-per-record
-//     slice-3 bound (NOT a cross-append atomic batch — OQ2-9 is slice 4). A residual
-//     `state-mismatch` on the confirmed-append CAS → `record-not-open` (M-B residual).
+//     bound in this build (not a cross-append atomic batch; a future build step makes it
+//     one). A residual `state-mismatch` on the confirmed-append CAS → `record-not-open`.
 //
 // (3)/(4)/(5) are refusal-class: each appends `open→refused` (terminal) IFF the leg's
-// `terminalRefusals` lists it (Task 2 `appendsOn`), else no append and the record stays open.
+// `terminalRefusals` lists it (the `appendsOn` rule), else no append and the record stays open.
 
 import { canonicalize, digest } from '../canonical.js';
 import { transitionDigest } from '../chain/encoding.js';
@@ -47,11 +50,11 @@ import type { Store } from '../store/store.js';
 import type { Consultation, Digest, IdentityAssertion, RecordState, Transition } from '../types.js';
 import { expireIfDue } from './expiry.js';
 
-/** The finalize `facts` arg (design §3): the reviewed-surface figures + the review-surface checker. */
+/** The finalize `facts` arg (SPEC §3's "Reviewed-surface (`facts`) binding"): the reviewed-surface figures + the review-surface checker. */
 type Facts = { figures: unknown; checker: IdentityAssertion };
 
 /**
- * The well-known SYSTEM_CHECKER (design §9 "chain-verify consultation"): the identity the
+ * The well-known SYSTEM_CHECKER (SPEC §5 "Mandatory pre-seam chain-verify"): the identity the
  * mandatory pre-seam chain-verify records as the consultation's `checker`. It is NOT a
  * transport-established caller identity — it is the LIBRARY itself attesting a clean replay,
  * so its `authority` is an internal library authority (`system:vidimera-record`), never one of
@@ -75,9 +78,10 @@ export async function finalize(
   // --- load the chain ------------------------------------------------------------------
   const chain = await store.readChain(recordId);
   if (chain.length === 0) {
-    // No such record. No fitting slice-3 RefusalCode (the union is contract-fixed; the record
+    // No such record. No fitting RefusalCode (the union is contract-fixed; the record
     // must have been opened first) — THROWS, mirroring open()'s missing-stagedRef and
-    // replay()/verifyChain()'s empty-chain posture. Flagged for the Task-12 reconciliation.
+    // replay()/verifyChain()'s empty-chain posture (SPEC §8: "any operator call on a
+    // non-existent recordId... throw rather than refuse").
     throw new Error(
       `finalize: unknown recordId '${recordId}' — no such record (open() first); ` +
         'a recordId that resolves to no chain is a caller error, not a domain refusal',
@@ -96,7 +100,7 @@ export async function finalize(
   if (resolved === undefined) {
     // Fail-closed: the record's profile is not configured in THIS instance (a config/caller
     // error — a coherent instance always resolves a record it opened). No append, matching
-    // stage()/open()'s `unknown-profile` posture. Not a slice-3 producer under the tests
+    // stage()/open()'s `unknown-profile` posture. Not exercised by this build's tests
     // (open() is the runtime producer); defensive.
     return refused('unknown-profile');
   }
@@ -236,9 +240,9 @@ export async function finalize(
     confirmedNonTerminal,
   );
   if (!confirmedRes.appended) {
-    // Residual CAS conflict on the confirmed edge (state-mismatch) → record-not-open (M-B
-    // residual). The already-landed consultations stay on the chain — the batch is sequential
-    // best-effort, not atomic (design §9 S5).
+    // Residual CAS conflict on the confirmed edge (state-mismatch) → record-not-open.
+    // The already-landed consultations stay on the chain — the batch is sequential
+    // best-effort in this build, not atomic.
     return refused('record-not-open');
   }
 
@@ -248,7 +252,7 @@ export async function finalize(
 // --- helpers ---------------------------------------------------------------------------
 
 /**
- * The chain-compromise failure path (design §5/§9 S6, AL1-honest). Appends ONE `refused`
+ * The chain-compromise failure path (SPEC §5, AL1-honest). Appends ONE `refused`
  * edge at head via NORMAL C2 (`seq=max+1`, `prevHash=chainHead`, payload `{code}`-only), then
  * refuses `chain-compromise` WITH the appended edge's digest — compromise carries a
  * transitionRef wherever the Store's C3 carve-out admits an edge (`open→refused`;
@@ -308,9 +312,9 @@ async function appendChainCompromise(
 
 /**
  * A refusal-class refusal that appends `open→refused` (terminal, payload `{code}`-only) IFF the
- * leg's `terminalRefusals` lists `code` (Task 2 `appendsOn`), else no append (the record stays
+ * leg's `terminalRefusals` lists `code` (the `appendsOn` rule), else no append (the record stays
  * open). On an append: refuse WITH the appended edge's digest. On a failed append CAS (a race
- * out of `open` — not producible under the single-writer slice-3 bound): refuse without a
+ * out of `open` — not producible under this build's single-writer bound): refuse without a
  * transitionRef (best-effort; nothing was recorded).
  */
 async function refuseMaybeAppend(

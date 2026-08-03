@@ -1,13 +1,14 @@
-// @vidimera/record — kernel/expiry.ts (design §5 "Clocks en passant" / §9 "OQ2-10 minimal
-// locator pulled forward"): the en-passant expiry helper. "A due `expired` is appended
+// @vidimera/record — kernel/expiry.ts: the en-passant expiry helper (SPEC §4
+// "Clock-driven edges are appended en passant"): "A due `expired` is appended
 // lazily at the next operator-side mutating seam via the Store CAS BEFORE that seam's
-// verdict; no public `expire()`." At slice 3 this covers ONLY `open → expired`
-// (`confirmed → expired` / `confirmToRedeem` is a slice-5 effect-seam edge).
+// verdict; no public `expire()`." This build covers ONLY `open → expired`
+// (`confirmed → expired` / `confirmToRedeem` is SPEC §9.1's effect-seam edge, not built
+// in this build).
 //
 // Two seams share this helper:
-//  - `open()` (Task 7): on a `conflict:'exclusivity'` against a still-OPEN but LAPSED
+//  - `open()`: on a `conflict:'exclusivity'` against a still-OPEN but LAPSED
 //    blocker, it expires the blocker here, then retries its own genesis exactly once.
-//  - `finalize()` (Task 8, forward): its state/expiry gate expires a due-open record here,
+//  - `finalize()`: its state/expiry gate expires a due-open record here,
 //    then reads the now-`expired` state → `leg-expired`.
 // The helper decides due-ness AND performs the CAS append; the CALLER decides its own
 // verdict from the returned AppendResult. Keeping the CAS here (never an advisory
@@ -25,9 +26,9 @@ type Expiry = ConfirmProfile['expiry'];
 
 /**
  * The epoch-ms deadline a record's OPEN window closes: `openedAt + ttl`. `ttl` is in
- * SECONDS (matching the profile builders' `3600` / `86400` values), so it is multiplied
- * by 1000. Returns `null` for `expiry:'none'` — an open record under a no-expiry profile
- * NEVER lapses (design §5: "profile expiry 'none' ⇒ never expires ⇒ no expire branch").
+ * SECONDS (SPEC §9.1; matching the profile builders' `3600` / `86400` values), so it is
+ * multiplied by 1000. Returns `null` for `expiry:'none'` — an open record under a
+ * no-expiry profile NEVER lapses.
  */
 export function expiryDeadlineMs(openedAt: string, expiry: Expiry): number | null {
   if (expiry === 'none') return null;
@@ -54,14 +55,14 @@ export type ExpireResult =
  * the CAS re-checks `open` atomically regardless, so a stale read surfaces as a
  * non-appended `state-mismatch` rather than a lost update.
  *
- * The `expired` transition (design §3 payload shapes: `expired = { bound }`):
+ * The `expired` transition (SPEC §4's payload shapes: `expired = { bound }`):
  *  - `prevHash` = `transitionDigest(chain[last])` (the current head — computed from the
  *    chain we hold, no extra Store round-trip);
- *  - `seq` = `chain.length + 1` (C2 1-based +1; a stale seq is caught by the Store);
+ *  - `seq` = `chain.length + 1` (§12's C2, 1-based +1; a stale seq is caught by the Store);
  *  - `at` = `now` (RFC3339 UTC);
  *  - `payload.bound` = the crossed deadline `openedAt + ttl` as RFC3339 — the moment the
  *    open window closed. It is informational (replay folds only `state:'expired'` from an
- *    `expired` transition; `bound` names which expiry clause fired, §3/replay.ts);
+ *    `expired` transition; `bound` names which expiry clause fired, SPEC §4);
  *  - `nonTerminal` = `false` (an `expired` record is terminal — `nonTerminal('expired',…)`
  *    is `false` for every leg/effect-seam combination; computed via the helper for honesty
  *    rather than hardcoded).
