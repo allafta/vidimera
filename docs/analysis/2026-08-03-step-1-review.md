@@ -11,15 +11,35 @@ their pre-scrub originals and checked every re-pointed SPEC citation), **done-cr
 **claim-audit** (independently re-verified every priority claim in the branch's own execution
 ledgers by executing code, not by trusting the ledger's prose), **outstanding-risk** (asked
 what a cold future reader would be told versus what is actually true), and
-**spec-conformance** (read the normative spec in full against the source) — found six risks
-that a flat list would present as six unrelated bugs. **This document organizes them by
-cause instead, using the three-class framework the remediation plan adopted, because treating
-them as one list fixes symptoms while leaving the cause in place.**
+**spec-conformance** (read all 1,241 lines of `docs/concept/SPEC.md` and all 23 kernel source
+files, then proved eleven behaviours empirically by running vitest against the branch's real
+source) — found six risks that a flat list would present as six unrelated bugs. **This
+document organizes them by cause instead, using the three-class framework the remediation plan
+adopted, because treating them as one list fixes symptoms while leaving the cause in place.**
+
+**A note on how this document was assembled.** The spec-conformance reading was originally
+truncated out of the scratch file it was recorded in, so the version of this document first
+committed at `ab412e6` carried the other five dimensions' findings in full and named
+spec-conformance only in the paragraph above, with nothing attributed to it downstream — an
+honest gap, not a claim that the reading never happened. It has since been recovered in full
+(12 findings, its methodology note intact) and is folded into the sections below: most of its
+findings strengthen or corroborate what the other five dimensions already surfaced (marked
+where that happens), one contradicts this document's own prior reasoning outright (adjudicated
+explicitly below, not silently resolved), and several are new — genuine mismatches between
+shipped code and the sealed SPEC that none of the other five dimensions caught, recorded in a
+fourth class because the existing three do not describe them. One further recovered item needs
+no new tracking: the stale `README.md:36` status line ("currently red") it flagged is already
+on the exit-record unit's own to-do list
+(`docs/superpowers/plans/2026-08-03-step-1-remediation.md:156`), and the scan does exit 0
+(`node scripts/contract-scan.mjs`).
 
 As of this writing, none of the remediation plan's fix units (R2 apply-the-INHERIT-list, R3
 citation repair, R4 the one genuine Class-B defect, R5 the exit record) have run. The
 provenance audit that feeds R2 is tracked separately at
 `docs/process/adopted-source-provenance.md`; this document is the review that motivated it.
+The findings folded in below from spec-conformance are not yet reflected in R1–R5 or in
+`docs/process/deferral-register.md` either — reconciling them into those documents is future
+work, outside what this document does.
 
 ## Terms
 
@@ -78,6 +98,45 @@ edit through this path verifies `{intact:true}` — permanently, for a single-tr
 before the audit that produced `docs/process/adopted-source-provenance.md`.** That audit is
 what closed the gap; this review is what established the gap needed closing.
 
+**The recovered spec-conformance dimension corroborates the `readChain` half of this with
+direct execution, not just a base-vs-head diff.** It ran two probes against the real
+`MemoryStore`: append a genesis transition, read the chain back, then mutate the returned
+transition's own payload — a second `readChain` call returns the tampered value, proving the
+aliasing at `store/memory.ts:295` (`return existing ? [...existing.chain] : [];`, a shallow
+spread that still shares every `Transition` object with the store's own array) reaches stored
+state, not just the caller's copy of the reference. SPEC §12 is unambiguous
+(`docs/concept/SPEC.md:1092-1094`): "All reads return **fresh values** — a caller mutating a
+returned chain, head, or staged draft can never corrupt store-internal state." `getStaged`
+already has a test pinning exactly this guarantee (`store-constraints.test.ts:130-160`, added
+alongside its own `structuredClone` fix); nothing equivalent exists for `readChain` — the same
+SPEC sentence covers both reads, and only one of them is tested.
+
+**The same base-vs-head pattern extends to a fifth confirmed site the recovered dimension
+independently rediscovered: `open()` never re-checks a staged draft's `legId` against the
+profile it resolves under (`kernel/open.ts:99`).** SPEC §8's registry entry for `unknown-leg`
+(`docs/concept/SPEC.md:495`) names two producers — "a caller-named leg absent from the profile
+at `stage()`, and a staged draft's leg absent from the profile it resolves under at `open()`."
+Only the first is wired (`kernel/stage.ts:50-57`, `legExists` checked against `profile.legs`
+before any `putStaged`); the second is not — `open()` copies `staged.legId` straight into the
+genesis payload with no check at all. **This is not merely anticipated — it is R1's own
+confirmed INHERIT item 5** (`docs/process/adopted-source-provenance.md:188-239`), diffed and
+ranked "important" alongside the four aliasing sites above: the reference project's later head
+carries the check, this branch's base commit did not, and this repository inherited the gap the
+same way it inherited the four `MemoryStore` aliasing defects. R1's own account gives the
+concrete consequence: a profile's leg renamed between `stage()` and `open()` (two `create()`
+instances sharing one Store, or a redeploy with an outstanding `stagedRef`) mints a record
+anyway, and `kernel/finalize.ts:107-113` then throws its loud legId error on every attempt to
+decide it, forever — an unrecoverable, permanently-held `(profile, subject)` pair under
+`expiry: 'none'`. The recovered spec-conformance dimension reached the identical file:line and
+the identical consequence independently — by reading SPEC §8 and probing the running kernel,
+not by diffing source against the reference project's head — and adds proof by direct
+execution rather than by diff: it staged a draft under one profile shape, constructed a second
+instance sharing the same `profileId` with the leg renamed, called `open(stagedRef)` against
+it (the record opens), and confirmed `finalize()` then throws on the persisted-legId mismatch,
+exactly as R1's fix note predicts. Two independent methods — a base-vs-head diff and a
+SPEC-read-plus-execution probe — converged on the same defect from opposite directions; that
+convergence is itself evidence this is a real gap, not an artifact of either method.
+
 ---
 
 ## Class B — step-1 scope boundaries, misreported as defects
@@ -105,6 +164,36 @@ throw could ever fire, because there is no way to construct one that needs it. T
 recorded as a deferral-register entry with a real trigger (the build steps that ship
 consultations and policy), not built now.
 
+**Correction: that "unreachable" claim holds for only half of SPEC's throw requirement, and
+the recovered spec-conformance dimension's fuller citation shows the other half fires today.**
+SPEC §10.3 states the throw in both directions (`docs/concept/SPEC.md:823-825`): "On a
+policy-declaring profile, finalize **throws** when `opts.policy` is absent, and on a
+**non-declaring** profile it throws when `opts.policy` is **present**." The paragraph above
+verified only the first direction is unreachable — no profile can declare `policySource`, so
+the "declaring-without" throw can never have a subject. It did not check the second: because
+**every** profile in this build is non-declaring, "a non-declaring profile supplied
+`opts.policy`" is not a future case at all — it is true of every profile that exists today, and
+SPEC requires finalize to throw on it. The same asymmetry holds for consultations: SPEC §11.1
+(`docs/concept/SPEC.md:934-938`) says an `opts.consultations` entry naming a reserved kind
+(`facts` or `chain-verify`) "is a caller error that throws at argument intake... before the
+chain is loaded — never a refusal," a rule about the *shape* of what the host passes in, gated
+on nothing profile-related — the attach form itself "is always available"
+(`docs/concept/SPEC.md:906-907`), independent of whether the profile declares
+`requiredConsultations`. Because `finalize()` has no `opts` parameter at all, neither throw can
+fire: a fifth argument is dropped by ordinary JavaScript parameter elision, never inspected. The
+recovered dimension proved this by execution (its Probe F): calling the real operator handle's
+`finalize()` with a fifth argument carrying both `{ policy: { digest: 'sha256:whatever' } }`
+and a reserved-kind consultation entry returned `{"status":"ok","state":"confirmed"}` — no
+throw, both conditions silently discarded. **Adjudication:** this document's original
+"unreachable" framing was incomplete, not wrong about what it checked. The *feature* — actually
+gating on a required consultation's verdict, actually comparing a policy digest — is genuinely
+unbuilt and correctly stays Class B, exactly as argued above. But the *caller-misuse throws*
+quoted here do not depend on that feature existing; they are guard rails against a host passing
+something the library cannot yet honor, the same category of guard `open()` already has under
+ruling D4. That portion is live and reachable on every profile in this build today, and is
+recorded under Class D below rather than folded into this paragraph's "not built now"
+conclusion.
+
 **The success batch is three sequential appends, not one atomic batch.**
 `kernel/finalize.ts:196-249` performs three separate `store.appendTransition` calls (the
 chain-verify consultation, the facts consultation, the `confirmed` transition) under an
@@ -120,6 +209,38 @@ is not a bug in the sequential implementation — `appendBatch` is a Store metho
 primitive to call. This is Class B's largest item, and it is what closes when Store v2 lands
 (build step 2) — recorded as a deferral-register entry with that trigger, not fixed now.
 
+**The recovered spec-conformance dimension pins the exact SPEC language and reproduces the
+race by execution, independently.** SPEC §9's ladder rung (6)
+(`docs/concept/SPEC.md:591-593`): "the success batch: one atomic, variable-arity
+`appendBatch([chain-verify, facts, …obtained consultations, confirmed])` — all-or-nothing, so a
+conflict never leaves a partial tail"; SPEC §12 (`docs/concept/SPEC.md:1043-1045`) repeats it as
+a store-contract obligation; SPEC §2.1 (`docs/concept/SPEC.md:216-218`) assumes it in the
+worked example's shared `at`. Its probe — a `Store` that yields a microtask inside
+`appendTransition`, two `finalize()` calls staggered so the first's chain-verify append lands
+before the second call starts — returned exactly the shape already described above: the first
+call `{"status":"refused","code":"record-not-open"}`, the second
+`{"status":"ok","state":"confirmed"}`, and a final chain carrying an orphaned `chain-verify`
+consultation the replayed record's own `consultations` list still reports. This is independent
+corroboration of the same finding by a sixth reading, not a new defect. Neither this document
+nor the recovered dimension found the gap recorded in `docs/process/deferral-register.md` —
+only in this remediation plan's own R4 "Record" list and a roadmap line in the adoption plan
+(`docs/superpowers/plans/2026-08-02-reference-implementation-adoption.md:1243`).
+
+**The missing `appendBatch` is one symptom of a wider gap the recovered dimension frames more
+completely: this build's `Store` implements five of SPEC §12's nine described methods.** Absent:
+`appendBatch`, `findNonTerminal`, `listDue`, `seal`, and the `meta = { nonTerminal, dueAt? }`
+shape (shipped as a bare boolean, `store/store.ts:68-72`). Two of the absences are load-bearing
+beyond the atomic-batch question already discussed. `findNonTerminal` is "the re-emit binding
+that makes `record-exists` actionable" (`docs/concept/SPEC.md:1082-1083`) — the shipped
+`refused('record-exists')` carries no locator at all, so a host cannot act on it without its own
+out-of-band lookup for the blocking record. And without `listDue`, SPEC §12's operator sweep
+(`docs/concept/SPEC.md:1099-1103`) cannot exist as described — a due record resolves only
+opportunistically, when some unrelated `open()` or `finalize()` call happens to touch the same
+`(profile, subject)` pair. Both are already implicitly acknowledged in this remediation plan's
+own R4 "Record" list ("the shipped `Store` is 5 of 9 of §12's surface... Trigger: build step 2,"
+`2026-08-03-step-1-remediation.md:134-136`); the spec-conformance dimension's contribution is
+the concrete behavioral consequence of each absence, not the inventory itself.
+
 **The one genuine defect inside Class B: the mid-batch conflict mapping is wrong.**
 `kernel/finalize.ts:208, 222, 246` map *any* failed append in the success batch to
 `refused('record-not-open')`, without inspecting `AppendResult.conflict`. SPEC §8 defines
@@ -132,6 +253,25 @@ residual race). **This is the one item Class B does not merely record — the re
 plan's R4 unit fixes it**, either by narrowing the mapping to genuinely mean
 `state-mismatch` → an invariant-violation throw, or by choosing a code that is actually true of
 the record's state, pinned with a new test.
+
+**Two smaller items the recovered dimension raised turn out to already be handled.** The
+`redeem` configuration block is accepted at construction even though redemption itself is
+entirely unimplemented (`config.ts:171-213`) — which looks, on SPEC §9.1's own words ("a
+profile the build cannot honor **throws**," `docs/concept/SPEC.md:643-647`), like a
+construction-loudness violation. It is a **named, deliberate exception**, not an oversight:
+ruling D6 and deferral-register entry 9 already record that a confirmed effect-seam record's
+`(profile, subject)` pair "STAYS PERMANENTLY HELD" until a later build step's `seal()` or
+`confirmToRedeem` edge, and that `redeem()` throws loudly at the seam instead of silently
+refusing. The recovered dimension reached the same construction site independently and flagged
+it "because the assignment asks for divergences to be named... not because the ruling is
+undocumented" — its own words concede this is corroboration, not a new gap. Separately,
+`Outcome`'s `unavailable` branch (`outcome.ts:16-24`) is typed to carry a `code: RefusalCode`,
+but SPEC §8 (`docs/concept/SPEC.md:476`) names the single member of that class `availability` —
+not currently a member of the shipped `RefusalCode` union, so `unavailable` is unconstructible
+as specified. Nothing is wrong at runtime (no producer of `unavailable` exists in this build),
+and the adoption plan already flags the eventual widening as ADR-grade
+(`2026-08-02-reference-implementation-adoption.md:1255`); this is recorded here as a second,
+independently-reached confirmation that the scaffolding is inert, not load-bearing.
 
 ---
 
@@ -225,6 +365,72 @@ say what it is quoted as saying. The remediation plan's R3 unit closes this spec
 by extending `contract-scan.mjs` with a citation resolver: for every `SPEC §N` or
 `DECISIONS.md` reference in tracked TypeScript, confirm the section exists; for every *quoted*
 title or phrase attached to one, confirm the quoted string actually occurs in that document.
+
+---
+
+## Class D — genuine mismatches the recovered dimension found that the other five did not
+
+Neither Class A, B, nor C describes what the items below are. They are not step-1 scope
+boundaries — nothing gates them behind a future build step; each is reachable through calls
+this build already exposes, today, on profiles this build can already construct. They are not
+citation defects either — the code runs the wrong way, not merely cites the SPEC wrong. Per
+this review's own instruction that a genuine mismatch between shipped code and the sealed SPEC
+gets its own class when the existing three do not fit: this is that class. Most items below are
+marked `[minor]` by the dimension that found them — none is a security hole — but each is a
+live divergence between what SPEC says the library does and what it actually does, not a
+documentation problem or a deferred feature.
+
+**`finalize()` accepts, and silently drops, two caller-misuse conditions SPEC requires it to
+throw on.** Carried forward from the Class B correction above: a non-declaring profile supplied
+`opts.policy` (SPEC §10.3 — every profile in this build is non-declaring) and any
+`opts.consultations` entry naming a reserved kind (SPEC §11.1 — gated on nothing
+profile-related) must both throw, at profile resolution and at argument intake respectively.
+Because `operator-surface.ts:28-33` declares no fifth parameter, a caller's fifth argument is
+dropped by ordinary JavaScript parameter elision — never inspected, never thrown on. Proven by
+execution (the recovered dimension's Probe F): a real `finalize()` call carrying both
+conditions returned `{"status":"ok","state":"confirmed"}`. **Fix:** add
+`opts?: Record<string, never>` to `finalize`'s signature (matching `OpenOptions`,
+`config.ts:234`) and sweep its own keys at the top of `kernel/finalize.ts`, throwing via
+`governedUnavailable` with the lifting section named per key — the same shape `open()` already
+ships under ruling D4. Not currently in the deferral register under this framing (the existing
+Class B entry covers the *feature*; the throw is a distinct, separately-reachable obligation).
+
+**`redeem()`'s stub returns the wrong registry code on three reachable paths.**
+`kernel/redeem.ts:39-70` refuses `unredeemable-state` unconditionally except for one carved
+exception (a confirmed effect-seam record, which throws — deferral entry 9, corroborated
+above). SPEC §8 scopes `unredeemable-state` to "the domain outcome on a pure-capture profile
+for an **intact-chain, known-profile, valid-leg** call" (`docs/concept/SPEC.md:496`) — three
+qualifiers the stub does not check. **(a)** A `recordId` resolving under a profile this
+instance does not configure draws `unredeemable-state` instead of the fail-closed
+`unknown-profile` every other seam in this codebase uses for the identical condition (Probe G).
+**(b)** A tampered chain also draws `unredeemable-state` instead of `chain-compromise` —
+`redeem()` never calls `verifyChain` at all, unlike every other operator-side mutating seam
+(SPEC §5's "mandatory pre-seam chain-verify," `docs/concept/SPEC.md:399-400`; Probe H, which
+tampers a stored transition and confirms `redeem()` still returns `unredeemable-state` rather
+than surfacing the tamper). **(c)** A non-existent `recordId` draws a refusal rather than the
+throw SPEC §8 requires of every operator call on a record that does not exist
+(`docs/concept/SPEC.md:507-508`; Probe I) — this one is already acknowledged in the module's own
+header comment (`redeem.ts:18-21`), so it is a registration gap more than a fresh discovery.
+Mitigating factor common to all three: `redeem()` appends nothing on any of these paths, so
+every outcome stays fail-closed — only the reported code is wrong. **Fix:** resolve the profile
+fail-closed first, run `verifyChain` before the state test, and throw (not refuse) on an empty
+chain; register (c) explicitly if it stays a deliberate choice rather than becoming a throw.
+
+**A malformed `terminalRefusals` entry is accepted at construction and silently does
+nothing.** `config.ts:29` types `terminalRefusals` as `RefusalCode[]` but never validates the
+array's members at runtime. SPEC §9.1 (`docs/concept/SPEC.md:643-647`) requires "inert or
+contradictory feature combinations" to be construction errors. A typo — `content_drift` for
+`content-drift` — constructs without error (Probe J), and `appendsOn`'s `.includes()` check
+(`refusal-codes.ts:91`) can then never match it: the operator believes a code is configured
+terminal for a leg, and the record silently stays open on that refusal instead. **Fix:**
+validate every `terminalRefusals` member against the `CORE` registry's keys inside
+`validateLeg` (`config.ts:100`), one loop, consistent with the existing stray-redemption-key
+check at `config.ts:89-97`.
+
+**Two further items are genuine code/SPEC mismatches, but each has a plausible reading under
+which the SPEC prose, not the code, is what needs to change.** Both are held for the owner
+rather than filed as plain code defects, and are listed in full at the end of this document
+under "Findings that need a sealed `docs/concept/` decision" rather than repeated here.
 
 ---
 
@@ -333,3 +539,57 @@ both append paths — INHERIT items 1, 2, and 4). Where this document and the pr
 overlap, the provenance document's file-by-file account is the one to trust for exact line
 numbers and fix text; this document is the narrative of *why* the branch's own process produced
 each class of finding.
+
+**A third, independent reading now confirms the open half of this reconciliation.** The
+recovered spec-conformance dimension's two probes against `readChain` — mutate-after-read and
+mutate-after-append, both landing in stored state, not just the returned reference — reached
+the same conclusion as the claim-audit/provenance work by direct execution rather than by
+diffing source: a different method arriving at the same place, agreeing rather than
+contradicting. It adds one thing neither prior reading recorded: `getStaged`'s SPEC §12
+fresh-value guarantee has a pinned test (`store-constraints.test.ts:130-160`); `readChain`'s
+does not — worth closing alongside the `structuredClone` fix itself in R2, not only after it.
+
+---
+
+## Findings that need a sealed `docs/concept/` decision
+
+Two items from the recovered spec-conformance dimension are genuine mismatches between shipped
+code and `docs/concept/SPEC.md`, but the dimension's own analysis — and an independent read of
+the cited SPEC text for this document — found a plausible reading under which the fix is a
+change to the sealed SPEC prose, not to the code. `docs/concept/` is sealed; choosing between
+these two readings is the repository owner's decision, not something this document resolves or
+acts on. Both are also absent from `docs/process/deferral-register.md` and from the
+remediation plan's R1–R5 units.
+
+**1 — the two operator audit functions are not exported from the package
+(`index.ts:11`).** SPEC §5 (`docs/concept/SPEC.md:375-385`) says: "The library exposes two
+functions over a record's chain, for the operator's own audit path: `replay(chain)` ...
+`verifyChain(chain)` ... These are library functions **over** the chain, not `Store` methods
+(§12) — they run on whatever the store returns." `index.ts` exports only the
+`ChainVerifyReport` *type*; `replay`/`verifyChain` themselves (`chain/replay.ts:83,179`,
+exported from that module but not re-exported from the package's `index.ts`) are not part of
+the public API surface, and the only public form is the recordId-keyed wrapper on the operator
+handle (`operator-surface.ts:35-36`), which can only verify a chain the live store currently
+returns — an operator holding an exported or restored chain cannot verify it with this package.
+Against this: the reference project's own later head also does not export these functions from
+its equivalent `index.ts` — both implementations agree with each other and disagree with SPEC
+§5's sentence. That agreement is what makes this plausibly a §5 wording defect rather than a
+code defect independently introduced on this branch. **Owner decision:** either export
+`replay`/`verifyChain` as chain-taking functions from `index.ts`, or amend §5 to say the
+chain-taking forms are internal and the operator handle's recordId wrappers are the exposed
+audit path — the two texts should not go on disagreeing.
+
+**2 — `open()`'s blocker-chain expiry runs without a pre-seam chain-verify
+(`kernel/open.ts:131-149`).** When exclusivity blocks a new `open()`, the code reads the
+blocking record's chain, replays it, and appends an en-passant `expired` transition via
+`expireIfDue` — without calling `verifyChain` on that chain first. SPEC §5's "mandatory
+pre-seam chain-verify" (`docs/concept/SPEC.md:399-400`) reads as a blanket rule: "Every
+operator-side mutating seam verifies the chain before acting." Taken literally, a tampered
+blocker chain receives a silent `expired` append with no `chain-compromise` ever surfaced.
+Against this: the reference project's later head imports `verifyChain` in its equivalent
+`open()` but uses it only for prior-leg reference verification, not before the blocker's
+en-passant expire — the same gap exists there too, suggesting §5's blanket wording is what
+needs a carve-out for this specific en-passant path, not that this branch introduced a new
+omission. **Owner decision:** either verify the blocker chain before `expireIfDue` and surface
+`chain-compromise` on a detected break, or amend §5 to scope "the chain" to the seam's own
+target record and name the en-passant blocker-expire as a stated exception.
