@@ -23,6 +23,7 @@ import {
   profileDeclaresEffectSeam,
   validateProfile,
 } from './config.js';
+import { mintRecordId } from './id.js';
 import { finalize as finalizeKernel } from './kernel/finalize.js';
 import { open as openKernel } from './kernel/open.js';
 import { redeem as redeemKernel } from './kernel/redeem.js';
@@ -52,11 +53,19 @@ export interface ResolvedProfile {
  * are deterministic WITHOUT sleeping. Deliberately NOT a public `Config` field and NOT
  * re-exported from `index.ts` — the clock seam stays off the published surface (design is
  * silent on a clock; deterministic tests require one; this is the minimal knob).
+ *
+ * `mintId` is the injectable `recordId` minter: it defaults to `id.ts`'s `mintRecordId`
+ * and is overridden ONLY by `createWithClock` (a fixed id sequence is what lets a
+ * byte-stability test reproduce a chain's digests deterministically — `recordId` sits
+ * inside every transition digest, so real randomness would make byte-for-byte
+ * reproduction impossible). Like `now`, it is deliberately OFF the public surface —
+ * `open()` consumes it in place of importing `mintRecordId` directly.
  */
 export interface KernelContext {
   store: Store;
   profiles: Map<string, ResolvedProfile>;
   now: () => Date;
+  mintId: () => string;
 }
 
 /**
@@ -117,15 +126,19 @@ function realClock(): Date {
 }
 
 /**
- * `createWithClock(config, now)` — the internal assembly with an INJECTABLE clock. This
- * is the ONLY seam expiry tests use to control "now" deterministically (no sleeping). It
- * is exported for tests to import from `'../src/create.js'` but is deliberately NOT
- * re-exported from `index.ts`, so the clock knob never enters the public surface — the
- * public factory is the 1-arg `create(config)` below.
+ * `createWithClock(config, now, mintId?)` — the internal assembly with an INJECTABLE
+ * clock AND `recordId` minter. The clock seam is the ONLY seam expiry tests use to
+ * control "now" deterministically (no sleeping); the minter seam is what a
+ * byte-stability test uses to drive a fixed id sequence so its digests reproduce
+ * byte-for-byte. `mintId` defaults to real behavior (`id.ts`'s `mintRecordId`). Both are
+ * exported for tests to import from `'../src/create.js'` but deliberately NOT
+ * re-exported from `index.ts`, so neither knob enters the public surface — the public
+ * factory is the 1-arg `create(config)` below.
  */
 export function createWithClock(
   config: Config,
   now: () => Date,
+  mintId: () => string = mintRecordId,
 ): { agent: AgentSurface; operator: OperatorSurface } {
   const profiles = new Map<string, ResolvedProfile>();
 
@@ -145,7 +158,7 @@ export function createWithClock(
     });
   }
 
-  const kernel = makeKernel({ store: config.store, profiles, now });
+  const kernel = makeKernel({ store: config.store, profiles, now, mintId });
   return {
     agent: makeAgentSurface(kernel),
     operator: makeOperatorSurface(kernel),

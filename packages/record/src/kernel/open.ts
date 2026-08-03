@@ -22,7 +22,6 @@
 import { genesisPrevHash } from '../chain/encoding.js';
 import { replay } from '../chain/replay.js';
 import type { KernelContext } from '../create.js';
-import { mintRecordId } from '../id.js';
 import { isFinalLeg, nonTerminal } from '../nonterminal.js';
 import type { Outcome } from '../outcome.js';
 import { ok, refused } from '../outcome.js';
@@ -34,7 +33,7 @@ export async function open(
   ctx: KernelContext,
   stagedRef: string,
 ): Promise<Outcome<{ recordId: string }>> {
-  const { store, profiles, now } = ctx;
+  const { store, profiles, now, mintId } = ctx;
 
   const staged = await store.getStaged(stagedRef);
   if (staged === null) {
@@ -52,7 +51,7 @@ export async function open(
   const { profile, effectSeam } = resolved;
 
   // Build the genesis `opened` transition (design §3 payload shapes + §5 "opened snapshot").
-  const recordId = mintRecordId();
+  const recordId = mintId();
   const openedPayload: {
     profileId: string;
     profileDigest: string;
