@@ -142,21 +142,31 @@ const codeOnlyPatterns = [
 //      references to any other document are all unrecognized — so nothing they
 //      attribute is checked either.
 //   5. FORWARD ATTRIBUTION ACROSS A WORD — the largest bound by far, and the one
-//      most likely to be mistaken for coverage. A quotation separated from its
-//      citation by ANY word is not checked, including an honest attribution
-//      phrased with a connective clause: `SPEC §5 says the rule is that the
-//      "Total Chain Integrity Doctrine" governs it` passes silently. Several
-//      CORRECT citations in this corpus sit in that class today
-//      (`kernel/expiry.ts`, `store/store.ts`, `test/transition-encoding.test.ts`
-//      quote faithfully across a connective) — the window is narrow because
-//      widening it reintroduces the measured false positives bound 1 describes,
-//      not because the excluded class is unfaithful.
-//   6. EVERY QUOTATION AFTER A RUN ENDS. A run of quotations continues only
-//      while the gaps between them are pure punctuation; the first gap carrying
-//      a word ends it and everything past that point is unchecked. So
-//      `(SPEC §4 "Clock-driven edges…"): the library ships "a full background
-//      scheduler and a public expire() entry point"` verifies the real heading
-//      and waves the fabrication through.
+//      most likely to be mistaken for coverage. Apart from an optional
+//      possessive and ONE optional sub-reference token, a letter or a digit
+//      anywhere between the citation and the opening quote ends attribution, and
+//      the quotation goes unchecked. That includes honest attribution phrased
+//      with a connective clause: `SPEC §5 says the rule is that the "Total Chain
+//      Integrity Doctrine" governs it` passes silently. `kernel/expiry.ts`'s
+//      header is the in-repo example — its two §4 clauses ("no scheduler and no
+//      public `expire()`", and the lazy-append clause) are verbatim §4 and are
+//      NOT checked, because prose separates each from the citation. The window
+//      is narrow because widening it to admit words reintroduces the measured
+//      false positives bound 1 describes, not because the excluded class is
+//      unfaithful. Whether any given site sits in this class is MEASURABLE
+//      rather than guessable — diff these findings against those from a copy
+//      whose gap admits words — so measure before naming one, and re-measure
+//      after editing it. An earlier revision of this list named two files that
+//      its own commit had already moved back inside the window.
+//   6. QUOTATIONS PAST THE END OF A RUN. A run continues only while the gaps
+//      between quotations carry neither a letter nor a digit; the first gap that
+//      does ends the run, and quotations after it are unchecked — UNLESS a later
+//      citation in the same comment unit re-opens attribution at its own
+//      position. So `(SPEC §4 "Clock-driven edges…"): the library ships "a full
+//      background scheduler and a public expire() entry point"` verifies the
+//      real heading and waves the fabrication through, while the same
+//      fabrication written after a second, abutting `SPEC §4:` is caught. Both
+//      halves of that were probed.
 //   7. SHORT QUOTATIONS. A quoted fragment under 6 characters carries too little
 //      to search on and is discarded, so `SPEC §5 "C3ish"` passes.
 //   8. NON-ASCII QUOTATION MARKS. Only the ASCII `"` opens and closes a
@@ -174,25 +184,43 @@ const specCitationPattern = /SPEC\s+§(\d+[A-Za-z]?(?:\.\d+)?)/g;
 const decisionsCitationPattern = /DECISIONS\.md(?:\s*#(\d+))?/g;
 
 // The gap the attribution rule allows between a citation and an opening quote:
-// an optional possessive, an optional SINGLE sub-reference token, and closing
-// punctuation. The period is NOT in the punctuation class: a sentence break ends
-// attribution.
+// an optional possessive, an optional SINGLE sub-reference token, and any run of
+// characters that are neither letters nor digits. A LETTER OR DIGIT is what ends
+// attribution — that is the whole rule, and bound 5 states it in those terms.
 //
-// This is a HEURISTIC with a known failure direction, not a fact about English.
-// It under-approximates on purpose. An intervening word is treated as evidence
-// that the quotation is prose ABOUT something rather than a quotation OF the
-// cited section — which is right for `pins the "raw UTF-8 string" reading of
-// SPEC §4 against a "JCS of a wrapper object" misreading`, the case that forced
-// the narrowness — but it is WRONG whenever an author attributes faithfully
-// through a connective clause, and this corpus does that in several places. The
-// consequence is bounds 5 and 6 above: honest quotations go unchecked, and so do
-// dishonest ones in the same shape. Every widening tried against this corpus
-// bought false positives and no true positives, so the miss is accepted and
-// documented rather than closed.
+// The complement of the class matters as much as the class. An earlier version
+// enumerated the punctuation it accepted (`[\s)\]}>,:;—–-]`) and documented
+// itself as "any word ends attribution", which was false in a direction a reader
+// could not see: a backtick, a slash, an arrow, a paren or a `**` emphasis
+// marker between the citation and the quote all ended attribution too. This
+// codebase backticks identifiers everywhere, so `(SPEC §12's \`C3\`): "…"` — a
+// purely cosmetic edit to the corpus's largest repaired quotation — silently
+// de-gated it with the suite green. Enumerating an accept set and describing it
+// as its much larger complement is the same defect class this whole check
+// exists to remove. Both gaps now use the same complement form, so "punctuation"
+// means one thing here.
+//
+// It is still a HEURISTIC with a known failure direction, not a fact about
+// English, and it under-approximates on purpose. An intervening word is treated
+// as evidence that the quotation is prose ABOUT something rather than a
+// quotation OF the cited section — right for `pins the "raw UTF-8 string"
+// reading of SPEC §4 against a "JCS of a wrapper object" misreading`, the case
+// that forced the narrowness, and WRONG whenever an author attributes faithfully
+// through a connective clause, which this corpus does in two places. That miss
+// is bounds 5 and 6, accepted and documented rather than closed: every widening
+// tried that admits words bought false positives and no true positives.
+//
+// One behaviour changed with the class. The period is no longer excluded, so a
+// sentence break no longer ends attribution — `SPEC §5. "…"` is now checked.
+// That is a widening, measured at zero findings over the tracked corpus, and it
+// is stated here because the previous comment claimed the opposite.
+//
+// `"` must stay out of the class or the gap walks straight past the opening
+// quote it is supposed to stop at, and the `u` flag is required for `\p{…}`.
 const attributionGapPattern =
-  /^(?:'s)?[\s)\]}>,:;—–-]*(?:(?:C\d+|#\d+|§\d+[A-Za-z]?(?:\.\d+)?|reads|says)[\s)\]}>,:;—–-]*)?"/;
-// Between one closing quote and the next opening quote, pure punctuation and
-// whitespace continues the run; the first gap carrying a word ends it.
+  /^(?:'s)?[^\p{L}\p{N}"]*(?:(?:C\d+|#\d+|§\d+[A-Za-z]?(?:\.\d+)?|reads|says)[^\p{L}\p{N}"]*)?"/u;
+// Between one closing quote and the next opening quote: anything that is neither
+// a letter nor a digit continues the run; the first gap carrying one ends it.
 const quotationRunGapPattern = /^[^\p{L}\p{N}]*$/u;
 
 function collapse(text) {
@@ -352,8 +380,12 @@ function commentUnits(text) {
       continue;
     }
 
-    // Any other line is its own unit, so citations inside runtime `throw`
-    // strings and inside vitest `test('…')` names are still checked.
+    // Any other line is its own unit, so a citation inside a runtime `throw`
+    // string or a vitest `test('…')` name is checked along with whatever it
+    // attributes ON THAT LINE — probed both ways. A string literal broken across
+    // lines by concatenation is several units, and a citation on one line never
+    // reaches a quotation on the next; that is the same one-unit limit that
+    // applies to every construct here, not a gap specific to these two.
     close();
     open();
     push(line.trim(), lineNumber);

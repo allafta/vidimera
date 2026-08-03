@@ -133,6 +133,29 @@ describe('citationFindings — catches', () => {
     expect(findings[0].line).toBe(1);
   });
 
+  test('a fabricated quotation attributed through a BACKTICKED sub-reference token', () => {
+    // The gap between citation and quote is a complement class — everything that is not a
+    // letter or a digit — not an enumerated punctuation set. An enumerated set omitted the
+    // backtick, and this codebase backticks identifiers everywhere, so backticking `C3` was
+    // a purely cosmetic edit that silently de-gated the corpus's largest repaired quotation
+    // with the suite still green. This assertion is what makes that regression fail.
+    const findings = scan(['// C3 carve-out (SPEC §12\'s `C3`): "a phrase §12 never contains".']);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].line).toBe(1);
+  });
+
+  test.each([
+    ['parenthesized quote', '// SPEC §12 ("a phrase §12 never contains")'],
+    ['slash separator', '// SPEC §12 / "a phrase §12 never contains"'],
+    ['arrow separator', '// SPEC §12 → "a phrase §12 never contains"'],
+    ['emphasis-wrapped quote', '// SPEC §12: **"a phrase §12 never contains"**'],
+    ['sentence break', '// The rule is SPEC §12. "a phrase §12 never contains".'],
+  ])('a fabricated quotation attributed across %s', (_name, line) => {
+    // Each of these separators was silent under the earlier enumerated punctuation class
+    // while the bounds list told a reader that only an intervening WORD ended attribution.
+    expect(scan([line])).toHaveLength(1);
+  });
+
   test('a citation inside a vitest test name, which is its own single-line unit', () => {
     const findings = scan([
       'test(\'SPEC §5 "Chain integrity": the chain verifies\', async () => {',
@@ -184,14 +207,33 @@ describe('citationFindings — stays silent', () => {
 
   test('a quotation that is prose ABOUT the section rather than a quotation OF it', () => {
     // The comment names a misreading the code exists to rule out. Attribution requires the
-    // quote to follow the citation with nothing between but punctuation, a possessive, or a
-    // single sub-reference token — a verb phrase or a preposition breaks it.
+    // quote to follow the citation with nothing between but a possessive, a single
+    // sub-reference token, and characters that are neither letters nor digits — a verb
+    // phrase or a preposition breaks it. This is the false positive that forced the window
+    // to be narrow, and it is the control that must stay silent through any widening of the
+    // gap class; the catching cases above pin the other direction.
     expect(
       scan([
         '// pins the "raw UTF-8 string" reading of SPEC §4 against a',
         '// "JCS of a wrapper object" misreading.',
       ]),
     ).toEqual([]);
+  });
+
+  test('an honest attribution phrased with a connective clause — bound 5, pinned as a bound', () => {
+    // Not a defect being tolerated: this quotation IS verbatim in the synthetic document,
+    // and the resolver never looks at it, because "says the rule is that the" separates it
+    // from the citation. Pinned so bound 5 stays a measured statement rather than a claim.
+    expect(
+      scan(['// SPEC §5 says the rule is that "Operator audit functions" governs it.']),
+    ).toEqual([]);
+    // Same words, same document, citation abutting — now checked, and it resolves.
+    expect(scan(['// SPEC §5: "Operator audit functions" governs it.'])).toEqual([]);
+    // Same shape, fabricated text: caught only in the abutting form.
+    expect(
+      scan(['// SPEC §5 says the rule is that "Total Chain Integrity Doctrine" governs it.']),
+    ).toEqual([]);
+    expect(scan(['// SPEC §5: "Total Chain Integrity Doctrine" governs it.'])).toHaveLength(1);
   });
 
   test('the reverse-attribution form, which is a documented out-of-scope bound', () => {
