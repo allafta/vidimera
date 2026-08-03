@@ -29,23 +29,31 @@ export function mintRecordId(): string {
 
 /**
  * Content-derived, idempotent `stagedRef` (design §2 "id.ts" / §9 "recordId minting":
- * "stagedRef stays content-derived"; task-3 brief: "same content+profile+subject ⇒
+ * "stagedRef stays content-derived"; task-3 brief: "same content+profile+subject+leg ⇒
  * same ref"). Takes the ALREADY-BOUND `contentDigest` (design §5 "Content binding":
  * `contentDigest = digest(canonicalize(adopterCanonicalizer(content)))`, computed by
- * `stage()` in Task 7) rather than raw `content` again — `id.ts` has no adopter
- * canonicalizer to apply, and re-hashing raw content here would either bypass the
- * adopter transform (wrong: library JCS must never see raw domain content directly,
- * design §9 "M2") or duplicate work `stage()` already did. Combining `contentDigest`
- * with `profileId` + `subjectRef` under one more digest (library JCS over a small,
- * always-JSON-safe three-field object — no BigInt risk) makes `stagedRef` collision-
- * resistant across DIFFERENT (profile, subject) pairs that happen to stage identical
- * content, while staying idempotent for repeated staging of the identical triple —
+ * `stage()`) rather than raw `content` again — `id.ts` has no adopter canonicalizer to
+ * apply, and re-hashing raw content here would either bypass the adopter transform
+ * (wrong: library JCS must never see raw domain content directly, design §9 "M2") or
+ * duplicate work `stage()` already did. Combining `contentDigest` with `profileId` +
+ * `subjectRef` + `legId` under one more digest (library JCS over a small, always-
+ * JSON-safe four-field object — no BigInt risk) makes `stagedRef` collision-resistant
+ * across DIFFERENT (profile, subject, leg) triples that happen to stage identical
+ * content, while staying idempotent for repeated staging of the identical quadruple —
  * `Store.putStaged` is idempotent by `staged.id` (design §4), which is this value.
+ *
+ * `legId` (design §2/§9 "deriveStagedRef folds the leg id"): without it, two DIFFERENT
+ * legs staging identical content on the identical subject would collide to ONE draft
+ * (first-write-wins, silently aliasing the two legs' drafts). Folding it in makes
+ * leg-distinctness genuine: `stage()` always supplies a resolved legId (never
+ * `undefined`) — an omitted-legId call site resolves to `profile.legs[0].id` before this
+ * function is ever called.
  */
 export function deriveStagedRef(
   contentDigest: Digest,
   profileId: string,
   subjectRef: string,
+  legId: string,
 ): Digest {
-  return digest(canonicalize({ contentDigest, profileId, subjectRef }));
+  return digest(canonicalize({ contentDigest, profileId, subjectRef, legId }));
 }

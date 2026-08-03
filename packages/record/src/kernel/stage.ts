@@ -1,17 +1,19 @@
 // @vidimera/record — kernel/stage.ts (design §3 AgentSurface.stage / §5 "Content binding"
-// / §9 "stage() args" / "recordId minting"): the agent-reachable, PRE-RECORD staged-draft
-// write. `stage(content, profileId, subjectRef)`:
+// / §9 "stage() args" / "recordId minting", plus the leg addition at design §2/§5/§9):
+// the agent-reachable, PRE-RECORD staged-draft write.
+// `stage(content, profileId, subjectRef, legId?)`:
 //   1. resolve + validate the profile — an unconfigured `profileId` fails CLOSED with
 //      `refused('unknown-profile')`: NO staged draft, NO append, NO record (the only
 //      slice-3 producer of `unknown-profile` on the agent surface);
-//   2. derive the leg INTERNALLY — single-leg (config guards `legs.length !== 1` at
-//      construction), so `legId` is simply the one leg's id (no caller-named leg exists at
-//      slice 3, hence `unknown-leg` has no producer here);
+//   2. resolve the leg — `legId` OMITTED derives `profile.legs[0].id` (single-leg call
+//      sites stay byte-compatible); a legId the CALLER NAMES that is absent from the
+//      resolved profile's legs fails CLOSED with `refused('unknown-leg')` — pre-record,
+//      BEFORE any `putStaged` (the FIRST `unknown-leg` producer; design §5/§9);
 //   3. bind the content: `contentDigest = digest(canonicalize(adopterCanonicalizer(content)))`
 //      — the adopter canonicalizer projects domain content to a JSON-safe structure, then
 //      library JCS + digest; content itself is NEVER persisted, only its digest;
-//   4. derive the content-derived, idempotent `stagedRef` (id.ts `deriveStagedRef`) and
-//      write the digest-only draft via the idempotent `putStaged`.
+//   4. derive the content-derived, idempotent `stagedRef` (id.ts `deriveStagedRef`, now
+//      leg-folded) and write the digest-only draft via the idempotent `putStaged`.
 // It APPENDS NOTHING and creates NO record — `open()` (kernel/open.ts) is what mints the
 // record and appends the genesis `opened` transition.
 
@@ -26,6 +28,7 @@ export async function stage(
   content: unknown,
   profileId: string,
   subjectRef: string,
+  legId?: string,
 ): Promise<Outcome<{ stagedRef: string }>> {
   const resolved = ctx.profiles.get(profileId);
   if (resolved === undefined) {
@@ -35,22 +38,39 @@ export async function stage(
   }
 
   const { profile, canonicalizer } = resolved;
-  // Single-leg by construction (config.ts rejects `legs.length !== 1`): the one leg IS the
-  // leg. legId is derived internally — no public slice-3 call names a leg.
+  // Omitted legId -> the first leg (single-leg call sites stay byte-compatible). A
+  // caller-named legId is resolved against the SAME profile.legs list. `validateProfile`
+  // rejects zero-leg profiles at `create()` (config.ts), so `profile.legs[0]` always
+  // exists at runtime; the guard below satisfies `noUncheckedIndexedAccess` typing, not a
+  // reachable failure.
   const firstLeg = profile.legs[0];
   if (firstLeg === undefined) {
     throw new Error(`stage: profile '${profileId}' has no legs`);
   }
-  const legId = firstLeg.id;
+  const resolvedLegId = legId ?? firstLeg.id;
+  const legExists = profile.legs.some((leg) => leg.id === resolvedLegId);
+  if (!legExists) {
+    // Fail-closed, PRE-RECORD (design §5/§9): a caller-named leg absent from the profile
+    // refuses BEFORE any putStaged — no draft, no transitionRef (`unknown-leg` never
+    // appends — refusal-codes.ts's NEVER_APPENDS). The FIRST unknown-leg producer.
+    return refused('unknown-leg');
+  }
 
   // Content binding (design §5): adopter canonicalizer -> library JCS -> digest. The digest
   // is all that is persisted; the raw content never crosses into the Store.
   const contentDigest = digest(canonicalize(canonicalizer(content)));
 
-  // Content-derived + idempotent (same content+profile+subject -> same ref); putStaged is
-  // idempotent by this id (design §4).
-  const stagedRef = deriveStagedRef(contentDigest, profileId, subjectRef);
-  await ctx.store.putStaged({ id: stagedRef, profileId, legId, subjectRef, contentDigest });
+  // Content-derived + idempotent (same content+profile+subject+leg -> same ref); putStaged
+  // is idempotent by this id (design §4). Leg-folded: two different legs staging identical
+  // content+subject yield two DISTINCT stagedRefs, not one aliased draft.
+  const stagedRef = deriveStagedRef(contentDigest, profileId, subjectRef, resolvedLegId);
+  await ctx.store.putStaged({
+    id: stagedRef,
+    profileId,
+    legId: resolvedLegId,
+    subjectRef,
+    contentDigest,
+  });
 
   return ok({ stagedRef });
 }

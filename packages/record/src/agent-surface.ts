@@ -12,10 +12,15 @@ import type { Outcome } from './outcome.js';
 import type { DecisionRecord, Digest, Transition } from './types.js';
 
 export interface AgentSurface {
+  // `legId?` (design §2/§3/§9): omitted -> `profile.legs[0]` (single-leg call sites stay
+  // byte-compatible); a caller-NAMED legId absent from the resolved profile refuses
+  // `unknown-leg`, pre-record. One optional parameter — NOT a new method, so the agent
+  // handle's KEY SET (asserted by agent-unreachability.test.ts) is unchanged.
   stage(
     content: unknown,
     profileId: string,
     subjectRef: string,
+    legId?: string,
   ): Promise<Outcome<{ stagedRef: string }>>;
   getRecord(recordId: string): Promise<DecisionRecord | null>;
   readChain(recordId: string): Promise<Transition[]>;

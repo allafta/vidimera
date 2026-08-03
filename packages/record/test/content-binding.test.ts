@@ -101,11 +101,19 @@ test('a host recompute over a content-DIFFERENT structure does NOT equal the ori
 });
 
 // --- deriveStagedRef(): idempotent + collision-resistant (id.ts, consumed by stage() in Task 7) --
+//
+// deriveStagedRef gains a REQUIRED 4th `legId` parameter (design §9 "deriveStagedRef
+// folds the leg id"): every call site below now supplies one. This is a signature
+// change, not a value-pinning flip — none of these tests ever asserted a LITERAL digest
+// value (only idempotence/collision-resistance across recomputations), so the leg-fold
+// changes single-leg stagedRef VALUES without invalidating any assertion here.
 
-test('deriveStagedRef() is idempotent: same contentDigest+profileId+subjectRef -> same stagedRef', () => {
+const LEG_ID = 'approver-decide'; // the default single-leg id (matches captureProfile()'s default)
+
+test('deriveStagedRef() is idempotent: same contentDigest+profileId+subjectRef+legId -> same stagedRef', () => {
   const contentDigest = boundDigest({ subject: 'week-1', total: 40 });
-  const a = deriveStagedRef(contentDigest, 'tide.week.v1', 'consultant:42');
-  const b = deriveStagedRef(contentDigest, 'tide.week.v1', 'consultant:42');
+  const a = deriveStagedRef(contentDigest, 'tide.week.v1', 'consultant:42', LEG_ID);
+  const b = deriveStagedRef(contentDigest, 'tide.week.v1', 'consultant:42', LEG_ID);
   assert.equal(a, b);
 });
 
@@ -113,14 +121,14 @@ test('deriveStagedRef() is idempotent across the SAME content presented with dif
   const contentDigestA = boundDigest({ subject: 'week-1', total: 40 });
   const contentDigestB = boundDigest({ total: 40, subject: 'week-1' });
   assert.equal(
-    deriveStagedRef(contentDigestA, 'tide.week.v1', 'consultant:42'),
-    deriveStagedRef(contentDigestB, 'tide.week.v1', 'consultant:42'),
+    deriveStagedRef(contentDigestA, 'tide.week.v1', 'consultant:42', LEG_ID),
+    deriveStagedRef(contentDigestB, 'tide.week.v1', 'consultant:42', LEG_ID),
   );
 });
 
 test('deriveStagedRef() emits a Digest-shaped value ("sha256:<64-lowercase-hex>")', () => {
   const contentDigest = boundDigest({ subject: 'week-1' });
-  const ref = deriveStagedRef(contentDigest, 'tide.week.v1', 'consultant:42');
+  const ref = deriveStagedRef(contentDigest, 'tide.week.v1', 'consultant:42', LEG_ID);
   assert.match(ref, /^sha256:[0-9a-f]{64}$/);
 });
 
@@ -128,24 +136,32 @@ test('deriveStagedRef() is collision-resistant across a different contentDigest'
   const digestA = boundDigest({ subject: 'week-1', total: 40 });
   const digestB = boundDigest({ subject: 'week-1', total: 41 });
   assert.notEqual(
-    deriveStagedRef(digestA, 'tide.week.v1', 'consultant:42'),
-    deriveStagedRef(digestB, 'tide.week.v1', 'consultant:42'),
+    deriveStagedRef(digestA, 'tide.week.v1', 'consultant:42', LEG_ID),
+    deriveStagedRef(digestB, 'tide.week.v1', 'consultant:42', LEG_ID),
   );
 });
 
-test('deriveStagedRef() is collision-resistant across a different profileId (same content+subject)', () => {
+test('deriveStagedRef() is collision-resistant across a different profileId (same content+subject+leg)', () => {
   const contentDigest = boundDigest({ subject: 'week-1', total: 40 });
   assert.notEqual(
-    deriveStagedRef(contentDigest, 'tide.week.v1', 'consultant:42'),
-    deriveStagedRef(contentDigest, 'tide.week.v2', 'consultant:42'),
+    deriveStagedRef(contentDigest, 'tide.week.v1', 'consultant:42', LEG_ID),
+    deriveStagedRef(contentDigest, 'tide.week.v2', 'consultant:42', LEG_ID),
   );
 });
 
-test('deriveStagedRef() is collision-resistant across a different subjectRef (same content+profile)', () => {
+test('deriveStagedRef() is collision-resistant across a different subjectRef (same content+profile+leg)', () => {
   const contentDigest = boundDigest({ subject: 'week-1', total: 40 });
   assert.notEqual(
-    deriveStagedRef(contentDigest, 'tide.week.v1', 'consultant:42'),
-    deriveStagedRef(contentDigest, 'tide.week.v1', 'consultant:99'),
+    deriveStagedRef(contentDigest, 'tide.week.v1', 'consultant:42', LEG_ID),
+    deriveStagedRef(contentDigest, 'tide.week.v1', 'consultant:99', LEG_ID),
+  );
+});
+
+test('deriveStagedRef() is collision-resistant across a different legId (same content+profile+subject) — the leg-fold', () => {
+  const contentDigest = boundDigest({ subject: 'week-1', total: 40 });
+  assert.notEqual(
+    deriveStagedRef(contentDigest, 'test.capture.v1', 'consultant:42', 'consultant-submit'),
+    deriveStagedRef(contentDigest, 'test.capture.v1', 'consultant:42', 'chef-approve'),
   );
 });
 
@@ -168,7 +184,12 @@ test('stage() binds contentDigest = digest(canonicalize(adopterCanonicalizer(con
   // digest(canonicalize(content)) — the bare boundDigest — and stagedRef is
   // deriveStagedRef over that, exactly reproducible from the public helpers.
   const expectedContentDigest = boundDigest(content);
-  const expectedRef = deriveStagedRef(expectedContentDigest, PROFILE_ID, DEFAULT_SUBJECT_REF);
+  const expectedRef = deriveStagedRef(
+    expectedContentDigest,
+    PROFILE_ID,
+    DEFAULT_SUBJECT_REF,
+    'approver-decide',
+  );
   assert.equal(outcome.value.stagedRef, expectedRef);
 
   // The persisted staged draft carries the bound digest + the internally-derived
@@ -231,4 +252,31 @@ test('stage() over content-DIFFERENT input yields a DIFFERENT stagedRef (drift i
   if (a.status !== 'ok' || b.status !== 'ok') return;
 
   assert.notEqual(a.value.stagedRef, b.value.stagedRef);
+});
+
+// --- the leg addition: an explicit legId naming legs[0] resolves like the omitted call --
+//
+// The omitted-legId single-leg idempotence case (same call twice -> same ref) is already
+// covered above ("stage() is idempotent: same content+profile+subject twice -> same
+// stagedRef, still no append") — that test's call sites stay 3-arg (byte-compatible), so
+// omitting legId still derives `profile.legs[0].id` consistently across both calls. A
+// multi-leg leg-distinctness case exists at head but is NOT reachable here: config.ts
+// still GOVERNED-throws on `legs.length > 1`, so only the single-leg producer below is
+// legal at this build step.
+
+test('stage() with an EXPLICIT legId === legs[0].id yields the SAME stagedRef as the omitted call (both resolve to the identical leg)', async () => {
+  const { agent } = create(makeConfig([captureProfile()]));
+  const content = { subject: 'week-1', total: 40 };
+
+  const omitted = await agent.stage(content, PROFILE_ID, DEFAULT_SUBJECT_REF);
+  const explicit = await agent.stage(content, PROFILE_ID, DEFAULT_SUBJECT_REF, 'approver-decide');
+  assert.equal(omitted.status, 'ok');
+  assert.equal(explicit.status, 'ok');
+  if (omitted.status !== 'ok' || explicit.status !== 'ok') return;
+
+  assert.equal(
+    omitted.value.stagedRef,
+    explicit.value.stagedRef,
+    'an explicit legId naming legs[0].id resolves identically to the omitted-legId default (resolvedLegId is the same either way)',
+  );
 });

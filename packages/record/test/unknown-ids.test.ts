@@ -1,12 +1,17 @@
 // @vidimera/record — unknown-ids.test.ts (design §6 "unknown-ids.test.ts" / §9 "unknown-leg
-// deferral"): only the `unknown-profile` path has a slice-3 producer. Both agent `stage()`
-// and operator `open()` name a profile indirectly — `stage(content, profileId, subjectRef)`
-// directly, `open(stagedRef)` via the staged draft's `profileId` — and BOTH must fail
-// CLOSED on an unconfigured profileId: `refused('unknown-profile')`, NO append, NO record.
+// deferral"): Both agent `stage()` and operator `open()` name a profile indirectly —
+// `stage(content, profileId, subjectRef)` directly, `open(stagedRef)` via the staged
+// draft's `profileId` — and BOTH must fail CLOSED on an unconfigured profileId:
+// `refused('unknown-profile')`, NO append, NO record.
 //
-// `unknown-leg` has NO slice-3 producer (single-leg; legId is derived internally from the
-// one leg, never caller-named) — it is asserted at registry/type level only in
-// refusal-matrix.test.ts (Task 9), not here.
+// `unknown-leg` now has its FIRST producer: `stage()` accepts an optional caller-named
+// `legId`; a NAMED legId absent from the resolved profile's legs refuses `unknown-leg`
+// BEFORE any `putStaged` — pre-record, fail-closed, no draft, no transitionRef. (Omitting
+// `legId` still derives `profile.legs[0].id` internally, byte-compatible with every prior
+// call site — that path never reaches this refusal.) `open()`'s SECOND producer (a
+// persisted draft's legId absent from the resolved profile) and the multi-leg producer
+// case both need capabilities this build step does not carry (open()'s own draft-legId
+// check; a non-GOVERNED multi-leg profile) — neither is tested here yet.
 
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
@@ -41,6 +46,32 @@ test('stage() naming an unconfigured profileId -> refused unknown-profile, fail-
   // be derived without a resolved profile), and certainly no transition is appended.
   assert.equal(store.putStagedCalls, 0, 'no staged draft for an unknown profile');
   assert.equal(store.appendCalls, 0, 'no append for an unknown profile');
+});
+
+// === stage(): unknown legId — the FIRST unknown-leg producer (design §5/§9) ===========
+
+test('stage() naming a legId absent from a SINGLE-leg profile -> refused unknown-leg, fail-closed (no putStaged, no append)', async () => {
+  const store = new CountingStore();
+  const { agent } = create(makeConfig([captureProfile()], { store }));
+
+  const outcome = await agent.stage(
+    { any: 'content' },
+    'test.capture.v1',
+    DEFAULT_SUBJECT_REF,
+    'no-such-leg',
+  );
+
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'unknown-leg');
+  assert.equal(outcome.class, 'refusal');
+  assert.equal(outcome.transitionRef, undefined, 'unknown-leg never carries a transitionRef');
+
+  // Fail-closed, PRE-RECORD: a caller-named leg absent from the profile writes no draft
+  // at all — you can't even compute the would-be stagedRef for an unknown leg, so the
+  // absence is proven via the counting store rather than a getStaged(ref) lookup.
+  assert.equal(store.putStagedCalls, 0, 'no staged draft for an unknown leg');
+  assert.equal(store.appendCalls, 0, 'no append for an unknown leg (stage() never appends anyway)');
 });
 
 // === open(): unknown profileId (via a planted staged draft) ===========================
