@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - **Zero runtime dependencies in `packages/record`.** Adoption decision 0f. `packages/record/package.json` has no `dependencies` key and does not gain one.
-- **`noUncheckedIndexedAccess` stays on.** Adoption decision 0e. Fix every site by hand. **No non-null assertions (`!`)** — they defeat the flag and collide with Biome's `noNonNullAssertion`.
+- **`noUncheckedIndexedAccess` stays on.** Adoption decision 0e. Fix every site by hand. **No non-null assertions (`!`)** — they defeat the flag and collide with Biome's `noNonNullAssertion`. **Corrected (U0, 2026-08-03): this constraint had no gate.** `noNonNullAssertion` is Biome warn-level, and `biome check` (the `pnpm lint` script) exits 0 on warnings — so a `!` passed typecheck, lint, test, CI and the contract scan undetected; there was no command whose failure would ever catch one. Two gates now close this, both wired at U0 and both stated in full with baselines in the governing plan's Global Constraints: `pnpm lint:strict` (`biome check --error-on-warnings .`, added to `package.json`, and moved to run **last** in CI so an expected-red gate cannot mask `pnpm test`) and a per-unit diff grep, `git diff <BASE> HEAD -- '*.ts' | grep -nE '^\+.*[A-Za-z_)\]]!\.'`, which must return nothing.
 - **Test directory is singular `test/`**, not `tests/`. `vitest.config.ts` includes `packages/*/test/**/*.test.ts` and `packages/record/tsconfig.json` includes `["src", "test"]`. Import depth is unchanged, so `../src/x.js` and `../../src/x.js` both still resolve.
 - **Commit style:** imperative sentence-case subject ~72 chars, semicolon-joined clauses where two things land together, body wrapped ~70 explaining *why*, trailer `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`. **No `feat:` / `docs:` prefixes** — this repository does not use conventional commits.
 - **Never run `biome check --write --unsafe`.** Measured: it rewrites `3.14159` → `Math.PI` in the RFC 8785 vector fixture; the tree still typechecks with **0 errors** while **2 tests fail**. The safe path is `pnpm lint:fix` (`biome check --write`); it ran at commit `42469d5` and churned **203 lines across 18 files**, not the ~4,920 predicted here. **Corrected, with the reason for the error:** the original figure was measured against the reference implementation's *full* corpus, including its test suite; only `src` is imported at this build step, so the actual autofix surface was far smaller. The test subset arriving at Task 17 will add its own churn, so 203 is not the port's final total. **Prove every autofix with the test suite, never the typechecker.**
@@ -910,6 +910,16 @@ Expected: clean, 0 errors.
 **Files:**
 - Modify: `packages/record/src/kernel/stage.ts`, `id.ts`, `agent-surface.ts`, `create.ts`
 
+**Order note (U0, decision D7 in the governing plan): this task runs after Task 17.** Task 17
+lands the base test corpus this task's fan-out touches (`content-binding.test.ts`); see Task
+17's order note for the full sequence.
+
+**Note (U0): this task never named `kernel/context.ts`.** The governing plan's pre-fix table
+pairs this task with Task 16 on that reference, but this task's Files line above has always
+listed only `stage.ts`, `id.ts`, `agent-surface.ts` and `create.ts` — all four exist in this
+repository. `kernel/context.ts` is Task 16's defect alone; see the correction there. No change
+was needed here for it.
+
 Adoption delta 1. Head's `stage.ts` (64 lines) carries the stage-side producer of `unknown-leg`, without which SPEC section 8's core registry claim is untrue at step 1. It is **not** a drop-in: it fans out to three other files (a leg-folded 4-field `deriveStagedRef`), and to `content-binding.test.ts` in Task 17.
 
 - [ ] **Step 1: Replace `stage.ts` and apply the fan-out**
@@ -927,6 +937,12 @@ Run: `pnpm typecheck` — expected clean.
 **Files:**
 - Modify: `packages/record/src/config.ts`
 - Modify: `packages/record/test/construction-validation.test.ts` (message assertions)
+
+**Order note (U0, decision D7 in the governing plan): this task runs after Task 17, not before
+it.** `construction-validation.test.ts` does not exist in this repository until Task 17 lands
+the base test corpus — this task cannot amend assertions in a file that is not there yet.
+Confirmed empirically: at the time this correction was written, `packages/record/test/`
+contained only `jcs.test.ts`. Execute Task 17 first, then Task 14, then this task.
 
 Adoption delta 3, and a **directional inversion**: the reference implementation progressively *lifted* these guards as capabilities landed. This repository is at step 1 and needs them armed. The `c0f0f75` version already has them in that state — this task is about not letting a later version's lifted guards in, and about the message text.
 
@@ -953,13 +969,23 @@ An effect-seam profile (declaring `redeem`) constructs successfully today; `rede
 ### Task 16: Add the record-id minter seam
 
 **Files:**
-- Modify: `packages/record/src/create.ts`, `kernel/context.ts`, `kernel/open.ts`
+- Modify: `packages/record/src/create.ts`, `kernel/open.ts`
+
+**Corrected (U0, 2026-08-03): `kernel/context.ts` does not exist in this repository.** Confirmed
+by listing `packages/record/src/kernel/`: `expiry.ts`, `finalize.ts`, `open.ts`, `redeem.ts`,
+`review.ts`, `stage.ts` — no `context.ts`. The `KernelContext` interface this task extends
+already lives in `create.ts` (`create.ts:56`), not a standalone context module — every other
+kernel file (`finalize.ts`, `open.ts`, `redeem.ts`, `review.ts`, `stage.ts`) already imports
+`KernelContext` as a type from `../create.js`. The `mintId` seam lands in `create.ts` (the
+interface and `createWithClock`) and `open.ts` (the call site) only.
 
 Adoption delta 7 — **an unlisted delta the design omits**, and Task 19's four frozen digests cannot be reproduced without it. Base `createWithClock(config, now)` is 2-arg; head's byte-stability test calls it with 3. Verified: applying exactly these four hunks makes all four pinned digests reproduce byte-for-byte against the `c0f0f75` kernel.
 
 - [ ] **Step 1: Apply the four hunks**
 
-Add the `mintId` import in `create.ts`; add `mintId` to `KernelContext`; add the defaulted third parameter to `createWithClock`; call `ctx.mintId()` in `open.ts` where the record id is generated.
+Add the `mintId` import in `create.ts`; add `mintId` to the `KernelContext` interface (in
+`create.ts`); add the defaulted third parameter to `createWithClock` (in `create.ts`); call
+`ctx.mintId()` in `open.ts` where the record id is generated.
 
 Run: `pnpm typecheck` — expected clean.
 
@@ -968,6 +994,14 @@ Run: `pnpm typecheck` — expected clean.
 **Files:**
 - Create: 17 files under `packages/record/test/` from `c0f0f75`
 - Create: `packages/record/test/helpers/chain.ts`, `helpers/profiles.ts`, `helpers/stores.ts`, `fixtures/jcs-vectors.ts`
+
+**Order note (U0, decision D7 in the governing plan, `2026-08-03-autonomous-step-1-completion.md`):**
+the heading numbers in this document are exposition order, not execution order. Per the
+governing plan's Execution units table, this task runs **after Task 16** and **before Tasks 14,
+15 and 18**: Task 15 amends assertions in `construction-validation.test.ts`, and this task is
+what creates that file; Task 18's `pnpm test` counts assume this task's 17-file corpus is
+already landed. Full order from here: Task 16, **Task 17 (this task)**, Task 14, Task 15,
+Task 18, Task 19, Task 20, Task 21, Task 22, Task 23.
 
 **Base-file-first is mandatory.** For 8 of the 10 mixed files the head body was rewritten, not extended — terminality's sequencing pin was *inverted* from SEQUENTIAL to ATOMIC, and construction-validation **deleted 7 armed-guard tests** that Task 15 depends on. Only `facts.test.ts`, `review.test.ts` (Task 18) and `byte-stability.test.ts` (Task 19) come from head.
 
@@ -997,9 +1031,54 @@ becomes
 import { test } from 'vitest';
 ```
 
-Nothing else changes: `node:assert/strict`, `node:crypto` and `structuredClone` all work unchanged, and `describe` / `t.mock` / lifecycle hooks / context parameters appear **nowhere** in the subset.
+`node:assert/strict`, `node:crypto` and `structuredClone` all work unchanged, and `describe` /
+`t.mock` / lifecycle hooks / context parameters appear **nowhere** in the subset — that much of
+the original claim holds. **Corrected (U0): "nothing else changes" does not.** Landing the full
+corpus produces **66 typecheck errors, all in `test/`, none in `src`**, because
+`noUncheckedIndexedAccess` applies to `test/` too, and the base test files index arrays and
+objects the same way `src` did before Task 13's fixes. Step 5 below clears them before any test
+run is attempted; do not run `pnpm test` straight after this step expecting it to pass.
 
-- [ ] **Step 5: Run and record**
+- [ ] **Step 5: Clear the 66 typecheck errors — an explicit budget**
+
+By TypeScript code, 66 total:
+
+| Code | Meaning | Count |
+|---|---|---|
+| TS2532 | Object is possibly `undefined` | 33 |
+| TS2345 | Argument not assignable | 16 |
+| TS2322 | Type not assignable | 12 |
+| TS18048 | Value is possibly `undefined` | 5 |
+
+By file, 66 total:
+
+| File | Errors |
+|---|---|
+| `chain-verify.test.ts` | 19 |
+| `exclusivity.test.ts` | 12 |
+| `replay-verify.test.ts` | 9 |
+| `construction-validation.test.ts` | 8 |
+| `refusal-matrix.test.ts` | 4 |
+| `helpers/profiles.ts` | 4 |
+| `content-drift.test.ts` | 4 |
+| `profile-digest.test.ts` | 3 |
+| `identity.test.ts` | 2 |
+| `expiry.test.ts` | 1 |
+
+**Named repair idiom — the only one to use:** narrow the index read, then throw, exactly as
+Task 13 already established for `src`:
+```typescript
+const t = chain[i];
+if (t === undefined) throw new Error('<file>: <context> — index out of range');
+```
+Never a non-null assertion (`!`) — Global Constraints forbids it and it defeats the flag being
+fixed. Never widen or delete an assertion to make an error disappear.
+
+**Acceptance condition:** `pnpm typecheck` reports **0 errors**, **and** no `assert.*` call's
+arguments changed — every fix is index-narrowing only. A changed assertion argument at this
+step is not a typecheck fix, it is a silent behavior edit smuggled into a mechanical task.
+
+- [ ] **Step 6: Run and record**
 
 Run: `pnpm test`
 Expected: 19 files, **203 tests** (197 plus this repository's own `jcs.test.ts`, 6 tests, previously omitted from this running total), all passing — which simultaneously proves the base test count, the one-line migration, and decision 0f's behavioural equivalence across the whole corpus.
@@ -1009,6 +1088,11 @@ Expected: 19 files, **203 tests** (197 plus this repository's own `jcs.test.ts`,
 **Files:**
 - Create: `packages/record/test/facts.test.ts`, `packages/record/test/review.test.ts` (from head)
 - Modify: `packages/record/src/types.ts`, `kernel/review.ts`, `kernel/finalize.ts`
+
+**Order note (U0, decision D7 in the governing plan): this task runs after Task 17.** Step 1's
+expected count below (18 passed of 20 files) presumes Task 17's 17-file corpus plus this
+repository's own `jcs.test.ts` are already present; see Task 17's order note for the full
+sequence.
 
 Adoption delta 2. Two of the four named post-base fixes are step-1 reachable and can be proven red; the other two cannot.
 
@@ -1076,15 +1160,32 @@ Run: `pnpm test` — expected: 2 failures.
 - Modify: `packages/record/src/kernel/finalize.ts` (the ladder header comment)
 - Modify: the appropriate step-1 test file (order tests)
 
-The reference implementation's `finalize.ts` header carries the ladder verbatim in nine rungs with **no `(5.7)` slot**. Step 7 adds it. Reserving it now is what buys out a ladder renumbering against already-pinned order tests.
+**Corrected (U0, 2026-08-03): there is no `(5.5)` rung to insert `(5.7)` next to.** The original
+text said to insert `(5.7)` "between the `(5.5)` and `(6)` rungs," which presumes a `(5.5)` rung
+is already present at this build step. It is not. At this build step `finalize.ts`'s header
+carries a **six**-rung ladder: `load chain → (1) pre-seam chain-verify → (2) state/expiry → (3)
+identity → (4) content-drift → (5) facts → (6) success batch`. Verified:
+`grep -nE '3\.5|4\.5|5\.5|5\.7' packages/record/src/kernel/finalize.ts` finds nothing. The
+half-integer rungs named elsewhere in this plan's roadmap — `(3.5)` at Phase 4, an unnamed slot
+for Phase 6's policy-drift gate, `(5.5)` at Phase 5 — are *future* insertions describing what
+those later phases will add; none of them exist yet, and this task must not write header text
+implying otherwise. The reserved slot for findings & acknowledgments (Phase 7) is `(5.7)`, and
+it is inserted **directly after rung `(5)`**, immediately before rung `(6)`.
 
 - [ ] **Step 1: Add the reserved rung to the header comment**
 
-Insert `(5.7) ack coverage — reserved; arrives with findings & acknowledgments (SPEC §10.2)` between the `(5.5)` and `(6)` rungs.
+Insert `(5.7) ack coverage — reserved; arrives with findings & acknowledgments (SPEC §10.2)`
+immediately after rung `(5)` (facts) and before rung `(6)` (success append batch). Do not write
+`(3.5)`, `(4.5)` or `(5.5)` into this comment — none of them exist at this build step.
 
 - [ ] **Step 2: Write an adjacent-pair order test for every adjacent pair present at step 1**
 
-For each adjacent pair in the ladder that exists at step 1, assert that a record tripping *both* gates refuses with the **earlier** rung's code. This is the inherited discipline, and the reference implementation's own analysis found it **missing** on two of its gates — do not inherit that gap.
+For each adjacent pair in the **six-rung** ladder that exists at step 1 — `(1)`/`(2)`,
+`(2)`/`(3)`, `(3)`/`(4)`, `(4)`/`(5)`, `(5)`/`(6)` — assert that a record tripping *both* gates
+refuses with the **earlier** rung's code. `(5)`/`(5.7)` and `(5.7)`/`(6)` are not step-1 pairs:
+`(5.7)` is reserved text only, with no producer at this build step to trip it. This is the
+inherited discipline, and the reference implementation's own analysis found it **missing** on
+two of its gates — do not inherit that gap.
 
 - [ ] **Step 3: Run** — expected: all green, with the new order tests counted.
 

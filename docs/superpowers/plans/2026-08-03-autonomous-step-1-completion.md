@@ -42,6 +42,22 @@ Unchanged from the earlier plan, plus three additions forced by measurement:
   structurally cannot see provenance leaks. Measured baseline: **1 today**
   (`packages/record/src/index.ts:22` names a sibling project), **25 expected after U3**, and
   **0 required at U9's exit**. `contract-scan` exiting 0 certifies nothing about this.
+- **U0 baselines, recorded 2026-08-03 at HEAD `061f38f` before any implementation unit starts**
+  — later units compare against these, not against a re-derivation:
+  - `node scripts/contract-scan.mjs | wc -l` → **210**.
+  - `grep -rn "tide" packages/record/src --include=*.ts | wc -l` → **1**
+    (`packages/record/src/index.ts:22`, the same sibling-project name the bullet above pins).
+    Flagged, not resolved: this bullet says **25 expected after U3**; the halt-discipline
+    table below says "outside U2's expected 1 → 25". The two disagree on which unit produces
+    the jump. U0 did not guess which is right — that requires seeing what U2 and U3 actually
+    land — so both readings stand until whichever unit lands the corpus that moves this count
+    settles it.
+  - `npx biome check --error-on-warnings .` → **exit 1**. Biome's own report: "Found 1 warning.
+    Found 1 info." — one `lint/correctness/noUnusedVariables` on `interface ExpiredPayload`
+    (`packages/record/src/chain/replay.ts:43`, unused, scheduled for U9), one pre-existing
+    `deserialize`/DEPRECATED info on `biome.json`'s `linter.rules.recommended` field (deferral
+    entry 5, untouched by U0). `--error-on-warnings` promotes the warning to a failing exit
+    code; Biome's text still calls it a warning, not an error.
 
 ---
 
