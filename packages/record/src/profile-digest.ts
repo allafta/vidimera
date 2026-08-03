@@ -1,8 +1,9 @@
-// @vidimera/record — profile-digest.ts (design §2 "profile-digest.ts" / §5 "opened
-// snapshot" / §9 O4): the DATA-ONLY profile projection and its `profileDigest`. The
-// `opened` transition (Task 7) records `profileDigest` in its payload so a slice-4
-// comparison can detect a profile that drifted out from under an open record. At THIS
-// task the helper + its properties are what ship; there is NO slice-3 detector (O4).
+// @vidimera/record — profile-digest.ts: the DATA-ONLY profile projection and its
+// `profileDigest` (SPEC §4 "`profileDigest`"). The `opened` transition records
+// `profileDigest` in its payload so a later comparison can detect a profile that
+// drifted out from under an open record. In this build the helper + its properties
+// are what ship; there is no automated drift detector yet — comparison is a host
+// concern until one is built.
 
 import { canonicalize, digest } from './canonical.js';
 import type { ConfirmProfile } from './config.js';
@@ -10,8 +11,8 @@ import type { Digest } from './types.js';
 
 /**
  * Recursively strips function-valued members from a value, yielding a data-only clone
- * (design §5: "the data-only profile projection ... injected function members excluded").
- * Profiles are data (design §9 O4: "profiles are data"), so the projection is the whole
+ * (SPEC §4: "a data-only projection of the profile — its configured fields, excluding
+ * any host code references"). The projection is the whole
  * profile MINUS any function member at any depth — this deterministically covers every
  * declarative field (it includes everything that is not a function) rather than an
  * allow-list that could silently omit a newly-added declarative field.
@@ -39,8 +40,8 @@ function dataOnly(value: unknown): unknown {
 }
 
 /**
- * The data-only projection of a profile (design §5 "opened snapshot"). Exposed alongside
- * `profileDigest` so a caller (or a future slice-4 comparison) can inspect exactly what
+ * The data-only projection of a profile (SPEC §4 "opened" snapshot). Exposed alongside
+ * `profileDigest` so a caller (or a future drift comparison) can inspect exactly what
  * was digested, not just its hash.
  */
 export function projectProfile(profile: ConfirmProfile): unknown {
@@ -48,8 +49,8 @@ export function projectProfile(profile: ConfirmProfile): unknown {
 }
 
 /**
- * `profileDigest = digest(canonicalize(projectProfile(profile)))` (design §5 "opened
- * snapshot"). Stable under key reordering (library JCS sorts keys) and blind to function
+ * `profileDigest = digest(canonicalize(projectProfile(profile)))` (SPEC §4's "opened"
+ * snapshot). Stable under key reordering (library JCS sorts keys) and blind to function
  * members (stripped by the projection), but sensitive to every declarative field. It runs
  * NO validation — it digests a profile's data regardless of whether `create()` would
  * accept it (validation is `config.ts`/`create.ts`'s concern; the digest is pure data).

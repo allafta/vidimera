@@ -1,10 +1,9 @@
-// @vidimera/record — operator-surface.ts (design §2 "operator-surface.ts" / §3
-// OperatorSurface / §1 the object-capability split): the OPERATOR (host/human-only)
-// handle. It exposes the record-transitioning calls (`open`/`review`/`finalize`/
-// `redeem`), the `replay`/`verifyChain` `recordId` audit wrappers, and the three reads.
-// Like agent-surface.ts, this file's job is the CAPABILITY SPLIT — select the
+// @vidimera/record — operator-surface.ts: the OPERATOR (host/human-only)
+// handle (SPEC §9's four-call split — this handle carries `open`/`review`/`finalize`/
+// `redeem`, plus the `replay`/`verifyChain` `recordId` audit wrappers and the three
+// reads). Like agent-surface.ts, this file's job is the CAPABILITY SPLIT — select the
 // operator-reachable subset of the shared kernel closures (assembled in `create.ts`) and
-// FREEZE it. As of Task 9 every transitioning closure delegates to a real `kernel/*.ts`
+// FREEZE it. Every transitioning closure delegates to a real `kernel/*.ts`
 // behavior (`redeem` to `kernel/redeem.ts`, which refuses `unredeemable-state` on every
 // profile/state except one: a confirmed effect-seam record now throws a build-capability
 // error instead — the real effect-seam behavior is still not implemented); the reads +

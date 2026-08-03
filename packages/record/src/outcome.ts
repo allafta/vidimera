@@ -1,6 +1,7 @@
-// @vidimera/record — Outcome<T> (result-first; design §3 "OUTCOME" / §9 "Outcome
-// shape"). Domain refusals are RETURNED VALUES: constructors never throw for a domain
-// refusal. Exceptions are reserved for store/infra faults where nothing was recorded.
+// @vidimera/record — Outcome<T> (result-first; DECISIONS.md #10 "Result-first outcomes;
+// refusals returned, never thrown"). Domain refusals are RETURNED VALUES: constructors
+// never throw for a domain refusal. Exceptions are reserved for store/infra faults where
+// nothing was recorded.
 
 import { CORE, type RefusalCode } from './refusal-codes.js';
 import type { Digest } from './types.js';
@@ -9,8 +10,9 @@ import type { Digest } from './types.js';
 // field. `transitionRef` is present ONLY when a transition was actually appended
 // (compromise always; record-exists / unknown-profile / unknown-leg / pre-record /
 // terminal-record (incl. record-not-open) never; a refusal-class code only when
-// appended per `appendsOn`). `unavailable` has no slice-3 producer — forward-compat
-// for external-authority availability (slice 5+).
+// appended per `appendsOn`). `unavailable` has no producer in this build — forward-compat
+// for external-authority availability (SPEC §8's `availability` class; not built until a
+// later build step wires §11.1/§10.3's consultation and policy gates).
 export type Outcome<T> =
   | { status: 'ok'; value: T }
   | {
