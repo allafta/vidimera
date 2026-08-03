@@ -1,13 +1,13 @@
-// @vidimera/record — expiry.test.ts (design §5 "finalize() check order" state/expiry gate
-// / §9 "record-not-open core code (M-B)" / §6 expiry test): finalize()'s state/expiry gate
+// @vidimera/record — expiry.test.ts (SPEC §9's finalize gate ladder, rung (2)
+// state/expiry): finalize()'s state/expiry gate
 // (after chain-verify, before any append) on an intact chain resolves:
 //   - a DUE-open record → en-passant CAS-append `expired`, then `leg-expired` (the expiry
 //     edge is the only append; the leg-expired refusal itself carries NO transitionRef);
 //   - an already-`expired` record → `leg-expired` (no append);
 //   - `state !== 'open'` (confirmed / refused) → `record-not-open` (no append, no
-//     transitionRef) — the three M-B cases: double-finalize on a capture-terminal confirmed
-//     record, finalize on an effect-seam confirmed record awaiting redemption, and finalize
-//     on a refused record.
+//     transitionRef) — the three cases (SPEC §8): double-finalize on a capture-terminal
+//     confirmed record, finalize on an effect-seam confirmed record awaiting redemption,
+//     and finalize on a refused record.
 // The clock is injected via createWithClock (internal test seam) so lapse is deterministic
 // with NO sleeps.
 

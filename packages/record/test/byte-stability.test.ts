@@ -68,7 +68,7 @@ function factsArg(): { figures: unknown; checker: IdentityAssertion } {
   };
 }
 
-// === the deterministic seams (design §9.2: fixed clock AND fixed ids) =================
+// === the deterministic seams: fixed clock AND fixed ids ===============================
 
 /**
  * A fresh, zero-reset deterministic `{now, mintId}` pair — the cross-backing-e2e idiom.
@@ -95,9 +95,12 @@ function makeDeterministicSeams(): { now: () => Date; mintId: () => string } {
 //   [2] consultation-recorded (facts)
 //   [3] confirmed
 // Each literal is `transitionDigest(chain[i])` under the record's recorded algorithm (sha256).
-// DO NOT regenerate these in a later task — a change here means the no-consultations chain
-// moved, which slice 7 forbids (design §5). Harvest-then-pin: run once with placeholder
-// literals, read the real values out of the failure diff, then paste them here verbatim.
+// DO NOT regenerate these values later — a change here would mean the no-consultations
+// chain moved, which the byte-stability invariant forbids (DECISIONS.md #19: a profile
+// declaring no features produces chains byte-identical to the minimal model; every
+// feature addition must be provably non-breaking, so drift shows up here as a digest
+// change). Harvest-then-pin: run once with placeholder literals, read the real values
+// out of the failure diff, then paste them here verbatim.
 const PINNED_DIGESTS: readonly [string, string, string, string] = [
   'sha256:5cfbf8015d7fc4396bc623f79248747d81c2ec3e7ec82d0f8cba287c87fbc0e6',
   'sha256:1a64963fb5ae2c0e0bed6c762077d0fa8afdbbbe8cd6fe02e19e8c1033741557',
@@ -149,7 +152,7 @@ test('byte-stability: the four transition digests match the pinned pre-slice lit
   assert.deepEqual(
     digests,
     [...PINNED_DIGESTS],
-    'the no-consultations chain must stay digest-identical to pre-slice main (design §5 byte-stability)',
+    'the no-consultations chain must stay digest-identical to the pinned baseline (DECISIONS.md #19: byte-stability)',
   );
 });
 

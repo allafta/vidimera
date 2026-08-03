@@ -1,10 +1,10 @@
-// @vidimera/record — content-drift.test.ts (design §5 "Content binding" (re-checked at
-// finalize) / §6 content-drift test / O11): at finalize() the `content` arg is
+// @vidimera/record — content-drift.test.ts (SPEC §3 "Content binding", re-checked at
+// finalize per SPEC §9): at finalize() the `content` arg is
 // re-canonicalized through the profile's adopter canonicalizer + library JCS and digested;
 // a mismatch vs the record's bound `contentDigest` → `content-drift`. Default leg: the
 // record stays OPEN, NO append, NO transitionRef. A leg listing `content-drift` in
 // `terminalRefusals` appends `open→refused` (transitionRef present) — the terminal-vs-
-// non-terminal branch (O11).
+// non-terminal branch.
 
 import assert from 'node:assert/strict';
 import { test } from 'vitest';

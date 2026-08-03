@@ -1,10 +1,10 @@
 // @vidimera/record — tests/helpers/chain.ts: a tiny hand-authored chain builder for
-// tests (Task 4 brief: "build a tiny local helper ... that chains transitions
-// correctly via your encoding functions; the tamper cases then mutate a copy").
+// tests — build a small local helper that chains transitions correctly via the real
+// encoding functions, so the tamper cases can then mutate a copy.
 //
-// This is a TEST-ONLY helper, not a kernel construction convenience (design §9 task
-// scope fence: "no transition-CONSTRUCTION convenience beyond what §2 names" lives in
-// src/). It deliberately reuses the real `genesisPrevHash`/`transitionDigest` under
+// This is a TEST-ONLY helper, not a kernel construction convenience — no
+// transition-construction convenience beyond what the public API already exposes lives
+// in src/. It deliberately reuses the real `genesisPrevHash`/`transitionDigest` under
 // test to link transitions correctly — the correctness of those two functions is
 // independently verified byte-for-byte in transition-encoding.test.ts against a
 // hand-built canonicalize()/digest() recomputation, so using them here to assemble
@@ -24,10 +24,10 @@ export interface ChainStep {
 
 /**
  * Builds a correctly-linked `Transition[]` from `recordId` + an ordered list of
- * `{kind, payload}` steps: seq starts at 1 and increments by 1 per step (design §3/§5
- * "seq 1-based +1"), the first step's `prevHash` is the genesis rule
- * (`genesisPrevHash(recordId)`), and every subsequent step's `prevHash` is the actual
- * `transitionDigest()` of the transition immediately before it.
+ * `{kind, payload}` steps: seq starts at 1 and increments by 1 per step (SPEC §4:
+ * "1-based, increments by exactly 1 per record"), the first step's `prevHash` is the
+ * genesis rule (`genesisPrevHash(recordId)`), and every subsequent step's `prevHash` is
+ * the actual `transitionDigest()` of the transition immediately before it.
  */
 export function buildChain(recordId: string, steps: ChainStep[]): Transition[] {
   const chain: Transition[] = [];

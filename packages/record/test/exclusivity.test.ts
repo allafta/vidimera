@@ -1,5 +1,5 @@
-// @vidimera/record — exclusivity.test.ts (design §5 "Exclusivity" / "Clocks en passant"
-// / §9 "OQ2-10 minimal locator pulled forward", S-2): one non-terminal record per
+// @vidimera/record — exclusivity.test.ts (SPEC §9 "Exclusivity" / §12's minimal
+// locator): one non-terminal record per
 // (profile, subject). The five open()-under-exclusivity paths:
 //   (1) clean open — a first open() on a free (profile, subject) succeeds;
 //   (2) a live (still-open, not-lapsed) blocker — second open() -> record-exists directly,
@@ -281,7 +281,7 @@ test('a NON-open non-terminal blocker (effect-seam `confirmed` awaiting redempti
 // === (5) expire-CAS state-mismatch -> record-exists, never re-loop =====================
 
 /**
- * A Store that simulates the OQ2-8a race: right before open()'s expire CAS on the blocker
+ * A Store that simulates a race: right before open()'s expire CAS on the blocker
  * lands, it flips the blocker OUT of 'open' (a competing `expired` append through the inner
  * store), so the real expire CAS sees state-mismatch. It also counts genesis attempts
  * (expectedCurrentState === null) and expire attempts so the test can assert open() made

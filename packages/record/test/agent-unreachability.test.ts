@@ -1,14 +1,15 @@
-// @vidimera/record — agent-unreachability.test.ts (design §1 / §6, CL-15-derived): the
+// @vidimera/record — agent-unreachability.test.ts: the
 // object-capability freeze-enumerate-attack. The `agent` handle exposes ONLY
 // `stage` + the three pure reads; the record-transitioning calls (`open`/`review`/
 // `finalize`/`redeem`) live SOLELY on `operator`. This is in-process discipline, not
-// sandbox confinement (the honest limit design §1 states) — asserted here by:
+// sandbox confinement (SPEC §9: "in-process object-capability discipline, not a
+// sandbox") — asserted here by:
 //   (1) the agent handle's own+inherited key set is EXACTLY {stage, getRecord, readChain,
 //       chainHead} (no open/review/finalize/redeem anywhere reachable),
 //   (2) the handle is FROZEN (mutation attempts throw under ESM strict mode),
 //   (3) the transitioning calls are undefined / not callable through the agent handle,
 //   (4) the append-count invariant: exercising every agent-reachable method appends NO
-//       transition. `stage` is a REAL pre-record `putStaged` (Task 7) — it runs to `ok`
+//       transition. `stage` is a REAL pre-record `putStaged` — it runs to `ok`
 //       and still never calls `appendTransition`, so the invariant is a genuine one.
 
 import assert from 'node:assert/strict';
