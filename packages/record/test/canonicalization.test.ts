@@ -1,7 +1,7 @@
-// @vidimera/record — canonicalization.test.ts (design §6): the library
+// @vidimera/record — canonicalization.test.ts: the library
 // `canonicalize()`/`digest()` output matches the pure-JCS / RFC-8785 vectors
 // byte-for-byte; the wrapper THROWS on a top-level `undefined`; `digest()` emits
-// `"sha256:<64-lowercase-hex>"`. Task-3 brief Step 2/3.
+// `"sha256:<64-lowercase-hex>"`.
 
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
@@ -105,11 +105,11 @@ test('digest() is content-sensitive: different bytes -> (overwhelmingly likely) 
 
 // --- SUPPORTED_ALGORITHMS / DEPRECATED_ALGORITHMS (digest-agility surfaces) ------
 
-test('SUPPORTED_ALGORITHMS is exactly [sha256] at slice 3', () => {
+test('SUPPORTED_ALGORITHMS is exactly [sha256] in this build', () => {
   assert.deepEqual([...SUPPORTED_ALGORITHMS], ['sha256']);
 });
 
-test('DEPRECATED_ALGORITHMS is empty at slice 3 (nothing has been superseded yet)', () => {
+test('DEPRECATED_ALGORITHMS is empty in this build (nothing has been superseded yet)', () => {
   assert.equal(DEPRECATED_ALGORITHMS.size, 0);
 });
 
@@ -132,8 +132,8 @@ test('algorithmOf() throws on an unrecognized algorithm', () => {
 
 test('resolveCanonicalizer() returns the registered canonicalizer for a resolvable ref', () => {
   const passthrough: Canonicalizer = (content) => content;
-  const registry: Record<string, Canonicalizer> = { 'tide.canonicalWeek.v1': passthrough };
-  assert.equal(resolveCanonicalizer(registry, 'tide.canonicalWeek.v1'), passthrough);
+  const registry: Record<string, Canonicalizer> = { 'test.canonicalWeek.v1': passthrough };
+  assert.equal(resolveCanonicalizer(registry, 'test.canonicalWeek.v1'), passthrough);
 });
 
 test('resolveCanonicalizer() FAILS CLOSED: throws on a missing ref rather than returning undefined', () => {

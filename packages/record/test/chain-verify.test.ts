@@ -1,14 +1,14 @@
-// @vidimera/record — chain-verify.test.ts (design §5 "Chain integrity (pre-seam verify)" /
-// §9 "chain-compromise failure path (S6, AL1-honest)" / §6 chain-verify test): finalize()'s
+// @vidimera/record — chain-verify.test.ts (SPEC §5 "Chain integrity" / "Mandatory
+// pre-seam chain-verify"): finalize()'s
 // FIRST step after loading the chain is a pre-seam chain-verify sharing ONE replay/
 // verifyChain core with the operator `verifyChain()` audit wrapper.
 //   - clean verify → a `verdict:'pass'` `chain-verify` consultation is appended as the FIRST
-//     element of the success batch [chain-verify, facts, confirmed] (O3);
+//     element of the success batch [chain-verify, facts, confirmed];
 //   - a DETECTED BREAK → NO chain-verify consultation; finalize refuses `chain-compromise`
 //     (class compromise) and appends ONE `refused` edge at head via NORMAL C2 (seq=max+1,
 //     prevHash=chainHead) — `open→refused` for an unconfirmed record, and `confirmed→refused`
 //     via the C3 carve-out for an already-confirmed effect-seam record whose chain carries a
-//     post-confirmed NON-LAST tamper (S-4). The `refused` payload is `{code}`-only; verifyChain
+//     post-confirmed NON-LAST tamper. The `refused` payload is `{code}`-only; verifyChain
 //     still reports only the ORIGINAL tamper's firstBreakSeq (no verifyChain carve-out).
 // All tamper fixtures tamper a NON-LAST transition (last-element tamper is the AL1 blind spot).
 
@@ -263,18 +263,19 @@ test('a post-confirmed NON-LAST tamper on a CONFIRMED effect-seam record: confir
 });
 
 // === C3-forced no-append corner: tampered chain on an ALREADY-TERMINAL (expired) record ===
-// The C3-forced exception to "compromise always appends" (design/brief last-resort
-// fallback, appendChainCompromise): an ORDINARILY REACHABLE corner — an ordinary non-last
+// The C3-forced exception to "compromise always appends" (SPEC §5: against an
+// already-terminal `expired`/`refused` record "no edge is admitted, and the compromise
+// is surfaced result-first with no transition reference"): an ORDINARILY REACHABLE
+// corner — an ordinary non-last
 // payload tamper on a record whose REAL persisted state is already TERMINAL (expired here;
 // refused is the analogous case) — where NONE of the CAS candidates is admitted. The tampered
 // chain still replays to 'expired' (kinds survive a payload-only tamper), so the candidate
 // list is ['expired','open','confirmed']: 'expired' passes the state CAS but is rejected by
 // the Store's C3 compromise carve-out (it only admits expected 'confirmed'/'redeeming'), and
-// 'open'/'confirmed' state-mismatch against the record's true 'expired' state. Adjudicated at
-// the Task 8 review as the correct fail-safe horn of a design-internal contradiction — do NOT
-// change this behavior; registry/SPEC wording reconciled at Tasks 9/12. [corrected at review:
-// task-8-report.md previously called this corner "unreachable" — it is reachable, and this
-// test pins it.]
+// 'open'/'confirmed' state-mismatch against the record's true 'expired' state. Adjudicated
+// as the correct fail-safe horn of an apparent contradiction between "compromise always
+// appends" and C3's carve-out scope — do NOT change this behavior: this test pins that the
+// corner IS reachable, not a dead branch.
 test('a tampered chain on an ALREADY-EXPIRED record: NO candidate CAS target is admitted — chain-compromise with NO append, NO transitionRef (C3-forced corner)', async () => {
   const inner = new MemoryStore();
   const profile = captureProfile();

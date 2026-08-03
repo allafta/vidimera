@@ -1,9 +1,8 @@
-// @vidimera/record — replay-verify.test.ts (design §2 "chain/replay.ts" / §3 PURE
-// CORE / §5 "Chain integrity" / §6): the pure `replay(chain) -> DecisionRecord` fold
+// @vidimera/record — replay-verify.test.ts (SPEC §5 "Chain integrity"): the pure
+// `replay(chain) -> DecisionRecord` fold
 // from genesis, and `verifyChain(chain) -> ChainVerifyReport` digest-linkage
 // recomputation — `{intact:true}` on a good chain, `{intact:false, firstBreakSeq,
 // detail}` on a deleted / reordered / tampered / seq-skipped / bad-genesis chain.
-// Task-4 brief Step 1.
 
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
@@ -18,14 +17,14 @@ import { buildChain, cloneChain } from './helpers/chain.js';
 
 const RECORD_ID = 'rec-e2e-1';
 
-const APPROVER: IdentityAssertion = { principal: 'approver:1', authority: 'session:tide-web' };
+const APPROVER: IdentityAssertion = { principal: 'approver:1', authority: 'session:test-app' };
 const CHECKER: IdentityAssertion = {
   principal: 'svc:review-surface',
-  authority: 'session:tide-web',
+  authority: 'session:test-app',
 };
 
 const OPENED_PAYLOAD = {
-  profileId: 'tide.week.v1',
+  profileId: 'test.week.v1',
   profileDigest: digest('profile-projection'),
   legId: 'approver-decide',
   subjectRef: 'consultant:42',
@@ -168,10 +167,10 @@ test('replay(): throws when the first transition is not "opened" (no other sourc
   assert.throws(() => replay(malformed), /opened/i);
 });
 
-test('replay(): throws on a TransitionKind the slice-3 KERNEL never emits (e.g. "sealed")', () => {
+test('replay(): throws on a TransitionKind the kernel in this build never emits (e.g. "sealed")', () => {
   const chain = buildChain(RECORD_ID, [
     { kind: 'opened', payload: OPENED_PAYLOAD },
-    { kind: 'sealed', payload: { note: 'not a slice-3 kind' } },
+    { kind: 'sealed', payload: { note: 'not a kind this build emits' } },
   ]);
   assert.throws(() => replay(chain), /sealed/);
 });
