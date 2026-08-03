@@ -1,17 +1,17 @@
-// @vidimera/record — unknown-ids.test.ts (design §6 "unknown-ids.test.ts" / §9 "unknown-leg
-// deferral"): Both agent `stage()` and operator `open()` name a profile indirectly —
+// @vidimera/record — unknown-ids.test.ts: Both agent `stage()` and operator `open()` name
+// a profile indirectly —
 // `stage(content, profileId, subjectRef)` directly, `open(stagedRef)` via the staged
 // draft's `profileId` — and BOTH must fail CLOSED on an unconfigured profileId:
 // `refused('unknown-profile')`, NO append, NO record.
 //
-// `unknown-leg` now has its FIRST producer: `stage()` accepts an optional caller-named
+// `unknown-leg` has its FIRST producer here: `stage()` accepts an optional caller-named
 // `legId`; a NAMED legId absent from the resolved profile's legs refuses `unknown-leg`
 // BEFORE any `putStaged` — pre-record, fail-closed, no draft, no transitionRef. (Omitting
 // `legId` still derives `profile.legs[0].id` internally, byte-compatible with every prior
-// call site — that path never reaches this refusal.) `open()`'s SECOND producer (a
-// persisted draft's legId absent from the resolved profile) and the multi-leg producer
-// case both need capabilities this build step does not carry (open()'s own draft-legId
-// check; a non-GOVERNED multi-leg profile) — neither is tested here yet.
+// call site — that path never reaches this refusal.) SPEC §8 names a SECOND producer (a
+// persisted draft's legId absent from the resolved profile it resolves under at `open()`)
+// and multi-leg profiles add more surface still — neither is built or tested here yet
+// (open()'s own draft-legId check; a non-GOVERNED multi-leg profile).
 
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
@@ -48,7 +48,7 @@ test('stage() naming an unconfigured profileId -> refused unknown-profile, fail-
   assert.equal(store.appendCalls, 0, 'no append for an unknown profile');
 });
 
-// === stage(): unknown legId — the FIRST unknown-leg producer (design §5/§9) ===========
+// === stage(): unknown legId — the FIRST unknown-leg producer (SPEC §8) ===========
 
 test('stage() naming a legId absent from a SINGLE-leg profile -> refused unknown-leg, fail-closed (no putStaged, no append)', async () => {
   const store = new CountingStore();
@@ -79,7 +79,7 @@ test('stage() naming a legId absent from a SINGLE-leg profile -> refused unknown
 test('open() on a staged draft naming an unconfigured profileId -> refused unknown-profile, no append', async () => {
   // Arrange a staged draft whose profileId is NOT in the config — the fail-closed guard
   // in open() (it never trusts a staged profileId blindly) is the only producer here.
-  // Direct putStaged is legitimate for arranging store state (Task 7 brief).
+  // Direct putStaged is legitimate for arranging store state in a test.
   const store = new CountingStore();
   const stagedRef = 'sha256:deadbeef';
   await store.putStaged({
@@ -106,22 +106,21 @@ test('open() on a staged draft naming an unconfigured profileId -> refused unkno
   );
 });
 
-// === open(): unknown/missing stagedRef -> THROWS (caller error, design §8, SPEC "Caller ===
+// === open(): unknown/missing stagedRef -> THROWS (caller error — SPEC §8 "Caller ===
 // === errors are not refusals") =========================================================
 //
 // A stagedRef that resolves to no staged draft at all (never staged, or the store was
 // never given one) is distinct from the unknown-PROFILE case above (a draft exists but
 // names an unconfigured profile — that's a domain refusal). No CORE RefusalCode fits a
 // missing draft, so open() throws rather than mint a code — mirroring replay()/
-// verifyChain()'s "a record that does not exist is a caller error" posture (task-12-report.md
-// Item 6).
+// verifyChain()'s "a record that does not exist is a caller error" posture.
 
 test('open() on a stagedRef that resolves to NO staged draft -> THROWS (caller error, not a domain refusal)', async () => {
   const { operator } = create(makeConfig([captureProfile()]));
   await assert.rejects(() => operator.open('sha256:nonexistent-staged-ref'), /unknown stagedRef/);
 });
 
-// === finalize(): unknown/missing recordId -> THROWS (caller error, design §8) ==========
+// === finalize(): unknown/missing recordId -> THROWS (caller error — SPEC §8) ==========
 //
 // Symmetric to open() above: a recordId that resolves to no chain at all was never
 // opened — a caller error (the union is contract-fixed; no fitting RefusalCode), not a

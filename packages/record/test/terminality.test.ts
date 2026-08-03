@@ -1,12 +1,12 @@
-// @vidimera/record — terminality.test.ts (design §5 "Profile-derived terminality" / §9
-// "finalize check order" success batch + S5 honest sequencing): the CONFIRMED-terminality
-// portions (the redeem portions are Task 9). A capture-only profile's final-leg `confirmed`
+// @vidimera/record — terminality.test.ts (SPEC §2 "States and terminality"): the
+// CONFIRMED-terminality and redeem() interaction tests together. A capture-only profile's
+// final-leg `confirmed`
 // is TERMINAL — a second open() on the same (profile, subject) is admitted afterwards. An
 // effect-seam profile's final-leg `confirmed` is NON-terminal (awaits redemption) — a
-// second open() is blocked with `record-exists`. Also pins the honest sequencing bound
-// (design §9 S5): finalize()'s multi-append is a best-effort SEQUENTIAL append, NOT a
+// second open() is blocked with `record-exists`. Also pins the honest sequencing bound:
+// finalize()'s multi-append is a best-effort SEQUENTIAL append in this build, NOT a
 // cross-append atomic batch — a confirmed-append conflict after the consultations landed
-// leaves them on the chain and maps to `record-not-open` (the M-B residual).
+// leaves them on the chain and maps to `record-not-open`.
 
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
@@ -72,7 +72,7 @@ test('an effect-seam final-leg CONFIRMED is non-terminal (awaits redemption): a 
   );
 });
 
-// === honest sequencing bound (design §9 S5) + confirmed-append residual → record-not-open ===
+// === honest sequencing bound (sequential, not atomic, in this build) + confirmed-append residual → record-not-open ===
 
 /**
  * A Store wrapper that lets the two consultation appends land but forces the CONFIRMED
@@ -126,7 +126,7 @@ test("finalize()'s batch is sequential, not atomic: a residual confirmed-append 
   assert.deepEqual(
     chain.map((t) => t.kind),
     ['opened', 'consultation-recorded', 'consultation-recorded'],
-    'the chain-verify + facts consultations landed; the confirmed edge did not (no rollback — slice-3 single-writer bound)',
+    'the chain-verify + facts consultations landed; the confirmed edge did not (no rollback — the single-writer bound this build enforces)',
   );
   assert.equal(
     (await handles.operator.getRecord(recordId))?.state,
@@ -163,7 +163,7 @@ test('redeem() on a capture-terminal CONFIRMED record (capture-only profile) -> 
   assert.equal(
     outcome.transitionRef,
     undefined,
-    'redeem() never appends at slice 3 — no transitionRef',
+    'redeem() never appends in this build — no transitionRef',
   );
 
   const chainAfter = await handles.operator.readChain(recordId);
