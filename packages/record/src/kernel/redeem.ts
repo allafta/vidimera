@@ -1,8 +1,7 @@
-// @vidimera/record — kernel/redeem.ts (design §3 OperatorSurface.redeem / §5 "`redeem()`
-// slice-3 stub" / §9 "unredeemable-state always-present (O2)"): the operator-only
-// redemption seam is EXPORTED ON EVERY PROFILE (capture-only AND effect-seam alike — §8's
-// profile-conditional redemption is reconciled by O2 in favor of §11.2/OQ2-7's
-// every-profile export). At this build step it is still mostly a stub: it refuses
+// @vidimera/record — kernel/redeem.ts: the operator-only
+// redemption seam is EXPORTED ON EVERY PROFILE (capture-only AND effect-seam alike —
+// SPEC §8: "`redeem()`... [is a] call on every profile, with fail-closed domain outcomes
+// in every deployment"). It is still mostly a stub in this build: it refuses
 // `unredeemable-state`, result-first, on every profile and every record state — WITH ONE
 // EXCEPTION. A confirmed effect-seam record (the exact "awaiting redemption" case) now
 // throws a build-capability error instead of silently refusing (below). The real

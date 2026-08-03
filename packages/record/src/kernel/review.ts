@@ -1,16 +1,14 @@
-// @vidimera/record — kernel/review.ts (design §3 OperatorSurface.review / §5 "Facts
-// enforced-by-default" (review() stays a pure read) / §9 "review() test coverage" S4):
-// `review()` is a PURE content-free read. It reads the chain, folds it with the shared
+// @vidimera/record — kernel/review.ts: `review()` is a PURE content-free read (SPEC §9
+// `review(recordId)`). It reads the chain, folds it with the shared
 // `replay` core, and projects a `ReviewView` — metadata + `contentDigest` only, no content
 // body, consultations carried as they already are (each holds a `payloadDigest`, never a
 // raw payload). It appends NOTHING and changes no state.
 //
-// Nonexistent-record posture (design/brief): a `recordId` that resolves to an empty chain
-// has NO fitting slice-3 RefusalCode (`unknown-profile` names a profile, not a record; the
-// union is contract-fixed this slice). `review()` THROWS via `replay()`'s empty-chain guard
+// Nonexistent-record posture: a `recordId` that resolves to an empty chain
+// has NO fitting RefusalCode (`unknown-profile` names a profile, not a record; the
+// union is contract-fixed). `review()` THROWS via `replay()`'s empty-chain guard
 // — the same "a record that does not exist is a caller error" posture `open()`
-// (missing-stagedRef) and `replay()`/`verifyChain()` (empty chain) already take. Flagged for
-// the Task-12 SPEC reconciliation (whether the registry wants an `unknown-record` code).
+// (missing-stagedRef) and `replay()`/`verifyChain()` (empty chain) already take (SPEC §8).
 
 import { replay } from '../chain/replay.js';
 import type { KernelContext } from '../create.js';

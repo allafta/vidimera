@@ -1,6 +1,5 @@
-// @vidimera/record — kernel/open.ts (design §3 OperatorSurface.open / §5 "opened snapshot"
-// + "Exclusivity" + "Clocks en passant" / §9 "recordId minting" + "OQ2-10 minimal locator
-// pulled forward", S-2): the operator-only record-creating seam. `open(stagedRef)`:
+// @vidimera/record — kernel/open.ts: the operator-only record-creating seam (SPEC §9
+// `open(stagedRef, {...})`). `open(stagedRef)`:
 //   1. read the staged draft (missing -> a caller error, THROWS — see below);
 //   2. resolve the draft's profile fail-CLOSED (unconfigured -> `refused('unknown-profile')`,
 //      NO append — open() never trusts a staged profileId blindly);
@@ -8,15 +7,14 @@
 //      `profileDigest` over the data-only projection), CAS-append with
 //      `expectedCurrentState:null`;
 //   4. on `conflict:'exclusivity'` (a non-terminal record already holds (profile, subject)),
-//      run the S-2 gated expire-then-retry via the `blockingRecordId` locator.
+//      run the gated expire-then-retry via the `blockingRecordId` locator (SPEC §12).
 //
-// Missing-stagedRef choice (design names NO RefusalCode for it): open() is operator-only,
+// Missing-stagedRef choice (the SPEC names NO RefusalCode for it): open() is operator-only,
 // and a `stagedRef` that resolves to no draft is a CALLER error — the host must have
 // obtained it from a prior `stage()`. No CORE RefusalCode fits (`unknown-profile` names a
-// profile, not a staged draft; the union is contract-fixed this slice — do not invent one),
+// profile, not a staged draft; the union is contract-fixed — do not invent one),
 // so open() THROWS, mirroring `replay()`/`verifyChain()`'s "a record that does not exist is
-// a caller error" posture. Flagged for the Task-12 SPEC reconciliation (whether the registry
-// wants an `unknown-staged` code). This is distinct from the reserved store/infra-fault
+// a caller error" posture (SPEC §8). This is distinct from the reserved store/infra-fault
 // exceptions; nothing was recorded here either.
 
 import { genesisPrevHash } from '../chain/encoding.js';
@@ -87,7 +85,7 @@ export async function open(
   }
   const { profile, effectSeam } = resolved;
 
-  // Build the genesis `opened` transition (design §3 payload shapes + §5 "opened snapshot").
+  // Build the genesis `opened` transition (SPEC §4's payload shapes / opened snapshot).
   const recordId = mintId();
   const openedPayload: {
     profileId: string;
@@ -101,7 +99,8 @@ export async function open(
     legId: staged.legId,
     subjectRef: staged.subjectRef,
     contentDigest: staged.contentDigest,
-    // policyDigest: omitted — no policySource at slice 3 (GOVERNED-throw-guarded).
+    // policyDigest: omitted — no policySource in this build (GOVERNED-throw-guarded;
+    // SPEC §4's opened payload).
   };
   const openedTransition: Transition = {
     recordId,
@@ -127,7 +126,7 @@ export async function open(
     );
   }
 
-  // --- C1 exclusivity: S-2 gated expire-then-retry (design §5 / §9 OQ2-10) --------------
+  // --- C1 exclusivity: gated expire-then-retry (SPEC §12's C1) --------------------------
   // A non-terminal record already holds (profileId, subjectRef); `blockingRecordId` names it.
   const blockerChain = await store.readChain(first.blockingRecordId);
   const blocker = replay(blockerChain);
