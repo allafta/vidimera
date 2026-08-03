@@ -149,14 +149,22 @@ export class MemoryStore implements Store {
   private readonly records = new Map<string, StoredRecord>();
 
   async putStaged(staged: StagedDraft): Promise<void> {
-    // Idempotent by staged.id (design §4): re-putting the same id simply overwrites
-    // with (by construction, since stagedRef is content-derived — id.ts) an
-    // identical value — never an error, never a second entry.
+    // Idempotent, first-write-wins (SPEC §12): a stagedRef is content-derived
+    // (id.ts), so a re-put of the identical draft is the ordinary case, but a
+    // genuine same-id collision must keep the FIRST write rather than the second —
+    // never an error, never a second entry, and never an overwrite.
+    if (this.staged.has(staged.id)) {
+      return;
+    }
     this.staged.set(staged.id, staged);
   }
 
   async getStaged(stagedRef: string): Promise<StagedDraft | null> {
-    return this.staged.get(stagedRef) ?? null;
+    // Fresh value (SPEC §12): a caller mutating the returned draft must never
+    // corrupt store-internal state, so a structured clone is handed out, never the
+    // stored object itself.
+    const staged = this.staged.get(stagedRef);
+    return staged === undefined ? null : structuredClone(staged);
   }
 
   async appendTransition(

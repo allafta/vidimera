@@ -103,6 +103,63 @@ test('putStaged: idempotent by staged.id — putting the same id twice does not 
   assert.deepEqual(await store.getStaged('staged-2'), draft);
 });
 
+test('putStaged: first-write-wins — a second put under the SAME id with DIFFERENT content does not overwrite the first (SPEC §12: "idempotent, first-write-wins ... keeps the first write rather than overwriting it")', async () => {
+  const store = new MemoryStore();
+  const first = {
+    id: 'staged-collision',
+    profileId: 'p1',
+    legId: 'leg-1',
+    subjectRef: 'subj-first',
+    contentDigest: 'sha256:' + 'c'.repeat(64),
+  };
+  const second = {
+    id: 'staged-collision', // SAME id as `first`
+    profileId: 'p2', // every other field differs
+    legId: 'leg-2',
+    subjectRef: 'subj-second',
+    contentDigest: 'sha256:' + 'd'.repeat(64),
+  };
+  await store.putStaged(first);
+  await store.putStaged(second); // a genuine same-id collision — must NOT overwrite
+  assert.deepEqual(
+    await store.getStaged('staged-collision'),
+    first,
+    'a same-id collision must keep the FIRST write; last-write-wins is the wrong behavior',
+  );
+});
+
+test('getStaged: returns a FRESH value on every call — mutating a previously returned draft can never corrupt store-internal state (SPEC §12: "a caller mutating a returned chain, head, or staged draft can never corrupt store-internal state")', async () => {
+  const store = new MemoryStore();
+  const draft = {
+    id: 'staged-fresh-read',
+    profileId: 'p1',
+    legId: 'leg-1',
+    subjectRef: 'subj-fresh',
+    contentDigest: 'sha256:' + 'e'.repeat(64),
+  };
+  await store.putStaged(draft);
+  // An INDEPENDENT snapshot of the original values, taken before any mutation below and
+  // never itself passed to the store — `draft` cannot be reused as the "expected" value
+  // here, because `putStaged` may have stored that very object by reference, which would
+  // make the assertion vacuously pass (the "expected" value would be mutated right along
+  // with the "actual" one, since they'd be the same object).
+  const originalSnapshot = { ...draft };
+
+  const firstRead = await store.getStaged('staged-fresh-read');
+  if (firstRead === null) {
+    throw new Error('expected a staged draft, got null');
+  }
+  firstRead.profileId = 'tampered-by-caller';
+  firstRead.subjectRef = 'tampered-by-caller';
+
+  const secondRead = await store.getStaged('staged-fresh-read');
+  assert.deepEqual(
+    secondRead,
+    originalSnapshot,
+    "mutating the first read's returned object must not be visible to a later getStaged call",
+  );
+});
+
 // === genesis + state CAS =============================================================
 
 test('appendTransition: a well-formed genesis append (expectedCurrentState:null, new recordId) succeeds', async () => {
