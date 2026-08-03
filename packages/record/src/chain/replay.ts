@@ -60,7 +60,8 @@ interface RefusedPayload {
  *  - `confirmed` (`{actor}`) sets `actor` and `state: 'confirmed'`.
  *  - `refused` (`{code}`) sets `state: 'refused'` and `refusalCode: code`.
  *  - `expired` (`{bound}`) sets `state: 'expired'` (`bound` is not itself part of
- *    `DecisionRecord` — it names which expiry clause fired, informational only).
+ *    `DecisionRecord` — it is the elapsed deadline timestamp, not a clause name; the
+ *    transitioned-from state distinguishes which expiry clause fired, SPEC §4).
  *  - `state` follows the LAST state-changing transition kind seen: e.g. an
  *    `open→confirmed→refused` chain — the §12 (C3) `confirmed→refused` compromise
  *    carve-out — folds to `state:'refused'`, even though `actor` (set by
@@ -122,8 +123,9 @@ export function replay(chain: readonly Transition[]): DecisionRecord {
         break;
       }
       case 'expired': {
-        // `bound` (SPEC §4's `expired` payload) names which expiry clause fired;
-        // it is not itself reflected in DecisionRecord — only `state` changes.
+        // `bound` (SPEC §4's `expired` payload) is the elapsed deadline timestamp, not a
+        // clause name — the transitioned-from state distinguishes which expiry clause
+        // fired. `bound` is not itself reflected in DecisionRecord — only `state` changes.
         record.state = 'expired';
         break;
       }

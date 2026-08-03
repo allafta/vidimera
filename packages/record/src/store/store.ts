@@ -51,10 +51,14 @@ export type AppendResult =
  * `store/memory.ts`'s Map-backed implementation has no genuine I/O to await.
  */
 export interface Store {
-  /** Idempotent by `staged.id` (content-derived — `id.ts`'s `deriveStagedRef`). */
+  /**
+   * Idempotent by `staged.id` (content-derived — `id.ts`'s `deriveStagedRef`).
+   * **First-write-wins** on a same-id collision (SQL `ON CONFLICT DO NOTHING` semantics):
+   * a second put with the same id is a no-op, even if its content differs.
+   */
   putStaged(staged: StagedDraft): Promise<void>;
 
-  /** Read by `open()`; `null` for an unknown `stagedRef`. */
+  /** Read by `open()`; `null` for an unknown `stagedRef`. Returns a fresh clone. */
   getStaged(stagedRef: string): Promise<StagedDraft | null>;
 
   /**
@@ -71,7 +75,12 @@ export interface Store {
     nonTerminal: boolean,
   ): Promise<AppendResult>;
 
-  /** The full chain in seq order; `[]` for an unknown recordId (never throws). */
+  /**
+   * The full chain in seq order; `[]` for an unknown recordId (never throws). Returns
+   * FRESH (deep-cloned) transitions — a caller mutating a returned transition or its
+   * payload can never corrupt store-internal state. This is a REQUIREMENT on every
+   * conforming Store, not an implementation detail of the memory backing.
+   */
   readChain(recordId: string): Promise<Transition[]>;
 
   /**

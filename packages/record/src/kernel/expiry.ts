@@ -62,7 +62,8 @@ export type ExpireResult =
  *  - `at` = `now` (RFC3339 UTC);
  *  - `payload.bound` = the crossed deadline `openedAt + ttl` as RFC3339 — the moment the
  *    open window closed. It is informational (replay folds only `state:'expired'` from an
- *    `expired` transition; `bound` names which expiry clause fired, SPEC §4);
+ *    `expired` transition); `bound` is the elapsed deadline timestamp, not a clause name —
+ *    the transitioned-from state distinguishes which expiry clause fired, SPEC §4;
  *  - `nonTerminal` = `false` (an `expired` record is terminal — `nonTerminal('expired',…)`
  *    is `false` for every leg/effect-seam combination; computed via the helper for honesty
  *    rather than hardcoded).
