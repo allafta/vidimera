@@ -1,5 +1,5 @@
-// @vidimera/record — tests/helpers/profiles.ts (design §6 "tests/helpers/profiles.ts"):
-// the shared builders used across Tasks 6-9 test files. Deliberately parameterizable
+// @vidimera/record — tests/helpers/profiles.ts: the shared profile/identity/facts
+// builders used across this package's test files. Deliberately parameterizable
 // (profileId / canonicalizerRef / ttl / legId / allowedAuthorities / terminalRefusals
 // overrides) so the same builder serves the construction-validation, unreachability,
 // stage/open, finalize, and redeem suites without each one re-hand-rolling a profile.
@@ -21,13 +21,13 @@ import type { IdentityAssertion, Transition } from '../../src/types.js';
 
 /** The canonicalizerRef every default builder wires up (and `makeConfig` registers). */
 export const DEFAULT_CANONICALIZER_REF = 'test.canonical.v1';
-/** A default subjectRef for stage()/finalize() call sites (Tasks 7-9). */
+/** A default subjectRef for stage()/finalize() call sites. */
 export const DEFAULT_SUBJECT_REF = 'subject:test-1';
 
 /**
  * The default library-registered canonicalizer for tests: a shallow structural
  * passthrough. Domain canonicalizers project domain content into a plain JSON-safe
- * structure BEFORE library JCS (design §3 `Canonicalizer`); for test content (already
+ * structure BEFORE library JCS (SPEC §3's `Canonicalizer` hook); for test content (already
  * plain objects) an identity projection is sufficient and MUST NOT emit BigInt.
  */
 export function defaultCanonicalizer(): Canonicalizer {
@@ -61,7 +61,7 @@ function buildLeg(o: ProfileOverrides): LegSpec {
 }
 
 /**
- * A capture-only profile (design §7 tide.week.v1 shape): single-leg, `captureMode:
+ * A capture-only profile: single-leg, `captureMode:
  * 'staged'`, NO `redeem` block ⇒ effect-seam FALSE ⇒ final-leg `confirmed` is terminal.
  */
 export function captureProfile(overrides: ProfileOverrides = {}): ConfirmProfile {
@@ -75,10 +75,10 @@ export function captureProfile(overrides: ProfileOverrides = {}): ConfirmProfile
 }
 
 /**
- * An effect-seam profile (design §7 pay.order.v1 shape): single-leg, `captureMode:
+ * An effect-seam profile: single-leg, `captureMode:
  * 'staged'`, `redeem` block PRESENT ⇒ effect-seam TRUE ⇒ final-leg `confirmed` is
- * NON-terminal (awaits redemption, slice 5). `reverify` is deliberately omitted — it is
- * refused on a non-live profile at slice 3 (design §5/§9).
+ * NON-terminal (awaits redemption — SPEC §2). `reverify` is deliberately omitted — it is
+ * refused on a non-live profile in this build (SPEC §9.2).
  */
 export function effectSeamProfile(overrides: ProfileOverrides = {}): ConfirmProfile {
   return {
@@ -112,9 +112,9 @@ export function makeConfig(
 }
 
 /**
- * An identity factory (design §6): a transport-established `IdentityAssertion`. Default
- * is an approver principal under a `session:` authority — the shape the tide example's
- * host establishes from its transport (design §7), distinct from a payload-carried id.
+ * An identity factory (SPEC §6 "Identity by transport"): a transport-established
+ * `IdentityAssertion`. Default is an approver principal under a `session:` authority —
+ * the shape a host's transport establishes, distinct from a payload-carried id.
  */
 export function identity(overrides: Partial<IdentityAssertion> = {}): IdentityAssertion {
   return {
@@ -125,7 +125,7 @@ export function identity(overrides: Partial<IdentityAssertion> = {}): IdentityAs
 }
 
 /**
- * A facts factory (design §6 / §3 finalize `facts`): produces `{ figures, checker }`
+ * A facts factory (SPEC §3's reviewed-surface `facts` binding): produces `{ figures, checker }`
  * where `checker` is the REVIEW-SURFACE identity — distinct from the finalizing actor
  * (SPEC §2.1: `svc:review-surface` ≠ actor; checker informs, never decides). Its default
  * authority is `mtls:` (a service identity), not the `session:` approver authority, so a
@@ -145,9 +145,9 @@ export function facts(overrides: { figures?: unknown; checker?: IdentityAssertio
 }
 
 /**
- * A chain-tamper helper (design §6): deep-clones `chain` and mutates a NON-LAST
+ * A chain-tamper helper: deep-clones `chain` and mutates a NON-LAST
  * transition's payload. Tampering a non-last transition is deliberate — a LAST-element
- * tamper is the documented AL1 blind spot (Task 4 / chain/replay.ts honesty limit): a
+ * tamper is the documented AL1 blind spot (SPEC §5 / chain/replay.ts's honesty limit): a
  * singly-linked hash chain protects a transition via the NEXT link, so only a non-last
  * tamper surfaces in `verifyChain` (at `firstBreakSeq = N+1`). Requires ≥ 2 transitions.
  */
@@ -156,13 +156,13 @@ export function tamperNonLast(chain: Transition[]): Transition[] {
 }
 
 /**
- * A chain-tamper helper (Task 8 finalize / design §6) parameterized by INDEX: deep-clones
+ * A chain-tamper helper, used by the finalize suites, parameterized by INDEX: deep-clones
  * `chain` and mutates the payload of the transition at `index`, which MUST be non-last (a
  * last-element tamper is the documented AL1 blind spot — `verifyChain` cannot detect it).
  * Kinds are left intact (only a payload field is added), so `replay` still folds the same
- * state sequence — matching the fixtures Task 8 must pass (payload tampers of non-last
- * transitions). `tamperNonLast` is the `index=0` special case. Used for the S-4
- * `confirmed→refused` fixture: a post-confirmed NON-LAST tamper on a
+ * state sequence — matching the fixtures the finalize suite must pass (payload tampers of
+ * non-last transitions). `tamperNonLast` is the `index=0` special case. Used for the
+ * `confirmed→refused` compromise-carve-out fixture: a post-confirmed NON-LAST tamper on a
  * `[opened, confirmed, …]` chain.
  */
 export function tamperAt(chain: Transition[], index: number): Transition[] {
@@ -190,7 +190,7 @@ export function tamperAt(chain: Transition[], index: number): Transition[] {
 }
 
 /**
- * A stage→open convenience used by the Task 8 finalize suites: stages `content` under
+ * A stage→open convenience used by the finalize suites: stages `content` under
  * `(profileId, subjectRef)` then opens the resulting draft, returning the fresh
  * `recordId`. THROWS if either step refuses (the finalize tests set up records they expect
  * to open cleanly — a refusal there is a fixture error, not the behavior under test).
