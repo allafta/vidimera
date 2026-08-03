@@ -22,12 +22,12 @@ import type { Digest, RecordState, StagedDraft, Transition } from '../types.js';
 export type { StagedDraft };
 
 /**
- * `AppendResult` — this build's encoding of SPEC §12's C1-C3 constraints, NOT a union §12
- * declares. §12 states its constraints as four prose bullets and no result type at all, and
- * says signatures are provisional: "What is durable is the *behaviour* each method
- * guarantees, not its argument list." §12's C4 seal-finality is unbuilt here; per §12 it
- * would surface through the same terminal-state-mismatch arm as C3, "no separate conflict
- * shape".
+ * `AppendResult` — this build's encoding of SPEC §12's C1-C3 constraints, NOT a union the
+ * SPEC declares. §12 states them as four prose bullets and no result type at all, and calls
+ * its own signatures provisional — SPEC §12: "What is durable is the *behaviour* each
+ * method guarantees, not its argument list." §12's C4 seal-finality is unbuilt here; a C4
+ * rejection would surface through the same terminal-state-mismatch arm as C3 —
+ * SPEC §12: "no separate conflict shape".
  *
  *  - `{appended:true; seq; transitionDigest}` — the accepted transition's own
  *    server-authoritative `seq` (§12's C2) and its `transitionDigest` (computed the same way

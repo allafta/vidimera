@@ -10,10 +10,12 @@ import type { Digest } from './types.js';
 
 // `class` is DERIVED from `code` via the CORE registry — never a caller-supplied
 // field. `transitionRef` is present ONLY when a transition was actually appended
-// (compromise wherever the record's state admits a state-leaving append, per SPEC §8 — the
-// Store's C3/C4 admit no edge against an already-terminal `expired`/`refused` or sealed
-// record, where the compromise surfaces result-first with no ref, via
-// `appendChainCompromise`'s fallback in kernel/finalize.ts; record-exists /
+// (compromise wherever the record's state admits a state-leaving append, per SPEC §8 — §12's
+// C3 admits no edge against an already-terminal `expired`/`refused` record and its C4 admits
+// none against a sealed one, and the compromise then surfaces result-first with no ref, via
+// `appendChainCompromise`'s fallback in kernel/finalize.ts. C4 is UNBUILT in this build's
+// `store/memory.ts` (see `store/store.ts`'s `AppendResult` doc), so the sealed half of that
+// sentence is §12's rule, not a behaviour this Store enforces yet; record-exists /
 // unknown-profile / unknown-leg / pre-record /
 // terminal-record (incl. record-not-open) never; a refusal-class code only when
 // appended per `appendsOn`). `unavailable` has no producer in this build — forward-compat

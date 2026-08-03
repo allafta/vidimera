@@ -1,5 +1,5 @@
-// @vidimera/record — chain-verify.test.ts (SPEC §5 "Chaining & replay/verify" — its
-// "Mandatory pre-seam chain-verify" rule): finalize()'s
+// @vidimera/record — chain-verify.test.ts (SPEC §5 "Chaining & replay/verify" /
+// "Mandatory pre-seam chain-verify"): finalize()'s
 // FIRST step after loading the chain is a pre-seam chain-verify sharing ONE replay/
 // verifyChain core with the operator `verifyChain()` audit wrapper.
 //   - clean verify → a `verdict:'pass'` `chain-verify` consultation is appended as the FIRST

@@ -7,9 +7,10 @@
 import type { RecordState } from './types.js';
 
 /**
- * `nonTerminal(state, isFinalLeg, effectSeam)` — this build's boolean transcription of the
- * derivation SPEC §2 states as prose under "States and terminality" (see also §12's C1,
- * which names the same three inputs). §2 gives no expression to be verbatim against:
+ * `nonTerminal(state, isFinalLeg, effectSeam)` — this build's boolean transcription of a
+ * derivation the SPEC states as prose. SPEC §2's "States and terminality" states it as
+ * prose, not as an expression, so there is nothing here to be verbatim against (see also
+ * §12's C1, which names the same three inputs):
  *   state==='open' || (state==='confirmed' && isFinalLeg && effectSeam) || state==='redeeming'
  *
  * Read per disjunct:

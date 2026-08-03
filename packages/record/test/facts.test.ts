@@ -5,7 +5,9 @@
 // REVIEW-SURFACE identity `facts.checker` (distinct from the finalizing actor) and whose
 // `payloadDigest = digest(canonicalize(facts.figures))` through LIBRARY JCS ONLY — NOT the
 // profile's content-adopter canonicalizer (figures are the reviewed-surface rendering
-// artifact, not the bound content — SPEC §3). On success the batch appends [chain-verify, facts,
+// artifact, not the bound content — this build's reading of SPEC §3's ownership split, which
+// scopes the adopter canonicalizer to domain content and does not name the figures path).
+// On success the batch appends [chain-verify, facts,
 // confirmed].
 
 import assert from 'node:assert/strict';
@@ -177,9 +179,12 @@ test('the success batch is [chain-verify, facts, confirmed] and the resulting ch
   assert.equal(outcome.value.transitionRef, await handles.operator.chainHead(recordId));
 });
 
-// === SPEC §3 pin: an adopter canonicalizer does NOT affect the facts figures digest ===
+// === pin: an adopter canonicalizer does NOT affect the facts figures digest ============
+// This build's reading of SPEC §3's ownership split — §3 scopes the adopter canonicalizer
+// to domain content and does not name the figures path, so the rule pinned below is this
+// build's, not a rule §3 states.
 
-test('the facts payloadDigest goes through LIBRARY JCS ONLY — an adopter canonicalizer that WOULD change the figures encoding does not affect it (SPEC §3)', async () => {
+test('the facts payloadDigest goes through LIBRARY JCS ONLY — an adopter canonicalizer that WOULD change the figures encoding does not affect it', async () => {
   // A NON-identity adopter canonicalizer: it injects a marker key. It is the profile's
   // CONTENT canonicalizer — used to bind/re-check content — but MUST NOT touch facts.figures.
   const touchingCanonicalizer: Canonicalizer = (c) => ({

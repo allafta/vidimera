@@ -74,9 +74,12 @@ const NEVER_APPENDS: ReadonlySet<RefusalCode> = new Set<RefusalCode>([
  * Append-decision helper (SPEC §8's "Append semantics" — the `appendsOn` rule): a
  * `compromise`-class code appends a `refused` transition at head wherever the current
  * state admits a state-leaving append — §8 surfaces it result-first with NO edge against an
- * already-terminal `expired`/`refused` or sealed record (§12's C3/C4), so this predicate
- * returns `true` unconditionally and the store's admission rule at the append seam
- * (kernel/finalize.ts's `appendChainCompromise`), not `appendsOn`, enforces that carve-out;
+ * already-terminal `expired`/`refused` record (§12's C3) or a sealed one (§12's C4), so
+ * this predicate returns `true` unconditionally and the append seam in the kernel
+ * (kernel/finalize.ts's `appendChainCompromise`, which walks candidate CAS targets and
+ * falls back to a ref-less refusal when the store admits none), not `appendsOn`, is what
+ * lands that carve-out. §12's C4 is unbuilt in `store/memory.ts`, so the sealed half is
+ * §12's rule rather than a bar this build's Store enforces;
  * the never-append codes above NEVER append; every other
  * refusal-class code appends `open→refused` iff the leg's `terminalRefusals` lists it
  * (otherwise the record stays open, no append).

@@ -122,6 +122,17 @@ describe('citationFindings — catches', () => {
     expect(findings).toHaveLength(1);
   });
 
+  test('a fabricated quotation attributed through a possessive and a sub-reference token', () => {
+    // The accept path, not the reject path: `SPEC §12's C3: "…"` is the shape the largest
+    // repaired site in the corpus (`store/memory.ts`) uses. Every other catching case here
+    // attributes through plain punctuation, so dropping `(?:'s)?` or the token alternation
+    // from `attributionGapPattern` would silently de-gate that site with the suite still
+    // green. This assertion is what makes that regression fail.
+    const findings = scan(['// C3\'s carve-out (SPEC §12\'s C3): "a phrase §12 never contains".']);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].line).toBe(1);
+  });
+
   test('a citation inside a vitest test name, which is its own single-line unit', () => {
     const findings = scan([
       'test(\'SPEC §5 "Chain integrity": the chain verifies\', async () => {',

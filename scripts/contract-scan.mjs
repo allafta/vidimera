@@ -119,9 +119,10 @@ const codeOnlyPatterns = [
 //   - `DECISIONS.md #N` names an entry that exists in docs/concept/DECISIONS.md;
 //   - a quotation ATTRIBUTED to a citation occurs in the document cited.
 //
-// What it deliberately does NOT check — a gate that silently checks less than a
-// reader assumes is the failure this check exists to fix, so the bounds are
-// stated here rather than left to be discovered:
+// What it deliberately does NOT check. A gate that silently checks less than a
+// reader assumes is the failure this check exists to fix, so its bounds are
+// stated here rather than left to be discovered. Every one below was probed
+// against this resolver and confirmed SILENT — none is a supposition:
 //
 //   1. REVERSE ATTRIBUTION — `"phrase" (SPEC §N)`. English uses that form both
 //      for quotation and for "see also", and on this corpus including it
@@ -132,9 +133,36 @@ const codeOnlyPatterns = [
 //      quotation marks stays a reader's job.
 //   3. WHETHER THE QUOTED TEXT IS IN THE CITED SECTION. The check searches the
 //      whole document, not the section's line range, so a real §4 sentence
-//      quoted under `SPEC §9` still passes.
-//   4. Bare `§N` with no `SPEC` prefix, and prose references to any document
-//      other than these two.
+//      quoted under `SPEC §9` still passes. Nor is it checked whether the
+//      quotation supports the sentence built around it: occurrence is all this
+//      verifies.
+//   4. CITATIONS OUTSIDE THE TWO RECOGNIZED FORMS. Only `SPEC §N` and
+//      `DECISIONS.md` are citations here. A bare `§N` with no `SPEC` prefix, a
+//      bare `SPEC` with no section number (`The SPEC says "…"`), and prose
+//      references to any other document are all unrecognized — so nothing they
+//      attribute is checked either.
+//   5. FORWARD ATTRIBUTION ACROSS A WORD — the largest bound by far, and the one
+//      most likely to be mistaken for coverage. A quotation separated from its
+//      citation by ANY word is not checked, including an honest attribution
+//      phrased with a connective clause: `SPEC §5 says the rule is that the
+//      "Total Chain Integrity Doctrine" governs it` passes silently. Several
+//      CORRECT citations in this corpus sit in that class today
+//      (`kernel/expiry.ts`, `store/store.ts`, `test/transition-encoding.test.ts`
+//      quote faithfully across a connective) — the window is narrow because
+//      widening it reintroduces the measured false positives bound 1 describes,
+//      not because the excluded class is unfaithful.
+//   6. EVERY QUOTATION AFTER A RUN ENDS. A run of quotations continues only
+//      while the gaps between them are pure punctuation; the first gap carrying
+//      a word ends it and everything past that point is unchecked. So
+//      `(SPEC §4 "Clock-driven edges…"): the library ships "a full background
+//      scheduler and a public expire() entry point"` verifies the real heading
+//      and waves the fabrication through.
+//   7. SHORT QUOTATIONS. A quoted fragment under 6 characters carries too little
+//      to search on and is discarded, so `SPEC §5 "C3ish"` passes.
+//   8. NON-ASCII QUOTATION MARKS. Only the ASCII `"` opens and closes a
+//      quotation here, so a quotation in curly quotes is invisible. That is a
+//      live risk rather than a hypothetical one — this corpus already carries
+//      `—`, `→` and `§`, so typographic quotes could arrive the same way.
 
 // A section number as SPEC.md heads them: `## 13A.`, `### 2.1`, `## 5.`.
 const specHeadingPattern = /^#{2,3}\s+(\d+[A-Za-z]?(?:\.\d+)?)[.\s]/;
@@ -147,10 +175,20 @@ const decisionsCitationPattern = /DECISIONS\.md(?:\s*#(\d+))?/g;
 
 // The gap the attribution rule allows between a citation and an opening quote:
 // an optional possessive, an optional SINGLE sub-reference token, and closing
-// punctuation. Anything else — a preposition, an article, a verb phrase, a
-// sentence break — means the quotation is prose ABOUT something rather than a
-// quotation OF the cited section. Note the period is NOT in the punctuation
-// class: a sentence break ends attribution.
+// punctuation. The period is NOT in the punctuation class: a sentence break ends
+// attribution.
+//
+// This is a HEURISTIC with a known failure direction, not a fact about English.
+// It under-approximates on purpose. An intervening word is treated as evidence
+// that the quotation is prose ABOUT something rather than a quotation OF the
+// cited section — which is right for `pins the "raw UTF-8 string" reading of
+// SPEC §4 against a "JCS of a wrapper object" misreading`, the case that forced
+// the narrowness — but it is WRONG whenever an author attributes faithfully
+// through a connective clause, and this corpus does that in several places. The
+// consequence is bounds 5 and 6 above: honest quotations go unchecked, and so do
+// dishonest ones in the same shape. Every widening tried against this corpus
+// bought false positives and no true positives, so the miss is accepted and
+// documented rather than closed.
 const attributionGapPattern =
   /^(?:'s)?[\s)\]}>,:;—–-]*(?:(?:C\d+|#\d+|§\d+[A-Za-z]?(?:\.\d+)?|reads|says)[\s)\]}>,:;—–-]*)?"/;
 // Between one closing quote and the next opening quote, pure punctuation and
@@ -194,7 +232,7 @@ function parseDecisionEntries(decisions) {
   return entries;
 }
 
-// Does the quoted string occur in the document? Four allowances, all of which
+// Does the quoted string occur in the document? Five allowances, all of which
 // were needed to reach zero false positives on this corpus:
 //   - whitespace-normalize both sides (comment blocks and the document wrap
 //     differently);

@@ -179,7 +179,8 @@ export async function finalize(
     verdict: 'pass',
   };
   // Facts figures go through LIBRARY JCS ONLY (never the adopter content-canonicalizer —
-  // SPEC §3)
+  // this build's reading of SPEC §3's ownership split, which scopes the adopter
+  // canonicalizer to domain content and does not name the figures path)
   // — figures are the reviewed-surface rendering artifact, not the bound content. The canonical
   // bytes were already computed (and proven canonicalizable) by isValidFacts at gate (5); reuse
   // them directly — the SAME `canonicalize(facts.figures)` result, digested once.
