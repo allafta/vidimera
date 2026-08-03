@@ -75,6 +75,11 @@ export interface ReviewView {
   state: RecordState;
   consultations: Consultation[];
   policyDigest?: Digest;
+  refusalCode?: RefusalCode; // present-iff-present, the same rule as policyDigest above —
+  // kernel/review.ts copies it from the replayed DecisionRecord's `refusalCode` (set by
+  // chain/replay.ts's `refused` fold). Absent (not present-but-undefined) on open/confirmed
+  // records: an audit surface that hid the refusal reason on a refused record would be
+  // under-informative.
 }
 
 /**

@@ -35,5 +35,12 @@ export async function review(ctx: KernelContext, recordId: string): Promise<Outc
   if (record.policyDigest !== undefined) {
     view.policyDigest = record.policyDigest;
   }
+  // present-iff-present, same rule as policyDigest above: a refused record's replay sets
+  // `refusalCode` (chain/replay.ts's `refused` fold); open/confirmed records leave it
+  // undefined, so the KEY is genuinely absent — an audit surface must not hide the refusal
+  // reason on a refused record.
+  if (record.refusalCode !== undefined) {
+    view.refusalCode = record.refusalCode;
+  }
   return ok(view);
 }

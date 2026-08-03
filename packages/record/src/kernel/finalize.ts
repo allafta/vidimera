@@ -147,7 +147,11 @@ export async function finalize(
   }
 
   // --- (5) facts ------------------------------------------------------------------------
-  if (!isValidFacts(facts)) {
+  // isValidFacts guards CANONICALIZABILITY too: a present-but-non-canonicalizable figures
+  // payload (BigInt/circular) is refused here rather than throwing mid-batch at the digest
+  // step below; on ok, the carried `canonical` feeds the facts digest (no double-canonicalize).
+  const factsCheck = isValidFacts(facts);
+  if (!factsCheck.ok) {
     return refuseMaybeAppend(store, 'consultation-missing', leg, chain, resolved, finalLeg, now);
   }
 
@@ -167,12 +171,14 @@ export async function finalize(
     verdict: 'pass',
   };
   // Facts figures go through LIBRARY JCS ONLY (never the adopter content-canonicalizer, O1)
-  // — figures are the reviewed-surface rendering artifact, not the bound content.
+  // — figures are the reviewed-surface rendering artifact, not the bound content. The canonical
+  // bytes were already computed (and proven canonicalizable) by isValidFacts at gate (5); reuse
+  // them directly — the SAME `canonicalize(facts.figures)` result, digested once.
   const factsConsultation: Consultation = {
     kind: 'facts',
     checker: facts.checker,
     at: nowIso,
-    payloadDigest: digest(canonicalize(facts.figures)),
+    payloadDigest: digest(factsCheck.canonical),
     verdict: 'pass',
   };
 
@@ -351,12 +357,29 @@ function isValidIdentity(identity: IdentityAssertion): boolean {
   );
 }
 
-/** Facts are present iff `figures` is supplied (not `undefined`) AND `checker` is a valid identity. */
-function isValidFacts(facts: Facts): boolean {
+/**
+ * Facts are present AND USABLE iff `figures` is supplied (not `undefined`), `checker` is a valid
+ * identity, AND `figures` is library-JCS-canonicalizable. The gate's return WIDENS from a bare
+ * boolean to `{ ok: true; canonical: Uint8Array } | { ok: false }`: a present-but-non-
+ * canonicalizable figures payload (a BigInt, a circular reference — `canonicalize` THROWS on
+ * both) is NOT a valid facts payload, so the try/catch refuses it here (→ `consultation-missing`
+ * at the call site) rather than letting the throw escape mid-batch at the facts-digest step. On
+ * ok the carried `canonical` bytes are digested directly at the call site, so
+ * `canonicalize(figures)` runs exactly once.
+ */
+function isValidFacts(facts: Facts): { ok: true; canonical: Uint8Array } | { ok: false } {
   const f = facts as unknown as { figures?: unknown; checker?: unknown } | null | undefined;
-  if (f == null || typeof f !== 'object') return false;
-  if (f.figures === undefined) return false;
-  return isValidIdentity(f.checker as IdentityAssertion);
+  if (f == null || typeof f !== 'object') return { ok: false };
+  if (f.figures === undefined) return { ok: false };
+  if (!isValidIdentity(f.checker as IdentityAssertion)) return { ok: false };
+  let canonical: Uint8Array;
+  try {
+    canonical = canonicalize(f.figures);
+  } catch {
+    // Non-canonicalizable figures (BigInt/circular) — a present-but-unusable facts payload.
+    return { ok: false };
+  }
+  return { ok: true, canonical };
 }
 
 function dedupe<T>(values: T[]): T[] {
