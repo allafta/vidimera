@@ -206,9 +206,14 @@ const decisionsCitationPattern = /DECISIONS\.md(?:\s*#(\d+))?/g;
 // quotation OF the cited section — right for `pins the "raw UTF-8 string"
 // reading of SPEC §4 against a "JCS of a wrapper object" misreading`, the case
 // that forced the narrowness, and WRONG whenever an author attributes faithfully
-// through a connective clause, which this corpus does in two places. That miss
-// is bounds 5 and 6, accepted and documented rather than closed: every widening
-// tried that admits words bought false positives and no true positives.
+// through a connective clause, which this corpus does in several places. That
+// miss is bounds 5 and 6, accepted and documented rather than closed: every
+// widening tried that admits words bought false positives and no true positives.
+// No count here on purpose. An earlier revision said "two" and was wrong the day
+// it was written — the sites were already enumerated in the review record it was
+// drawn from. A bare number in a comment is a claim with a shelf life, and this
+// one has no way to fail loudly; bound 5 gives the measurement that answers it
+// at any point in time, which is the durable form of the same information.
 //
 // One behaviour changed with the class. The period is no longer excluded, so a
 // sentence break no longer ends attribution — `SPEC §5. "…"` is now checked.
@@ -216,9 +221,14 @@ const decisionsCitationPattern = /DECISIONS\.md(?:\s*#(\d+))?/g;
 // is stated here because the previous comment claimed the opposite.
 //
 // `"` must stay out of the class or the gap walks straight past the opening
-// quote it is supposed to stop at, and the `u` flag is required for `\p{…}`.
+// quote it is supposed to stop at — pinned by a test, because the mutant with
+// `"` in the class mis-attributes without failing anything else. The `u` flag is
+// required for `\p{…}`. The possessive accepts U+2019 as well as ASCII `'`:
+// nothing here smart-quotes today, so that is latent rather than live, but it is
+// the `(SPEC §12's C3)` de-gating shape reached through one substituted
+// character, and bound 8 already names typographic drift as the risk class.
 const attributionGapPattern =
-  /^(?:'s)?[^\p{L}\p{N}"]*(?:(?:C\d+|#\d+|§\d+[A-Za-z]?(?:\.\d+)?|reads|says)[^\p{L}\p{N}"]*)?"/u;
+  /^(?:['’]s)?[^\p{L}\p{N}"]*(?:(?:C\d+|#\d+|§\d+[A-Za-z]?(?:\.\d+)?|reads|says)[^\p{L}\p{N}"]*)?"/u;
 // Between one closing quote and the next opening quote: anything that is neither
 // a letter nor a digit continues the run; the first gap carrying one ends it.
 const quotationRunGapPattern = /^[^\p{L}\p{N}]*$/u;

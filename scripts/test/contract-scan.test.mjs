@@ -144,6 +144,16 @@ describe('citationFindings — catches', () => {
     expect(findings[0].line).toBe(1);
   });
 
+  test('a fabricated quotation attributed through a CURLY-APOSTROPHE possessive', () => {
+    // Same de-gating shape as the backtick case, reached by substituting one character:
+    // an ASCII-only `(?:'s)?` lets U+2019 end attribution silently. Latent rather than live
+    // — nothing in this repo smart-quotes today — but bound 8 names typographic drift as
+    // the risk class, and this is that class landing on the accept path.
+    expect(scan(['// C3 carve-out (SPEC §12’s C3): "a phrase §12 never contains".'])).toHaveLength(
+      1,
+    );
+  });
+
   test.each([
     ['parenthesized quote', '// SPEC §12 ("a phrase §12 never contains")'],
     ['slash separator', '// SPEC §12 / "a phrase §12 never contains"'],
@@ -265,6 +275,17 @@ describe('citationFindings — stays silent', () => {
     expect(
       scan(['// SPEC §12\'s C3: "provisional pre-1.0" — the posture this build inherits.']),
     ).toEqual([]);
+  });
+
+  test('a citation inside a quoted MENTION does not attribute the next quotation', () => {
+    // This pins the `"`-exclusion invariant in `attributionGapPattern`'s character class.
+    // The citation here sits inside quotation marks — it is a mention, not a citation with
+    // something attributed to it — and the gap therefore ends at the mention's own closing
+    // quote rather than reaching across it. Put `"` back into the class and the gap walks
+    // past that closing quote, adopts `"a phrase §5 never contains"` as attributed text,
+    // and reports a finding; every other assertion in this file still passes under that
+    // mutant, which is why the invariant needs its own.
+    expect(scan(['// The rule "SPEC §5" — "a phrase §5 never contains".'])).toEqual([]);
   });
 
   test('code with no citations at all', () => {
