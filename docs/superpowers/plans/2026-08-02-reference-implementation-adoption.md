@@ -14,7 +14,7 @@
 - **`noUncheckedIndexedAccess` stays on.** Adoption decision 0e. Fix every site by hand. **No non-null assertions (`!`)** — they defeat the flag and collide with Biome's `noNonNullAssertion`.
 - **Test directory is singular `test/`**, not `tests/`. `vitest.config.ts` includes `packages/*/test/**/*.test.ts` and `packages/record/tsconfig.json` includes `["src", "test"]`. Import depth is unchanged, so `../src/x.js` and `../../src/x.js` both still resolve.
 - **Commit style:** imperative sentence-case subject ~72 chars, semicolon-joined clauses where two things land together, body wrapped ~70 explaining *why*, trailer `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`. **No `feat:` / `docs:` prefixes** — this repository does not use conventional commits.
-- **Never run `biome check --write --unsafe`.** Measured: it rewrites `3.14159` → `Math.PI` in the RFC 8785 vector fixture; the tree still typechecks with **0 errors** while **2 tests fail**. The safe path is `pnpm lint:fix` (`biome check --write`), which churns ~4,920 lines and leaves the suite green. **Prove every autofix with the test suite, never the typechecker.**
+- **Never run `biome check --write --unsafe`.** Measured: it rewrites `3.14159` → `Math.PI` in the RFC 8785 vector fixture; the tree still typechecks with **0 errors** while **2 tests fail**. The safe path is `pnpm lint:fix` (`biome check --write`); it ran at commit `42469d5` and churned **203 lines across 18 files**, not the ~4,920 predicted here. **Corrected, with the reason for the error:** the original figure was measured against the reference implementation's *full* corpus, including its test suite; only `src` is imported at this build step, so the actual autofix surface was far smaller. The test subset arriving at Task 17 will add its own churn, so 203 is not the port's final total. **Prove every autofix with the test suite, never the typechecker.**
 - **Provenance wording (decision 0b):** engineering docs say "the reference implementation" and cite short commit hashes. Never name the external repository, package, or any sibling project. No external URLs. The concept set stays sealed except for the decision-0a edit in Task 3.
 - **ADR-style path references are a scan rule.** This repository has no ADR directory, and no document may contain such a path — the scan flags it repo-wide, including in this plan.
 - **The concept set is normative.** Where code and spec differ, one of them is wrong and the difference is a finding, never silently reconciled.
@@ -375,7 +375,7 @@ const adrPattern = /docs\/adr/; // ADR-style internal reference
 // a lookalike host that merely contains the string. Extract every URL and
 // flag the line unless each one resolves to example.com or a subdomain of it
 // (the spec's worked examples are the intended exception).
-const urlPattern = /https?:\/\/([^\s\/)\]>"']+)/g;
+const urlPattern = /https?:\/\/([^\s/)\]>"']+)/g;
 const allowedHost = /(^|\.)example\.com$/;
 
 function hasExternalLink(line) {
@@ -433,7 +433,9 @@ for (const { path, patterns } of files) {
 process.exit(findings === 0 ? 0 : 1);
 ```
 
-**Do not hand-format this file.** Biome (lineWidth 100) requires `codeOnlyPatterns` and the markdown `patterns:` ternary to each sit on ONE line; the naive multi-line form typechecks but fails `pnpm lint` with "The contents aren't fixed". Equally, do **not** run `biome check --write` on it — that would also rewrite the pre-existing `urlPattern` escape (a `noUselessEscapeInRegex` info the repo currently exits 0 with), mixing an unrelated fix into this commit.
+**Do not hand-format this file.** Biome (lineWidth 100) requires `codeOnlyPatterns` and the markdown `patterns:` ternary to each sit on ONE line; the naive multi-line form typechecks but fails `pnpm lint` with "The contents aren't fixed".
+
+**SUPERSEDED at commit `42469d5`.** This step originally continued: *"Equally, do not run `biome check --write` on it — that would also rewrite the pre-existing `urlPattern` escape (a `noUselessEscapeInRegex` info the repo currently exits 0 with), mixing an unrelated fix into this commit."* Task 23 Step 1's safe autofix was pulled forward (see that task) and ran repo-wide, including this file — it removed the redundant escape inside the `urlPattern` character class exactly as predicted here. The instruction was a **commit-scoping concern, not a correctness one**: the change was proven behaviourally identical (five URL probes against the edited pattern; scan output unchanged at 210 findings), so letting it land was fine — it just landed in a later, separate commit rather than never. The code block above already reflects the shipped (post-autofix) pattern.
 
 Five load-bearing design points: the escape check never reaches code (the two file lists are built independently, and the TypeScript list omits `escapePattern`), so a relative import stays legal; ADR and external-URL checks *do* apply to code; the four numbering patterns are code-only because this repository's own plans legitimately number their tasks; a bare section sign is never banned, only `design §N`; and `.mjs` is deliberately excluded from the glob so the script does not flag its own comment block.
 
@@ -500,6 +502,8 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 Base commit `c0f0f75` (subject: "chore: final-review fix batch"), verified: **22 files, 2,301 lines** under `packages/record/src`, a **10-code** refusal registry equal to SPEC section 8's core set minus `unsealable-state`, a **five-method** Store, and a sequential `finalize`. It typechecks with **26** errors under this repository's settings against 61 at the reference implementation's head.
 
 Target: **20 test files / 202 tests** — 17 taken at `c0f0f75` (189 tests), plus `facts.test.ts` (6), `review.test.ts` (4) and `byte-stability.test.ts` (3) taken at head.
+
+**Scope clarifier:** this counts adopted files only. It excludes this repository's own `test/jcs.test.ts` (1 file, 6 tests — created in Tasks 10-11, before this phase). A whole-suite `pnpm test` run at each milestone below is 1 file and 6 tests higher than the adopted-subset figure quoted for it.
 
 ### Task 9: Add `@types/node` — two edits, not one
 
@@ -926,17 +930,25 @@ Run: `pnpm typecheck` — expected clean.
 
 Adoption delta 3, and a **directional inversion**: the reference implementation progressively *lifted* these guards as capabilities landed. This repository is at step 1 and needs them armed. The `c0f0f75` version already has them in that state — this task is about not letting a later version's lifted guards in, and about the message text.
 
-- [ ] **Step 1: Confirm every governed field throws**
+- [ ] **Step 1: Confirm every governed field throws — ten of eleven**
 
-Every field for a capability not built at step 1 (`sod`, `proposer`, `requiredConsultations`, `eligibility`, `policySource`, `ackMode`, `requiredAcks`, `freshness`, `redeem`, `captureMode: 'live'`, multi-leg `legs.length > 1`) must throw at construction.
+Every field for a capability not built at step 1, **except `redeem`**, must throw at construction: `sod`, `proposer`, `requiredConsultations`, `eligibility`, `policySource`, `ackMode`, `requiredAcks`, `freshness`, `captureMode: 'live'`, multi-leg `legs.length > 1`. `redeem` is the eleventh governed field, and it is deliberately **not** armed — see Step 4.
 
 - [ ] **Step 2: Make each message name the section that lifts it**
 
-The adoption design's verification bar requires each governed throw to name the spec section that will lift it. Base messages name only the field. Rewriting the helper changes every message string and breaks assertions in `construction-validation.test.ts`. **Settle which SPEC section lifts each of the eleven guards, then change the helper and the assertions in one commit.**
+The adoption design's verification bar requires each governed throw to name the spec section that will lift it. Base messages name only the field. Rewriting the helper changes every message string and breaks assertions in `construction-validation.test.ts`. **Settle which SPEC section lifts each of the ten armed guards, then change the helper and the assertions in one commit.** `redeem` has no lifting message to author — it does not throw (Step 4).
 
 - [ ] **Step 3: Decide the `supersedes` guard question**
 
 `supersedes` is the one draft-ahead field with **no profile-level switch**, so the construction-guard discipline does not reach it. Decide now: is type-level absence from the `open()` opts bag sufficient, or should `open()` throw loudly on an unexpected key? Without a decision, a JavaScript caller silently gets no recovery linkage while believing it has one. Record the answer in `docs/process/deferral-register.md` if it is deferred.
+
+- [ ] **Step 4: Record the `redeem` guard exception as new work, not done here**
+
+An effect-seam profile (declaring `redeem`) constructs successfully today; `redeem()` itself is still a stub. The effect-seam predicate makes a confirmed final-leg record non-terminal, so exclusivity blocks re-opening that `(profile, subject)` pair **permanently** once one exists — a real deadlock, not a hypothetical one.
+
+**Owner ruling, 2026-08-03: close the deadlock, not the door.** Construction stays permissive, matching the reference implementation's deliberate choice — it shipped `redeem()` as a refusing stub rather than a construction guard, and the base test corpus depends on that (`terminality.test.ts:149`, named *"redeem() on an effect-seam CONFIRMED record awaiting redemption → unredeemable-state"*). Instead, make the permanent strand impossible: `open()` refuses, or `redeem()` throws a caller error, for an effect-seam record that no build at this step can advance. This needs a fresh RED test that exists in neither repository.
+
+**Not implemented in this task.** It changes behaviour and deserves its own TDD cycle. Tracked as deferral entry 9, triggered at build-order step 1's exit.
 
 ### Task 16: Add the record-id minter seam
 
@@ -990,7 +1002,7 @@ Nothing else changes: `node:assert/strict`, `node:crypto` and `structuredClone` 
 - [ ] **Step 5: Run and record**
 
 Run: `pnpm test`
-Expected: 19 files, **197 tests**, all passing — which simultaneously proves the base test count, the one-line migration, and decision 0f's behavioural equivalence across the whole corpus.
+Expected: 19 files, **203 tests** (197 plus this repository's own `jcs.test.ts`, 6 tests, previously omitted from this running total), all passing — which simultaneously proves the base test count, the one-line migration, and decision 0f's behavioural equivalence across the whole corpus.
 
 ### Task 18: Apply the two step-1-reachable post-base fixes, red first
 
@@ -1003,7 +1015,7 @@ Adoption delta 2. Two of the four named post-base fixes are step-1 reachable and
 - [ ] **Step 1: Add head's two test files and watch them fail**
 
 Run: `pnpm test`
-Expected: `Test Files 2 failed | 18 passed (20) / Tests 2 failed | 200 passed (202)`. The two failures are exactly: BigInt figures must yield `consultation-missing` rather than throwing (the `isValidFacts` canonicalizability guard), and `refusalCode` must be present on a REFUSED review.
+Expected: `Test Files 2 failed | 18 passed (20) / Tests 2 failed | 206 passed (208)` — the test totals include this repository's own `jcs.test.ts` (6 tests, previously omitted from this running total). The two failures are exactly: BigInt figures must yield `consultation-missing` rather than throwing (the `isValidFacts` canonicalizability guard), and `refusalCode` must be present on a REFUSED review.
 
 - [ ] **Step 2: Apply the three source hunks**
 
@@ -1012,7 +1024,7 @@ Expected: `Test Files 2 failed | 18 passed (20) / Tests 2 failed | 200 passed (2
 - [ ] **Step 3: Run and confirm green, with digests unmoved**
 
 Run: `pnpm test`
-Expected: 20 files, **202 tests**, all passing. The byte-compatibility digests must be unchanged, confirming the `payloadDigest` rewiring is byte-neutral.
+Expected: 20 files, **208 tests** (202 plus `jcs.test.ts`'s 6, previously omitted from this running total), all passing. The byte-compatibility digests must be unchanged, confirming the `payloadDigest` rewiring is byte-neutral.
 
 - [ ] **Step 4: Do not fake the other two fixes**
 
@@ -1032,7 +1044,7 @@ State that the four literals are byte-compatibility pins against the implementat
 - [ ] **Step 2: Run**
 
 Run: `pnpm test`
-Expected: 21 files, 205 tests; all four literals reproduce byte-for-byte.
+Expected: 21 files, **211 tests** (205 plus `jcs.test.ts`'s 6, previously omitted from this running total); all four literals reproduce byte-for-byte.
 
 ### Task 20: Two fresh RED tests for the silent section-12 violations
 
@@ -1056,7 +1068,7 @@ Run: `pnpm test` — expected: 2 failures.
 
 `putStaged`: return early if the id is already present. `getStaged`: return a structured clone.
 
-- [ ] **Step 4: Run** — expected: 207 tests, all passing.
+- [ ] **Step 4: Run** — expected: **213 tests** (207 plus `jcs.test.ts`'s 6, previously omitted from this running total), all passing.
 
 ### Task 21: Reserve the `(5.7)` ladder slot and pin adjacent-pair order
 
@@ -1098,9 +1110,11 @@ Run: `node scripts/contract-scan.mjs; "exit=$LASTEXITCODE"` — expected: no out
 
 ### Task 23: Lint, final gates, and the Phase-1 exit
 
-- [ ] **Step 1: Run the safe autofix**
+- [x] **Step 1: Run the safe autofix — DONE EARLY, at commit `42469d5`**
 
-Run: `pnpm lint:fix` — **never `--unsafe`**. Expected churn roughly 4,920 lines.
+Run: `pnpm lint:fix` — **never `--unsafe`**. Actual churn: **203 lines across 18 files** (17 under `packages/record/src` plus `scripts/contract-scan.mjs`), not the ~4,920 predicted in Global Constraints — see the correction there for why.
+
+**Why this step moved ahead of the plan:** CI runs its four gates in order, and `pnpm lint` sits ahead of `pnpm test`. A failing lint therefore meant `pnpm test` never executed on CI at all — the branch was pushed for Linux validation and would have gotten none of it. Pulling the autofix forward unblocked the remaining gates. Task 23's remaining steps (2-5) still stand and run at Phase 1's close, against whatever else has landed by then.
 
 - [ ] **Step 2: Prove the autofix with the suite, not the typechecker**
 
@@ -1114,7 +1128,7 @@ pnpm typecheck; pnpm lint; pnpm test; node scripts/contract-scan.mjs; "exit=$LAS
 
 - [ ] **Step 4: Write the exit note**
 
-Record, in the commit body and in `docs/process/`: the registry is **10** codes and compiler-total; **no maturity markers moved** (record the absence as a decision, not an omission); the four byte-compatibility digests hold; adjacent-pair order tests exist for every adjacent pair present; the API names accepted at this step (`MemoryStore`, `createWithClock`, both surface types) are registered for the pre-0.1 naming review; and fix (iii)'s disposition.
+Record, in the commit body and in `docs/process/`: the registry is **10** codes and compiler-total; **no maturity markers moved** (record the absence as a decision, not an omission); the four byte-compatibility digests hold; adjacent-pair order tests exist for every adjacent pair present; the API names accepted at this step (`MemoryStore`, both surface types) are registered for the pre-0.1 naming review — **not** `createWithClock`: `create.ts:119-124` states plainly that it is exported for tests and deliberately not re-exported from `index.ts`, and `index.ts` confirms it, so it is internal by design and does not belong on a public-naming list; and fix (iii)'s disposition.
 
 - [ ] **Step 5: Commit and push**
 
