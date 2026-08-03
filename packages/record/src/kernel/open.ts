@@ -21,6 +21,7 @@
 
 import { genesisPrevHash } from '../chain/encoding.js';
 import { replay } from '../chain/replay.js';
+import { governedUnavailable, type OpenOptions } from '../config.js';
 import type { KernelContext } from '../create.js';
 import { isFinalLeg, nonTerminal } from '../nonterminal.js';
 import type { Outcome } from '../outcome.js';
@@ -29,10 +30,46 @@ import { profileDigest } from '../profile-digest.js';
 import type { Transition } from '../types.js';
 import { expireIfDue } from './expiry.js';
 
+/**
+ * Per-key GOVERNED message for an `open()` options key (config.ts's `OpenOptions`): the
+ * `supersedes` case is the one this build step actually needs to guard (no profile-level
+ * construction switch reaches it — see `OpenOptions`'s doc comment); `priorRecordRefs` and
+ * `policyDigest` are named too, in case a caller passes them anyway, since neither has a
+ * runtime check elsewhere either. Anything else falls back to a generic message.
+ */
+function openOptionMessage(key: string): string {
+  if (key === 'supersedes') {
+    return governedUnavailable(
+      key,
+      'recovery linkage to a terminal predecessor record is not implemented in this build. Contract: §2 and §9.',
+    );
+  }
+  if (key === 'priorRecordRefs') {
+    return governedUnavailable(
+      key,
+      'multi-leg prior-leg reference verification is not implemented in this build. Contract: §10.1.',
+    );
+  }
+  if (key === 'policyDigest') {
+    return governedUnavailable(
+      key,
+      'policy-drift notarization is not implemented in this build. Contract: §10.3.',
+    );
+  }
+  return governedUnavailable(key, 'open() accepts no options in this build. Contract: §9.');
+}
+
 export async function open(
   ctx: KernelContext,
   stagedRef: string,
+  opts?: OpenOptions,
 ): Promise<Outcome<{ recordId: string }>> {
+  if (opts !== undefined) {
+    for (const key of Object.keys(opts)) {
+      throw new Error(openOptionMessage(key));
+    }
+  }
+
   const { store, profiles, now, mintId } = ctx;
 
   const staged = await store.getStaged(stagedRef);

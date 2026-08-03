@@ -99,7 +99,7 @@ function makeKernel(ctx: KernelContext): Kernel {
     // --- stage()/open()/review()/finalize(): REAL — delegate to the kernel/*.ts behaviors ---
     stage: (content, profileId, subjectRef, legId) =>
       stageKernel(ctx, content, profileId, subjectRef, legId),
-    open: (stagedRef) => openKernel(ctx, stagedRef),
+    open: (stagedRef, opts) => openKernel(ctx, stagedRef, opts),
     review: (recordId) => reviewKernel(ctx, recordId),
     finalize: (recordId, identity, content, facts) =>
       finalizeKernel(ctx, recordId, identity, content, facts),

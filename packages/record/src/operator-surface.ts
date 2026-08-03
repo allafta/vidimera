@@ -10,6 +10,7 @@
 // replay/verifyChain wrappers are already real.
 
 import type { ChainVerifyReport } from './chain/replay.js';
+import type { OpenOptions } from './config.js';
 import type { Kernel } from './create.js';
 import type { Outcome } from './outcome.js';
 import type {
@@ -22,7 +23,7 @@ import type {
 } from './types.js';
 
 export interface OperatorSurface {
-  open(stagedRef: string): Promise<Outcome<{ recordId: string }>>;
+  open(stagedRef: string, opts?: OpenOptions): Promise<Outcome<{ recordId: string }>>;
   review(recordId: string): Promise<Outcome<ReviewView>>; // pure content-free read
   finalize(
     recordId: string,

@@ -63,9 +63,17 @@ export function profileDeclaresEffectSeam(profile: ConfirmProfile): boolean {
 
 // --- construction guards (fail-CLOSED) -----------------------------------------------
 
-/** The exact GOVERNED throw message (design §5): guards lift feature-by-feature. */
-export function governedUnavailable(field: string): string {
-  return `GOVERNED feature not available in this build (${field})`;
+/**
+ * The exact GOVERNED throw message (design §5): guards lift feature-by-feature. The head
+ * through the closing parenthesis — `GOVERNED feature not available in this build
+ * (<field>)` — is byte-preserved (pinned by construction-validation.test.ts); the
+ * caller-supplied `contract` is the appended tail: what is unavailable, and the SPEC
+ * section(s) that lift it. Arity-2 because it serves three consumers: the per-field
+ * construction guards below, `kernel/open.ts`'s `supersedes` options guard, and a future
+ * `redeem()` capability throw.
+ */
+export function governedUnavailable(field: string, contract: string): string {
+  return `GOVERNED feature not available in this build (${field}) — ${contract}`;
 }
 
 /**
@@ -90,14 +98,56 @@ function assertNoStrayRedemptionKeys(profileId: string, where: string, obj: obje
 function validateLeg(profileId: string, leg: LegSpec): void {
   // proposer gets its OWN throw (design §9 S-1): it is a per-leg SoD control that a
   // single-leg profile would otherwise slip past the `legs.length>1` multi-leg guard.
-  if (leg.sod !== undefined) throw new Error(governedUnavailable('sod'));
-  if (leg.proposer !== undefined) throw new Error(governedUnavailable('proposer'));
-  if (leg.ackMode !== undefined) throw new Error(governedUnavailable('ackMode'));
-  if (leg.requiredAcks !== undefined) throw new Error(governedUnavailable('requiredAcks'));
+  if (leg.sod !== undefined)
+    throw new Error(
+      governedUnavailable(
+        'sod',
+        'per-leg separation-of-duties (`notActorOf`) is not enforced in this build. Contract: §10.1.',
+      ),
+    );
+  if (leg.proposer !== undefined)
+    throw new Error(
+      governedUnavailable(
+        'proposer',
+        'the per-leg proposer / separation-of-duties pin is not enforced in this build. Contract: §10.1.',
+      ),
+    );
+  if (leg.ackMode !== undefined)
+    throw new Error(
+      governedUnavailable(
+        'ackMode',
+        'the findings-flow acknowledgment mode is not implemented in this build. Contract: §10.2.',
+      ),
+    );
+  if (leg.requiredAcks !== undefined)
+    throw new Error(
+      governedUnavailable(
+        'requiredAcks',
+        'required-acknowledgment gating on findings is not implemented in this build. Contract: §10.2.',
+      ),
+    );
   if (leg.requiredConsultations !== undefined)
-    throw new Error(governedUnavailable('requiredConsultations'));
-  if (leg.freshness !== undefined) throw new Error(governedUnavailable('freshness'));
-  if (leg.eligibility !== undefined) throw new Error(governedUnavailable('eligibility'));
+    throw new Error(
+      governedUnavailable(
+        'requiredConsultations',
+        'required-consultation gating is not implemented in this build. Contract: §11.1.',
+      ),
+    );
+  if (leg.freshness !== undefined)
+    throw new Error(
+      governedUnavailable(
+        'freshness',
+        'consultation freshness gating cannot be enforced in this build — the library stamps ' +
+          '`at` itself, so an authority-timestamped build is what actually lifts it. Contract: §11.1 and §14.',
+      ),
+    );
+  if (leg.eligibility !== undefined)
+    throw new Error(
+      governedUnavailable(
+        'eligibility',
+        'eligibility gating is not enforced in this build. Contract: §10.4.',
+      ),
+    );
   assertNoStrayRedemptionKeys(profileId, 'leg', leg);
 }
 
@@ -120,13 +170,28 @@ export function validateProfile(profile: ConfirmProfile): void {
     throw new Error(`invalid profile '${profile.id}': exactly one leg is required (found 0)`);
   }
   if (profile.legs.length > 1) {
-    throw new Error(governedUnavailable('legs'));
+    throw new Error(
+      governedUnavailable(
+        'legs',
+        'multi-leg maker-checker sequencing is not enforced in this build; only single-leg profiles are supported. Contract: §10.1.',
+      ),
+    );
   }
   if (profile.captureMode === 'live') {
-    throw new Error(governedUnavailable('captureMode'));
+    throw new Error(
+      governedUnavailable(
+        'captureMode',
+        'live capture is not implemented in this build; only staged capture is supported. Contract: §9.2.',
+      ),
+    );
   }
   if (profile.policySource !== undefined) {
-    throw new Error(governedUnavailable('policySource'));
+    throw new Error(
+      governedUnavailable(
+        'policySource',
+        'policy-drift notarization is not implemented in this build. Contract: §10.3.',
+      ),
+    );
   }
   for (const leg of profile.legs) {
     validateLeg(profile.id, leg);
@@ -141,3 +206,24 @@ export function validateProfile(profile: ConfirmProfile): void {
     );
   }
 }
+
+// --- open() options bag (§9 `open(stagedRef, { priorRecordRefs?, policyDigest?,
+// supersedes? })`) — NOT construction, but the same GOVERNED shape ------------------
+
+/**
+ * `open()`'s options bag. NONE of the three SPEC-documented keys are implemented at this
+ * build step: `priorRecordRefs` lifts with multi-leg separation of duties (§10.1) and
+ * `policyDigest` with policy-drift notarization (§10.3) — both already unreachable in
+ * practice, because the profile-level switches that would make either meaningful
+ * (`legs.length>1` / `policySource`) throw GOVERNED above, so no profile that could
+ * legitimately need them can even be constructed. `supersedes` (recovery of a terminal
+ * predecessor, §2) is the ONE draft-ahead field with NO profile-level switch, so nothing
+ * stops a caller from passing it for any profile at all.
+ *
+ * Declared empty (`Record<string, never>`) so a typed caller sees the absence directly.
+ * That alone is not a guard for a plain JavaScript caller, who can pass any key regardless
+ * of what the type says and get it silently dropped — believing they got a recovery link
+ * (or a leg-sequencing / policy binding) they never actually received. `kernel/open.ts`
+ * sweeps every own key on the object it actually receives, at runtime, and throws.
+ */
+export type OpenOptions = Record<string, never>;

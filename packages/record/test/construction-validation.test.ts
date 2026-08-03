@@ -1,11 +1,15 @@
 // @vidimera/record — construction-validation.test.ts (design §5 "Construction guards
 // (fail-closed)" / §6 / §9 "Fail-closed construction guards"): `create()` is fail-CLOSED
-// at construction. Every not-yet-enforceable GOVERNED declaration THROWS the exact string
+// at construction. Every not-yet-enforceable GOVERNED declaration THROWS a message whose
+// HEAD is byte-preserved —
 //   "GOVERNED feature not available in this build (<field>)"
-// (guards lift feature-by-feature as slices 5+ build enforcement). Structural rejections
-// throw a DIFFERENT (non-GOVERNED) error: zero legs (exactly one required — O2), a stray
-// redemption key placed outside a `redeem` block (O3), `reverify` on a non-live profile
-// (O3), an unresolved `canonicalizerRef`, and a duplicate profile id.
+// — with per-guard prose (what is unavailable, which SPEC section lifts it) appended after
+// it (guards lift feature-by-feature as later build steps add enforcement). Structural
+// rejections throw a DIFFERENT (non-GOVERNED) error: zero legs (exactly one required — O2),
+// a stray redemption key placed outside a `redeem` block (O3), `reverify` on a non-live
+// profile (O3), an unresolved `canonicalizerRef`, and a duplicate profile id. The final
+// section below covers `open()`'s `supersedes` options guard — not construction-time, but
+// the same GOVERNED shape and the same `governedUnavailable` helper.
 
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
@@ -13,23 +17,27 @@ import type { ConfirmProfile } from '../src/config.js';
 import { create } from '../src/create.js';
 import {
   captureProfile,
+  DEFAULT_SUBJECT_REF,
   defaultCanonicalizer,
   effectSeamProfile,
   makeConfig,
 } from './helpers/profiles.js';
 
+// The byte-preserved HEAD of every GOVERNED message — up to and including the field's
+// closing parenthesis. `config.ts`'s `governedUnavailable(field, contract)` appends
+// per-guard prose after this head; the head itself never changes, so this constant (and
+// the startsWith check below) is the ONLY assertion in this file that pins exact text.
 const GOVERNED = (field: string) => `GOVERNED feature not available in this build (${field})`;
 
-/** Assert `create` throws EXACTLY the GOVERNED message for `field`. */
+/** Assert `create` throws the GOVERNED message for `field` (byte-preserved head, any tail). */
 function assertGoverned(profile: ConfirmProfile, field: string): void {
   assert.throws(
     () => create(makeConfig([profile])),
     (err: unknown) => {
       assert.ok(err instanceof Error);
-      assert.equal(
-        err.message,
-        GOVERNED(field),
-        `expected the exact GOVERNED message for field '${field}'`,
+      assert.ok(
+        err.message.startsWith(GOVERNED(field)),
+        `expected the GOVERNED message to start with the byte-preserved head for field '${field}', got: ${err.message}`,
       );
       return true;
     },
@@ -210,4 +218,37 @@ test('structural: a duplicate profile id is rejected (fail-fast)', () => {
   const a = captureProfile({ id: 'dup.v1' });
   const b = effectSeamProfile({ id: 'dup.v1' });
   assert.throws(() => create(makeConfig([a, b])), /duplicate profile id .*dup\.v1/i);
+});
+
+// === open(): the `supersedes` options guard (GOVERNED, not construction-time) =========
+//
+// `supersedes` is the one draft-ahead `open()` option with no profile-level construction
+// switch (recovery of a terminal predecessor, §2) — none of the guards above can reach it,
+// since they only ever see a PROFILE, never an `open()` call's options bag. The guard lives
+// in `kernel/open.ts` instead, reusing the SAME `governedUnavailable(field, contract)`
+// helper. Proven via an `as`-cast past `OpenOptions`'s empty (`Record<string, never>`) type
+// — this exercises the RUNTIME sweep a plain JavaScript caller (ignoring the type) would
+// hit, not merely what the compiler would reject.
+
+test("open(): passing an unexpected options key ('supersedes') throws GOVERNED, byte-preserved head", async () => {
+  const { agent, operator } = create(makeConfig([captureProfile()]));
+  const staged = await agent.stage({ any: 'content' }, 'test.capture.v1', DEFAULT_SUBJECT_REF);
+  assert.equal(staged.status, 'ok');
+  if (staged.status !== 'ok') return;
+
+  const badOpts = {
+    supersedes: { recordId: 'rec-prior', chainHead: 'sha256:deadbeef' },
+  } as unknown as Parameters<typeof operator.open>[1];
+
+  await assert.rejects(
+    () => operator.open(staged.value.stagedRef, badOpts),
+    (err: unknown) => {
+      assert.ok(err instanceof Error);
+      assert.ok(
+        err.message.startsWith(GOVERNED('supersedes')),
+        `expected the GOVERNED message to start with the byte-preserved head for field 'supersedes', got: ${err.message}`,
+      );
+      return true;
+    },
+  );
 });
