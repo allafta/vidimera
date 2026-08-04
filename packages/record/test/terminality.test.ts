@@ -14,7 +14,7 @@ import { test } from 'vitest';
 
 import { create } from '../src/create.js';
 import { MemoryStore } from '../src/store/memory.js';
-import type { AppendResult, Store } from '../src/store/store.js';
+import type { AppendMeta, AppendResult, Store } from '../src/store/store.js';
 import type { Digest, RecordState, StagedDraft, Transition } from '../src/types.js';
 import {
   captureProfile,
@@ -110,12 +110,12 @@ class ConfirmBlockingStore implements Store {
   async appendTransition(
     expected: RecordState | null,
     transition: Transition,
-    nonTerminalFlag: boolean,
+    meta: AppendMeta,
   ): Promise<AppendResult> {
     if (transition.kind === 'confirmed') {
       return { appended: false, conflict: 'state-mismatch' };
     }
-    return this.inner.appendTransition(expected, transition, nonTerminalFlag);
+    return this.inner.appendTransition(expected, transition, meta);
   }
 }
 
@@ -217,7 +217,7 @@ class FactsConsultationBlockingStore implements Store {
   async appendTransition(
     expected: RecordState | null,
     transition: Transition,
-    nonTerminalFlag: boolean,
+    meta: AppendMeta,
   ): Promise<AppendResult> {
     if (transition.kind === 'consultation-recorded') {
       this.consultations += 1;
@@ -225,7 +225,7 @@ class FactsConsultationBlockingStore implements Store {
         return { appended: false, conflict: 'seq' };
       }
     }
-    return this.inner.appendTransition(expected, transition, nonTerminalFlag);
+    return this.inner.appendTransition(expected, transition, meta);
   }
 }
 
@@ -308,7 +308,7 @@ class RaceThenAppendStore implements Store {
   async appendTransition(
     expected: RecordState | null,
     transition: Transition,
-    nonTerminalFlag: boolean,
+    meta: AppendMeta,
   ): Promise<AppendResult> {
     if (transition.kind === 'consultation-recorded' && !this.raced) {
       this.raced = true;
@@ -324,10 +324,10 @@ class RaceThenAppendStore implements Store {
         prevHash: head,
       };
       // A capture-only final-leg `confirmed` is terminal ⇒ nonTerminal false.
-      const landed = await this.inner.appendTransition('open', otherWriter, false);
+      const landed = await this.inner.appendTransition('open', otherWriter, { nonTerminal: false });
       assert.ok(landed.appended, 'fixture: the raced confirmed edge must genuinely land');
     }
-    return this.inner.appendTransition(expected, transition, nonTerminalFlag);
+    return this.inner.appendTransition(expected, transition, meta);
   }
 }
 

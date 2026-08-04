@@ -115,9 +115,13 @@ test('a tampered chain on an UNCONFIRMED (open) record: NO chain-verify consulta
     throw new Error('chain-verify.test.ts: buildChain must return transitions at index 0 and 1');
   }
   const openNT = nonTerminal('open', isFinalLeg(0, 1), false); // true
-  assert.equal((await inner.appendTransition(null, openedTransition, openNT)).appended, true);
   assert.equal(
-    (await inner.appendTransition('open', consultationTransition, openNT)).appended,
+    (await inner.appendTransition(null, openedTransition, { nonTerminal: openNT })).appended,
+    true,
+  );
+  assert.equal(
+    (await inner.appendTransition('open', consultationTransition, { nonTerminal: openNT }))
+      .appended,
     true,
   );
 
@@ -213,13 +217,21 @@ test('a post-confirmed NON-LAST tamper on a CONFIRMED effect-seam record: confir
   }
   const openNT = nonTerminal('open', isFinalLeg(0, 1), true); // true
   const confirmedNT = nonTerminal('confirmed', isFinalLeg(0, 1), true); // true (effect seam, non-terminal)
-  assert.equal((await inner.appendTransition(null, openedTransition, openNT)).appended, true);
   assert.equal(
-    (await inner.appendTransition('open', confirmedTransition, confirmedNT)).appended,
+    (await inner.appendTransition(null, openedTransition, { nonTerminal: openNT })).appended,
     true,
   );
   assert.equal(
-    (await inner.appendTransition('confirmed', consultationTransition, confirmedNT)).appended,
+    (await inner.appendTransition('open', confirmedTransition, { nonTerminal: confirmedNT }))
+      .appended,
+    true,
+  );
+  assert.equal(
+    (
+      await inner.appendTransition('confirmed', consultationTransition, {
+        nonTerminal: confirmedNT,
+      })
+    ).appended,
     true,
   );
 
@@ -308,8 +320,14 @@ test('a tampered chain on an ALREADY-EXPIRED record: NO candidate CAS target is 
   }
   const openNT = nonTerminal('open', isFinalLeg(0, 1), false); // true
   const expiredNT = nonTerminal('expired', isFinalLeg(0, 1), false); // false — terminal
-  assert.equal((await inner.appendTransition(null, openedTransition, openNT)).appended, true);
-  assert.equal((await inner.appendTransition('open', expiredTransition, expiredNT)).appended, true);
+  assert.equal(
+    (await inner.appendTransition(null, openedTransition, { nonTerminal: openNT })).appended,
+    true,
+  );
+  assert.equal(
+    (await inner.appendTransition('open', expiredTransition, { nonTerminal: expiredNT })).appended,
+    true,
+  );
 
   const beforeLength = (await inner.readChain(recordId)).length;
   const beforeHead = await inner.chainHead(recordId);
@@ -369,8 +387,8 @@ test("finalize's pre-seam verify and operator verifyChain() share one verifyChai
     throw new Error('chain-verify.test.ts: buildChain must return transitions at index 0 and 1');
   }
   const openNT = nonTerminal('open', isFinalLeg(0, 1), false);
-  await inner.appendTransition(null, openedTransition, openNT);
-  await inner.appendTransition('open', consultationTransition, openNT);
+  await inner.appendTransition(null, openedTransition, { nonTerminal: openNT });
+  await inner.appendTransition('open', consultationTransition, { nonTerminal: openNT });
 
   const store = new TamperingStore(inner, recordId, (c) => tamperNonLast(c));
   const { operator } = create(makeConfig([profile], { store }));

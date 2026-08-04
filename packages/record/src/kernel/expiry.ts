@@ -105,6 +105,8 @@ export async function expireIfDue(
     prevHash: transitionDigest(last),
   };
   const expiredNonTerminal = nonTerminal('expired', isFinalLeg(0, profile.legs.length), effectSeam); // false
-  const result = await store.appendTransition('open', expiredTransition, expiredNonTerminal);
+  const result = await store.appendTransition('open', expiredTransition, {
+    nonTerminal: expiredNonTerminal,
+  });
   return { expired: true, result, bound };
 }

@@ -22,7 +22,7 @@
 // helpers/chain.ts and helpers/profiles.ts.
 
 import { MemoryStore } from '../../src/store/memory.js';
-import type { AppendResult, Store } from '../../src/store/store.js';
+import type { AppendMeta, AppendResult, Store } from '../../src/store/store.js';
 import type { Digest, RecordState, StagedDraft, Transition } from '../../src/types.js';
 
 /**
@@ -47,8 +47,8 @@ export class TamperingStore implements Store {
   chainHead(r: string): Promise<Digest | null> {
     return this.inner.chainHead(r);
   }
-  appendTransition(e: RecordState | null, t: Transition, n: boolean): Promise<AppendResult> {
-    return this.inner.appendTransition(e, t, n);
+  appendTransition(e: RecordState | null, t: Transition, m: AppendMeta): Promise<AppendResult> {
+    return this.inner.appendTransition(e, t, m);
   }
   async readChain(recordId: string): Promise<Transition[]> {
     const chain = await this.inner.readChain(recordId);
@@ -80,10 +80,10 @@ export class CountingStore implements Store {
   appendTransition(
     expectedCurrentState: RecordState | null,
     transition: Transition,
-    nonTerminal: boolean,
+    meta: AppendMeta,
   ): Promise<AppendResult> {
     this.appendCalls += 1;
-    return this.inner.appendTransition(expectedCurrentState, transition, nonTerminal);
+    return this.inner.appendTransition(expectedCurrentState, transition, meta);
   }
   readChain(recordId: string): Promise<Transition[]> {
     return this.inner.readChain(recordId);
@@ -121,13 +121,17 @@ export class RaceOnceStore implements Store {
   chainHead(r: string): Promise<Digest | null> {
     return this.inner.chainHead(r);
   }
-  async appendTransition(e: RecordState | null, t: Transition, n: boolean): Promise<AppendResult> {
+  async appendTransition(
+    e: RecordState | null,
+    t: Transition,
+    m: AppendMeta,
+  ): Promise<AppendResult> {
     if (!this.fired && this.match(e, t)) {
       this.fired = true;
       const short = await this.run(this.inner, t.recordId);
       if (short !== undefined) return short;
     }
-    return this.inner.appendTransition(e, t, n);
+    return this.inner.appendTransition(e, t, m);
   }
   readChain(recordId: string): Promise<Transition[]> {
     return this.inner.readChain(recordId);

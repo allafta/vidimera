@@ -224,9 +224,13 @@ test('chain-compromise: finalize() on a tampered (non-last) chain -> refused/com
     throw new Error('refusal-matrix.test.ts: buildChain must return transitions at index 0 and 1');
   }
   const openNT = nonTerminal('open', isFinalLeg(0, 1), false);
-  assert.equal((await inner.appendTransition(null, openedTransition, openNT)).appended, true);
   assert.equal(
-    (await inner.appendTransition('open', consultationTransition, openNT)).appended,
+    (await inner.appendTransition(null, openedTransition, { nonTerminal: openNT })).appended,
+    true,
+  );
+  assert.equal(
+    (await inner.appendTransition('open', consultationTransition, { nonTerminal: openNT }))
+      .appended,
     true,
   );
 

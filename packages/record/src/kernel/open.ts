@@ -129,7 +129,9 @@ export async function open(
     effectSeam,
   );
 
-  const first = await store.appendTransition(null, openedTransition, openedNonTerminal);
+  const first = await store.appendTransition(null, openedTransition, {
+    nonTerminal: openedNonTerminal,
+  });
   if (first.appended) {
     return ok({ recordId });
   }
@@ -170,7 +172,9 @@ export async function open(
   }
 
   // The blocker is expired (now terminal); retry the genesis open EXACTLY ONCE.
-  const retry = await store.appendTransition(null, openedTransition, openedNonTerminal);
+  const retry = await store.appendTransition(null, openedTransition, {
+    nonTerminal: openedNonTerminal,
+  });
   if (retry.appended) {
     return ok({ recordId });
   }

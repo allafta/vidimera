@@ -23,7 +23,7 @@ import { create, createWithClock } from '../src/create.js';
 import { isFinalLeg, nonTerminal } from '../src/nonterminal.js';
 import { profileDigest } from '../src/profile-digest.js';
 import { MemoryStore } from '../src/store/memory.js';
-import type { AppendResult, Store } from '../src/store/store.js';
+import type { AppendMeta, AppendResult, Store } from '../src/store/store.js';
 import type { Digest, RecordState, StagedDraft, Transition } from '../src/types.js';
 import { buildChain } from './helpers/chain.js';
 import {
@@ -246,9 +246,11 @@ test('a NON-open non-terminal blocker (effect-seam `confirmed` awaiting redempti
   }
   const openedNonTerminal = nonTerminal('open', isFinalLeg(0, 1), true); // true
   const confirmedNonTerminal = nonTerminal('confirmed', isFinalLeg(0, 1), true); // true (effect seam)
-  const g = await store.appendTransition(null, blockerOpened, openedNonTerminal);
+  const g = await store.appendTransition(null, blockerOpened, { nonTerminal: openedNonTerminal });
   assert.equal(g.appended, true);
-  const c = await store.appendTransition('open', blockerConfirmed, confirmedNonTerminal);
+  const c = await store.appendTransition('open', blockerConfirmed, {
+    nonTerminal: confirmedNonTerminal,
+  });
   assert.equal(c.appended, true);
 
   const { agent, operator } = create(makeConfig([profile], { store }));
@@ -310,7 +312,7 @@ class RaceStore implements Store {
   async appendTransition(
     expectedCurrentState: RecordState | null,
     transition: Transition,
-    nonTerminalFlag: boolean,
+    meta: AppendMeta,
   ): Promise<AppendResult> {
     if (expectedCurrentState === null) this.genesisAttempts += 1;
 
@@ -340,11 +342,11 @@ class RaceStore implements Store {
           payload: { bound: last.at },
           prevHash: transitionDigest(last),
         };
-        await this.inner.appendTransition('open', competing, false);
+        await this.inner.appendTransition('open', competing, { nonTerminal: false });
       }
     }
 
-    return this.inner.appendTransition(expectedCurrentState, transition, nonTerminalFlag);
+    return this.inner.appendTransition(expectedCurrentState, transition, meta);
   }
 }
 

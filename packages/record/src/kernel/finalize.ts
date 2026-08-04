@@ -218,7 +218,9 @@ export async function finalize(
     payload: chainVerifyConsultation,
     prevHash,
   };
-  const cvRes = await store.appendTransition('open', cvTransition, openNonTerminal);
+  const cvRes = await store.appendTransition('open', cvTransition, {
+    nonTerminal: openNonTerminal,
+  });
   if (!cvRes.appended) {
     // The FIRST append of the batch: nothing of this call has landed. A never-appends code
     // carrying no `transitionRef` therefore tells the host the truth — this call recorded
@@ -257,7 +259,9 @@ export async function finalize(
     payload: factsConsultation,
     prevHash,
   };
-  const factsRes = await store.appendTransition('open', factsTransition, openNonTerminal);
+  const factsRes = await store.appendTransition('open', factsTransition, {
+    nonTerminal: openNonTerminal,
+  });
   if (!factsRes.appended) {
     // One consultation (chain-verify) of this call is already on the chain — see
     // `midBatchConflict`. What the RECORD's state is by now is not re-read here, and a
@@ -278,11 +282,9 @@ export async function finalize(
     payload: { actor: identity },
     prevHash,
   };
-  const confirmedRes = await store.appendTransition(
-    'open',
-    confirmedTransition,
-    confirmedNonTerminal,
-  );
+  const confirmedRes = await store.appendTransition('open', confirmedTransition, {
+    nonTerminal: confirmedNonTerminal,
+  });
   if (!confirmedRes.appended) {
     // Both consultations of this call are already on the chain and THIS call adds no decision
     // edge after them — see `midBatchConflict`. They stay there: the batch is sequential
@@ -417,7 +419,9 @@ async function appendChainCompromise(
   const refusedNonTerminal = nonTerminal('refused', false, false); // false
 
   for (const target of candidates) {
-    const res = await store.appendTransition(target, refusedTransition, refusedNonTerminal);
+    const res = await store.appendTransition(target, refusedTransition, {
+      nonTerminal: refusedNonTerminal,
+    });
     if (res.appended) {
       return refused('chain-compromise', res.transitionDigest);
     }
@@ -461,7 +465,9 @@ async function refuseMaybeAppend(
     prevHash: transitionDigest(last),
   };
   const refusedNonTerminal = nonTerminal('refused', finalLeg, resolved.effectSeam); // false
-  const res = await store.appendTransition('open', refusedTransition, refusedNonTerminal);
+  const res = await store.appendTransition('open', refusedTransition, {
+    nonTerminal: refusedNonTerminal,
+  });
   return res.appended ? refused(code, res.transitionDigest) : refused(code);
 }
 

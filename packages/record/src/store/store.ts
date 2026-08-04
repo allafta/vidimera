@@ -53,6 +53,25 @@ export type AppendResult =
   | { appended: false; conflict: 'exclusivity'; blockingRecordId: string };
 
 /**
+ * SPEC §12's append metadata — the record-level flags the store persists **verbatim**:
+ * SPEC §12 "the library derives them, the store never recomputes them".
+ *
+ *  - `nonTerminal` — the derived (`nonterminal.ts`) flag for the record's state AFTER this
+ *    append, which C1 exclusivity reads.
+ *  - `dueAt` — the library-computed clock deadline for whichever pending window the record
+ *    is in, RFC3339 UTC. Presence sets the record's pending-clock column; **absence clears
+ *    it**. It is a listing index only and never authoritative — SPEC §12.
+ *
+ * §12 also puts an optional caller-supplied transaction on every write. It is NOT built
+ * here: an in-memory backing has no transaction to receive, so the parameter would be
+ * structurally ignored. It arrives with the first real adapter. Deferral register row 13.
+ */
+export interface AppendMeta {
+  nonTerminal: boolean;
+  dueAt?: string;
+}
+
+/**
  * The provisional Store — a strict SUBSET of the storage surface SPEC §12 names, not a
  * transcription of it. Shipped here: `putStaged`/`getStaged`/`appendTransition`/
  * `readChain`/`chainHead`. NOT built in this build step: `appendBatch`, `findNonTerminal`,
@@ -80,14 +99,14 @@ export interface Store {
    * The one write seam. `expectedCurrentState`: `null` is the genesis CAS target (the
    * record must NOT already exist); any `RecordState` is the CAS target for every
    * subsequent append (the record's actual current state, derived from its chain, must
-   * equal it exactly). `nonTerminal` is the library-DERIVED (via `nonterminal.ts`)
-   * flag for the record's state AFTER this transition is applied — the Store persists
-   * it verbatim; it never recomputes the formula itself.
+   * equal it exactly). `meta` is SPEC §12's per-append metadata (`AppendMeta` above) —
+   * the record-level flags the library derives; the Store persists them verbatim and
+   * never recomputes them itself.
    */
   appendTransition(
     expectedCurrentState: RecordState | null,
     transition: Transition,
-    nonTerminal: boolean,
+    meta: AppendMeta,
   ): Promise<AppendResult>;
 
   /**

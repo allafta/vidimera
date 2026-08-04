@@ -18,7 +18,7 @@
 import { transitionDigest } from '../chain/encoding.js';
 import { CORE, type RefusalCode } from '../refusal-codes.js';
 import type { Digest, RecordState, Transition, TransitionKind } from '../types.js';
-import type { AppendResult, StagedDraft, Store } from './store.js';
+import type { AppendMeta, AppendResult, StagedDraft, Store } from './store.js';
 
 /**
  * The `opened` transition's payload, read only for the two fields C1 exclusivity
@@ -54,6 +54,7 @@ interface StoredRecord {
   subjectRef: string;
   state: RecordState;
   nonTerminal: boolean;
+  dueAt?: string;
   chain: Transition[];
 }
 
@@ -219,14 +220,14 @@ export class MemoryStore implements Store {
   async appendTransition(
     expectedCurrentState: RecordState | null,
     transition: Transition,
-    nonTerminal: boolean,
+    meta: AppendMeta,
   ): Promise<AppendResult> {
     const existing = this.records.get(transition.recordId);
 
     if (expectedCurrentState === null) {
-      return this.appendGenesis(transition, nonTerminal, existing);
+      return this.appendGenesis(transition, meta, existing);
     }
-    return this.appendSubsequent(expectedCurrentState, transition, nonTerminal, existing);
+    return this.appendSubsequent(expectedCurrentState, transition, meta, existing);
   }
 
   /**
@@ -240,7 +241,7 @@ export class MemoryStore implements Store {
    */
   private appendGenesis(
     transition: Transition,
-    nonTerminal: boolean,
+    meta: AppendMeta,
     existing: StoredRecord | undefined,
   ): AppendResult {
     if (existing) {
@@ -283,7 +284,8 @@ export class MemoryStore implements Store {
       profileId: payload.profileId,
       subjectRef: payload.subjectRef,
       state: 'open',
-      nonTerminal,
+      nonTerminal: meta.nonTerminal,
+      dueAt: meta.dueAt,
       // Clone on write: `open()` deliberately reuses the same `openedTransition` object
       // across its first attempt and an expire-then-retry (kernel/open.ts:116,157) — the
       // caller's object must not become a live write handle into what gets persisted here.
@@ -308,7 +310,7 @@ export class MemoryStore implements Store {
   private appendSubsequent(
     expectedCurrentState: RecordState,
     transition: Transition,
-    nonTerminal: boolean,
+    meta: AppendMeta,
     existing: StoredRecord | undefined,
   ): AppendResult {
     if (!existing || existing.state !== expectedCurrentState) {
@@ -339,7 +341,11 @@ export class MemoryStore implements Store {
     // a successful append the host still holds live references INTO those objects; without
     // cloning, mutating them afterward would rewrite the stored chain's head.
     existing.chain.push(structuredClone(transition));
-    existing.nonTerminal = nonTerminal;
+    existing.nonTerminal = meta.nonTerminal;
+    // Presence sets the pending-clock column, absence clears it (SPEC §12). Assigning
+    // `meta.dueAt` unconditionally IS the clearing rule — an append that carries no new
+    // clock writes `undefined` over whatever was there.
+    existing.dueAt = meta.dueAt;
     const nextState = stateOf(transition.kind);
     if (nextState !== null) {
       existing.state = nextState;
