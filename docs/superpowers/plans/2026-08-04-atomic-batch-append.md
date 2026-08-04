@@ -478,12 +478,12 @@ test('appendBatch: a stale seq conflicts at the element that carries it, and app
   const store = new MemoryStore();
   const genesis = await openRecord(store);
   const batch = successBatch(genesis);
-  const second = batch[1];
-  assert.ok(second !== undefined, 'fixture: the batch has three elements');
+  const [first, second] = batch;
+  assert.ok(first !== undefined && second !== undefined, 'fixture: the batch has three elements');
   const stale: Transition = { ...second, seq: second.seq + 5 };
   const before = await store.readChain(genesis.recordId);
 
-  const res = await store.appendBatch('open', [batch[0] as Transition, stale], { nonTerminal: true });
+  const res = await store.appendBatch('open', [first, stale], { nonTerminal: true });
   assert.deepEqual(res, { appended: false, conflict: 'seq', index: 1 });
 
   const after = await store.readChain(genesis.recordId);
@@ -608,9 +608,10 @@ Add to `packages/record/src/store/memory.ts`, after `appendSubsequent`:
     let state: RecordState = existing.state;
     let seq = existing.chain.length;
     const digests: Digest[] = [];
-    for (let i = 0; i < transitions.length; i += 1) {
-      const t = transitions[i];
-      if (t === undefined) continue; // unreachable under a dense array; narrows the index read
+    // `entries()` rather than an index loop: it yields `Transition`, not
+    // `Transition | undefined`, so `noUncheckedIndexedAccess` needs no unreachable
+    // narrowing branch here.
+    for (const [i, t] of transitions.entries()) {
       if (t.recordId !== first.recordId) {
         throw new Error(
           'appendBatch: every element must name the same recordId — a batch spanning ' +
