@@ -630,9 +630,15 @@ Add to `packages/record/src/store/memory.ts`, after `appendSubsequent`:
       if (next !== null) state = next;
     }
 
-    // Every check passed — mutate last, exactly as the two single-append paths do.
-    for (const t of transitions) {
-      existing.chain.push(structuredClone(t));
+    // Every check passed. Clone BEFORE the first push, not inside the push loop:
+    // `structuredClone` is failable — it throws `DataCloneError` on a non-cloneable payload,
+    // which this store deliberately lets propagate — and a throw interleaved with the pushes
+    // would leave the earlier elements on the chain. Every failable operation happens before
+    // any mutation, which is what makes "nothing applied" structural rather than a rollback.
+    // A conflict still wins over a throw, because the check loop above returns first.
+    const cloned = transitions.map((t) => structuredClone(t));
+    for (const c of cloned) {
+      existing.chain.push(c);
     }
     existing.state = state;
     existing.nonTerminal = meta.nonTerminal;
