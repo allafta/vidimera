@@ -16,8 +16,11 @@ export type RefusalCode =
 // class map: chain-compromise → 'compromise'; all others → 'refusal'
 // record-not-open: class 'refusal', terminal-record category — finalize() against a non-open, intact-chain
 //   record (double-finalize; an effect-seam confirmed record awaiting redemption; a refused record). NEVER
-//   appends, no transitionRef, no transitionRef-bearing edge; also the mapping for a residual
-//   conflict:'state-mismatch' on the finalize confirmed-append CAS.
+//   appends, no transitionRef, no transitionRef-bearing edge. One further producer sits off the gate
+//   ladder: a conflict on the FIRST append of finalize()'s success batch, where nothing of the call has
+//   landed yet — kernel/finalize.ts states at that site which conflict shapes the code is true for and
+//   which it is not. A conflict on either LATER append throws a storage fault instead, precisely because
+//   this code would be false once the call has appended.
 // unknown-leg: class 'refusal'. SPEC §8 names two producers — a caller-named leg absent
 //   from the profile at `stage()`, and a staged draft's leg absent from the profile it
 //   resolves under at `open()`. BOTH are built in this build (`stage()`'s

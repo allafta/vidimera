@@ -5,8 +5,8 @@
 // effect-seam profile's final-leg `confirmed` is NON-terminal (awaits redemption) — a
 // second open() is blocked with `record-exists`. Also pins the honest sequencing bound:
 // finalize()'s multi-append is a best-effort SEQUENTIAL append in this build, NOT a
-// cross-append atomic batch — a confirmed-append conflict after the consultations landed
-// leaves them on the chain and maps to `record-not-open`.
+// cross-append atomic batch — a mid-batch conflict AFTER something of the call has landed
+// leaves what landed on the chain, with no decision edge and no rollback, and THROWS.
 
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
@@ -72,13 +72,14 @@ test('an effect-seam final-leg CONFIRMED is non-terminal (awaits redemption): a 
   );
 });
 
-// === honest sequencing bound (sequential, not atomic, in this build) + confirmed-append residual → record-not-open ===
+// === honest sequencing bound (sequential, not atomic, in this build): a mid-batch conflict throws ===
 
 /**
  * A Store wrapper that lets the two consultation appends land but forces the CONFIRMED
  * append to `state-mismatch` — modelling a residual CAS conflict on the confirmed edge. It
  * proves finalize()'s batch is SEQUENTIAL (the consultations are on the chain) not atomic,
- * and that the residual confirmed-append conflict maps to `record-not-open` (SPEC §8).
+ * and that the residual confirmed-append conflict THROWS: two consultations are already on
+ * the chain by then, so no code in the union is true (see the inversion note below).
  */
 class ConfirmBlockingStore implements Store {
   private readonly inner = new MemoryStore();
@@ -106,32 +107,134 @@ class ConfirmBlockingStore implements Store {
   }
 }
 
-test("finalize()'s batch is sequential, not atomic: a residual confirmed-append conflict leaves the consultations on the chain and maps to record-not-open", async () => {
+// INVERTED (this build step, authorized — the SECOND inherited assertion to invert on this
+// branch; the first is redeem()'s, further below). The inherited assertion pinned the
+// opposite result: a confirmed-append conflict arriving after the two consultations had
+// landed refused `record-not-open`, and this test held that mapping in place. The mapping
+// contradicts the normative document, which is why overturning it is a finding acted on
+// rather than a preference — SPEC §8 defines the code as "a decision-progress seam invoked
+// against a non-open, non-expired record" that "never appends", and this call had appended
+// twice, against a record that was `open` the whole time. `refusal-codes.ts` puts the code
+// in its never-appends set for the same reason, so the returned code contradicted the
+// library's own registry too. finalize() now THROWS here instead: every other member of the
+// `RefusalCode` union is either false in this state or likewise a never-appends member, and
+// no decision edge exists to carry a `transitionRef`, so there is no true result-first
+// outcome left to return (DECISIONS.md #10 reserves exceptions for caller/config errors and
+// "storage faults where nothing was recorded"; #11 makes a storage fault a loud throw). What
+// the change does NOT buy, stated with the change itself: nothing is rolled back — no
+// rollback exists in this build. The two consultations stay on the chain, the record stays
+// `open` and still finalizable, and a retry appends a SECOND pair of consultations. The
+// all-or-nothing batch that would fix that is SPEC §12's `appendBatch`, which this build's
+// `Store` does not implement (deferral register). The exception's own scope is therefore
+// wider than #10's "nothing was recorded" wording: something WAS recorded, and the message
+// says how much.
+test("finalize()'s batch is sequential, not atomic: a confirmed-append conflict throws, leaving the consultations on the chain and the record open", async () => {
   const store = new ConfirmBlockingStore();
   const handles = create(makeConfig([captureProfile()], { store }));
   const recordId = await openRecord(handles, CONTENT, 'test.capture.v1', DEFAULT_SUBJECT_REF);
 
-  const outcome = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
-  assert.equal(outcome.status, 'refused');
-  if (outcome.status !== 'refused') return;
-  assert.equal(
-    outcome.code,
-    'record-not-open',
-    'a residual confirmed-append state-mismatch → record-not-open',
+  await assert.rejects(
+    () => handles.operator.finalize(recordId, identity(), CONTENT, facts()),
+    (err: unknown) => {
+      assert.ok(err instanceof Error);
+      assert.ok(
+        err.message.startsWith("finalize: mid-batch append conflict ('state-mismatch')"),
+        `expected the mid-batch conflict throw naming the conflict shape, got: ${err.message}`,
+      );
+      assert.match(
+        err.message,
+        /2 consultations with no decision edge/,
+        'the message must say how much of the batch landed',
+      );
+      return true;
+    },
+    'a confirmed-append conflict after the consultations landed must throw, not refuse',
   );
-  assert.equal(outcome.transitionRef, undefined);
 
   // The two consultation appends DID land (sequential best-effort, not rolled back).
   const chain = await handles.operator.readChain(recordId);
   assert.deepEqual(
     chain.map((t) => t.kind),
     ['opened', 'consultation-recorded', 'consultation-recorded'],
-    'the chain-verify + facts consultations landed; the confirmed edge did not (no rollback — the single-writer bound this build enforces)',
+    'the chain-verify + facts consultations landed; the confirmed edge did not (no rollback — the throw undoes nothing)',
   );
   assert.equal(
     (await handles.operator.getRecord(recordId))?.state,
     'open',
-    'the record stays open (never confirmed)',
+    'the record stays open (never confirmed) and is still finalizable',
+  );
+});
+
+/**
+ * A Store wrapper that lets the FIRST `consultation-recorded` append land and forces the
+ * SECOND — finalize()'s facts consultation — to `seq`, modelling a conflict raised one
+ * append into the batch. That path had no test at all before this build step. The two
+ * blocking stores here use DIFFERENT conflict shapes on purpose: the throw names the
+ * `AppendResult.conflict` it saw, and that shape is the only diagnostic the host gets.
+ */
+class FactsConsultationBlockingStore implements Store {
+  private readonly inner = new MemoryStore();
+  private consultations = 0;
+  putStaged(s: StagedDraft): Promise<void> {
+    return this.inner.putStaged(s);
+  }
+  getStaged(r: string): Promise<StagedDraft | null> {
+    return this.inner.getStaged(r);
+  }
+  readChain(r: string): Promise<Transition[]> {
+    return this.inner.readChain(r);
+  }
+  chainHead(r: string): Promise<Digest | null> {
+    return this.inner.chainHead(r);
+  }
+  async appendTransition(
+    expected: RecordState | null,
+    transition: Transition,
+    nonTerminalFlag: boolean,
+  ): Promise<AppendResult> {
+    if (transition.kind === 'consultation-recorded') {
+      this.consultations += 1;
+      if (this.consultations === 2) {
+        return { appended: false, conflict: 'seq' };
+      }
+    }
+    return this.inner.appendTransition(expected, transition, nonTerminalFlag);
+  }
+}
+
+test("finalize() throws when the batch's SECOND append conflicts: the first consultation stays on the chain and the record stays open", async () => {
+  const store = new FactsConsultationBlockingStore();
+  const handles = create(makeConfig([captureProfile()], { store }));
+  const recordId = await openRecord(handles, CONTENT, 'test.capture.v1', DEFAULT_SUBJECT_REF);
+
+  await assert.rejects(
+    () => handles.operator.finalize(recordId, identity(), CONTENT, facts()),
+    (err: unknown) => {
+      assert.ok(err instanceof Error);
+      assert.ok(
+        err.message.startsWith("finalize: mid-batch append conflict ('seq')"),
+        `expected the mid-batch conflict throw naming the conflict shape, got: ${err.message}`,
+      );
+      assert.match(
+        err.message,
+        /1 consultation with no decision edge/,
+        'one consultation landed, not two — the message must say which',
+      );
+      return true;
+    },
+    'a facts-append conflict after the chain-verify consultation landed must throw, not refuse',
+  );
+
+  const chain = await handles.operator.readChain(recordId);
+  assert.deepEqual(
+    chain.map((t) => t.kind),
+    ['opened', 'consultation-recorded'],
+    'the chain-verify consultation landed; the facts consultation and the confirmed edge did not',
+  );
+  assert.equal(
+    (await handles.operator.getRecord(recordId))?.state,
+    'open',
+    'the record stays open (never confirmed) and is still finalizable',
   );
 });
 
@@ -174,7 +277,9 @@ test('redeem() on a capture-terminal CONFIRMED record (capture-only profile) -> 
   );
 });
 
-// INVERTED (this build step, authorized — exactly one inherited assertion may invert): the
+// INVERTED (this build step, authorized — the FIRST of the two inversions authorized on this
+// branch; the second is the mid-batch conflict above, and the count is stated in both places
+// so neither reads as the only one): the
 // reference implementation's stub silently refused `unredeemable-state` here, same as the
 // capture-only case above. That silence is what this build step corrects: a host that
 // declares an effect-seam profile and calls redeem() on a just-confirmed record was left to

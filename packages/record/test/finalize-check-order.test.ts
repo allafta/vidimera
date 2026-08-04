@@ -18,12 +18,14 @@
 //   (3) identity       -> identity-authority-refused                (1 code)
 //   (4) content-drift  -> content-drift                             (1 code)
 //   (5) facts          -> consultation-missing                      (1 code)
-//   (6) success batch  -> record-not-open, but ONLY as a CAS-race residual on the
-//       confirmed-append — kernel/finalize.ts's success-batch comment and
-//       refuseMaybeAppend's docstring both describe that residual as not producible under
-//       this build step's single-writer bound. There is no way to construct a RECORD whose
-//       data trips it — only a store that violates the bound — so (5)->(6) is NOT jointly
-//       constructible here and is excluded below.
+//   (6) success batch  -> record-not-open, but ONLY on a conflict at the FIRST of its three
+//       appends, where nothing of the call has landed yet. A conflict on either LATER append
+//       THROWS a storage fault instead (kernel/finalize.ts's `midBatchConflict`), and a throw
+//       is not a refusal code — it cannot enter an order pair at all, which makes the
+//       exclusion below stronger for two of the three appends rather than weaker. The one
+//       surviving refusal still needs a store that violates this build step's single-writer
+//       bound: there is no way to construct a RECORD whose data trips it, so (5)->(6) is NOT
+//       jointly constructible here and is excluded below.
 //
 // Consecutive-rung pairs and their tests:
 //   (1)->(2) x 2 — chain-compromise over each of rung (2)'s two codes. ALREADY COVERED in
