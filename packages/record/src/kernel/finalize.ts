@@ -293,8 +293,9 @@ export async function finalize(
  * storage fault a loud throw; #10 reserves exceptions for caller/config errors and storage
  * faults, refusals being returned rather than thrown.
  *
- * THE LIMIT, IN THE SAME BREATH. DECISIONS.md #10 scopes that exception to
- * "storage faults where nothing was recorded" — and here something WAS recorded. The throw
+ * THE LIMIT, IN THE SAME BREATH. The exception taken here is a scoped one —
+ * DECISIONS.md #10: "storage faults where nothing was recorded" — and here something WAS
+ * recorded, so this throw sits outside that scope rather than inside it. The throw
  * rolls nothing back, because no rollback exists in this build: the batch is sequential, not
  * atomic (SPEC §12's `appendBatch` is the all-or-nothing rung, and it is not part of the
  * shipped `Store`; deferral register). The consultations that landed stay on the chain with

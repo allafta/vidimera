@@ -112,15 +112,15 @@ class ConfirmBlockingStore implements Store {
 // opposite result: a confirmed-append conflict arriving after the two consultations had
 // landed refused `record-not-open`, and this test held that mapping in place. The mapping
 // contradicts the normative document, which is why overturning it is a finding acted on
-// rather than a preference — SPEC §8 defines the code as "a decision-progress seam invoked
-// against a non-open, non-expired record" that "never appends", and this call had appended
-// twice, against a record that was `open` the whole time. `refusal-codes.ts` puts the code
+// rather than a preference. The code is defined by SPEC §8: "a decision-progress seam
+// invoked against a non-open, non-expired record", "never appends" — and this call had
+// appended twice, against a record that was `open` the whole time. `refusal-codes.ts` puts the code
 // in its never-appends set for the same reason, so the returned code contradicted the
 // library's own registry too. finalize() now THROWS here instead: every other member of the
 // `RefusalCode` union is either false in this state or likewise a never-appends member, and
 // no decision edge exists to carry a `transitionRef`, so there is no true result-first
-// outcome left to return (DECISIONS.md #10 reserves exceptions for caller/config errors and
-// "storage faults where nothing was recorded"; #11 makes a storage fault a loud throw). What
+// outcome left to return (the exception is scoped by DECISIONS.md #10: "storage faults where
+// nothing was recorded", and #11 makes a storage fault a loud throw). What
 // the change does NOT buy, stated with the change itself: nothing is rolled back — no
 // rollback exists in this build. The two consultations stay on the chain, the record stays
 // `open` and still finalizable, and a retry appends a SECOND pair of consultations. The
