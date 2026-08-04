@@ -75,14 +75,19 @@ export interface AppendMeta {
  * The provisional Store — a strict SUBSET of the storage surface SPEC §12 names, not a
  * transcription of it. Shipped here: `putStaged`/`getStaged`/`appendTransition`/
  * `readChain`/`chainHead`. NOT built in this build step: `appendBatch`, `findNonTerminal`,
- * `listDue`, `seal`, and the optional caller-supplied transaction §12 puts on every write;
- * §12's `meta = { nonTerminal, dueAt? }` is narrowed here to a bare `nonTerminal` boolean
- * (no `dueAt` — nothing yet lists due records). §12 is explicit that what is durable is the
- * behaviour each method guarantees rather than its argument list, so this subset conforms
- * behaviourally without mirroring §12's signatures — but a reader must not take it for the
- * whole adapter contract. Async throughout — committing now avoids a breaking sync->async
- * flip once a real Postgres adapter and caller-transaction seam land — even though
- * `store/memory.ts`'s Map-backed implementation has no genuine I/O to await.
+ * `listDue`, `seal`. `appendTransition`'s `meta` parameter (`AppendMeta` above) now matches
+ * §12's `meta = { nonTerminal, dueAt? }` shape exactly — nothing about the parameter itself
+ * is narrowed anymore. What IS still narrowed is `tx?`, the optional caller-supplied
+ * transaction §12 puts on every write: omitted here because an in-memory backing has no
+ * transaction to receive it. `dueAt` itself is declared and persisted (`store/memory.ts`'s
+ * `dueAt` column) but has no producer in this build step — nothing yet calls
+ * `appendTransition` with a `dueAt` value, and nothing yet lists due records. §12 is
+ * explicit that what is durable is the behaviour each method guarantees rather than its
+ * argument list, so this subset conforms behaviourally without mirroring §12's signatures —
+ * but a reader must not take it for the whole adapter contract. Async throughout —
+ * committing now avoids a breaking sync->async flip once a real Postgres adapter and
+ * caller-transaction seam land — even though `store/memory.ts`'s Map-backed implementation
+ * has no genuine I/O to await.
  */
 export interface Store {
   /**
