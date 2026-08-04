@@ -45,9 +45,11 @@ work, outside what this document does.
 **How to read this document as it ages — it appends, it never rewrites.** This is a
 point-in-time review record, so a finding is not edited away once later work overturns it:
 the retraction is **appended beside it** as a labelled `**Correction:**` / `**Adjudication:**`
-insert, and the finding above the insert is left exactly as written. Only two things are ever
-changed in place — a pointer into another document that has gone stale, and a description of
-what another document currently says. So a sentence here in the present tense, including
+insert, and the finding above the insert is left exactly as written. **A finding is never
+changed in place** — that is the load-bearing half, and it holds byte-for-byte. Supporting
+prose is a weaker guarantee: a pointer into another document that has gone stale, a description
+of what another document currently says, and this document's own account of its method have all
+been edited in place. So a sentence here in the present tense, including
 "as of this writing" below, dates from the original review and is **not** a claim about the
 repository's state now. For that, read `docs/process/implementation-status.md`.
 
