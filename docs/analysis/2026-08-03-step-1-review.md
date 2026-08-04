@@ -30,7 +30,8 @@ shipped code and the sealed SPEC that none of the other five dimensions caught, 
 fourth class because the existing three do not describe them. One further recovered item needs
 no new tracking: the stale `README.md:36` status line ("currently red") it flagged is already
 on the exit-record unit's own to-do list
-(`docs/superpowers/plans/2026-08-03-step-1-remediation.md:183`), and the scan does exit 0
+(`docs/superpowers/plans/2026-08-03-step-1-remediation.md`, unit R5 — which records it as
+having been fixed by a housekeeping sweep ahead of R5 running), and the scan does exit 0
 (`node scripts/contract-scan.mjs`).
 
 As of this writing, none of the remediation plan's fix units (R2 apply-the-INHERIT-list, R3
@@ -238,7 +239,7 @@ out-of-band lookup for the blocking record. And without `listDue`, SPEC §12's o
 opportunistically, when some unrelated `open()` or `finalize()` call happens to touch the same
 `(profile, subject)` pair. Both are already implicitly acknowledged in this remediation plan's
 own R4 "Record" list ("the shipped `Store` is 5 of 9 of §12's surface... Trigger: build step 2,"
-`2026-08-03-step-1-remediation.md:160-162`); the spec-conformance dimension's contribution is
+`2026-08-03-step-1-remediation.md`, R4's "Record" list); the spec-conformance dimension's contribution is
 the concrete behavioral consequence of each absence, not the inventory itself.
 
 **The one genuine defect inside Class B: the mid-batch conflict mapping is wrong.**
