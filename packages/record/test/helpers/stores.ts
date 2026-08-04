@@ -1,13 +1,14 @@
 // @vidimera/record — test/helpers/stores.ts: shared Store test-doubles, down-ported to
-// this build step's five-method Store contract (`putStaged`/`getStaged`/
-// `appendTransition`/`readChain`/`chainHead` — no `appendBatch`, `findNonTerminal` or
+// this build step's six-method Store contract (`putStaged`/`getStaged`/
+// `appendTransition`/`readChain`/`chainHead`/`appendBatch` — no `findNonTerminal` or
 // `listDue`; those are a later-phase Store surface). Three shapes fold the near-identical
 // inline classes that would otherwise be hand-copied across the test corpus:
 //   - `TamperingStore` — `readChain` returns a TAMPERED copy of one targeted record's
 //     chain (a `tamperFn` over the real chain); every write delegates to a real inner
 //     MemoryStore. Used here by chain-verify.test.ts and refusal-matrix.test.ts.
 //   - `CountingStore` — counts `putStaged`/`appendTransition` calls while delegating to
-//     an inner MemoryStore (its own by default, or a caller-supplied one). Used here by
+//     an inner MemoryStore (its own by default, or a caller-supplied one); a batch append
+//     counts as one append, same as a single `appendTransition` call. Used here by
 //     agent-unreachability.test.ts, content-binding.test.ts and unknown-ids.test.ts.
 //   - `RaceOnceStore` — the FIRST `appendTransition` call matching `match` fires a
 //     one-shot `run` hook BEFORE delegating; `run` may mutate `inner` directly (a racing
@@ -22,7 +23,7 @@
 // helpers/chain.ts and helpers/profiles.ts.
 
 import { MemoryStore } from '../../src/store/memory.js';
-import type { AppendMeta, AppendResult, Store } from '../../src/store/store.js';
+import type { AppendMeta, AppendResult, BatchResult, Store } from '../../src/store/store.js';
 import type { Digest, RecordState, StagedDraft, Transition } from '../../src/types.js';
 
 /**
@@ -49,6 +50,13 @@ export class TamperingStore implements Store {
   }
   appendTransition(e: RecordState | null, t: Transition, m: AppendMeta): Promise<AppendResult> {
     return this.inner.appendTransition(e, t, m);
+  }
+  appendBatch(
+    expectedCurrentState: RecordState,
+    transitions: readonly Transition[],
+    meta: AppendMeta,
+  ): Promise<BatchResult> {
+    return this.inner.appendBatch(expectedCurrentState, transitions, meta);
   }
   async readChain(recordId: string): Promise<Transition[]> {
     const chain = await this.inner.readChain(recordId);
@@ -84,6 +92,14 @@ export class CountingStore implements Store {
   ): Promise<AppendResult> {
     this.appendCalls += 1;
     return this.inner.appendTransition(expectedCurrentState, transition, meta);
+  }
+  appendBatch(
+    expectedCurrentState: RecordState,
+    transitions: readonly Transition[],
+    meta: AppendMeta,
+  ): Promise<BatchResult> {
+    this.appendCalls += 1;
+    return this.inner.appendBatch(expectedCurrentState, transitions, meta);
   }
   readChain(recordId: string): Promise<Transition[]> {
     return this.inner.readChain(recordId);
@@ -132,6 +148,13 @@ export class RaceOnceStore implements Store {
       if (short !== undefined) return short;
     }
     return this.inner.appendTransition(e, t, m);
+  }
+  appendBatch(
+    expectedCurrentState: RecordState,
+    transitions: readonly Transition[],
+    meta: AppendMeta,
+  ): Promise<BatchResult> {
+    return this.inner.appendBatch(expectedCurrentState, transitions, meta);
   }
   readChain(recordId: string): Promise<Transition[]> {
     return this.inner.readChain(recordId);

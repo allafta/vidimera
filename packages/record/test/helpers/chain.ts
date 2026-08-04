@@ -54,3 +54,47 @@ export function buildChain(recordId: string, steps: ChainStep[]): Transition[] {
 export function cloneChain(chain: Transition[]): Transition[] {
   return structuredClone(chain);
 }
+
+/**
+ * A genesis (`opened`) transition for `recordId`: seq 1, `prevHash` from the genesis rule.
+ * Distinct from `buildChain`: these two builders make ONE transition at a time, for tests
+ * that drive a Store append-by-append and must not hand it a pre-assembled chain.
+ */
+export function storeGenesis(
+  recordId: string,
+  profileId: string,
+  subjectRef: string,
+  at = '2026-07-24T00:00:00.000Z',
+): Transition {
+  return {
+    recordId,
+    seq: 1,
+    at,
+    kind: 'opened',
+    payload: {
+      profileId,
+      profileDigest: `sha256:${'0'.repeat(64)}`,
+      legId: 'approver-decide',
+      subjectRef,
+      contentDigest: `sha256:${'1'.repeat(64)}`,
+    },
+    prevHash: genesisPrevHash(recordId),
+  };
+}
+
+/** The next transition chained honestly onto `prev`: seq+1, `prevHash` = prev's own digest. */
+export function storeNext(
+  prev: Transition,
+  kind: TransitionKind,
+  payload: unknown,
+  at?: string,
+): Transition {
+  return {
+    recordId: prev.recordId,
+    seq: prev.seq + 1,
+    at: at ?? new Date(Date.UTC(2026, 0, 1, 0, 0, prev.seq)).toISOString(),
+    kind,
+    payload,
+    prevHash: transitionDigest(prev),
+  };
+}

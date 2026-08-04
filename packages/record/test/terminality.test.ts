@@ -14,7 +14,7 @@ import { test } from 'vitest';
 
 import { create } from '../src/create.js';
 import { MemoryStore } from '../src/store/memory.js';
-import type { AppendMeta, AppendResult, Store } from '../src/store/store.js';
+import type { AppendMeta, AppendResult, BatchResult, Store } from '../src/store/store.js';
 import type { Digest, RecordState, StagedDraft, Transition } from '../src/types.js';
 import {
   captureProfile,
@@ -116,6 +116,13 @@ class ConfirmBlockingStore implements Store {
       return { appended: false, conflict: 'state-mismatch' };
     }
     return this.inner.appendTransition(expected, transition, meta);
+  }
+  appendBatch(
+    expectedCurrentState: RecordState,
+    transitions: readonly Transition[],
+    meta: AppendMeta,
+  ): Promise<BatchResult> {
+    return this.inner.appendBatch(expectedCurrentState, transitions, meta);
   }
 }
 
@@ -227,6 +234,13 @@ class FactsConsultationBlockingStore implements Store {
     }
     return this.inner.appendTransition(expected, transition, meta);
   }
+  appendBatch(
+    expectedCurrentState: RecordState,
+    transitions: readonly Transition[],
+    meta: AppendMeta,
+  ): Promise<BatchResult> {
+    return this.inner.appendBatch(expectedCurrentState, transitions, meta);
+  }
 }
 
 test("finalize() throws when the batch's SECOND append conflicts: the first consultation stays on the chain", async () => {
@@ -328,6 +342,13 @@ class RaceThenAppendStore implements Store {
       assert.ok(landed.appended, 'fixture: the raced confirmed edge must genuinely land');
     }
     return this.inner.appendTransition(expected, transition, meta);
+  }
+  appendBatch(
+    expectedCurrentState: RecordState,
+    transitions: readonly Transition[],
+    meta: AppendMeta,
+  ): Promise<BatchResult> {
+    return this.inner.appendBatch(expectedCurrentState, transitions, meta);
   }
 }
 

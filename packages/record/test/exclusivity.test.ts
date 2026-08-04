@@ -23,7 +23,7 @@ import { create, createWithClock } from '../src/create.js';
 import { isFinalLeg, nonTerminal } from '../src/nonterminal.js';
 import { profileDigest } from '../src/profile-digest.js';
 import { MemoryStore } from '../src/store/memory.js';
-import type { AppendMeta, AppendResult, Store } from '../src/store/store.js';
+import type { AppendMeta, AppendResult, BatchResult, Store } from '../src/store/store.js';
 import type { Digest, RecordState, StagedDraft, Transition } from '../src/types.js';
 import { buildChain } from './helpers/chain.js';
 import {
@@ -347,6 +347,13 @@ class RaceStore implements Store {
     }
 
     return this.inner.appendTransition(expectedCurrentState, transition, meta);
+  }
+  appendBatch(
+    expectedCurrentState: RecordState,
+    transitions: readonly Transition[],
+    meta: AppendMeta,
+  ): Promise<BatchResult> {
+    return this.inner.appendBatch(expectedCurrentState, transitions, meta);
   }
 }
 

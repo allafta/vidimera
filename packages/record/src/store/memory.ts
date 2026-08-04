@@ -18,7 +18,7 @@
 import { transitionDigest } from '../chain/encoding.js';
 import { CORE, type RefusalCode } from '../refusal-codes.js';
 import type { Digest, RecordState, Transition, TransitionKind } from '../types.js';
-import type { AppendMeta, AppendResult, StagedDraft, Store } from './store.js';
+import type { AppendMeta, AppendResult, BatchResult, StagedDraft, Store } from './store.js';
 
 /**
  * The `opened` transition's payload, read only for the two fields C1 exclusivity
@@ -351,6 +351,71 @@ export class MemoryStore implements Store {
       existing.state = nextState;
     }
     return { appended: true, seq: transition.seq, transitionDigest: digest };
+  }
+
+  /**
+   * SPEC §12's atomic batch. Every check runs against a DRY-RUN of the batch before any
+   * mutation, so the "nothing applied" guarantee is structural rather than a rollback: the
+   * first `chain.push` happens only after the last element has been checked.
+   *
+   * The terminality INPUT is `existing.nonTerminal` read once at entry, while the state the
+   * checks run against EVOLVES element by element (SPEC §12: a record "cannot become
+   * terminal mid-batch"). That is what lets finalize's batch end in the `confirmed` edge
+   * that makes the record terminal.
+   */
+  async appendBatch(
+    expectedCurrentState: RecordState,
+    transitions: readonly Transition[],
+    meta: AppendMeta,
+  ): Promise<BatchResult> {
+    const first = transitions[0];
+    if (first === undefined) {
+      throw new Error(
+        'appendBatch: empty batch — a batch that appends nothing has no honest result to ' +
+          'report, and is a caller error rather than a domain outcome',
+      );
+    }
+    const existing = this.records.get(first.recordId);
+
+    // Entry compare-and-swap, checked ONCE. Entry-level failures report index 0.
+    if (!existing || existing.state !== expectedCurrentState) {
+      return { appended: false, conflict: 'state-mismatch', index: 0 };
+    }
+    const entryNonTerminal = existing.nonTerminal;
+
+    let state: RecordState = existing.state;
+    let seq = existing.chain.length;
+    const digests: Digest[] = [];
+    // `entries()` rather than an index loop: it yields `Transition`, not
+    // `Transition | undefined`, so `noUncheckedIndexedAccess` needs no unreachable
+    // narrowing branch here.
+    for (const [i, t] of transitions.entries()) {
+      if (t.recordId !== first.recordId) {
+        throw new Error(
+          'appendBatch: every element must name the same recordId — a batch spanning ' +
+            'records has no single entry compare-and-swap target',
+        );
+      }
+      if (!entryNonTerminal && isStateLeaving(t.kind) && !isCompromiseCarveOut(t, state)) {
+        return { appended: false, conflict: 'state-mismatch', index: i };
+      }
+      seq += 1;
+      if (t.seq !== seq) {
+        return { appended: false, conflict: 'seq', index: i };
+      }
+      digests.push(transitionDigest(t));
+      const next = stateOf(t.kind);
+      if (next !== null) state = next;
+    }
+
+    // Every check passed — mutate last, exactly as the two single-append paths do.
+    for (const t of transitions) {
+      existing.chain.push(structuredClone(t));
+    }
+    existing.state = state;
+    existing.nonTerminal = meta.nonTerminal;
+    existing.dueAt = meta.dueAt;
+    return { appended: true, transitionDigests: digests };
   }
 
   async readChain(recordId: string): Promise<Transition[]> {

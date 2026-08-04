@@ -72,9 +72,22 @@ export interface AppendMeta {
 }
 
 /**
+ * `appendBatch`'s outcome. SPEC §12: the first conflicting element "aborts the whole
+ * transaction with nothing applied, the outcome naming that element's index", and
+ * entry-level failures "report element index 0".
+ *
+ * No `exclusivity` arm: C1 fires only on a genesis append, and SPEC §12 states that
+ * genesis never appears in a batch. The type says what can happen rather than carrying a
+ * variant nothing can produce.
+ */
+export type BatchResult =
+  | { appended: true; transitionDigests: readonly Digest[] }
+  | { appended: false; conflict: 'state-mismatch' | 'seq'; index: number };
+
+/**
  * The provisional Store — a strict SUBSET of the storage surface SPEC §12 names, not a
  * transcription of it. Shipped here: `putStaged`/`getStaged`/`appendTransition`/
- * `readChain`/`chainHead`. NOT built in this build step: `appendBatch`, `findNonTerminal`,
+ * `readChain`/`chainHead`/`appendBatch`. NOT built in this build step: `findNonTerminal`,
  * `listDue`, `seal`. `appendTransition`'s `meta` parameter (`AppendMeta` above) now matches
  * §12's `meta = { nonTerminal, dueAt? }` shape exactly — nothing about the parameter itself
  * is narrowed anymore. What IS still narrowed is `tx?`, the optional caller-supplied
@@ -127,4 +140,22 @@ export interface Store {
    * `chain/encoding.ts`'s `transitionDigest`; `null` for an unknown recordId.
    */
   chainHead(recordId: string): Promise<Digest | null>;
+
+  /**
+   * All-or-nothing multi-append under ONE entry compare-and-swap (SPEC §12). The caller
+   * builds the chain — it must, since each element's `prevHash` is the previous element's
+   * digest — and the store verifies the sequencing rather than assigning it.
+   *
+   * `expectedCurrentState` is `RecordState`, never `null`: SPEC §12 states that genesis
+   * never appears in a batch, so the genesis CAS target has no meaning here.
+   *
+   * An empty `transitions` array is a caller error and THROWS — a batch that appends
+   * nothing has no honest result to report, and returning `appended:true` with no digests
+   * would let a caller mistake it for success.
+   */
+  appendBatch(
+    expectedCurrentState: RecordState,
+    transitions: readonly Transition[],
+    meta: AppendMeta,
+  ): Promise<BatchResult>;
 }
