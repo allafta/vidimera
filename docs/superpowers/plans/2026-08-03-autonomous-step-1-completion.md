@@ -232,6 +232,15 @@ trigger fires when the second workspace package lands.
   which pinned the expected-red 210, was retired at `8369051`. The owner call itself is
   unaffected; only its stated cost was.
 - **A concept-set conflict** — `CONTROLS.md:46` calls recovery a "profile-conditional field",
-  while SPEC §9.1's field table has no such row and §2/§9 describe `supersedes` purely as an
-  `open()` argument. Doc-vs-doc divergence inside a sealed set: a finding, not a wording nit,
-  and only the owner can rule it.
+  while SPEC §9.1's field table — the table that decides what a profile may declare — has no
+  row for it, and §9 carries `supersedes` as an `open()` option. Doc-vs-doc divergence inside
+  a sealed set: a finding, not a wording nit, and only the owner can rule it.
+  **CORRECTED (R5's exit-record pass, which had to state this item and could not repeat it as
+  written):** this bullet said "§2/§9 describe `supersedes` purely as an `open()` argument."
+  §2 does not. It lists `supersedes` among "Profile-conditional fields", "present only when
+  the profile switches the feature on" — the same phrase `CONTROLS.md` uses. So this is a
+  **three-way** divergence, not the two-document one the original clause described, and §9.1's
+  table and §2's list do not obviously agree with each other either. Which of the three texts
+  moves is still entirely the owner's call; nothing here can be settled from the code, since
+  `supersedes` throws at `open()` in this build and no profile can declare anything.
+  `docs/process/implementation-status.md`'s owner-decision list carries the same reading.

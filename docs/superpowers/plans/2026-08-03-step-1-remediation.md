@@ -145,9 +145,14 @@ planted-violation test proving it catches and a clean-code test proving it stays
 **Done:** the resolver landed in `scripts/contract-scan.mjs` with its own test file
 (`scripts/test/contract-scan.test.mjs`, wired into vitest) — `7bebe02` — carrying both a
 planted-violation test and a clean-code test. The repairs plus the foreign-label sweep landed
-in `77ac74c` across sixteen source and test files. Three follow-ups then corrected the gate's
-account of itself rather than its behaviour: `634a906` stated the resolver's real bounds and
-brought four repairs back inside the window that actually checks them; `41dd110` made the
+in `77ac74c`, across the kernel's source and test trees and the register. *(This sentence
+carried a file count, and the count was wrong under every reading of the commit — dropped
+rather than corrected, which is the lesson `a99d6ad` two sentences below had already taught
+and this block had failed to apply to itself. `git show --stat 77ac74c` answers it exactly and
+cannot go stale.)* Three follow-ups then corrected the gate's
+account of itself rather than its behaviour: `634a906` stated the resolver's real bounds and,
+in its own subject's words, put four repairs back inside the window that actually checks them;
+`41dd110` made the
 attribution gap mean what its bounds list said (an enumerated accept-set had silently
 de-gated backticked citations); `a99d6ad` dropped a bare count that had replaced a true vague
 claim with a false precise one. Two things this unit established that outlive it: `seal()` is
@@ -231,9 +236,11 @@ correcting rather than recording: it was never a deliberate difference from the 
 against the reference implementation, and R2 closed it at `8c78083`, so both of §8's producers
 are built. `75b10b6` then named what a host loses to the absent `findNonTerminal` — a
 `record-exists` refusal carries no locator for the record blocking it — and stopped the README
-reading `SCOPING-GUIDE.md` §7's build ORDER as a commitment to begin step 2. The same pass
-corrected deferral row 12's flat `seq`-conflict claim to carry the bound its own site comment
-already had. `CLAUDE.md`'s currency pass (`d8c02e5`) was controller work, not a unit.
+reading `SCOPING-GUIDE.md` §7's build ORDER as a commitment to begin step 2. Deferral row 12's
+flat `seq`-conflict claim was corrected to carry the bound its own site comment already had —
+in `12ec1df`, alongside the record and row 8's retirement, not in `75b10b6`, which touched only
+`README.md` and the exit record. `CLAUDE.md`'s currency pass (`d8c02e5`) was controller work,
+not a unit.
 
 ---
 

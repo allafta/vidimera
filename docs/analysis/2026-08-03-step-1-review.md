@@ -42,6 +42,15 @@ The findings folded in below from spec-conformance are not yet reflected in R1�
 `docs/process/deferral-register.md` either — reconciling them into those documents is future
 work, outside what this document does.
 
+**How to read this document as it ages — it appends, it never rewrites.** This is a
+point-in-time review record, so a finding is not edited away once later work overturns it:
+the retraction is **appended beside it** as a labelled `**Correction:**` / `**Adjudication:**`
+insert, and the finding above the insert is left exactly as written. Only two things are ever
+changed in place — a pointer into another document that has gone stale, and a description of
+what another document currently says. So a sentence here in the present tense, including
+"as of this writing" below, dates from the original review and is **not** a claim about the
+repository's state now. For that, read `docs/process/implementation-status.md`.
+
 ## Terms
 
 Same as the companion provenance document: **the kernel** is `packages/record/src`; **base**
