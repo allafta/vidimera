@@ -39,6 +39,14 @@ corpus migration.
 suite, cross-backing byte-identity, the operator sweep. Each is named again under
 "What this does not claim".
 
+**`tx?` in particular is deferred, not dropped, and deferral register row 13 therefore
+survives this increment.** SPEC §12 specifies
+`appendTransition(expectedCurrentState, transition, meta, tx?)`; this build ships the first
+three. The reason is in §1 below, and the consequence — row 13 narrows and is rewritten rather
+than retired — is stated again under "What retires" and under "What this does not claim",
+because two of §12's four absent methods landing in one increment reads like closing that row
+and does not.
+
 **Not in this increment, deliberately:** extracting the gate ladder out of `finalize.ts`
 (513 lines, and every remaining build step adds a rung to it). That is a real problem and a
 different cluster. Landing it here would make a moved rung and a changed commit path
@@ -147,6 +155,23 @@ moves fully inside its stated scope and the justification gets shorter rather th
 hand-rolled `Store` in the test corpus gains `appendBatch` and `listDue`.
 
 ### What retires
+
+**Exactly one deferral row retires. Row 13 does not, and this is the single easiest thing
+about this increment to get wrong** — landing two of §12's four absent methods reads like
+closing the row, and it is not.
+
+| Row | Effect | Why |
+|---|---|---|
+| 12 — sequential success batch | **RETIRES** | Its subject is the sequential batch; the batch becomes atomic |
+| 13 — Store is 5 of 9, narrowed `appendTransition` signature | **NARROWS, does not retire** | `appendBatch` and `listDue` land, so the Store is **7 of 9** — but `findNonTerminal` and `seal` are still absent, and `tx?` still is. The row is **rewritten**, never deleted |
+| 14 — C4 seal-finality unbuilt | untouched | `appendBatch` **inherits the gap**: its entry-level C4 failure has no bar behind it, exactly as `appendTransition`'s has none |
+| 1, 4, 5, 6, 9, 10, 11 | untouched | Nothing in this increment fires any of their triggers |
+
+Row 6's subject does grow, without its row changing: this increment adds `AppendMeta` and
+`BatchResult` to the public surface and two methods to `Store`. Row 6 deliberately enumerates
+nothing — it scopes the naming review to whatever `index.ts` exports at the 0.1 cut — so the
+row stays correct as written and needs no edit. Noted here so a reader does not go looking for
+one.
 
 - **Deferral row 12** — its subject is the sequential batch, and that is what closes. One
   caveat on its own trigger text, which reads *"the batch becomes all-or-nothing and the
