@@ -30,7 +30,7 @@ shipped code and the sealed SPEC that none of the other five dimensions caught, 
 fourth class because the existing three do not describe them. One further recovered item needs
 no new tracking: the stale `README.md:36` status line ("currently red") it flagged is already
 on the exit-record unit's own to-do list
-(`docs/superpowers/plans/2026-08-03-step-1-remediation.md:156`), and the scan does exit 0
+(`docs/superpowers/plans/2026-08-03-step-1-remediation.md:183`), and the scan does exit 0
 (`node scripts/contract-scan.mjs`).
 
 As of this writing, none of the remediation plan's fix units (R2 apply-the-INHERIT-list, R3
@@ -238,7 +238,7 @@ out-of-band lookup for the blocking record. And without `listDue`, SPEC §12's o
 opportunistically, when some unrelated `open()` or `finalize()` call happens to touch the same
 `(profile, subject)` pair. Both are already implicitly acknowledged in this remediation plan's
 own R4 "Record" list ("the shipped `Store` is 5 of 9 of §12's surface... Trigger: build step 2,"
-`2026-08-03-step-1-remediation.md:134-136`); the spec-conformance dimension's contribution is
+`2026-08-03-step-1-remediation.md:160-162`); the spec-conformance dimension's contribution is
 the concrete behavioral consequence of each absence, not the inventory itself.
 
 **The one genuine defect inside Class B: the mid-batch conflict mapping is wrong.**
@@ -254,15 +254,49 @@ plan's R4 unit fixes it**, either by narrowing the mapping to genuinely mean
 `state-mismatch` → an invariant-violation throw, or by choosing a code that is actually true of
 the record's state, pinned with a new test.
 
+**Adjudication (added after R4 ran; the finding above is left exactly as it was written).**
+The defect is real and R4 fixed it, but **both halves of the reasoning above were overturned
+by the work they prompted**, and neither is this repository's position. They are left standing
+because this is a dated review record — but a reader must not carry them forward.
+
+*The §8 inference.* The quotation is verbatim; what is drawn from it is not. §8 does not settle
+this case at all, and its silence is structural rather than an omission: SPEC's own finalize
+cannot produce the situation. §9's rung (6) is "one atomic, variable-arity" `appendBatch` whose
+conflict "never leaves a partial tail", and §12's batch "aborts the whole transaction with
+nothing applied" — so a mid-batch conflict with landed appends exists **only** where a build
+substitutes sequential appends for that rung, as this one does. What is actually wrong with the
+old return is therefore not a SPEC verdict but misrepresentation: a never-appends code carrying
+no `transitionRef` tells a host that nothing was recorded, when consultations had landed.
+
+*"While it was still open."* This is false of the shipped Store, and in the opposite direction
+to what the paragraph assumes. `nonterminal.ts` makes `open` unconditionally non-terminal, so
+`store/memory.ts`'s C3 arm cannot fire against an open record and its state CAS is the only
+producer of `state-mismatch` at those appends — a genuine one therefore means the record is
+**not** open.
+
+*What R4 actually shipped* is neither of the two options this paragraph offered: a loud throw
+naming the conflict shape and what the call had already appended, grounded in the fault (no
+conflict is reachable there under this build's single-writer bound and a compare-and-swap-
+honouring Store, so reaching one is a storage fault) rather than in any inventory of which
+codes are true. Two earlier attempts to ground it by enumerating the union were each
+constructibly false at the edges. The durable form lives in `kernel/finalize.ts`'s
+`midBatchConflict` and in `docs/process/deferral-register.md` row 12; the exit record
+(`docs/process/implementation-status.md`) summarizes it.
+
 **Two smaller items the recovered dimension raised turn out to already be handled.** The
 `redeem` configuration block is accepted at construction even though redemption itself is
 entirely unimplemented (`config.ts:171-213`) — which looks, on SPEC §9.1's own words ("a
 profile the build cannot honor **throws**," `docs/concept/SPEC.md:643-647`), like a
 construction-loudness violation. It is a **named, deliberate exception**, not an oversight:
 ruling D6 and deferral-register entry 9 already record that a confirmed effect-seam record's
-`(profile, subject)` pair "STAYS PERMANENTLY HELD" until a later build step's `seal()` or
-`confirmToRedeem` edge, and that `redeem()` throws loudly at the seam instead of silently
-refusing. The recovered dimension reached the same construction site independently and flagged
+`(profile, subject)` pair "STAYS PERMANENTLY HELD" until a later build step's redemption
+edge (SPEC §11.2) or `confirmToRedeem` expiry edge (SPEC §9.1), and that `redeem()` throws
+loudly at the seam instead of silently refusing. *(This sentence originally named `seal()`
+as one of those edges, faithfully describing what D6 and entry 9 said at the time. R3's
+citation audit established that `seal()` is not a release path — SPEC §12 admits it only
+against a derived-terminal record, and SPEC §2 makes this record non-terminal — and
+corrected both. The description above is updated to match the documents it describes; the
+finding itself is unchanged.)* The recovered dimension reached the same construction site independently and flagged
 it "because the assignment asks for divergences to be named... not because the ruling is
 undocumented" — its own words concede this is corroboration, not a new gap. Separately,
 `Outcome`'s `unavailable` branch (`outcome.ts:16-24`) is typed to carry a `code: RefusalCode`,

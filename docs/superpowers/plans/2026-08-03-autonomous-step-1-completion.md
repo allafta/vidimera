@@ -74,7 +74,7 @@ Unchanged from the earlier plan, plus three additions forced by measurement:
 | D3 | Which SPEC section lifts each guard | `legs`/`sod`/`proposer` → §10.1; `ackMode`/`requiredAcks` → §10.2; `policySource` → §10.3; `eligibility` → §10.4; `requiredConsultations` → §11.1; `freshness` → **§11.1 and §14** (unliftable at AL1 by construction); `captureMode` → §9.2. |
 | D4 | `supersedes` guard | `open()` throws on an unexpected options key, via the same arity-2 helper. Type-level absence is not a guard for a JavaScript caller. |
 | D5 | Post-base fix (iii) | **Defer.** It has no producer at this build step, and the plan forbids a test that pretends to prove it. Trigger: the build step that first produces a `redeeming` state (Phase 3). Record in the deferral register. |
-| D6 | The `redeem` strand | **Ship loudness, rename the goal.** `redeem()` throws a build-capability error on a confirmed effect-seam record. Collateral is exactly ONE inherited test (`terminality.test.ts:149`), verified by enumerating every `redeem(` call site in the base corpus. **The exit note and register entry 9 MUST state plainly that the pair remains permanently held** — the hold is the Store's C1 exclusivity, and real closure needs `seal()` (Phase 2a) or `confirmToRedeem`'s expiry edge (Phase 3). Do not claim the deadlock is closed. |
+| D6 | The `redeem` strand | **Ship loudness, rename the goal.** `redeem()` throws a build-capability error on a confirmed effect-seam record. Collateral is exactly ONE inherited test (`terminality.test.ts:149`), verified by enumerating every `redeem(` call site in the base corpus. **The exit note and register entry 9 MUST state plainly that the pair remains permanently held** — the hold is the Store's C1 exclusivity, and real closure needs the redemption edge itself (SPEC §11.2) or a `confirmToRedeem` expiry edge (SPEC §9.1). Do not claim the deadlock is closed. **CORRECTED (R3's citation audit):** this ruling originally named `seal()` (Phase 2a) as one of those closures. It is not one — SPEC §12 admits `seal()` only against a derived-terminal record and refuses `unsealable-state` otherwise, and SPEC §2 makes a final-leg `confirmed` on an effect-seam profile non-terminal, so `seal()` can never touch the held record. Deferral register entry 9 carries the full correction. |
 | D7 | Task ordering | **Task 17 runs BEFORE Task 14.** Task 18 needs Task 17's corpus. Task 22 is last. See the unit table. |
 | D8 | `ExpiredPayload` | Decide in U9 (the scrub), where its naming comment is rewritten anyway. Do not delete it separately. |
 
@@ -215,11 +215,22 @@ trigger fires when the second workspace package lands.
 
 ## Known-open, deliberately
 
-- **Register entry 9** — the effect-seam pair remains permanently held. Closure is Phase 2a's
-  `seal()` or Phase 3's `confirmToRedeem`.
-- **The provenance-leak disposition** — whether to extend `contract-scan.mjs` with a name pattern
-  (which moves the 210 baseline entry 7 pins) or handle it as a U9 line item plus an out-of-band
-  grep. This plan takes the second; the first remains an owner call.
+- **Register entry 9** — the effect-seam pair remains permanently held. Closure is the
+  redemption edge itself (SPEC §11.2) or a `confirmToRedeem` expiry edge (SPEC §9.1),
+  whichever a later build step ships first. **CORRECTED (R3's citation audit):** this line
+  read "Closure is Phase 2a's `seal()` or Phase 3's `confirmToRedeem`." `seal()` is not a
+  release path — SPEC §12 admits it only against a derived-terminal record and refuses
+  `unsealable-state` otherwise, and SPEC §2 makes a final-leg `confirmed` on an effect-seam
+  profile non-terminal. A step-2 implementer building `seal()` and expecting it to release
+  the held pair gets `unsealable-state` instead. Deferral register entry 9 is authoritative
+  here, and ruling D6 above carries the same correction.
+- **The provenance-leak disposition** — whether to extend `contract-scan.mjs` with a name
+  pattern, or handle it as a U9 line item plus an out-of-band grep. This plan takes the second;
+  the first remains an owner call. **STALE PARENTHETICAL REMOVED:** this bullet used to add
+  "which moves the 210 baseline entry 7 pins". There is no such baseline any more — the scrub
+  finished, `node scripts/contract-scan.mjs` exits 0 with no findings, and register entry 7,
+  which pinned the expected-red 210, was retired at `8369051`. The owner call itself is
+  unaffected; only its stated cost was.
 - **A concept-set conflict** — `CONTROLS.md:46` calls recovery a "profile-conditional field",
   while SPEC §9.1's field table has no such row and §2/§9 describe `supersedes` purely as an
   `open()` argument. Doc-vs-doc divergence inside a sealed set: a finding, not a wording nit,

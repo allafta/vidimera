@@ -417,9 +417,12 @@ test('redeem() on a capture-terminal CONFIRMED record (capture-only profile) -> 
 // throw does not release anything. The `(profile, subject)` pair STAYS held — the hold lives
 // in the Store's C1 exclusivity, not in redeem()'s refusal, so a throw here cannot lift it
 // any more than the silent refusal it replaces could. Real closure needs a later build
-// step's `seal()` or a `confirmToRedeem` expiry edge; see the deferral register for the
-// corrected framing (an earlier entry there had described this as something redeem() or
-// open() could itself close — that was wrong).
+// step's redemption edge (SPEC §11.2) or a `confirmToRedeem` expiry edge (SPEC §9.1) — NOT
+// `seal()`, which SPEC §12 admits only against a derived-terminal record while SPEC §2
+// makes this record non-terminal, so a caller following that pointer gets
+// `unsealable-state` rather than a release. See the deferral register for the corrected
+// framing; two successive framings there were wrong, one having this as something redeem()
+// or open() could itself close, the other naming seal() as a release path.
 test('redeem() on an effect-seam CONFIRMED record awaiting redemption throws a build-capability error at the seam (the held pair is not released)', async () => {
   const handles = create(makeConfig([effectSeamProfile()]));
   const recordId = await openRecord(handles, CONTENT, 'test.effect.v1', DEFAULT_SUBJECT_REF);

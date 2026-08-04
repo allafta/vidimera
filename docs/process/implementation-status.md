@@ -280,9 +280,9 @@ Carried in the deferral register, with triggers:
 - **Row 14** — §12's C4 seal-finality, unreachable today because nothing emits a `sealed`
   transition.
 
-Found by the whole-branch review and **not yet in the deferral register** — recorded here
-so the step does not exit with them unstated, and left as the review states them rather
-than adjudicated again:
+Raised by this step's own review and planning documents and **not in the deferral register** —
+recorded here so the step does not exit with them unstated, and left as their sources state
+them rather than adjudicated again:
 
 - `redeem()`'s stub returns `unredeemable-state` on three paths §8 scopes elsewhere: an
   unconfigured profile, a tampered chain (it never verifies), and a non-existent
@@ -290,13 +290,31 @@ than adjudicated again:
   stays fail-closed; only the reported code is wrong.
 - A `terminalRefusals` member that is not a real refusal code constructs without error and
   then never matches, so a leg the operator believes is configured terminal is not.
-- Two items the review holds for the repository owner because the plausible fix is a
-  change to the **sealed** spec prose rather than to the code, and this record neither
-  resolves nor acts on them: `replay`/`verifyChain` not being exported from `index.ts`
-  against §5's "The library exposes two functions over a record's chain", and `open()`'s
-  en-passant blocker expire running without the pre-seam chain-verify §5 states as a
-  blanket rule. In both cases the reference implementation's later head does the same
-  thing this build does, which is what makes the spec-wording reading plausible.
+- **Three items are held for the repository owner rather than acted on**, because in each
+  the plausible fix touches the **sealed** concept set. This record neither resolves nor
+  adjudicates any of them.
+
+  Two come from the whole-branch review, and in both the reference implementation's later
+  head does what this build does — which is what makes the spec-wording reading plausible
+  rather than this branch having introduced a defect: `replay`/`verifyChain` not being
+  exported from `index.ts` against §5's "The library exposes two functions over a record's
+  chain", and `open()`'s en-passant blocker expire running without the pre-seam
+  chain-verify §5 states as a blanket rule.
+
+  The third is a divergence *inside* the sealed set, and it is carried in the autonomous
+  step-1 plan's own known-open list rather than in the review. Verified live here:
+  `docs/concept/CONTROLS.md`'s Recovery (`supersedes`) row calls it a "profile-conditional
+  field", and §9.1's ConfirmProfile field table — the table that decides what a profile can
+  declare — has no row for it, while §9 carries `supersedes` as an `open()` option. A
+  reader deciding what a profile is allowed to declare gets two answers. **One thing an
+  owner should know before ruling**, because it means the divergence is not the
+  two-document affair it first looks like: §2 also lists `supersedes` among
+  "Profile-conditional fields", "present only when the profile switches the feature on" —
+  so §9.1's table and §2's list do not obviously agree with each other either. Which of the
+  three texts moves is the owner's call; nothing here can be settled from the code, since
+  `supersedes` throws at `open()` in this build and no profile can declare anything.
 
 Full accounts: `docs/analysis/2026-08-03-step-1-review.md` (Class D and "Findings that
-need a sealed `docs/concept/` decision") and `docs/process/deferral-register.md`.
+need a sealed `docs/concept/` decision"),
+`docs/superpowers/plans/2026-08-03-autonomous-step-1-completion.md`'s "Known-open,
+deliberately" list, and `docs/process/deferral-register.md`.

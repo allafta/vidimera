@@ -119,7 +119,7 @@ reclassified as a local improvement rather than an inherited fix and left unappl
 own entry in the provenance document. 226 tests green (up from 218), zero skips; the four
 byte-compatibility digests unmoved.
 
-### R3 — citation repair and a resolver gate
+### R3 — citation repair and a resolver gate — COMPLETE (`7bebe02`..`a99d6ad`)
 
 Fix the eight citation defects, then **close the blind spot that let them through**.
 
@@ -142,7 +142,21 @@ they escape the four existing regexes.
 **Exit:** scan exit 0 under the extended gate; every quoted citation resolves; the resolver has a
 planted-violation test proving it catches and a clean-code test proving it stays silent.
 
-### R4 — record Class B, fix the one real defect
+**Done:** the resolver landed in `scripts/contract-scan.mjs` with its own test file
+(`scripts/test/contract-scan.test.mjs`, wired into vitest) — `7bebe02` — carrying both a
+planted-violation test and a clean-code test. The repairs plus the foreign-label sweep landed
+in `77ac74c` across sixteen source and test files. Three follow-ups then corrected the gate's
+account of itself rather than its behaviour: `634a906` stated the resolver's real bounds and
+brought four repairs back inside the window that actually checks them; `41dd110` made the
+attribution gap mean what its bounds list said (an enumerated accept-set had silently
+de-gated backticked citations); `a99d6ad` dropped a bare count that had replaced a true vague
+claim with a false precise one. Two things this unit established that outlive it: `seal()` is
+**not** a release path for the effect-seam strand (deferral row 9's second correction, and the
+D6 correction in the companion autonomous plan), and §12's C4 seal-finality is unbuilt — the
+latter documented here in `store/store.ts` and `refusal-codes.ts`, and given its own register
+row by R4.
+
+### R4 — record Class B, fix the one real defect — COMPLETE (`dad466a`..`74f7e7b`)
 
 **Fix:** the mid-batch conflict mapping. A partial success batch currently returns
 `record-not-open` — which this text originally called the opposite of SPEC §8:492's condition,
@@ -161,9 +175,26 @@ or throw — and pin it with a test.
   `(expected, transition, nonTerminal)` where §12 specifies `(expectedCurrentState, transition,
   meta, tx?)`. Trigger: build step 2.
 
-**Exit:** the mis-mapping fixed and tested; three rows added; no Class B item silently carried.
+**Exit:** the mis-mapping fixed and tested; **four** rows added; no Class B item silently
+carried. *(This line said "three" — the count of the Record list above. Four landed, rows 11–14:
+the three listed, plus §12's C4 seal-finality, which R3 had established was unbuilt and
+documented in `store/store.ts` and `refusal-codes.ts` without giving it a register row. Commit
+`23dad28`'s own subject says four.)*
 
-### R5 — the exit record (was U10), and the stale signals it unblocks
+**Done:** the mis-mapping fixed at `dad466a` — a mid-batch conflict on either of the later two
+appends now throws, naming the conflict shape and what the call had already appended, instead
+of returning a never-appends `record-not-open` that told a host nothing was recorded while its
+consultations sat on the chain. Rows 11–14 landed at `23dad28`. Three follow-ups then bounded
+the justification rather than the behaviour, each because the previous form was constructibly
+false at its edges: `0595105` stopped the throw claiming a record state it had never re-read;
+`80fc3e2` grounded it in the fault (no conflict is reachable there under this build's
+single-writer bound and a compare-and-swap-honouring Store) rather than in an inventory of
+which codes are true; `74f7e7b` retired the site-(a) truth claim from the file header instead
+of restating it more strongly there. `f560ca6` moved this unit's own quoted citations inside
+the R3 resolver window that checks them. This unit also authorized the second of the branch's
+two inversions of inherited pinned assertions, argued in place in `terminality.test.ts`.
+
+### R5 — the exit record (was U10), and the stale signals it unblocks — COMPLETE (`12ec1df`..`75b10b6`)
 
 Create `docs/process/implementation-status.md`. It exists because build-order steps 2–6 move
 **zero** maturity markers, so the inherited "spec-moves-to-truth at every exit" discipline is
@@ -181,12 +212,28 @@ and what is explicitly still outstanding. For step 1 specifically:
 
 **Partly pre-empted by a documentation housekeeping sweep, ahead of this unit running:** the
 stale `README.md:36` "currently red" line, `CLAUDE.md`'s stale status claims, and deferral row
-7's already-fired trigger were all fixed and retired outside R5, once it became clear their
-staleness did not need to wait on the exit-record artifact itself. What R5 still owes: the
-`docs/process/implementation-status.md` record itself, and retiring row 8 once that record
-exists.
+7's already-fired trigger were all fixed and retired outside R5 (commit `8369051`), once it
+became clear their staleness did not need to wait on the exit-record artifact itself. What R5
+then still owed: the `docs/process/implementation-status.md` record itself, and retiring row 8
+once that record existed. **Both delivered — see Done, below.**
 
 **Exit:** the record exists and is accurate; row 8 retired.
+
+**Done:** `docs/process/implementation-status.md` landed at `12ec1df` and row 8 retired in the
+same commit. The record carries, for step 1: what landed here, the commit range
+(`e97ce96`..`74f7e7b`, 42 of its 60 commits touching `packages/record`), the five gate outputs,
+a **per-SPEC-section built/not-built table over all 25 sections** — every row settled by
+reading `packages/record/src`, with each partial row naming which part — the four named
+boundaries (the Store's 5-of-9 subset, the sequential success batch, the `unknown-leg`
+divergence, and the branch's two authorized inversions), and the plain statement that no
+artifact here can be installed or imported. On the `unknown-leg` item the plan's framing needed
+correcting rather than recording: it was never a deliberate difference from the spec but a gap
+against the reference implementation, and R2 closed it at `8c78083`, so both of §8's producers
+are built. `75b10b6` then named what a host loses to the absent `findNonTerminal` — a
+`record-exists` refusal carries no locator for the record blocking it — and stopped the README
+reading `SCOPING-GUIDE.md` §7's build ORDER as a commitment to begin step 2. The same pass
+corrected deferral row 12's flat `seq`-conflict claim to carry the bound its own site comment
+already had. `CLAUDE.md`'s currency pass (`d8c02e5`) was controller work, not a unit.
 
 ---
 
