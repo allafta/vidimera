@@ -1,0 +1,302 @@
+# Implementation status
+
+**What this document is.** The running record of what has actually landed **in this
+repository**, build-order step by build-order step (`docs/concept/SCOPING-GUIDE.md` §7's
+sequence). Per step it carries four things: what landed here, the commit range, the gate
+outputs measured at the step's exit, and what is explicitly still outstanding. It is a
+record of code, not of intent — every claim below is settled against
+`packages/record/src`, and where a section of the spec is partly built the entry says
+which part.
+
+**Why it exists.** The process discipline this repository inherited puts
+**spec-moves-to-truth** "as an explicit exit step of every increment" — "draft-ahead
+markers come off only when the behavior lands" (`docs/concept/SCOPING-GUIDE.md` §7). Here,
+that exit step has **nothing to move**. Nothing this kernel lands carries a draft-ahead
+marker to retire — every behavior it implements is already marked `[PROVEN]` on the
+strength of a reference implementation of the same spec, or sits in unmarked text. The
+same holds for build-order steps 2 through 6: the sections they would build (§12, §11.2,
+§10.1, §11.1, §10.4, §10.3) are `[PROVEN]` already. The first draft-ahead marker that
+could come off is §10.2's `[DESIGNED]`, at step 7. So the inherited exit step is vacuous
+at step 1's exit and stays vacuous for the five steps after it — deferral register row 8
+recorded that vacuity for steps 2–6 and asked for this artifact because of it. A
+discipline whose exit step cannot move needs a substitute that can, and this record is it.
+It cannot live in `docs/concept/` — that set is sealed, and it is deliberately about the
+spec rather than about any one implementation of it.
+
+**What this document does not do.** It does not move a maturity marker, and nothing in it
+should be read as moving one. `[PROVEN]` / `[DESIGNED]` / `[SKETCHED]` live in the sealed
+concept set, and `[PROVEN]` says what its legend says it says: "implemented and
+test-proven in a reference implementation of the spec"
+(`docs/concept/README.md`). That is a claim about a reference implementation, stated as
+such in both front doors; it was never a claim about this repository, so nothing landing
+here makes it truer and nothing outstanding here makes it false. The per-section table
+below is what answers "what does *this* build do", which is the question the markers were
+never asked.
+
+---
+
+## Steps at a glance
+
+| Step | Capability | Status here |
+|---|---|---|
+| 1 | The kernel | **Exited** — five gates green at `74f7e7b`, with the named outstanding list below |
+| 2 | The store, for real | Not started |
+| 3 | Redemption (the effect seam) | Not started |
+| 4 | Multi-leg separation of duties | Not started |
+| 5 | Required-consultation gating | Not started |
+| 6 | Authority checks (eligibility + policy drift) | Not started |
+| 7 | Findings & acknowledgments | Not started |
+| 8 | Recovery, live capture, AL2 signing, the self-test tier | Not started |
+
+Exiting step 1 is exiting **one of eight**. A host adopting this repository today gets no
+store adapter, no redemption, no multi-leg separation of duties, no consultation input, no
+policy or eligibility gating and no findings flow — ten governed profile fields throw at
+construction, by design, and the sections below say so in the same breath as the green
+gates.
+
+---
+
+## Build-order step 1 — the kernel
+
+### What landed here
+
+The capability split, canonicalization and digests, hash-chained transitions, the
+pre-seam chain-verify, and an in-memory store carrying the exclusivity, sequencing and
+monotonicity constraints — `docs/concept/SCOPING-GUIDE.md` §7's step 1, less the parts
+named under "still outstanding" below.
+
+Concretely, and only what is true of the code: a host can construct a single-leg,
+pure-capture or `redeem`-declaring profile; stage a draft from the agent handle; open,
+review and finalize it from the operator handle; and replay or verify the resulting chain.
+Content never crosses into the store — only digests do. Every decision-bearing state
+change is a hash-linked transition, and `replay()` over the chain is the sole
+authoritative derivation of a record's state; the store's own `state` column exists to back
+its compare-and-swap, never to answer what a record is.
+
+The kernel was **adopted** from a reference implementation of the same spec rather than
+written from scratch, and the differences between the two are recorded file by file in
+`docs/process/adopted-source-provenance.md`. The whole-branch review that motivated this
+step's remediation pass is `docs/analysis/2026-08-03-step-1-review.md`.
+
+### Commit range
+
+`e97ce96..74f7e7b` — 60 commits, of which **42 touch `packages/record`**, from `6d3045d`
+(the library-owned RFC 8785 serializer) through `74f7e7b`. The remaining eighteen touch
+the concept set, CI, repository tooling, and this repository's own process, analysis and
+plan documents. Before this branch, `packages/record` was a walking skeleton: a `create()`
+that threw a not-implemented error, and two tests asserting that it did.
+
+### Gate outputs at exit (measured at `74f7e7b`)
+
+Commands and their summary lines. The thirteen Biome diagnostic bodies are elided (read
+below for what they are), as are run durations. `74f7e7b` is the last commit that touched
+code — this record itself lands after it and changes no TypeScript, so the four
+code-facing gates measure the same tree either way; only `contract-scan`, which reads
+tracked markdown too, re-runs against this file.
+
+```text
+$ pnpm typecheck
+$ tsc -p packages/record --noEmit
+EXIT=0
+
+$ pnpm lint
+$ biome check .
+Checked 57 files. No fixes applied.
+Found 13 infos.
+EXIT=0
+
+$ npx biome check --error-on-warnings .
+Checked 57 files. No fixes applied.
+Found 13 infos.
+EXIT=0
+
+$ pnpm test
+$ vitest run
+ Test Files  23 passed (23)
+      Tests  257 passed (257)
+EXIT=0
+
+$ node scripts/contract-scan.mjs
+(no output)
+EXIT=0
+```
+
+Read with their bounds, in the same breath:
+
+- The **13 infos** are not one thing. Twelve are `lint/style/useTemplate` in three test
+  files (`outcome-model.test.ts`, `store-constraints.test.ts`,
+  `transition-encoding.test.ts`) — string concatenation where a template literal would do,
+  each carrying an *unsafe* fix that this repository does not apply automatically. The
+  thirteenth is a Biome configuration deprecation on `biome.json`'s
+  `linter.rules.recommended`, carried in the deferral register. None is a warning or an
+  error, which is why `--error-on-warnings` is also green.
+- **23 test files / 257 tests, zero skips.** Twenty-two of those files and 228 of those
+  tests are the record package's own suite; the twenty-third file is
+  `scripts/test/contract-scan.test.mjs`, which tests the contract scan's citation
+  resolver, not the library.
+- **`contract-scan` exit 0, no output** means no finding under the checks that scan
+  actually runs. Its citation resolver reads tracked **TypeScript** only, and its own
+  header enumerates eight things it deliberately does not check. Markdown — including this
+  document — is scanned for external links and ADR-style references, never for whether a
+  citation resolves. A reader comparing a later run against this one should **diff the
+  output, not the totals**: a total moving has hidden an equal-sized regression in the
+  opposite direction on this branch before.
+- The four byte-compatibility digest literals in
+  `packages/record/test/byte-stability.test.ts` are byte-for-byte what they were when they
+  were pinned at `4e3405f`; no later commit on this branch changed one. They are an
+  oracle, not an assertion to be updated — a mismatch means the minimal chain moved.
+
+### Per-SPEC-section status
+
+Twenty-five sections, settled against the code. "Not built here" means exactly that — not
+that the behavior is wrong, and not that a marker should move.
+
+| § | Section | Built here | Not built here |
+|---|---|---|---|
+| 0 | Abstract & honest scope | No behavior of its own. The AL1 bound it states — "tamper-*evident* against non-recomputing tampering", and only for a transition that is not the current head — is what `chain/replay.ts`'s `verifyChain` actually delivers, and that function's own doc comment states the same limit | The signing upgrade §0 names as the closure for the recompute residual (§14) |
+| 1 | Terminology & conventions | Definitional. Its BCP-14 obligations fall on parties other than the library; the adopter-canonicalizer one is honored as a hook (`Config.canonicalizers`, resolved fail-closed) | — |
+| 2 | The record model | `types.ts`'s `DecisionRecord` carries every unconditional field of §2's table; `IdentityAssertion` and `Consultation` match their auxiliary shapes; `nonterminal.ts` writes §2's terminality derivation whole — all three disjuncts, not the reachable subset — and every `appendTransition` call the kernel makes takes its persisted non-terminal flag from it, none hardcoding one; the human-leg requirement holds structurally, the frozen agent handle carrying `{stage, getRecord, readChain, chainHead}` and nothing that transitions a record | The three effect-seam states are typed but unreachable: nothing appends `redeeming`/`redeemed`/`redemption-failed`, and `replay` throws on those kinds. No profile-conditional field is represented — `priorRecordRefs`/`priorLegActors`, `findings`/`acks`, `supersedes` are absent from `types.ts`, as are the `Finding` and `Ack` structures |
+| 2.1 | Worked example | This build produces the example's shape. A pure-capture single-leg profile is the only kind it can construct; `finalize()` appends `chain-verify`, then `facts`, then `confirmed`, all stamped from one clock read (`kernel/finalize.ts`'s `nowIso`), and each payload matches §4's table | The example's finalize batch is "one atomic batch (§12)"; this build appends the three sequentially — see the sequential-batch boundary below. Its named continuations (effect-seam, multi-leg, findings-flow transitions) have no producers |
+| 3 | Content binding | `contentDigest = digest(canonicalize(adopterCanonicalizer(content)))` at `stage()`, recomputed and compared at finalize's rung (4); the adopter canonicalizer is a hook, never a domain canonicalizer; RFC 8785 serialization is library-owned and zero-dependency (`jcs.ts`); content is digested and never persisted; `canonicalize`/`digest` are exported so a host can recompute; the reviewed-surface (`facts`) binding is enforced by default at rung (5), refusing `consultation-missing` | One narrowing, stated at its site: `facts.figures` goes through library JCS only, never the adopter canonicalizer — §3's ownership split scopes that canonicalizer to domain content and does not name the figures path, so this is a reading rather than a transcription. Host content retention is a host duty either way |
+| 4 | Transitions & the encoding | The `Transition` shape; `transitionDigest` over JCS of `{recordId, seq, at, kind, payload, prevHash}` with `seq` stringified; the genesis rule over the UTF-8 bytes of `vidimera:genesis:<recordId>`; millisecond-precision UTC stamps; `profileDigest` over "a data-only projection of the profile". §4's byte-stability invariant is exercised in the only direction this build can exercise it: `test/byte-stability.test.ts` pins the four transition digests of a feature-free finalize, so drift in the minimal chain surfaces as a digest change — with no declarable feature there is no second profile shape to compare it against. Emitted kinds: `opened`, `consultation-recorded`, `confirmed`, `refused`, `expired`. Of §4's clock-driven edges, `open → expired` is built and appended en passant — "no scheduler and no public `expire()`" holds here literally | `sealed`, `finding-raised`, `acknowledged`, `redeeming`, `redeemed`, `redemption-failed` are union members with no producer, and `replay` throws on them. The `opened` payload's optional keys (`policyDigest`, `priorRecordRefs`, `priorLegActors`, `supersedes`) are never written. The `confirmed → expired` and `redeeming → redemption-failed` clock edges are unbuilt |
+| 5 | Chaining & replay/verify | `replay(chain)` and `verifyChain(chain)` as pure functions over a chain; `verifyChain` recomputes every link and seq and reports the first break; `finalize()` runs the pre-seam verify as rung (1) and records it as a `chain-verify` consultation on a clean replay; on a detected break it refuses `chain-compromise` and appends one `refused` edge where the store's C3 admits one, falling back to a result-first refusal with no `transitionRef` where none is admitted | §5 says "The library exposes two functions over a record's chain"; `index.ts` exports neither — only the operator handle's `recordId`-keyed wrappers, which can verify only a chain the live store returns. "Every operator-side mutating seam verifies the chain before acting" is not universal here: `open()`'s en-passant expire of a blocking record replays that chain without verifying it, and `redeem()` never verifies at all. Chain retirement is entirely absent — no `seal()`, no `sealed` transition, no `retired` status |
+| 6 | Identity | `IdentityAssertion {principal, authority, proofRef?}`; identity is read only from `finalize()`'s explicit argument and never from a decision payload; both of §6's refusal branches map to `identity-authority-refused` at rung (3) — a missing or malformed identity argument, and an `authority` outside the leg's `allowedAuthorities`, including a low-trust one where the leg does not list it | `proofRef` is carried and never inspected. Pseudonymous `principal` is host guidance (§13), unenforced and unenforceable here |
+| 7 | Digest identifiers & agility | `<algorithm>:<lowercase-hex>` throughout; `sha256` is the only minting algorithm and `digest()` throws on any other rather than deferring to the runtime's list; `algorithmOf()` resolves a recorded digest's own algorithm, so every `transitionDigest` after genesis is computed under the algorithm its own `prevHash` carries | The deprecation-warning surface exists (`DEPRECATED_ALGORITHMS` plus `process.emitWarning`) but the set is empty, so nothing can fire it — there is no second algorithm to migrate to or from |
+| 8 | Refusal codes | Ten of §8's eleven core codes, as a union with a compiler-total code→class map; `appendsOn` implements §8's append semantics — compromise appends wherever the state admits a state-leaving append, a fixed never-appends set never does, and every other refusal-class code appends `open → refused` iff the leg's `terminalRefusals` lists it; `leg-expired`'s inertness as a `terminalRefusals` member is real and pinned. Both `unknown-leg` producers are built. Caller errors throw rather than refuse at `open()` (unknown `stagedRef`), `finalize()` (unknown `recordId`) and `review`/`replay`/`verifyChain` (empty chain), and finalize throws on a persisted `legId` absent from its profile | `unsealable-state` is absent, along with the `seal()` it belongs to. Every profile-conditional code is absent. The `availability` class has no code in the union, so `Outcome`'s `unavailable` branch is unconstructible as §8 specifies and has no producer. `redeem()` refuses `unredeemable-state` on a non-existent `recordId` instead of throwing, and refuses it without checking §8's "intact-chain, known-profile, valid-leg" qualifiers. A `terminalRefusals` entry that is not a real code is accepted at construction and then never matches |
+| 9 | The API surface | All four decision calls, split as §9 splits them: `stage()` agent-reachable, `open()`/`review()`/`finalize()` operator-only. The human anchor holds by construction — the agent handle is frozen and carries nothing that transitions a record. Exclusivity is enforced in the store's constraint, not by an advisory pre-check. Of the finalize gate ladder, rungs (1) chain-verify, (2) state/expiry, (3) identity, (4) content-drift, (5) facts and (6) the success batch are built, and their adjacent-pair order is pinned by `test/finalize-check-order.test.ts` | `finalize()` takes four parameters; §9's fifth (`opts?`) is absent, so a plain-JavaScript caller's fifth argument is dropped by parameter elision and neither throw §9 places ahead of the ladder has an argument that could carry its input (deferral register row 11). `open()`'s options bag is declared empty and throws on any key. Ladder rungs (3.5) SoD, (4.5) policy-drift, (5.5) consultations/eligibility and (5.7) ack coverage are unbuilt; rung (6) is sequential, not atomic. `seal()`, the findings seams and the operator sweep do not exist; `redeem()` is a stub |
+| 9.1 | The ConfirmProfile | The profile and leg types carry §9.1's field table. "Construction is loud" is real: `create()` validates every profile, rejects duplicate ids, requires every `canonicalizerRef` to resolve, and throws a byte-preserved "feature not available in this build" error naming the section that lifts each of **ten** governed fields. `expiry` drives the only clock this build has. The effect-seam predicate is written whole. `allowedAuthorities` and `terminalRefusals` are honored | §9.1's individually named construction errors are not individually checked: reserved consultation kinds in `requiredConsultations` and double-declared eligibility sit behind wholesale governed throws, and "inert or contradictory feature combinations" is not implemented as a check — a malformed `terminalRefusals` member is neither rejected nor ever matched. A `redeem` block is accepted at construction and both its bounds are inert: no clock resolves `confirmToRedeem` or `redeemBound` here (the deliberate exception; deferral register row 9) |
+| 9.2 | Capture modes | `staged` — the only mode this build runs, and the mode every profile it can construct is in | `live` throws at construction, and `reverify` is a structural construction error on any profile that gets past that throw — so no profile this build can construct is in live mode, and none can carry `reverify` either |
+| 10 | Feature-conditional decision controls | The shape of the rule: a host declaring none of §10's fields runs the base model, and every field that would switch one on throws at construction | All four controls below |
+| 10.1 | Maker-checker / SoD | None of the control. Forward shape only: `isFinalLeg(legIndex, totalLegs)` is an index comparison rather than a hardcoded final-leg answer, and `open()` passes the resolved leg's index | `legs.length > 1`, `sod.notActorOf` and `proposer` all throw at construction; there is no prior-leg reference verification, no `priorLegActors` derivation, no SoD gate, and no `sod-violation` / `prior-leg-unverified` code. One residual hardcoded leg index remains, at `kernel/expiry.ts`'s `expired` append, where the flag it feeds is `false` for every input it could take |
+| 10.2 | Findings & acknowledgments | None. `finding-raised` and `acknowledged` exist as `TransitionKind` members, and `store/memory.ts` maps both state-preserving | `ackMode`/`requiredAcks` throw at construction; no `raiseFinding` or `acknowledge` seam; no coverage gate; no `ack-missing`/`ack-stale`; `review()` has no findings projection; and `replay` throws on either kind, so no such transition can be read back |
+| 10.3 | Policy-drift notarization | None of the gate. `policyDigest` is a typed, present-iff-present field on `DecisionRecord` and `ReviewView`, and `replay` folds it when a genesis payload carries one | `policySource` throws at construction, so nothing ever writes the field this build can read; there is no live-source comparison and no `policy-drift` code. Of §10.3's loud throws: the `open()`-side one is met only by coincidence — `open()` does throw when a `policyDigest` is supplied to a non-declaring profile, but as a governed-capability error rather than §10.3's binding contract, and its declaring-without half has no profile that could reach it — while the finalize-side `opts.policy` contract has no argument that could carry its input at all (deferral register row 11) |
+| 10.4 | Eligibility gating | None | `eligibility` throws at construction; no implicit-first required kind, no gate, no `ineligible` code |
+| 11 | Feature-conditional evidence & the effect seam | A heading with no normative text of its own; its two subsections carry it | — |
+| 11.1 | Consultations | The attach form as the *library* uses it: `finalize()` records its own `chain-verify` and `facts` consultations; a consultation's `at` is stamped at the recording seam and never accepted from a host; custody is digest-only (`payloadDigest`); `replay` accumulates consultations in chain order | The host's `opts.consultations` input surface does not exist, so no host-supplied consultation can be attached at all. Required-consultation gating, the reserved-kind argument-intake throw, the one-per-kind rule, the availability outcome and `consultation-failed` are unbuilt; `freshness` throws at construction, and its `consultation-stale` gate is AL2-dependent in the spec itself |
+| 11.2 | Redemption (the effect seam) | `redeem(recordId, content)` is exported on every profile, as §8 requires of it, and refuses `unredeemable-state` result-first, appending nothing — with one deliberate exception this build added: on a confirmed effect-seam record it throws a build-capability error at the seam rather than refusing silently | The seam itself: no `redeeming`/`redeemed`/`redemption-failed` edges, no token issuance, no effect-content correspondence check, no at-most-once machinery, no `effect-mismatch`/`already-redeemed`/`redemption-timeout`, and neither redemption clock. Neither that throw nor a refusal releases the `(profile, subject)` pair a confirmed effect-seam record holds — the hold lives in the store's C1 exclusivity (deferral register row 9) |
+| 12 | Storage interface | Five of the nine methods §12 names, with C1 exclusivity over the persisted non-terminal flag, C2 server-verified sequencing and C3 terminal monotonicity (including the compromise carve-out) all checked atomically inside the append rather than as an advisory pre-check; `putStaged` is "idempotent, first-write-wins"; "All reads return **fresh values**" is honored on both seams, by deep clone on read *and* on write; the persisted `state` and non-terminal columns back the compare-and-swap and the exclusivity index only, replay over the chain staying the authoritative derivation; digests use the record's recorded algorithm | `appendBatch`, `findNonTerminal`, `listDue` and `seal` are absent, and C4 seal-finality is unbuilt. `appendTransition` takes `(expectedCurrentState, transition, nonTerminal)` where §12 specifies `meta = { nonTerminal, dueAt? }` and an optional caller transaction — no `dueAt`, no transaction seam. Without `listDue` the operator sweep cannot exist. One backing ships (in-memory), so §12's reference-adapter proof structure — SQL adapters, a "backing-parameterized conformance suite", a cross-backing "byte-identical chains" test — has nothing to run over. See the 5-of-9 boundary below |
+| 13 | Privacy & retention | Digest-only custody is real — content never reaches the store — which is what makes §13's pseudonymization guidance implementable by a host. `principal` is stored exactly as supplied | Sealing and the `active`/`retired` distinction are unbuilt, so §13's specified end-of-life state does not exist here. Pseudonymization, retention periods and the purpose-limitation guard are host duties this build neither enforces nor could |
+| 13A | Security considerations | Descriptive, and accurate of this build: the AL1 limit is what `verifyChain` delivers, and "whole-record absence is silent" holds here too — `readChain` returns `[]` for an unknown id, and every audit path runs over what the store returns. Two of the threats §13A says the library addresses are live: render-to-decide drift (rung (4)) and payload-identity forgery (rung (3)) | Late-arriving findings depend on §10.2's flow, which is unbuilt. The AL2 closure §13A names for its first two residuals is unbuilt |
+| 14 | Signing & anchoring | AL1 is what ships, and nothing in this build describes it as cryptographic | AL2 detached signing — there is no signer seam; `Config` names one only in a comment — and AL3 anchoring, which §14 itself keeps as documented-only |
+
+### Named boundaries and divergences
+
+Four things are called out on their own because a reader would otherwise have to
+reconstruct them from the table.
+
+**The store is five of nine.** `putStaged`, `getStaged`, `appendTransition`, `readChain`
+and `chainHead` are built; `appendBatch`, `findNonTerminal`, `listDue` and `seal` are not.
+The distinction that matters is recorded in full at **deferral register row 13** and is
+summarized here rather than restated differently: §12's provisionality clause — "method
+signatures are unstable while 0.x and freeze only at 1.0", the durable thing being the
+behavior rather than the argument list — covers the **narrowed `appendTransition`
+signature**, which therefore sits inside §12's own latitude. It does **not** cover the
+**four absent methods**: a store missing them implements part of §12's surface and does
+not conform to §12, and no reading of the provisionality clause closes that. `Store` is a
+public export and `Config.store` is host-supplied, so a third-party adapter author must
+not read this subset as the whole contract.
+
+**The finalize success batch is sequential, not atomic.** §9's ladder rung (6) is "one
+atomic, variable-arity" `appendBatch`, "all-or-nothing, so a conflict never leaves a
+partial tail"; this build makes three ordinary compare-and-swap appends instead, because
+`appendBatch` is not part of the shipped store. What that costs, and the deliberate
+asymmetry between the first append's refusal and the later two's throw, is recorded at
+**deferral register row 12** with the trigger that dissolves it (step 2, when
+`appendBatch` lands and there is no mid-batch position left to be in).
+
+**`unknown-leg`: the divergence is closed.** SPEC §8 names two producers of this code —
+"a caller-named leg absent from the profile at `stage()`, and a staged draft's leg absent
+from the profile it resolves under at `open()`". At the point this step's remediation plan
+was written, only the first was wired. The gap was never a deliberate difference from the
+spec: it was inherited, and it was a difference from the **reference implementation** this
+kernel was adopted from — that project's later history carried `open()`'s re-check and the
+commit this kernel was taken from did not, so the second producer arrived unwired. It is
+INHERIT item 5 in `docs/process/adopted-source-provenance.md`, applied at `8c78083`. Both
+producers are built and tested today (`packages/record/test/unknown-ids.test.ts`), with
+`unknown-profile` still winning where both are wrong. What remains from the same family is
+about a different thing: `kernel/stage.ts` is the one source file taken from the reference
+project's later head rather than from the commit the rest came from — a deliberate
+divergence, recorded as such in the provenance document.
+
+**Two inherited pinned assertions were inverted, both authorized.** This kernel arrived
+with the reference implementation's own test corpus, and adopting a corpus and then
+quietly changing what it pins is how a build drifts from the thing it adopted while its
+suite stays green. So an **inversion** — overturning an assertion the inherited corpus
+pinned, replacing a passing test's expectation with the opposite one — is authorized
+explicitly and argued at the test itself, never folded in silently. This branch authorized
+exactly two, both recorded in place in `packages/record/test/terminality.test.ts`:
+
+1. **`redeem()` on a confirmed effect-seam record.** The inherited assertion pinned a
+   silent `unredeemable-state` refusal. It now throws a build-capability error at the
+   seam. This is **loudness, not closure**: the throw releases nothing, and the
+   `(profile, subject)` pair stays held exactly as it did under the refusal, because the
+   hold lives in the store's C1 exclusivity rather than in what `redeem()` returns.
+2. **A mid-batch conflict in finalize's success batch.** The inherited assertion pinned
+   `record-not-open` returned after a conflict on the `confirmed` append — a never-appends
+   code carrying no `transitionRef`, which tells a host that the call recorded nothing
+   while two of its consultations sit on the chain. It now throws, naming the conflict
+   shape and what the call appended. Nothing is rolled back, because no rollback exists
+   here; a retry that succeeds appends its own consultation pair on top.
+
+### The package is unconsumable today
+
+Stated plainly, in the same breath as the green gates, because that is what an exit record
+is for: **there is no artifact here a host could install or import.**
+
+`packages/record/package.json` carries exactly five fields — `name`, `version` (`0.0.0`),
+`private: true`, `type: module`, and `description`. There is no `exports`, no `main`, no
+`types`, no `files`, no `scripts`, and no dependency of any kind. `private: true` blocks
+publication; with no entry-point field, nothing tells a resolver what to load even if it
+were published. And nothing is compiled: the repository's only TypeScript invocation is
+`tsc -p packages/record --noEmit`, and `noEmit` is set in `tsconfig.base.json` itself, so
+no JavaScript artifact is produced anywhere by any script here.
+
+What runs today is the TypeScript source, inside this workspace, under this repository's
+own test runner. That is enough to prove the kernel's behavior and not enough for anyone
+else to use it. Publish tooling is **deferral register row 1**, triggered by the first
+external consumer or the 0.1 cut; the pre-0.1 API naming review over what `index.ts`
+exports is row 6, triggered at the 0.1 cut.
+
+### Still outstanding
+
+Carried in the deferral register, with triggers:
+
+- **Row 1** — publish tooling (build, versioning, release).
+- **Row 4** — generalizing the root `typecheck` beyond `packages/record`, and per-package
+  test-runner devDependencies.
+- **Row 5** — `biome migrate` for the deprecated `linter.rules.recommended` field (one of
+  the thirteen infos above).
+- **Row 6** — the pre-0.1 API naming review over what `index.ts` actually exports.
+- **Row 9** — the `redeem` effect-seam strand: a confirmed effect-seam record's
+  `(profile, subject)` pair stays permanently held, and no call on either surface can
+  release it. Real closure needs a later step's redemption edge or a `confirmToRedeem`
+  expiry edge.
+- **Row 10** — the `redeeming` arm of `finalize()`'s chain-compromise fallback, which no
+  path in this build can reach.
+- **Row 11** — `finalize()`'s missing `opts` argument, and the two SPEC-mandated throws
+  that therefore have no reachable call path.
+- **Row 12** — the sequential success batch.
+- **Row 13** — the five-of-nine store.
+- **Row 14** — §12's C4 seal-finality, unreachable today because nothing emits a `sealed`
+  transition.
+
+Found by the whole-branch review and **not yet in the deferral register** — recorded here
+so the step does not exit with them unstated, and left as the review states them rather
+than adjudicated again:
+
+- `redeem()`'s stub returns `unredeemable-state` on three paths §8 scopes elsewhere: an
+  unconfigured profile, a tampered chain (it never verifies), and a non-existent
+  `recordId` (which §8 makes a throw). Every one of those paths appends nothing, so each
+  stays fail-closed; only the reported code is wrong.
+- A `terminalRefusals` member that is not a real refusal code constructs without error and
+  then never matches, so a leg the operator believes is configured terminal is not.
+- Two items the review holds for the repository owner because the plausible fix is a
+  change to the **sealed** spec prose rather than to the code, and this record neither
+  resolves nor acts on them: `replay`/`verifyChain` not being exported from `index.ts`
+  against §5's "The library exposes two functions over a record's chain", and `open()`'s
+  en-passant blocker expire running without the pre-seam chain-verify §5 states as a
+  blanket rule. In both cases the reference implementation's later head does the same
+  thing this build does, which is what makes the spec-wording reading plausible.
+
+Full accounts: `docs/analysis/2026-08-03-step-1-review.md` (Class D and "Findings that
+need a sealed `docs/concept/` decision") and `docs/process/deferral-register.md`.
