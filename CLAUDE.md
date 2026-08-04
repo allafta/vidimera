@@ -16,16 +16,18 @@ parts:
 - **The implementation** (`packages/`): a TypeScript pnpm-workspace monorepo implementing
   the concept in the proven build order (`docs/concept/SCOPING-GUIDE.md` §7). Build-order
   step 1 — the kernel — was adopted from a reference implementation of the same spec and
-  is landing increment by increment; `packages/record/src` is real code today, not a
-  skeleton (23 files, ~2,850 lines; `create()` is implemented and exercised by 226 tests
-  across 22 files, zero skips). A base-vs-head provenance audit
-  (`docs/process/adopted-source-provenance.md`) found ten fixes the reference project had
-  already made that this build had not taken; the nine that were genuinely applicable are
-  now applied, and the tenth was reclassified as a local improvement rather than an
-  inherited fix (see that document). Outstanding before this increment can close: a
-  citation-integrity resolver for the comment scrub's `SPEC §N` references, one mis-mapped
-  refusal code on a partial-success batch, and the step's own exit record — tracked as
-  units R3–R5 in `docs/superpowers/plans/2026-08-03-step-1-remediation.md`.
+  **has reached its exit**; `packages/record/src` is real code today, not a skeleton, and
+  `create()` is implemented and exercised by a full suite with zero skips. A base-vs-head
+  provenance audit (`docs/process/adopted-source-provenance.md`) found ten fixes the
+  reference project had already made that this build had not taken; the nine that were
+  genuinely applicable are now applied, and the tenth was reclassified as a local
+  improvement rather than an inherited fix (see that document). The remediation plan's
+  units R1–R5 (`docs/superpowers/plans/2026-08-03-step-1-remediation.md`) are all
+  complete. **`docs/process/implementation-status.md` is the authoritative account** of
+  what this build does and does not implement, section by section, with the gate outputs
+  at exit and the outstanding list — read it rather than trusting a count here, which is a
+  claim with a shelf life and no way to fail loudly. Seven of the eight build-order steps
+  remain, and the package is not consumable by a host today.
 
 ## The standalone contract
 
@@ -81,12 +83,17 @@ pnpm workspace (Node 22+, pnpm via corepack):
   maintainer working alongside other private repositories should extend the script's
   patterns with those projects' names, package names, and tooling. **Exits 0 today, zero
   findings** — the imported kernel's comment scrub that rewrote every reference-project
-  pointer is complete. The scan validates that a citation is syntactically well-formed
-  (`SPEC §N`, `DECISIONS.md`), never that it *resolves* to real text — a still-open gap a
-  later unit closes (`docs/superpowers/plans/2026-08-03-step-1-remediation.md`'s R3). A
-  reader should diff a new run's output, never just compare totals, before treating any
-  red result as a regression — a scan total moving has hidden an equal-sized regression
-  in the opposite direction on this branch before.
+  pointer is complete. The scan also **resolves** citations in tracked code: a `SPEC §N`
+  must name a section that exists, and a quoted phrase attached to a citation must occur
+  in the document it is attributed to. That resolver ships with a bounds list in the
+  script's own header naming what it deliberately does **not** check — read it before
+  treating a green scan as coverage. **Markdown is not citation-checked at all**, so a
+  wrong citation in a process document, plan or README has no gate behind it and must be
+  hand-verified against a whitespace-collapsed copy of the source: at least one SPEC
+  phrase quoted on this branch wraps a line break, where a naive `grep -F` reports it
+  missing. A reader should diff a new run's output, never just compare totals, before
+  treating any red result as a regression — a scan total moving has hidden an equal-sized
+  regression in the opposite direction on this branch before.
 
 CI (`.github/workflows/ci.yml`) runs typecheck, test, lint, contract-scan, and the
 stricter `lint:strict` (`biome check --error-on-warnings`) on every push to `main` and
@@ -98,7 +105,17 @@ concurrency group per ref.
 From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
 
 - One cluster per increment; **spec-moves-to-truth** at every increment's exit (a
-  maturity marker moves only when the behavior lands in this repository).
+  maturity marker moves only when the behavior lands in this repository). That exit step
+  has **nothing to move** at steps 1–6: every section those steps build is already
+  `[PROVEN]`, and the first draft-ahead marker that could come off is §10.2's `[DESIGNED]`
+  at step 7. `docs/process/implementation-status.md` is the substitute exit record that
+  can move, and each step's exit is written there — do not expect a marker change and do
+  not manufacture one.
+- **Inverting an inherited pinned assertion is authorized explicitly, never slipped in.**
+  The kernel arrived with the reference implementation's test corpus; adopting a corpus
+  and quietly changing what it pins is how a build drifts while its suite stays green. Two
+  inversions were authorized on this branch, each argued in place at
+  `packages/record/test/terminality.test.ts` and recorded in the exit record.
 - Feature guards from day one — an unimplemented capability throws at construction
   (`config.ts` `validateProfile`; ten governed profile fields throw there). `redeem` is
   the eleventh governed capability: it throws at the call seam instead
