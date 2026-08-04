@@ -124,26 +124,25 @@ class ConfirmBlockingStore implements Store {
 // opposite result: a confirmed-append conflict arriving after the two consultations had
 // landed refused `record-not-open`, and this test held that mapping in place. The mapping
 // contradicts the normative document, which is why overturning it is a finding acted on
-// rather than a preference. The code is defined by SPEC §8: "a decision-progress seam
-// invoked against a non-open, non-expired record", "never appends" — and this call had
-// appended twice. That is the contradiction, and note WHERE it lives: in what the CALL did,
-// not in what the record is. The record may genuinely be non-open by now (a real
-// `state-mismatch` means exactly that), so the old comment's "the record is still open"
-// ground was itself false; the durable ground is that `refusal-codes.ts` lists the code as
-// never-appends, and this call appended. finalize() now THROWS instead. One code CAN be true
-// of the resulting state — `leg-expired`, under a race to `expired`, which SPEC §8 routes to
-// that code and which `refusal-codes.ts` deliberately leaves OUT of its never-appends set —
-// and it is still not returned: a storage fault does not become a domain outcome because one
-// code happens to fit the state it left behind. Every remaining member is false of this state
-// or likewise never-appends, and no `refused` edge was appended to carry a `transitionRef`
-// (the exception is scoped by DECISIONS.md #10: "storage faults where nothing was recorded",
-// and #11 makes a storage fault a loud throw). What the change does NOT buy, stated with the
-// change itself: nothing is rolled back — no rollback exists in this build. The consultations
-// stay on the chain with no decision edge of this call's, and a retry that succeeds appends
-// its own consultation pair on top. The all-or-nothing batch that would fix that is
-// SPEC §12's `appendBatch`, which this build's `Store` does not implement (deferral
-// register). The exception's own scope is therefore wider than #10's "nothing was recorded"
-// wording: something WAS recorded, and the message says what.
+// rather than a preference. The ground is not an inventory of which codes are true — two
+// attempts to write it that way were each constructibly false at the edges, and
+// `kernel/finalize.ts`'s `midBatchConflict` now carries the durable form: under this build's
+// single-writer bound and a Store honouring the compare-and-swap contract, NO conflict is
+// reachable at that append, so reaching one is a storage fault, and DECISIONS.md #11 makes a
+// storage fault a loud throw. What the inherited assertion pinned was a refusal that
+// MISREPRESENTS: `record-not-open` carries no `transitionRef` and is a never-appends member,
+// so a host reading it is told nothing was recorded — while two consultations sit on the
+// chain. The code also names a seam rather than a call — SPEC §8: "a decision-progress seam
+// invoked against a non-open, non-expired record", "never appends" — and a seam that has
+// already appended twice is not that one. What this is NOT is a contradiction of the never-appends rule itself: that rule
+// governs whether a REFUSAL appends a `refused` edge, and no `refused` edge was ever appended
+// here — the consultations came from the success batch. What the change does NOT buy, stated
+// with the change itself: nothing is rolled back — no rollback exists in this build. The
+// consultations stay on the chain with no decision edge of this call's, and a retry that
+// succeeds appends its own consultation pair on top. The all-or-nothing batch that would fix
+// that is SPEC §12's `appendBatch`, which this build's `Store` does not implement (deferral
+// register). The exception taken is scoped by DECISIONS.md #10: "storage faults where nothing
+// was recorded" — wider here, because something WAS recorded, and the message says what.
 test("finalize()'s batch is sequential, not atomic: a confirmed-append conflict throws, leaving the consultations on the chain", async () => {
   const store = new ConfirmBlockingStore();
   const handles = create(makeConfig([captureProfile()], { store }));
@@ -247,6 +246,15 @@ test("finalize() throws when the batch's SECOND append conflicts: the first cons
         /appended 1 consultation and no decision edge/,
         'one consultation landed, not two — the message must say which',
       );
+      // Mirrored from the confirmed-append test rather than left to it. One message serves
+      // both sites today, so a single guard would catch the regression — but only while that
+      // stays true, and a per-site message is exactly the change that would make the other
+      // test stop covering this one silently.
+      assert.doesNotMatch(
+        err.message,
+        /record stays open/,
+        'the message must not assert a state this call never re-read',
+      );
       return true;
     },
     'a facts-append conflict after the chain-verify consultation landed must throw, not refuse',
@@ -274,6 +282,12 @@ test("finalize() throws when the batch's SECOND append conflicts: the first cons
  *
  * This is the fixture the post-conflict state CAN be asserted from, and it exists because the
  * two fabricating stores above cannot support such an assertion.
+ *
+ * The two `assert.ok`s below are fixture PRECONDITIONS, and they are load-bearing: if the
+ * raced edge silently failed to land, the test would pass while testing nothing. They fail
+ * loudly today (deliberately broken once, to check). The latent hazard is a future change that
+ * wraps this append seam in a try/catch — that would swallow them, so any such change must
+ * re-home these checks rather than inherit them.
  */
 class RaceThenAppendStore implements Store {
   private readonly inner = new MemoryStore();

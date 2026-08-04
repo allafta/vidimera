@@ -19,9 +19,12 @@ export type RefusalCode =
 //   appends, no transitionRef, no transitionRef-bearing edge. One further producer sits off the gate
 //   ladder: a conflict on the FIRST append of finalize()'s success batch, where nothing of the call has
 //   landed yet — kernel/finalize.ts states at that site which conflict shapes the code is true for and
-//   which it is not. A conflict on either LATER append throws a storage fault instead: not because the
-//   code is necessarily false of the record by then (after a genuine conflict it may well be true of
-//   it), but because THIS list says the code never appends, and such a call has appended.
+//   which it is not. A conflict on either LATER append throws a storage fault instead. Note precisely
+//   what that is NOT about: the never-appends rule below governs whether a REFUSAL appends a `refused`
+//   edge, `appendsOn` returns false for this code unconditionally, and no `refused` edge was ever
+//   appended there — so nothing in this registry was contradicted. The reason is that returning a
+//   never-appends code with no transitionRef tells a host nothing was recorded, when the call had put
+//   consultations on the chain.
 // unknown-leg: class 'refusal'. SPEC §8 names two producers — a caller-named leg absent
 //   from the profile at `stage()`, and a staged draft's leg absent from the profile it
 //   resolves under at `open()`. BOTH are built in this build (`stage()`'s

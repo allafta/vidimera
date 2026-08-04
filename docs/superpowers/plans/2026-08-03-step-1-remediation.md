@@ -37,8 +37,13 @@ is three sequential appends because atomic `appendBatch` is a **step-2 Store met
 exist yet**. Neither is fixable now; both are the shape of an incomplete build. They get
 **recorded**, not fixed — which is what the exit record is for.
 
-One genuine defect hides inside: a mid-batch conflict reports `record-not-open`, which SPEC §8
-defines as meaning the opposite. That is wrong today and fixed in R4.
+One genuine defect hides inside: a mid-batch conflict reports `record-not-open`. This sentence
+originally said SPEC §8 defines that code as meaning the opposite; the R4 review measured that
+claim and it over-reaches, so it is bounded here rather than left standing. §8 does not settle
+the case at all — SPEC's own finalize is one atomic batch that cannot leave a partial tail, so
+the situation does not arise in its model. What is wrong is what the return tells a host: a
+never-appends code with no `transitionRef` says nothing was recorded, when consultations had
+landed. That is wrong today and fixed in R4.
 
 **Class C — gates that certified less than they appeared to.**
 The U9 scrub's `design §` → `SPEC §` substitution carried a foreign document's heading across in
@@ -140,7 +145,10 @@ planted-violation test proving it catches and a clean-code test proving it stays
 ### R4 — record Class B, fix the one real defect
 
 **Fix:** the mid-batch conflict mapping. A partial success batch currently returns
-`record-not-open`, which SPEC §8:492 defines as the opposite condition. Choose a code that is true,
+`record-not-open` — which this text originally called the opposite of SPEC §8:492's condition,
+an over-reach the R4 review measured and this line now bounds: §8 is silent on a case its own
+atomic-batch finalize cannot produce, and the defect is that the return misrepresents a call
+that has already appended. Choose a code that is true,
 or throw — and pin it with a test.
 
 **Record** (deferral rows with real triggers, not "later"):
