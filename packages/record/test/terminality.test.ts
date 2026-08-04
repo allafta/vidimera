@@ -6,7 +6,8 @@
 // second open() is blocked with `record-exists`. Also pins the honest sequencing bound:
 // finalize()'s multi-append is a best-effort SEQUENTIAL append in this build, NOT a
 // cross-append atomic batch — a mid-batch conflict AFTER something of the call has landed
-// leaves what landed on the chain, with no decision edge and no rollback, and THROWS.
+// leaves what landed on the chain, with no decision edge of that call's and no rollback, and
+// THROWS without claiming what the record became.
 
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
@@ -75,11 +76,22 @@ test('an effect-seam final-leg CONFIRMED is non-terminal (awaits redemption): a 
 // === honest sequencing bound (sequential, not atomic, in this build): a mid-batch conflict throws ===
 
 /**
- * A Store wrapper that lets the two consultation appends land but forces the CONFIRMED
- * append to `state-mismatch` — modelling a residual CAS conflict on the confirmed edge. It
- * proves finalize()'s batch is SEQUENTIAL (the consultations are on the chain) not atomic,
- * and that the residual confirmed-append conflict THROWS: two consultations are already on
- * the chain by then, so no code in the union is true (see the inversion note below).
+ * A Store wrapper that lets the two consultation appends land but FABRICATES a
+ * `state-mismatch` on the CONFIRMED append. It proves finalize()'s batch is SEQUENTIAL (the
+ * consultations are on the chain) not atomic, and that the conflict THROWS rather than
+ * returning a code (see the inversion note below).
+ *
+ * WHAT IT DOES NOT PROVE, and must not be read as proving. The conflict is invented: the
+ * inner `MemoryStore` never saw the confirmed append, so the record it holds is still `open`
+ * afterwards. A REAL `state-mismatch` is the opposite case — `nonterminal.ts` makes `open`
+ * unconditionally non-terminal, so memory.ts's C3 arm cannot fire against an open record and
+ * its state CAS is the only producer of that shape here, which means a genuine one implies
+ * the record is NO LONGER open. The `open` this test asserts below is therefore a property of
+ * THIS FIXTURE, not of the shape it models. A store lying about a conflict is still a
+ * legitimate way to reach the branch — it is a storage fault too — but the state it leaves
+ * behind is evidence about the fixture only. The `RaceThenAppendStore` further below reaches
+ * the same class of branch through a genuine conflict, and is where post-conflict state is
+ * asserted honestly.
  */
 class ConfirmBlockingStore implements Store {
   private readonly inner = new MemoryStore();
@@ -114,21 +126,25 @@ class ConfirmBlockingStore implements Store {
 // contradicts the normative document, which is why overturning it is a finding acted on
 // rather than a preference. The code is defined by SPEC §8: "a decision-progress seam
 // invoked against a non-open, non-expired record", "never appends" — and this call had
-// appended twice, against a record that was `open` the whole time. `refusal-codes.ts` puts the code
-// in its never-appends set for the same reason, so the returned code contradicted the
-// library's own registry too. finalize() now THROWS here instead: every other member of the
-// `RefusalCode` union is either false in this state or likewise a never-appends member, and
-// no decision edge exists to carry a `transitionRef`, so there is no true result-first
-// outcome left to return (the exception is scoped by DECISIONS.md #10: "storage faults where
-// nothing was recorded", and #11 makes a storage fault a loud throw). What
-// the change does NOT buy, stated with the change itself: nothing is rolled back — no
-// rollback exists in this build. The two consultations stay on the chain, the record stays
-// `open` and still finalizable, and a retry appends a SECOND pair of consultations. The
-// all-or-nothing batch that would fix that is SPEC §12's `appendBatch`, which this build's
-// `Store` does not implement (deferral register). The exception's own scope is therefore
-// wider than #10's "nothing was recorded" wording: something WAS recorded, and the message
-// says how much.
-test("finalize()'s batch is sequential, not atomic: a confirmed-append conflict throws, leaving the consultations on the chain and the record open", async () => {
+// appended twice. That is the contradiction, and note WHERE it lives: in what the CALL did,
+// not in what the record is. The record may genuinely be non-open by now (a real
+// `state-mismatch` means exactly that), so the old comment's "the record is still open"
+// ground was itself false; the durable ground is that `refusal-codes.ts` lists the code as
+// never-appends, and this call appended. finalize() now THROWS instead. One code CAN be true
+// of the resulting state — `leg-expired`, under a race to `expired`, which SPEC §8 routes to
+// that code and which `refusal-codes.ts` deliberately leaves OUT of its never-appends set —
+// and it is still not returned: a storage fault does not become a domain outcome because one
+// code happens to fit the state it left behind. Every remaining member is false of this state
+// or likewise never-appends, and no `refused` edge was appended to carry a `transitionRef`
+// (the exception is scoped by DECISIONS.md #10: "storage faults where nothing was recorded",
+// and #11 makes a storage fault a loud throw). What the change does NOT buy, stated with the
+// change itself: nothing is rolled back — no rollback exists in this build. The consultations
+// stay on the chain with no decision edge of this call's, and a retry that succeeds appends
+// its own consultation pair on top. The all-or-nothing batch that would fix that is
+// SPEC §12's `appendBatch`, which this build's `Store` does not implement (deferral
+// register). The exception's own scope is therefore wider than #10's "nothing was recorded"
+// wording: something WAS recorded, and the message says what.
+test("finalize()'s batch is sequential, not atomic: a confirmed-append conflict throws, leaving the consultations on the chain", async () => {
   const store = new ConfirmBlockingStore();
   const handles = create(makeConfig([captureProfile()], { store }));
   const recordId = await openRecord(handles, CONTENT, 'test.capture.v1', DEFAULT_SUBJECT_REF);
@@ -143,8 +159,13 @@ test("finalize()'s batch is sequential, not atomic: a confirmed-append conflict 
       );
       assert.match(
         err.message,
-        /2 consultations with no decision edge/,
-        'the message must say how much of the batch landed',
+        /appended 2 consultations and no decision edge/,
+        'the message must say what the call itself appended',
+      );
+      assert.doesNotMatch(
+        err.message,
+        /record stays open/,
+        'the message must not assert a state this call never re-read',
       );
       return true;
     },
@@ -161,16 +182,22 @@ test("finalize()'s batch is sequential, not atomic: a confirmed-append conflict 
   assert.equal(
     (await handles.operator.getRecord(recordId))?.state,
     'open',
-    'the record stays open (never confirmed) and is still finalizable',
+    'still open HERE because this fixture invented the conflict rather than moving the record — a fixture property, not a property of the shape (see the store docstring)',
   );
 });
 
 /**
- * A Store wrapper that lets the FIRST `consultation-recorded` append land and forces the
- * SECOND — finalize()'s facts consultation — to `seq`, modelling a conflict raised one
- * append into the batch. That path had no test at all before this build step. The two
+ * A Store wrapper that lets the FIRST `consultation-recorded` append land and fabricates a
+ * `seq` conflict on the SECOND — finalize()'s facts consultation — modelling a conflict
+ * raised one append into the batch. That path had no test at all before this build step. The
  * blocking stores here use DIFFERENT conflict shapes on purpose: the throw names the
  * `AppendResult.conflict` it saw, and that shape is the only diagnostic the host gets.
+ *
+ * Fabricated, like `ConfirmBlockingStore` — with the same reading limit, though a real `seq`
+ * conflict happens to leave the record open too: memory.ts checks the state CAS before
+ * sequencing, so it raises `seq` only after finding the record `open`. That is memory.ts's
+ * check order rather than a SPEC §12 requirement, so it is not a property another conforming
+ * adapter must share, and this test does not assert one.
  */
 class FactsConsultationBlockingStore implements Store {
   private readonly inner = new MemoryStore();
@@ -202,7 +229,7 @@ class FactsConsultationBlockingStore implements Store {
   }
 }
 
-test("finalize() throws when the batch's SECOND append conflicts: the first consultation stays on the chain and the record stays open", async () => {
+test("finalize() throws when the batch's SECOND append conflicts: the first consultation stays on the chain", async () => {
   const store = new FactsConsultationBlockingStore();
   const handles = create(makeConfig([captureProfile()], { store }));
   const recordId = await openRecord(handles, CONTENT, 'test.capture.v1', DEFAULT_SUBJECT_REF);
@@ -217,7 +244,7 @@ test("finalize() throws when the batch's SECOND append conflicts: the first cons
       );
       assert.match(
         err.message,
-        /1 consultation with no decision edge/,
+        /appended 1 consultation and no decision edge/,
         'one consultation landed, not two — the message must say which',
       );
       return true;
@@ -234,7 +261,93 @@ test("finalize() throws when the batch's SECOND append conflicts: the first cons
   assert.equal(
     (await handles.operator.getRecord(recordId))?.state,
     'open',
-    'the record stays open (never confirmed) and is still finalizable',
+    'still open HERE because the conflict was fabricated (see the store docstring) — not a claim about a real seq conflict under some other adapter',
+  );
+});
+
+/**
+ * A Store wrapper that RACES A REAL EDGE IN, rather than inventing a conflict: before the
+ * first `consultation-recorded` append of finalize()'s batch, it appends a genuine
+ * `confirmed` transition through the inner `MemoryStore` — another writer winning the record
+ * while this finalize() is mid-ladder. The forwarded consultation append then fails the inner
+ * store's own state CAS, honestly: the record really is no longer `open`.
+ *
+ * This is the fixture the post-conflict state CAN be asserted from, and it exists because the
+ * two fabricating stores above cannot support such an assertion.
+ */
+class RaceThenAppendStore implements Store {
+  private readonly inner = new MemoryStore();
+  private raced = false;
+  putStaged(s: StagedDraft): Promise<void> {
+    return this.inner.putStaged(s);
+  }
+  getStaged(r: string): Promise<StagedDraft | null> {
+    return this.inner.getStaged(r);
+  }
+  readChain(r: string): Promise<Transition[]> {
+    return this.inner.readChain(r);
+  }
+  chainHead(r: string): Promise<Digest | null> {
+    return this.inner.chainHead(r);
+  }
+  async appendTransition(
+    expected: RecordState | null,
+    transition: Transition,
+    nonTerminalFlag: boolean,
+  ): Promise<AppendResult> {
+    if (transition.kind === 'consultation-recorded' && !this.raced) {
+      this.raced = true;
+      const chain = await this.inner.readChain(transition.recordId);
+      const head = await this.inner.chainHead(transition.recordId);
+      assert.ok(head !== null, 'fixture: the record must exist before the race');
+      const otherWriter: Transition = {
+        recordId: transition.recordId,
+        seq: chain.length + 1,
+        at: transition.at,
+        kind: 'confirmed',
+        payload: { actor: identity({ principal: 'approver:other' }) },
+        prevHash: head,
+      };
+      // A capture-only final-leg `confirmed` is terminal ⇒ nonTerminal false.
+      const landed = await this.inner.appendTransition('open', otherWriter, false);
+      assert.ok(landed.appended, 'fixture: the raced confirmed edge must genuinely land');
+    }
+    return this.inner.appendTransition(expected, transition, nonTerminalFlag);
+  }
+}
+
+// Pins the behaviour the human RULED to keep, which was documented but unpinned: the batch's
+// FIRST append still refuses `record-not-open` rather than throwing. Deliberately driven by a
+// GENUINE conflict — another writer confirms the record between finalize()'s chain load and
+// its first append — because that is the case where the code is actually TRUE: nothing of
+// this call has landed, and the record really is no longer open. A mutation of the site to a
+// throw left the suite green before this test existed.
+test("finalize() refuses record-not-open when the batch's FIRST append loses to another writer: nothing of the call landed", async () => {
+  const store = new RaceThenAppendStore();
+  const handles = create(makeConfig([captureProfile()], { store }));
+  const recordId = await openRecord(handles, CONTENT, 'test.capture.v1', DEFAULT_SUBJECT_REF);
+
+  const outcome = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(outcome.status, 'refused', 'the first-append conflict refuses, never throws');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'record-not-open');
+  assert.equal(outcome.class, 'refusal');
+  assert.equal(
+    outcome.transitionRef,
+    undefined,
+    'a never-appends code carries no transitionRef — nothing of this call was appended',
+  );
+
+  const chain = await handles.operator.readChain(recordId);
+  assert.deepEqual(
+    chain.map((t) => t.kind),
+    ['opened', 'confirmed'],
+    'only the other writer edge is on the chain — this call appended nothing, which is what makes the never-appends code honest here',
+  );
+  assert.equal(
+    (await handles.operator.getRecord(recordId))?.state,
+    'confirmed',
+    'the record really is non-open — `record-not-open` is true of this state, not merely returned',
   );
 });
 

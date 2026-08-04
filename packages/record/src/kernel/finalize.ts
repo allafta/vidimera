@@ -33,11 +33,13 @@
 //     consultation, confirmed] under the single-writer / no-concurrent-finalize-per-record
 //     bound in this build (not a cross-append atomic batch; a future build step makes it
 //     one). A conflict on the FIRST append refuses `record-not-open`: nothing of this call
-//     has landed yet, so a never-appends code is still admissible — with the limit of that
-//     claim recorded at the site, which is narrower than the branch it guards. A conflict on
-//     EITHER LATER append THROWS a storage-fault error naming the conflict shape and how much
-//     landed: a consultation is already on the chain by then, so no refusal code is both true
-//     and consistent with the never-appends registry, and nothing rolls back what landed.
+//     has landed yet, so the never-appends code is not yet self-contradicting — with the
+//     limit of that claim recorded at the site, which is narrower than the branch it guards.
+//     A conflict on EITHER LATER append THROWS a storage-fault error naming the conflict
+//     shape and what this call appended. Once a consultation has landed, `record-not-open`
+//     contradicts its own never-appends entry whatever the record's state now is, and the one
+//     code that could be TRUE of that state — `leg-expired`, under a race to `expired` — would
+//     report a domain refusal for what is a storage fault. Nothing rolls back what landed.
 //
 // (3)/(4)/(5) are refusal-class: each appends `open→refused` (terminal) IFF the leg's
 // `terminalRefusals` lists it (the `appendsOn` rule), else no append and the record stays open.
@@ -51,7 +53,7 @@ import { isFinalLeg, nonTerminal } from '../nonterminal.js';
 import type { Outcome } from '../outcome.js';
 import { ok, refused } from '../outcome.js';
 import { appendsOn, type RefusalCode } from '../refusal-codes.js';
-import type { Store } from '../store/store.js';
+import type { AppendResult, Store } from '../store/store.js';
 import type { Consultation, Digest, IdentityAssertion, RecordState, Transition } from '../types.js';
 import { expireIfDue } from './expiry.js';
 
@@ -214,20 +216,23 @@ export async function finalize(
   };
   const cvRes = await store.appendTransition('open', cvTransition, openNonTerminal);
   if (!cvRes.appended) {
-    // The FIRST append of the batch: nothing of this call has landed, so `record-not-open` is
-    // still a code this seam may return at all — it is SPEC §8's never-appends code, and here
-    // there is genuinely no append to contradict it. What it CLAIMS is narrower than the
-    // branch it guards, and the difference is recorded rather than left for a reader to
-    // assume away. TRUE for the shape this seam mainly raises: a `state-mismatch` because the
-    // record left `open` between the load at the top of finalize and this CAS. NOT true for
-    // `conflict:'seq'`, which the store raises while the record is STILL open — a concurrent
-    // state-preserving append landing between that same load and this CAS makes the proposed
-    // `seq` stale without moving the state, and the record a `seq` conflict describes is open,
-    // not non-open. (One `state-mismatch` sub-shape is off too: a race to `expired` draws
-    // `leg-expired` under SPEC §8, not this code.) Every one of those shapes needs a store
-    // that violates this build's single-writer bound, none has a test, and the code stays as
-    // it is: changing it by conflict shape is a separate decision from the one this site
-    // records.
+    // The FIRST append of the batch: nothing of this call has landed, so `record-not-open` —
+    // a never-appends code — is not yet contradicted by an append of this call's own. What it
+    // CLAIMS is still narrower than the branch it guards, and the difference is recorded
+    // rather than left for a reader to assume away. Measured against `store/memory.ts`, not
+    // reasoned from the name:
+    //  - `state-mismatch` ⇒ the record was absent or NOT `open` at this CAS, so the code is
+    //    true of the state. `nonterminal.ts` makes `open` unconditionally non-terminal, so
+    //    memory.ts's C3 arm (which needs a terminal record) cannot fire against an open one,
+    //    leaving its state CAS as the only producer of this shape here. One sub-shape is
+    //    still off: a race to `expired` draws `leg-expired` under SPEC §8, not this code.
+    //  - `seq` ⇒ memory.ts checks the state CAS BEFORE sequencing, so it raises `seq` only
+    //    after finding the record `open` — and `record-not-open` is then FALSE. That premise
+    //    is memory.ts's check order, not a SPEC §12 requirement, so another conforming
+    //    adapter may order its checks differently and carry no such implication.
+    // Both shapes need a store that violates this build's single-writer bound. The code stays
+    // as it is (ruled): changing it by conflict shape is a separate decision from the one
+    // this site records. The `seq` arm is the residual, and it is stated, not hidden.
     return refused('record-not-open');
   }
   prevHash = cvRes.transitionDigest;
@@ -244,7 +249,9 @@ export async function finalize(
   };
   const factsRes = await store.appendTransition('open', factsTransition, openNonTerminal);
   if (!factsRes.appended) {
-    // One consultation (chain-verify) is already on the chain — see `midBatchConflict`.
+    // One consultation (chain-verify) of this call is already on the chain — see
+    // `midBatchConflict`. What the RECORD's state is by now is not re-read here, and a
+    // `state-mismatch` means it is no longer `open`.
     throw midBatchConflict(factsRes.conflict, 1);
   }
   prevHash = factsRes.transitionDigest;
@@ -267,9 +274,12 @@ export async function finalize(
     confirmedNonTerminal,
   );
   if (!confirmedRes.appended) {
-    // Both consultations are already on the chain and no decision edge follows them — see
-    // `midBatchConflict`. They stay there: the batch is sequential best-effort in this build,
-    // not atomic, so the throw undoes nothing.
+    // Both consultations of this call are already on the chain and THIS call adds no decision
+    // edge after them — see `midBatchConflict`. They stay there: the batch is sequential
+    // best-effort in this build, not atomic, so the throw undoes nothing. Whether the record
+    // still has no decision edge at all is a different question and not one this call can
+    // answer: a `state-mismatch` here means something else moved the record out of `open`,
+    // which may well have been another writer's own `confirmed`.
     throw midBatchConflict(confirmedRes.conflict, 2);
   }
 
@@ -281,37 +291,55 @@ export async function finalize(
 /**
  * The mid-batch conflict fault — rung (6)'s later two appends (b) and (c). A conflict raised
  * once one of THIS call's appends has already landed is a storage fault, not a domain
- * outcome, and it throws for want of anything true to return.
+ * outcome, and it throws.
  *
- * WHY A THROW AND NOT A CODE. The record is still `open`, so `record-not-open` is false — and
- * it is a member of the never-appends set (`refusal-codes.ts`), which a call that has already
- * appended contradicts by returning it at all. Every other member of the `RefusalCode` union
- * is false in this state for the same kind of reason or is likewise never-appends, and no
- * `refused` edge was appended here, so nothing could carry a `transitionRef` either: there is
- * no true result-first outcome left. What remains is a store violating this build's
- * single-writer / no-concurrent-finalize-per-record bound, and DECISIONS.md #11 makes a
- * storage fault a loud throw; #10 reserves exceptions for caller/config errors and storage
- * faults, refusals being returned rather than thrown.
+ * WHY A THROW AND NOT A CODE — a ground that does NOT rest on the record's state, because
+ * this call does not know it. It appended, the store then refused an append, and the state is
+ * never re-read. An earlier version of this comment asserted the record was "still open" here,
+ * and that was false for every genuine `state-mismatch`: `store/memory.ts`'s state CAS is the
+ * only producer of that shape at these appends (C3's arm needs a TERMINAL record, and
+ * `nonterminal.ts` makes `open` unconditionally non-terminal), and it fires only when the
+ * record is absent or NOT `open`.
+ *  - `record-not-open` may well be TRUE of the state after a `state-mismatch`, and is still
+ *    wrong to return: it is a never-appends member (`refusal-codes.ts`), and this call has
+ *    appended. That contradiction is about what the CALL did, not about the record, so it
+ *    holds under every conflict shape.
+ *  - `leg-expired` is the one code that can be true of the state and is NOT never-appends —
+ *    a race to `expired` reaches exactly it, and SPEC §8 routes an expired record at these
+ *    seams to `leg-expired`. It is still not returned: the event is a storage fault, and a
+ *    fault does not become a domain outcome because one code happens to fit the state it left
+ *    behind. Returning it would also report a seam that did nothing, while this call has
+ *    consultations on the chain that no decision edge of its own follows.
+ *  - Every remaining member was gated and PASSED earlier in this same call
+ *    (`content-drift`, `identity-authority-refused`, `consultation-missing`,
+ *    `chain-compromise`) or is likewise never-appends. None was re-checked after the
+ *    conflict — which is one more reason this is a fault rather than a verdict.
+ * No `refused` edge was appended, so nothing could carry a `transitionRef` either.
+ * DECISIONS.md #11 makes a storage fault a loud throw; #10 keeps refusals returned rather
+ * than thrown, and this is not a refusal.
  *
  * THE LIMIT, IN THE SAME BREATH. The exception taken here is a scoped one —
  * DECISIONS.md #10: "storage faults where nothing was recorded" — and here something WAS
- * recorded, so this throw sits outside that scope rather than inside it. The throw
- * rolls nothing back, because no rollback exists in this build: the batch is sequential, not
- * atomic (SPEC §12's `appendBatch` is the all-or-nothing rung, and it is not part of the
- * shipped `Store`; deferral register). The consultations that landed stay on the chain with
- * no decision edge, the record stays `open` and still finalizable, and a retry appends a
- * SECOND pair of consultations rather than replacing the first. The message therefore names
- * the `AppendResult.conflict` shape and how much landed — that is the whole diagnostic a host
- * gets, so it is stated rather than swallowed.
+ * recorded, so this throw sits outside that scope rather than inside it. It rolls nothing
+ * back, because no rollback exists in this build: the batch is sequential, not atomic
+ * (SPEC §12's `appendBatch` is the all-or-nothing rung, and it is not part of the shipped
+ * `Store`; deferral register). What the message may therefore state is what this call DID —
+ * the conflict shape, and the consultations it appended with no decision edge of its own —
+ * and not what the record now is. A retry that succeeds appends its own consultation pair on
+ * top; after site (b) that leaves three consultations on the chain, not two.
  */
-function midBatchConflict(conflict: string, landed: number): Error {
+type AppendConflict = Extract<AppendResult, { appended: false }>['conflict'];
+
+function midBatchConflict(conflict: AppendConflict, landed: 1 | 2): Error {
   const consultations = landed === 1 ? '1 consultation' : `${landed} consultations`;
   return new Error(
     `finalize: mid-batch append conflict ('${conflict}') on a record this call has already ` +
-      'appended to — a store that violates the single-writer / ' +
-      'no-concurrent-finalize-per-record bound this build assumes. The chain now carries ' +
-      `${consultations} with no decision edge; nothing is rolled back, and the record stays ` +
-      'open and finalizable.',
+      "appended to. Under this build's single-writer / no-concurrent-finalize-per-record " +
+      'bound, with a Store honouring the compare-and-swap contract, no conflict is reachable ' +
+      'here — so this is a storage fault. This call ' +
+      `appended ${consultations} and no decision edge, and nothing is rolled back. It did ` +
+      'not re-read the record afterwards: re-read before retrying, and note that a retry ' +
+      'which succeeds appends its own pair of consultations on top of these.',
   );
 }
 
