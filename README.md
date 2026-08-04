@@ -43,8 +43,8 @@ pnpm test           # vitest
 pnpm contract-scan  # exit 0 today, zero findings
 ```
 
-Next: build-order step 2 — the store, for real (`docs/concept/SCOPING-GUIDE.md`
-section 7).
+Next in the build order (`docs/concept/SCOPING-GUIDE.md` section 7): step 2 —
+the store, for real. Not started.
 
 ## License
 
