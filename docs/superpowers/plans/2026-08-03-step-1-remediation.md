@@ -38,10 +38,10 @@ exist yet**. Neither is fixable now; both are the shape of an incomplete build. 
 **recorded**, not fixed — which is what the exit record is for.
 
 One genuine defect hides inside: a mid-batch conflict reports `record-not-open`. This sentence
-originally said SPEC §8 defines that code as meaning the opposite; the R4 review measured that
-claim and it over-reaches, so it is bounded here rather than left standing. §8 does not settle
-the case at all — SPEC's own finalize is one atomic batch that cannot leave a partial tail, so
-the situation does not arise in its model. What is wrong is what the return tells a host: a
+originally said SPEC §8 defines that code as meaning the opposite, which over-reaches and is
+bounded here rather than left standing. §8 does not settle the case at all: SPEC's own rung (6)
+is a single atomic `appendBatch` whose conflict "never leaves a partial tail" (§9), aborting
+"with nothing applied" (§12), so the situation does not arise in its model. What is wrong is what the return tells a host: a
 never-appends code with no `transitionRef` says nothing was recorded, when consultations had
 landed. That is wrong today and fixed in R4.
 
@@ -146,9 +146,9 @@ planted-violation test proving it catches and a clean-code test proving it stays
 
 **Fix:** the mid-batch conflict mapping. A partial success batch currently returns
 `record-not-open` — which this text originally called the opposite of SPEC §8:492's condition,
-an over-reach the R4 review measured and this line now bounds: §8 is silent on a case its own
-atomic-batch finalize cannot produce, and the defect is that the return misrepresents a call
-that has already appended. Choose a code that is true,
+an over-reach this line now bounds: §8 is silent on a case its own atomic-batch finalize cannot
+produce (§9's rung (6) leaves no partial tail; §12's batch applies nothing on conflict), and
+the defect is that the return misrepresents a call that has already appended. Choose a code that is true,
 or throw — and pin it with a test.
 
 **Record** (deferral rows with real triggers, not "later"):

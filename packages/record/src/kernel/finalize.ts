@@ -34,9 +34,12 @@
 //     bound in this build (not a cross-append atomic batch; a future build step makes it
 //     one). No conflict is reachable at any of the three appends under that bound and a Store
 //     honouring SPEC §12's compare-and-swap contract, so a conflict here is a STORAGE FAULT
-//     however it is surfaced. A conflict on the FIRST append still refuses `record-not-open`
-//     (ruled), which nothing of this call has yet contradicted and which is true of the state
-//     for the shape memory.ts actually raises — the limits are at the site. A conflict on
+//     however it is surfaced. A conflict on the FIRST append still refuses `record-not-open`,
+//     which nothing of this call has yet contradicted, and which is true of the state for a
+//     `state-mismatch` but FALSE for a `seq` conflict — both reachable, both stated at the
+//     site. Keeping the refusal there while the later two throw is a deliberate boundary
+//     rather than an oversight; the deferral register records it, with the trigger that
+//     dissolves it. A conflict on
 //     EITHER LATER append THROWS, naming the conflict shape and what this call appended:
 //     returning a never-appends code carrying no `transitionRef` would tell the host this call
 //     recorded nothing, when its consultations are on the chain. Nothing rolls back what
@@ -235,8 +238,11 @@ export async function finalize(
     //    is memory.ts's check order, not a SPEC §12 requirement, so another conforming
     //    adapter may order its checks differently and carry no such implication.
     // Both shapes need a store that violates this build's single-writer bound. The code stays
-    // as it is (ruled): changing it by conflict shape is a separate decision from the one
-    // this site records. The `seq` arm is the residual, and it is stated, not hidden.
+    // as it is: this site refusing while the later two throw is a deliberate boundary, and the
+    // deferral register carries it — substance and trigger both — rather than leaving it to a
+    // comment that dies with the code. Changing the code by conflict shape is a separate
+    // decision from the one this site records. The `seq` arm above is the residual it leaves,
+    // and it is stated rather than hidden.
     return refused('record-not-open');
   }
   prevHash = cvRes.transitionDigest;

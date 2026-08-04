@@ -122,9 +122,10 @@ class ConfirmBlockingStore implements Store {
 // INVERTED (this build step, authorized — the SECOND inherited assertion to invert on this
 // branch; the first is redeem()'s, further below). The inherited assertion pinned the
 // opposite result: a confirmed-append conflict arriving after the two consultations had
-// landed refused `record-not-open`, and this test held that mapping in place. The mapping
-// contradicts the normative document, which is why overturning it is a finding acted on
-// rather than a preference. The ground is not an inventory of which codes are true — two
+// landed refused `record-not-open`, and this test held that mapping in place. The mapping does
+// not fit the normative document's own DESCRIPTION of the code, which is why overturning it is
+// a finding acted on rather than a preference — while SPEC issues no VERDICT on which code to
+// return in a shape its atomic batch cannot produce (deferral register row 12). The ground is not an inventory of which codes are true — two
 // attempts to write it that way were each constructibly false at the edges, and
 // `kernel/finalize.ts`'s `midBatchConflict` now carries the durable form: under this build's
 // single-writer bound and a Store honouring the compare-and-swap contract, NO conflict is
