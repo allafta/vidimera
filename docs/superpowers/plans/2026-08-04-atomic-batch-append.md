@@ -653,8 +653,17 @@ Expected: PASS, 6 tests.
 
 - [ ] **Step 7: Add `appendBatch` to the test doubles**
 
-Every hand-rolled `Store` must implement it. In `test/helpers/stores.ts`, add to
-`TamperingStore`, `CountingStore` and `RaceOnceStore`:
+Every hand-rolled `Store` must implement it, or `pnpm typecheck` fails. There are **seven**
+besides `MemoryStore` — find them with `git grep -n "implements Store" -- '*.ts'` rather than
+trusting this list, but as of Task 1's head they are:
+
+| File | Classes |
+|---|---|
+| `test/helpers/stores.ts` | `TamperingStore`, `CountingStore`, `RaceOnceStore` |
+| `test/terminality.test.ts` | `ConfirmBlockingStore`, `FactsConsultationBlockingStore`, `RaceThenAppendStore` |
+| `test/exclusivity.test.ts` | `RaceStore` (`:292`) |
+
+Add to each:
 
 ```ts
   appendBatch(
@@ -1181,7 +1190,8 @@ Expected: PASS, 4 tests.
 
 - [ ] **Step 6: Add `listDue` to the test doubles**
 
-`test/helpers/stores.ts` (all three) and `terminality.test.ts`'s inline doubles:
+The same set Task 2 step 7 enumerates — re-run `git grep -n "implements Store" -- '*.ts'`,
+since Task 3 deleted two of them and added one:
 
 ```ts
   listDue(now: Date): Promise<string[]> {
