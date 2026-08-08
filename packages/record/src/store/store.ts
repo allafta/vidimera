@@ -94,12 +94,15 @@ export type BatchResult =
  * The provisional Store — a strict SUBSET of the storage surface SPEC §12 names, not a
  * transcription of it. Shipped here: `putStaged`/`getStaged`/`appendTransition`/
  * `readChain`/`chainHead`/`appendBatch`/`listDue`. NOT built in this build step:
- * `findNonTerminal`, `seal`. `appendTransition`'s `meta` parameter (`AppendMeta` above) now
- * matches §12's `meta = { nonTerminal, dueAt? }` shape exactly — nothing about the parameter
- * itself is narrowed anymore. What IS still narrowed is `tx?`, the optional caller-supplied
- * transaction §12 puts on every write: omitted here because an in-memory backing has no
- * transaction to receive it. `dueAt` now has both a producer (the genesis `opened` append,
- * from the profile's open-window ttl — `kernel/open.ts`) and a reader (`listDue` itself,
+ * `findNonTerminal` — the sole absence. `seal` is not a Store method at all: SPEC §9 lists
+ * `seal()` operator-only, alongside `open()`/`review()`/`finalize()`/`redeem()`, built atop
+ * this interface rather than part of it (`kernel/seal.ts`). `appendTransition`'s `meta`
+ * parameter (`AppendMeta` above) now matches §12's `meta = { nonTerminal, dueAt? }` shape
+ * exactly — nothing about the parameter itself is narrowed anymore. What IS still narrowed is
+ * `tx?`, the optional caller-supplied transaction §12 puts on every write: omitted here
+ * because an in-memory backing has no transaction to receive it. `dueAt` now has both a
+ * producer (the genesis `opened` append, from the profile's open-window ttl —
+ * `kernel/open.ts`) and a reader (`listDue` itself,
  * narrowed to recordIds — see its own doc comment). §12 is explicit that what is durable is
  * the behaviour each method guarantees rather than its argument list, so this subset
  * conforms behaviourally without mirroring §12's signatures — but a reader must not take it
