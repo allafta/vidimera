@@ -166,7 +166,6 @@ export interface Store {
    * NARROWED from SPEC §12, which says this returns the records due. Ids are what the
    * operator sweep needs — every seam it would drive takes a recordId — and returning full
    * records would require the store to replay chains it deliberately does not interpret.
-   * Recorded as a divergence in the deferral register.
    */
   listDue(now: Date): Promise<string[]>;
 }
