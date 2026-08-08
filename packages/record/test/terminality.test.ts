@@ -375,10 +375,11 @@ test('redeem() on a capture-terminal CONFIRMED record (capture-only profile) -> 
 // any more than the silent refusal it replaces could. Real closure needs a later build
 // step's redemption edge (SPEC §11.2) or a `confirmToRedeem` expiry edge (SPEC §9.1) — NOT
 // `seal()`, which SPEC §12 admits only against a derived-terminal record while SPEC §2 makes
-// this record non-terminal. Stated for the build step that ships `seal()`, since neither half
-// exists here to be reached: there is no `seal()` on the operator surface and no
-// `unsealable-state` in the shipped union, so a step that builds `seal()` expecting it to
-// release the held pair would get `unsealable-state` instead. See the deferral register for
+// this record non-terminal. That is no longer an argument held for a later build step: this
+// build step ships `seal()`, so both halves of it now exist and are reachable — `seal()` is on
+// the operator surface and `unsealable-state` is in the shipped union — and `test/seal.test.ts`
+// pins the consequence, that `seal()` on a confirmed effect-seam record refuses
+// `unsealable-state` rather than releasing the held pair. See the deferral register for
 // the corrected framing; two successive framings there were wrong, one having this as
 // something redeem() or open() could itself close, the other naming seal() as a release path.
 test('redeem() on an effect-seam CONFIRMED record awaiting redemption throws a build-capability error at the seam (the held pair is not released)', async () => {

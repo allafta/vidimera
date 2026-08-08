@@ -318,10 +318,21 @@ effect-seam record's permanently held `(profile, subject)` pair — SPEC §12 ad
 only against a derived-terminal record, and SPEC §2 makes a final-leg `confirmed` on an
 effect-seam profile non-terminal. `packages/record/test/seal.test.ts`'s "seal() on an
 EFFECT-SEAM confirmed record -> unsealable-state (it is non-terminal, awaiting redemption)"
-now proves it by execution, not only by argument: `seal()` against such a record refuses
-`unsealable-state`, appending nothing, so the hold — which lives in the store's C1
-exclusivity, not in what any call returns or throws — is untouched. Row 9 needs no edit; this
-is only the note that its claim is pinned rather than merely argued.
+now proves it by execution, not only by argument: that test pins the refusal and its code,
+`unsealable-state`, and `kernel/seal.ts` returns it at the terminality gate, ahead of the one
+append `seal()` makes — so the hold, which lives in the store's C1 exclusivity rather than in
+what any call returns or throws, is untouched.
+
+**Row 9 did need one edit, and it is not the claim above.** The row carried a second
+sentence — a statement of fact about the shipped code, that there was "no `seal()` on the
+operator surface and no `unsealable-state` in the shipped `RefusalCode` union" — which was
+true when it was written and false the moment this increment shipped both
+(`packages/record/src/operator-surface.ts`, `packages/record/src/refusal-codes.ts`). The
+release-path claim was the part that was merely argued and is now pinned; the currentness
+claim beside it was the part that went stale, and it is rewritten in place. An earlier version
+of this paragraph concluded that the row needed no edit at all, having checked only the first
+of the two. `packages/record/test/terminality.test.ts` carried the same stale sentence and is
+corrected with it.
 
 ### The package is unconsumable today
 
