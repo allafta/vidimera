@@ -897,8 +897,16 @@ the row.**
 - [ ] **Step 3: Sweep the count with a command, not a list**
 
 ```
-git grep -ln "of 9\|of the 9\|nine methods" -- docs/
+git grep -iln "of 9\|of the 9\|nine methods\|seven-method" -- docs/ packages/
 ```
+
+**Note the `-i` and the `packages/` path.** Both were added after Task 3's review found a hit
+the original command would have missed: `packages/record/test/helpers/stores.ts` calls this
+"the seven-method Store contract … no `findNonTerminal`/`seal`; both are a later-phase Store
+surface" — the same 7-of-9 error, living in `packages/` where a `-- docs/`-scoped grep never
+looks. Correct it in place; `seal` is not and never was a Store method. Separately, a
+case-sensitive grep missed a stale `C4 is UNBUILT` in `outcome.ts` during Task 1's
+verification, which is why `-i` is now on every sweep in this plan.
 
 Measured while planning, that returns **seven** documents in **four** classes — and it will
 return eight once this plan is committed, because this plan quotes the wrong count too, in
