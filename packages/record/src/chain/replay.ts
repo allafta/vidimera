@@ -67,10 +67,12 @@ interface RefusedPayload {
  *    carve-out — folds to `state:'refused'`, even though `actor` (set by
  *    the earlier `confirmed`) is untouched by the later `refused` (only
  *    `state`/`refusalCode` are refusal-owned fields).
- *  - Any other `TransitionKind` (`sealed`, `finding-raised`,
+ *  - `sealed` (SPEC §5's chain retirement) sets `status: 'retired'` without moving `state`
+ *    — a sealed `confirmed` record is still `confirmed`.
+ *  - Any other `TransitionKind` (`finding-raised`,
  *    `acknowledged`, `redeeming`, `redeemed`, `redemption-failed`) is not yet emitted
  *    in this build — this kernel emits only opened, consultation-recorded, confirmed,
- *    refused, and expired — `replay` THROWS on one rather than silently ignoring it,
+ *    refused, expired, and sealed — `replay` THROWS on one rather than silently ignoring it,
  *    matching the codebase's fail-closed posture (an unhandled kind reaching this fold
  *    is either a not-yet-wired future capability or chain corruption; both should be
  *    loud, not silently dropped state).
@@ -99,6 +101,7 @@ export function replay(chain: readonly Transition[]): DecisionRecord {
     contentDigest: opened.contentDigest,
     consultations: [],
     state: 'open',
+    status: 'active',
   };
   if (opened.policyDigest !== undefined) {
     record.policyDigest = opened.policyDigest;
@@ -127,6 +130,15 @@ export function replay(chain: readonly Transition[]): DecisionRecord {
         // clause name — the transitioned-from state distinguishes which expiry clause
         // fired. `bound` is not itself reflected in DecisionRecord — only `state` changes.
         record.state = 'expired';
+        break;
+      }
+      case 'sealed': {
+        // State-PRESERVING (SPEC §4's delta payload; §5's chain retirement): sealing never
+        // moves `state` — a sealed `confirmed` record is still `confirmed`. What it changes
+        // is the per-record status §5 reports as `retired` rather than `active`. The payload's
+        // `chainHead` is not folded into the record: it is standalone evidence for after the
+        // body is archived or destroyed (§5), not a field of the record model.
+        record.status = 'retired';
         break;
       }
       default: {

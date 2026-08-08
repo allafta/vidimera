@@ -67,6 +67,7 @@ test('replay(): folds an opened -> consultation-recorded -> confirmed chain into
     actor: APPROVER,
     consultations: [FACTS_CONSULTATION],
     state: 'confirmed',
+    status: 'active',
   });
 });
 
@@ -167,12 +168,39 @@ test('replay(): throws when the first transition is not "opened" (no other sourc
   assert.throws(() => replay(malformed), /opened/i);
 });
 
-test('replay(): throws on a TransitionKind the kernel in this build never emits (e.g. "sealed")', () => {
+test("replay folds a `sealed` transition to status 'retired' WITHOUT moving `state`", () => {
   const chain = buildChain(RECORD_ID, [
     { kind: 'opened', payload: OPENED_PAYLOAD },
-    { kind: 'sealed', payload: { note: 'not a kind this build emits' } },
+    { kind: 'confirmed', payload: CONFIRMED_PAYLOAD },
+    { kind: 'sealed', payload: { chainHead: `sha256:${'a'.repeat(64)}` } },
   ]);
-  assert.throws(() => replay(chain), /sealed/);
+
+  const record = replay(chain);
+
+  assert.equal(record.status, 'retired');
+  assert.equal(
+    record.state,
+    'confirmed',
+    'sealing is state-PRESERVING — a sealed `confirmed` record is still `confirmed`',
+  );
+  assert.deepEqual(record.actor, APPROVER, 'the seal does not disturb earlier folded fields');
+});
+
+test('replay reports status active on a record that has never been sealed', () => {
+  const chain = buildChain(RECORD_ID, [
+    { kind: 'opened', payload: OPENED_PAYLOAD },
+    { kind: 'confirmed', payload: CONFIRMED_PAYLOAD },
+  ]);
+
+  assert.equal(replay(chain).status, 'active');
+});
+
+test('replay(): throws on a TransitionKind the kernel in this build never emits (e.g. "finding-raised")', () => {
+  const chain = buildChain(RECORD_ID, [
+    { kind: 'opened', payload: OPENED_PAYLOAD },
+    { kind: 'finding-raised', payload: { note: 'not a kind this build emits' } },
+  ]);
+  assert.throws(() => replay(chain), /finding-raised/);
 });
 
 // === verifyChain() ===================================================================

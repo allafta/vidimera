@@ -64,6 +64,17 @@ export interface DecisionRecord {
   actor?: IdentityAssertion;
   consultations: Consultation[];
   state: RecordState;
+  /**
+   * Per-record lifecycle status (SPEC §5's chain retirement): `retired` once a `sealed`
+   * transition caps the chain, `active` before that. DERIVED by `chain/replay.ts` from the
+   * chain — never stored, never a caller input, the same discipline `state` follows.
+   *
+   * NOT a field of SPEC §2's record-model table, which names `state` and no status. §5 and
+   * §12 both require a sealed record to report `retired`, which is why the field exists here;
+   * the divergence from §2's table is recorded in `docs/process/implementation-status.md`
+   * rather than assumed away.
+   */
+  status: 'active' | 'retired';
   refusalCode?: RefusalCode;
 }
 
