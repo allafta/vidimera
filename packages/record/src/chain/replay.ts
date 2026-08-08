@@ -72,7 +72,7 @@ interface RefusedPayload {
  *  - Any other `TransitionKind` (`finding-raised`,
  *    `acknowledged`, `redeeming`, `redeemed`, `redemption-failed`) is not yet emitted
  *    in this build — this kernel emits only opened, consultation-recorded, confirmed,
- *    refused, expired, and sealed — `replay` THROWS on one rather than silently ignoring it,
+ *    refused, and expired — `replay` THROWS on one rather than silently ignoring it,
  *    matching the codebase's fail-closed posture (an unhandled kind reaching this fold
  *    is either a not-yet-wired future capability or chain corruption; both should be
  *    loud, not silently dropped state).
