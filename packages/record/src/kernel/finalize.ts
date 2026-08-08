@@ -235,6 +235,10 @@ export async function finalize(
   // record terminal (SPEC §12).
   const postBatch: AppendMeta = {
     nonTerminal: nonTerminal('confirmed', finalLeg, resolved.effectSeam),
+    // No `dueAt`: a capture-only final-leg `confirmed` is terminal and has no pending clock,
+    // and the effect-seam `confirmToRedeem` window that WOULD set one here is unbuilt
+    // (deferral register row 9 — both redemption bounds are inert in this build). Absent is
+    // the honest value today; this is the site that must set it when that clock lands.
   };
   const res = await store.appendBatch(
     'open',

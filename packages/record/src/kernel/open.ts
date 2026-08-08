@@ -25,8 +25,9 @@ import { isFinalLeg, nonTerminal } from '../nonterminal.js';
 import type { Outcome } from '../outcome.js';
 import { ok, refused } from '../outcome.js';
 import { profileDigest } from '../profile-digest.js';
+import type { AppendMeta } from '../store/store.js';
 import type { Transition } from '../types.js';
-import { expireIfDue } from './expiry.js';
+import { expireIfDue, expiryDeadlineMs } from './expiry.js';
 
 /**
  * Per-key GOVERNED message for an `open()` options key (config.ts's `OpenOptions`): the
@@ -128,10 +129,17 @@ export async function open(
     isFinalLeg(legIndex, profile.legs.length),
     effectSeam,
   );
-
-  const first = await store.appendTransition(null, openedTransition, {
+  const deadlineMs = expiryDeadlineMs(openedTransition.at, profile.expiry);
+  const genesisMeta: AppendMeta = {
     nonTerminal: openedNonTerminal,
-  });
+    // SPEC §12: presence sets the pending-clock column. This is the only producer in this
+    // build — the open ttl window. The effect-seam `confirmToRedeem` window and the
+    // `redeeming` window are §9.1's other two clocks and neither is built (deferral register
+    // row 9), so finalize's batch carries no `dueAt` and thereby clears the column.
+    ...(deadlineMs === null ? {} : { dueAt: new Date(deadlineMs).toISOString() }),
+  };
+
+  const first = await store.appendTransition(null, openedTransition, genesisMeta);
   if (first.appended) {
     return ok({ recordId });
   }
@@ -172,9 +180,7 @@ export async function open(
   }
 
   // The blocker is expired (now terminal); retry the genesis open EXACTLY ONCE.
-  const retry = await store.appendTransition(null, openedTransition, {
-    nonTerminal: openedNonTerminal,
-  });
+  const retry = await store.appendTransition(null, openedTransition, genesisMeta);
   if (retry.appended) {
     return ok({ recordId });
   }

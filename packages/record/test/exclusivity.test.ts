@@ -355,6 +355,9 @@ class RaceStore implements Store {
   ): Promise<BatchResult> {
     return this.inner.appendBatch(expectedCurrentState, transitions, meta);
   }
+  listDue(now: Date): Promise<string[]> {
+    return this.inner.listDue(now);
+  }
 }
 
 test('an expire-CAS state-mismatch (a race flipped the blocker) -> record-exists, NEVER re-loop (exactly one genesis attempt)', async () => {

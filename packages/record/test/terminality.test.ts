@@ -110,6 +110,9 @@ class BatchConflictStore implements Store {
   async appendBatch(): Promise<BatchResult> {
     return { appended: false, conflict: this.conflict, index: this.index };
   }
+  listDue(now: Date): Promise<string[]> {
+    return this.inner.listDue(now);
+  }
 }
 
 test("finalize()'s success batch is atomic: an entry conflict refuses record-not-open and leaves the chain untouched", async () => {
@@ -277,6 +280,9 @@ class RaceThenAppendStore implements Store {
       assert.ok(landed.appended, 'fixture: the raced confirmed edge must genuinely land');
     }
     return this.inner.appendBatch(expectedCurrentState, transitions, meta);
+  }
+  listDue(now: Date): Promise<string[]> {
+    return this.inner.listDue(now);
   }
 }
 

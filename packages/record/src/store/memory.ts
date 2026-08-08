@@ -445,4 +445,15 @@ export class MemoryStore implements Store {
     const last = existing.chain.at(-1);
     return last === undefined ? null : transitionDigest(last);
   }
+
+  async listDue(now: Date): Promise<string[]> {
+    const nowMs = now.getTime();
+    const due: string[] = [];
+    for (const record of this.records.values()) {
+      if (record.dueAt !== undefined && Date.parse(record.dueAt) <= nowMs) {
+        due.push(record.id);
+      }
+    }
+    return due;
+  }
 }

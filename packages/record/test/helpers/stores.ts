@@ -1,8 +1,8 @@
 // @vidimera/record — test/helpers/stores.ts: shared Store test-doubles, down-ported to
-// this build step's six-method Store contract (`putStaged`/`getStaged`/
-// `appendTransition`/`readChain`/`chainHead`/`appendBatch` — no `findNonTerminal` or
-// `listDue`; those are a later-phase Store surface). Three shapes fold the near-identical
-// inline classes that would otherwise be hand-copied across the test corpus:
+// this build step's seven-method Store contract (`putStaged`/`getStaged`/
+// `appendTransition`/`readChain`/`chainHead`/`appendBatch`/`listDue` — no
+// `findNonTerminal`; that is a later-phase Store surface). Three shapes fold the
+// near-identical inline classes that would otherwise be hand-copied across the test corpus:
 //   - `TamperingStore` — `readChain` returns a TAMPERED copy of one targeted record's
 //     chain (a `tamperFn` over the real chain); every write delegates to a real inner
 //     MemoryStore. Used here by chain-verify.test.ts and refusal-matrix.test.ts.
@@ -62,6 +62,9 @@ export class TamperingStore implements Store {
     const chain = await this.inner.readChain(recordId);
     return recordId === this.targetRecordId ? this.tamperFn(chain) : chain;
   }
+  listDue(now: Date): Promise<string[]> {
+    return this.inner.listDue(now);
+  }
 }
 
 /**
@@ -106,6 +109,9 @@ export class CountingStore implements Store {
   }
   chainHead(recordId: string): Promise<Digest | null> {
     return this.inner.chainHead(recordId);
+  }
+  listDue(now: Date): Promise<string[]> {
+    return this.inner.listDue(now);
   }
 }
 
@@ -158,5 +164,8 @@ export class RaceOnceStore implements Store {
   }
   readChain(recordId: string): Promise<Transition[]> {
     return this.inner.readChain(recordId);
+  }
+  listDue(now: Date): Promise<string[]> {
+    return this.inner.listDue(now);
   }
 }

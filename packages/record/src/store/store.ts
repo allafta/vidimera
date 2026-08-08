@@ -87,20 +87,19 @@ export type BatchResult =
 /**
  * The provisional Store — a strict SUBSET of the storage surface SPEC §12 names, not a
  * transcription of it. Shipped here: `putStaged`/`getStaged`/`appendTransition`/
- * `readChain`/`chainHead`/`appendBatch`. NOT built in this build step: `findNonTerminal`,
- * `listDue`, `seal`. `appendTransition`'s `meta` parameter (`AppendMeta` above) now matches
- * §12's `meta = { nonTerminal, dueAt? }` shape exactly — nothing about the parameter itself
- * is narrowed anymore. What IS still narrowed is `tx?`, the optional caller-supplied
+ * `readChain`/`chainHead`/`appendBatch`/`listDue`. NOT built in this build step:
+ * `findNonTerminal`, `seal`. `appendTransition`'s `meta` parameter (`AppendMeta` above) now
+ * matches §12's `meta = { nonTerminal, dueAt? }` shape exactly — nothing about the parameter
+ * itself is narrowed anymore. What IS still narrowed is `tx?`, the optional caller-supplied
  * transaction §12 puts on every write: omitted here because an in-memory backing has no
- * transaction to receive it. `dueAt` itself is declared and persisted (`store/memory.ts`'s
- * `dueAt` column) but has no producer in this build step — nothing yet calls
- * `appendTransition` with a `dueAt` value, and nothing yet lists due records. §12 is
- * explicit that what is durable is the behaviour each method guarantees rather than its
- * argument list, so this subset conforms behaviourally without mirroring §12's signatures —
- * but a reader must not take it for the whole adapter contract. Async throughout —
- * committing now avoids a breaking sync->async flip once a real Postgres adapter and
- * caller-transaction seam land — even though `store/memory.ts`'s Map-backed implementation
- * has no genuine I/O to await.
+ * transaction to receive it. `dueAt` now has both a producer (the genesis `opened` append,
+ * from the profile's open-window ttl — `kernel/open.ts`) and a reader (`listDue` itself,
+ * narrowed to recordIds — see its own doc comment). §12 is explicit that what is durable is
+ * the behaviour each method guarantees rather than its argument list, so this subset
+ * conforms behaviourally without mirroring §12's signatures — but a reader must not take it
+ * for the whole adapter contract. Async throughout — committing now avoids a breaking
+ * sync->async flip once a real Postgres adapter and caller-transaction seam land — even
+ * though `store/memory.ts`'s Map-backed implementation has no genuine I/O to await.
  */
 export interface Store {
   /**
@@ -158,4 +157,16 @@ export interface Store {
     transitions: readonly Transition[],
     meta: AppendMeta,
   ): Promise<BatchResult>;
+
+  /**
+   * The recordIds with a pending clock that has come due — SPEC §12's gate, verbatim:
+   * `dueAt ≠ null AND dueAt ≤ now`, with **no state predicate**. `dueAt` presence is the
+   * library's declaration of a pending clock; the store never derives one.
+   *
+   * NARROWED from SPEC §12, which says this returns the records due. Ids are what the
+   * operator sweep needs — every seam it would drive takes a recordId — and returning full
+   * records would require the store to replay chains it deliberately does not interpret.
+   * Recorded as a divergence in the deferral register.
+   */
+  listDue(now: Date): Promise<string[]>;
 }
