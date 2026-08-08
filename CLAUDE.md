@@ -23,11 +23,16 @@ parts:
   genuinely applicable are now applied, and the tenth was reclassified as a local
   improvement rather than an inherited fix (see that document). The remediation plan's
   units R1–R5 (`docs/superpowers/plans/2026-08-03-step-1-remediation.md`) are all
-  complete. **`docs/process/implementation-status.md` is the authoritative account** of
-  what this build does and does not implement, section by section, with the gate outputs
-  at exit and the outstanding list — read it rather than trusting a count here, which is a
-  claim with a shelf life and no way to fail loudly. Seven of the eight build-order steps
-  remain, and the package is not consumable by a host today.
+  complete. Step 2 — the store, for real — is **started and has not exited**: two
+  increments have landed the atomic `appendBatch`, `listDue`, §12's
+  `{ nonTerminal, dueAt? }` meta shape on both append seams, the C4 seal-finality bar,
+  and the operator-only `seal()` chain-retirement seam with its derived
+  `active`/`retired` status — all still inside the one in-memory backing, which is why
+  the step has not exited. **`docs/process/implementation-status.md` is the authoritative
+  account** of what this build does and does not implement, section by section, with the
+  gate outputs and the outstanding list — read it rather than trusting a count here,
+  which is a claim with a shelf life and no way to fail loudly. Seven of the eight
+  build-order steps remain, and the package is not consumable by a host today.
 
 ## The standalone contract
 
@@ -89,11 +94,12 @@ pnpm workspace (Node 22+, pnpm via corepack):
   script's own header naming what it deliberately does **not** check — read it before
   treating a green scan as coverage. **Markdown is not citation-checked at all**, so a
   wrong citation in a process document, plan or README has no gate behind it and must be
-  hand-verified against a whitespace-collapsed copy of the source: at least one SPEC
-  phrase quoted on this branch wraps a line break, where a naive `grep -F` reports it
-  missing. A reader should diff a new run's output, never just compare totals, before
+  hand-verified against a whitespace-collapsed copy of the source: a quoted SPEC phrase
+  that wraps a line break is present in the source and invisible to a naive `grep -F`,
+  which is a standing trap here and has repeatedly produced false "missing quotation"
+  findings. A reader should diff a new run's output, never just compare totals, before
   treating any red result as a regression — a scan total moving has hidden an equal-sized
-  regression in the opposite direction on this branch before.
+  regression in the opposite direction here before.
 
 CI (`.github/workflows/ci.yml`) runs typecheck, test, lint, contract-scan, and the
 stricter `lint:strict` (`biome check --error-on-warnings`) on every push to `main` and
@@ -114,8 +120,8 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
 - **Inverting an inherited pinned assertion is authorized explicitly, never slipped in.**
   The kernel arrived with the reference implementation's test corpus; adopting a corpus
   and quietly changing what it pins is how a build drifts while its suite stays green. Two
-  inversions were authorized on this branch, each argued in place at
-  `packages/record/test/terminality.test.ts` and recorded in the exit record.
+  inversions have been authorized so far, both during the step-1 remediation, each argued
+  in place at `packages/record/test/terminality.test.ts` and recorded in the exit record.
 - Feature guards from day one — an unimplemented capability throws at construction
   (`config.ts` `validateProfile`; ten governed profile fields throw there). `redeem` is
   the eleventh governed capability: it throws at the call seam instead
@@ -125,9 +131,11 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   throws — so the throw is loud, not silent; real closure needs a later build step's
   redemption edge (SPEC §11.2) or a `confirmToRedeem` expiry edge (SPEC §9.1). `seal()`
   is **not** a release path: SPEC §12 admits it only against a derived-terminal record,
-  and a final-leg `confirmed` on an effect-seam profile is non-terminal (SPEC §2).
-  Recorded in the deferral register (an earlier framing of this remedy was itself wrong
-  and has been corrected there; the `seal()`-as-release half was a second error, found by
-  the citation audit and corrected in the same place).
+  and a final-leg `confirmed` on an effect-seam profile is non-terminal (SPEC §2). That
+  last claim is no longer argued only in prose — now that `seal()` is built, it is pinned
+  by an executing test in `packages/record/test/seal.test.ts`. Recorded in the deferral
+  register (an earlier framing of this remedy was itself wrong and has been corrected
+  there; the `seal()`-as-release half was a second error, found by the citation audit and
+  corrected in the same place).
 - Byte-stability pins and adjacent-pair gate-order tests, from the kernel increment on.
 - The living deferral register: `docs/process/deferral-register.md`.
