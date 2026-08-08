@@ -84,7 +84,13 @@ export interface AppendMeta {
  * C4 seal-finality is built in `store/memory.ts`. The entry-level C4 rejection half of
  * "entry-level failures report element index 0" has a bar behind it: `appendBatch` rejects
  * with `index: 0` once the entry record is already sealed, through this same
- * `state-mismatch` arm as C3, not a distinct shape, exactly as `appendTransition` does.
+ * `state-mismatch` arm as C3, not a distinct shape — the same arm `appendTransition` uses.
+ *
+ * Its REACH is entry-level, which is what SPEC §12 asks for rather than a narrowing of it:
+ * "Entry-level failures — an entry compare-and-swap mismatch or C4 seal-finality — report
+ * element index 0." The check runs once, before the element loop, and the loop does not
+ * re-evaluate seal-finality against the evolving batch — so C4 is barred-at-entry for a batch
+ * and barred-per-append for `appendTransition`.
  */
 export type BatchResult =
   | { appended: true; transitionDigests: readonly Digest[] }

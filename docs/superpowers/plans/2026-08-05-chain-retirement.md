@@ -896,7 +896,7 @@ row 12's trigger.
 
 **The Store is 7 of 8, not 7 of 9.** SPEC states no method count anywhere — verify that
 yourself with `grep -ciE "nine methods|eight methods" docs/concept/SPEC.md`, which returns 0.
-§12 gives signatures to eight methods: `putStaged`, `getStaged`, `appendTransition`,
+§12 gives signatures to eight `Store` methods: `putStaged`, `getStaged`, `appendTransition`,
 `appendBatch`, `readChain`, `chainHead`, `findNonTerminal`, `listDue`. `seal` is not among
 them — §9 lists `seal()` as **operator-only** alongside `open()`, `review()`, `finalize()`,
 `redeem()` "and the sweep — §12", and §12 discusses it in the storage section for the same

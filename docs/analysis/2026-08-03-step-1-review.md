@@ -264,9 +264,12 @@ belong in it. SPEC §9 lists `seal()` as **operator-only**, grouped with
 `open()`/`review()`/`finalize()`/`redeem()` "and the sweep — §12," never as a `Store` method,
 and §12 discusses `seal(recordId)` in the storage section only because C4 seal-finality — the
 constraint that makes both of them true — lives there. SPEC states no method count anywhere;
-§12 gives an explicit signature to eight methods (`putStaged`, `getStaged`, `appendTransition`,
-`appendBatch`, `readChain`, `chainHead`, `findNonTerminal`, `listDue`), and the "five" above
-should read **five of eight**, not five of nine. What was actually absent when this document
+§12 gives an explicit signature to eight `Store` methods (`putStaged`, `getStaged`,
+`appendTransition`, `appendBatch`, `readChain`, `chainHead`, `findNonTerminal`, `listDue`), and
+the "five" above should read **five of eight**, not five of nine. The word `Store` is what makes
+that exact: counting *every* parenthesized signature in §12 gives nine, because
+`seal(recordId)` (`docs/concept/SPEC.md:1117`) has one too — it is the operator seam, not a
+Store method, which is the whole point of the correction. What was actually absent when this document
 was written is unchanged by this correction — `appendBatch`, `findNonTerminal`, `listDue`, and
 the `meta` shape were all genuinely unbuilt, exactly as stated — only the count they were
 measured against was wrong. The same denominator, uncorrected, propagated into this build's own

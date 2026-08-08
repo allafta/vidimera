@@ -23,7 +23,7 @@ story from entirely-unbuilt into shipped.
 introduced during the original whole-branch review and carried unchallenged through the step-1
 remediation, five task reviews and a whole-branch review.
 
-§12 gives signatures to eight methods: `putStaged`, `getStaged`, `appendTransition`,
+§12 gives signatures to eight `Store` methods: `putStaged`, `getStaged`, `appendTransition`,
 `appendBatch`, `readChain`, `chainHead`, `findNonTerminal`, `listDue`. `seal` is **not** among
 them — §9 lists `seal()` as **operator-only**, alongside `open()`, `review()`, `finalize()`,
 `redeem()` "and the sweep — §12". §12 describes it in the storage section because C4 lives
