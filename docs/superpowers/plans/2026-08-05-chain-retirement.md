@@ -469,7 +469,7 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
 import { transitionDigest } from '../src/chain/encoding.js';
-import { create } from '../src/create.js';
+import { create, createWithClock } from '../src/create.js';
 import { MemoryStore } from '../src/store/memory.js';
 import type { Transition } from '../src/types.js';
 import {
@@ -577,12 +577,20 @@ test('seal() on a DUE-but-open record refuses without expiring it en passant', a
   // whose bound has elapsed refuses `unsealable-state`, and the operator sweeps first, then
   // seals." open() and finalize() both DO expire en passant, so the omission is what needs
   // proving, not the refusal.
+  // The clock is INJECTED via `createWithClock`, the internal test seam every expiry test in
+  // this corpus uses (see expiry.test.ts and exclusivity.test.ts). Never sleep in a test here.
+  const TTL = 3600;
+  let nowMs = Date.UTC(2026, 0, 1, 0, 0, 0);
+  const clock = () => new Date(nowMs);
   const store = new MemoryStore();
-  const handles = create(makeConfig([captureProfile({ ttl: 1 })], { store }));
+  const handles = createWithClock(
+    makeConfig([captureProfile({ ttl: TTL })], { store }),
+    clock,
+  );
   const recordId = await openRecord(handles, CONTENT, 'test.capture.v1', DEFAULT_SUBJECT_REF);
   const before = await handles.operator.readChain(recordId);
 
-  await new Promise((r) => setTimeout(r, 1100));
+  nowMs += (TTL + 1) * 1000; // past the open window
 
   const outcome = await handles.operator.seal(recordId);
   assert.equal(outcome.status, 'refused');
@@ -828,7 +836,8 @@ Update both files' header comments — each enumerates the operator seams, and `
 npx vitest run packages/record/test/seal.test.ts
 ```
 
-Expected: PASS, 11 tests. Then the full gates. **Delta: +11 tests, +1 file.**
+Expected: PASS, **10 tests** (seven behavioural, three compromise). Then the full gates.
+**Delta: +10 tests, +1 file.**
 
 - [ ] **Step 8: Prove the en-passant omission is load-bearing**
 
@@ -941,8 +950,8 @@ one row retires, that row 13 narrows rather than closing, and where the nine cam
 
 ## Done when
 
-- All five gates green; **delta +16 tests and +1 test file** over BASE's 25 files / 272 tests
-  (Task 1 +3, Task 2 +2, Task 3 +11, Task 4 +0). Track the delta, not the absolute.
+- All five gates green; **delta +15 tests and +1 test file** over BASE's 25 files / 272 tests
+  (Task 1 +3, Task 2 +2, Task 3 +10, Task 4 +0). Track the delta, not the absolute.
 - The four byte-stability digests are byte-identical to BASE.
 - `docs/concept/` untouched.
 - No non-null assertion introduced:
