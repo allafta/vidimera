@@ -29,21 +29,18 @@
 // (5) Facts — missing/malformed `facts` (no figures / no checker) → `consultation-missing`.
 // (5.7) Ack coverage — RESERVED. No producer at this build step; arrives with findings and
 //       acknowledgments (SPEC §10.2).
-// (6) Success batch — best-effort SEQUENTIAL appends [chain-verify consultation, facts
-//     consultation, confirmed] under the single-writer / no-concurrent-finalize-per-record
-//     bound in this build (not a cross-append atomic batch; a future build step makes it
-//     one). No conflict is reachable at any of the three appends under that bound and a Store
-//     honouring SPEC §12's compare-and-swap contract, so a conflict here is a STORAGE FAULT
-//     however it is surfaced. A conflict on the FIRST append still refuses `record-not-open`,
-//     which nothing of this call has yet contradicted, and which is true of the state for a
-//     `state-mismatch` but FALSE for a `seq` conflict — both reachable, both stated at the
-//     site. Keeping the refusal there while the later two throw is a deliberate boundary
-//     rather than an oversight; the deferral register records it, with the trigger that
-//     dissolves it. A conflict on
-//     EITHER LATER append THROWS, naming the conflict shape and what this call appended:
-//     returning a never-appends code carrying no `transitionRef` would tell the host this call
-//     recorded nothing, when its consultations are on the chain. Nothing rolls back what
-//     landed.
+// (6) Success batch — ONE atomic `appendBatch` call carrying [chain-verify consultation,
+//     facts consultation, confirmed] under a single entry compare-and-swap (SPEC §12): a
+//     conflict applies NOTHING, so the partial-tail case this build once had to map is
+//     unreachable now rather than handled. The only shape reachable at this batch's entry CAS
+//     is `state-mismatch` — the record is not `open` — so it refuses `record-not-open`, which
+//     is true of the state AND honours its never-appends registry entry, both for the first
+//     time at this seam (`batchConflict`'s doc comment works the `seq` shape's
+//     unreachability). A `seq` conflict is a STORAGE FAULT: under this build's single-writer /
+//     no-concurrent-finalize-per-record bound and a Store honouring SPEC §12's
+//     compare-and-swap contract, it cannot occur, so it THROWS naming the shape and index,
+//     with nothing recorded — the throw sits inside DECISIONS.md #10's "nothing was recorded"
+//     exception rather than beside it.
 //
 // (3)/(4)/(5) are refusal-class: each appends `open→refused` (terminal) IFF the leg's
 // `terminalRefusals` lists it (the `appendsOn` rule), else no append and the record stays open.
@@ -57,7 +54,7 @@ import { isFinalLeg, nonTerminal } from '../nonterminal.js';
 import type { Outcome } from '../outcome.js';
 import { ok, refused } from '../outcome.js';
 import { appendsOn, type RefusalCode } from '../refusal-codes.js';
-import type { AppendResult, Store } from '../store/store.js';
+import type { AppendMeta, Store } from '../store/store.js';
 import type { Consultation, Digest, IdentityAssertion, RecordState, Transition } from '../types.js';
 import { expireIfDue } from './expiry.js';
 
@@ -203,171 +200,90 @@ export async function finalize(
     verdict: 'pass',
   };
 
-  // The record is `open` and stays `open` across the two state-preserving consultation
-  // appends (both `expectedCurrentState:'open'`), then the `confirmed` edge flips it.
-  const openNonTerminal = nonTerminal('open', finalLeg, resolved.effectSeam); // true
-  let prevHash: Digest = headDigest;
-  let seq = chain.length + 1;
-
-  // (a) chain-verify consultation (state-preserving)
+  // The batch is built whole before it is sent: each element's `prevHash` is the previous
+  // element's digest, so the caller necessarily computes the chain and the store verifies
+  // the sequencing rather than assigning it (SPEC §12).
+  const seqBase = chain.length;
   const cvTransition: Transition = {
     recordId,
-    seq,
+    seq: seqBase + 1,
     at: nowIso,
     kind: 'consultation-recorded',
     payload: chainVerifyConsultation,
-    prevHash,
+    prevHash: headDigest,
   };
-  const cvRes = await store.appendTransition('open', cvTransition, {
-    nonTerminal: openNonTerminal,
-  });
-  if (!cvRes.appended) {
-    // The FIRST append of the batch: nothing of this call has landed. A never-appends code
-    // carrying no `transitionRef` therefore tells the host the truth — this call recorded
-    // nothing — which is exactly what stops being true at the later two sites. (A racing
-    // writer's own edge may well be on the chain; the claim is about this call, as it is at
-    // those sites.) What the code CLAIMS is
-    // still narrower than the branch it guards, and the difference is recorded rather than
-    // left for a reader to assume away. Measured against `store/memory.ts`, not reasoned from
-    // the name:
-    //  - `state-mismatch` ⇒ the record was absent or NOT `open` at this CAS, so the code is
-    //    true of the state. `nonterminal.ts` makes `open` unconditionally non-terminal, so
-    //    memory.ts's C3 arm (which needs a terminal record) cannot fire against an open one,
-    //    leaving its state CAS as the only producer of this shape here. One sub-shape is
-    //    still off: a race to `expired` draws `leg-expired` under SPEC §8, not this code.
-    //  - `seq` ⇒ memory.ts checks the state CAS BEFORE sequencing, so it raises `seq` only
-    //    after finding the record `open` — and `record-not-open` is then FALSE. That premise
-    //    is memory.ts's check order, not a SPEC §12 requirement, so another conforming
-    //    adapter may order its checks differently and carry no such implication.
-    // Both shapes need a store that violates this build's single-writer bound. The code stays
-    // as it is: this site refusing while the later two throw is a deliberate boundary, and the
-    // deferral register carries it — substance and trigger both — rather than leaving it to a
-    // comment that dies with the code. Changing the code by conflict shape is a separate
-    // decision from the one this site records. The `seq` arm above is the residual it leaves,
-    // and it is stated rather than hidden.
-    return refused('record-not-open');
-  }
-  prevHash = cvRes.transitionDigest;
-  seq += 1;
-
-  // (b) facts consultation (state-preserving)
   const factsTransition: Transition = {
     recordId,
-    seq,
+    seq: seqBase + 2,
     at: nowIso,
     kind: 'consultation-recorded',
     payload: factsConsultation,
-    prevHash,
+    prevHash: transitionDigest(cvTransition),
   };
-  const factsRes = await store.appendTransition('open', factsTransition, {
-    nonTerminal: openNonTerminal,
-  });
-  if (!factsRes.appended) {
-    // One consultation (chain-verify) of this call is already on the chain — see
-    // `midBatchConflict`. What the RECORD's state is by now is not re-read here, and a
-    // `state-mismatch` means it is no longer `open`.
-    throw midBatchConflict(factsRes.conflict, 1);
-  }
-  prevHash = factsRes.transitionDigest;
-  seq += 1;
-
-  // (c) confirmed transition — capture-only ⇒ terminal (nonTerminal false); effect-seam ⇒
-  // non-terminal (awaits redemption).
-  const confirmedNonTerminal = nonTerminal('confirmed', finalLeg, resolved.effectSeam);
+  // capture-only ⇒ terminal; effect-seam ⇒ non-terminal (awaits redemption).
   const confirmedTransition: Transition = {
     recordId,
-    seq,
+    seq: seqBase + 3,
     at: nowIso,
     kind: 'confirmed',
     payload: { actor: identity },
-    prevHash,
+    prevHash: transitionDigest(factsTransition),
   };
-  const confirmedRes = await store.appendTransition('open', confirmedTransition, {
-    nonTerminal: confirmedNonTerminal,
-  });
-  if (!confirmedRes.appended) {
-    // Both consultations of this call are already on the chain and THIS call adds no decision
-    // edge after them — see `midBatchConflict`. They stay there: the batch is sequential
-    // best-effort in this build, not atomic, so the throw undoes nothing. Whether the record
-    // still has no decision edge at all is a different question and not one this call can
-    // answer: a `state-mismatch` here means something else moved the record out of `open`,
-    // which may well have been another writer's own `confirmed`.
-    throw midBatchConflict(confirmedRes.conflict, 2);
-  }
 
-  return ok({ recordId, state: 'confirmed', transitionRef: confirmedRes.transitionDigest });
+  // `meta` is the POST-batch record flag, applied once. The entry terminality flag is the
+  // store's own, read at entry — which is what admits the `confirmed` element that makes the
+  // record terminal (SPEC §12).
+  const postBatch: AppendMeta = {
+    nonTerminal: nonTerminal('confirmed', finalLeg, resolved.effectSeam),
+  };
+  const res = await store.appendBatch(
+    'open',
+    [cvTransition, factsTransition, confirmedTransition],
+    postBatch,
+  );
+  if (!res.appended) {
+    if (res.conflict === 'seq') {
+      throw batchConflict(res.conflict, res.index);
+    }
+    // `state-mismatch`. The batch applied nothing, so `record-not-open` is true of the
+    // record AND honours its never-appends entry — both, for the first time at this seam.
+    // Element-level `state-mismatch` is unreachable for THIS batch: the entry flag is
+    // non-terminal (the record is open), so C3's terminal arm cannot fire while it applies.
+    return refused('record-not-open');
+  }
+  const confirmedDigest = res.transitionDigests.at(-1);
+  if (confirmedDigest === undefined) {
+    throw new Error(
+      'finalize: appendBatch reported success with no digests — a conforming Store returns ' +
+        'one digest per element',
+    );
+  }
+  return ok({ recordId, state: 'confirmed', transitionRef: confirmedDigest });
 }
 
 // --- helpers ---------------------------------------------------------------------------
 
-/** The `AppendResult` conflict shapes, i.e. every shape a non-appending result can carry. */
-type AppendConflict = Extract<AppendResult, { appended: false }>['conflict'];
-
 /**
- * The mid-batch conflict fault — rung (6)'s later two appends (b) and (c).
+ * The batch-conflict fault — rung (6)'s single append.
  *
  * THE GROUND, and it is one sentence: under this build's single-writer /
  * no-concurrent-finalize-per-record bound, with a Store honouring SPEC §12's compare-and-swap
- * contract, NO conflict is reachable at these appends — the CAS target is a state only another
- * writer could move, and the `seq` is `max+1` unless another writer appended. So arriving here
- * means the storage layer broke a contract, which is a storage fault, and DECISIONS.md #11
- * makes a storage fault a loud throw. That ground is independent of the conflict shape, of the
- * adapter, and of the record's state — none of which this call re-reads.
+ * contract, no conflict is reachable at this append, so arriving here means the storage layer
+ * broke a contract. DECISIONS.md #11 makes a storage fault a loud throw, and because the
+ * batch is all-or-nothing this one sits squarely inside the scope DECISIONS.md #10 gives that
+ * exception — "storage faults where nothing was recorded" — rather than beside it.
  *
- * WHY NOT RETURN A CODE ANYWAY. A refusal is result-first data the host routes on, and the
- * codes available here would MISREPRESENT what happened rather than describe it:
- * `record-not-open` carries no `transitionRef` and is a never-appends member, so returning it
- * tells a host that this call recorded nothing — while the consultations it appended (one at
- * site (b), two at site (c)) sit on the chain. Note what
- * this argument is NOT: the never-appends rule itself was never contradicted. SPEC §8's
- * append-semantics paragraph scopes that rule to whether the REFUSAL appends a `refused`
- * transition, `appendsOn('record-not-open', leg)` is `false` unconditionally, and no `refused`
- * edge was appended at either site — the consultations came from the success batch. What is
- * wrong is the picture the outcome paints for the host, plus §8's own table-row framing of the
- * code as a SEAM invoked against a non-open record, which does not describe a seam that has
- * already put two consultations on the chain. An earlier version of this comment claimed a
- * contradiction here, and a version before that claimed the record was "still open"; both were
- * false — the second because `store/memory.ts`'s state CAS is the only producer of
- * `state-mismatch` at these appends (C3's arm needs a TERMINAL record, and `nonterminal.ts`
- * makes `open` unconditionally non-terminal), so a genuine one means the record is NOT open.
- *
- * WHAT THE UNION DOES AND DOES NOT OFFER — commentary, NOT the ground above. A defect in this
- * paragraph is a documentation bug, not a hole in the justification, and it is written that
- * way deliberately: two successive attempts to justify the throw by enumerating the union and
- * ruling every member out were each constructibly false at their edges, because a
- * bound-violating store gets to influence the state the enumeration quantifies over.
- * `record-not-open` may well be TRUE of the state after a `state-mismatch`. At least two codes
- * can be true of it AND are outside the never-appends set: `leg-expired`, when another writer
- * lands an `expired` edge (SPEC §8 routes an expired record at these seams to it), and
- * `chain-compromise`, when a bound-violating writer lands an edge whose `prevHash` does not
- * link — both constructed against `MemoryStore`, neither hypothetical. Returning either would
- * still be wrong for the reason above, and no exhaustiveness is claimed for this list. The
- * three argument-determined codes (`content-drift`, `identity-authority-refused`,
- * `consultation-missing`) cannot flip: they are properties of THIS CALL's arguments against
- * the record's bound digest, the leg's authorities and the `facts` arg, and a writer racing
- * through the append seam cannot reach any of them. They were gated and PASSED earlier in this same call, and none was
- * re-checked after the conflict — which is itself a reason this is a fault, not a verdict.
- *
- * THE LIMIT, IN THE SAME BREATH. The exception taken here is a scoped one —
- * DECISIONS.md #10: "storage faults where nothing was recorded" — and here something WAS
- * recorded, so this throw sits outside that scope rather than inside it. It rolls nothing
- * back, because no rollback exists in this build: the batch is sequential, not atomic
- * (SPEC §12's `appendBatch` is the all-or-nothing rung, and it is not part of the shipped
- * `Store`; deferral register). What the message may therefore state is what this call DID —
- * the conflict shape, and the consultations it appended with no decision edge of its own —
- * and not what the record now is. A retry that succeeds appends its own consultation pair on
- * top; after site (b) that leaves three consultations on the chain, not two.
+ * Only the `seq` shape reaches here. A `state-mismatch` means the record is not open, which
+ * `record-not-open` describes truthfully now that nothing was appended, so it is returned
+ * result-first at the call site.
  */
-function midBatchConflict(conflict: AppendConflict, landed: 1 | 2): Error {
-  const consultations = landed === 1 ? '1 consultation' : `${landed} consultations`;
+function batchConflict(conflict: 'seq', index: number): Error {
   return new Error(
-    `finalize: mid-batch append conflict ('${conflict}') on a record this call has already ` +
-      "appended to. Under this build's single-writer / no-concurrent-finalize-per-record " +
-      'bound, with a Store honouring the compare-and-swap contract, no conflict is reachable ' +
-      'here — so this is a storage fault. This call ' +
-      `appended ${consultations} and no decision edge, and nothing is rolled back. It did ` +
-      'not re-read the record afterwards: re-read before retrying, and note that a retry ' +
-      'which succeeds appends its own pair of consultations on top of these.',
+    `finalize: batch append conflict ('${conflict}') at element ${index}. Under this ` +
+      "build's single-writer / no-concurrent-finalize-per-record bound, with a Store " +
+      'honouring the compare-and-swap contract, no conflict is reachable here — so this is ' +
+      'a storage fault. The batch is all-or-nothing: nothing was appended and the record is ' +
+      'unchanged.',
   );
 }
 

@@ -17,14 +17,10 @@ export type RefusalCode =
 // record-not-open: class 'refusal', terminal-record category — finalize() against a non-open, intact-chain
 //   record (double-finalize; an effect-seam confirmed record awaiting redemption; a refused record). NEVER
 //   appends, no transitionRef, no transitionRef-bearing edge. One further producer sits off the gate
-//   ladder: a conflict on the FIRST append of finalize()'s success batch, where nothing of the call has
-//   landed yet — kernel/finalize.ts states at that site which conflict shapes the code is true for and
-//   which it is not. A conflict on either LATER append throws a storage fault instead. Note precisely
-//   what that is NOT about: the never-appends rule below governs whether a REFUSAL appends a `refused`
-//   edge, `appendsOn` returns false for this code unconditionally, and no `refused` edge was ever
-//   appended there — so nothing in this registry was contradicted. The reason is that returning a
-//   never-appends code with no transitionRef tells a host nothing was recorded, when the call had put
-//   consultations on the chain.
+//   ladder: rung (6)'s entry conflict, where finalize()'s success batch is all-or-nothing and its entry
+//   compare-and-swap fails before anything is appended — kernel/finalize.ts's rung (6) comment and
+//   `batchConflict`'s doc comment. Because the batch applied nothing, the code is true of both the
+//   record's state and this registry's never-appends rule at that site, for the first time here.
 // unknown-leg: class 'refusal'. SPEC §8 names two producers — a caller-named leg absent
 //   from the profile at `stage()`, and a staged draft's leg absent from the profile it
 //   resolves under at `open()`. BOTH are built in this build (`stage()`'s
