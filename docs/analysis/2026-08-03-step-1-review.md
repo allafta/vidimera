@@ -253,6 +253,22 @@ own R4 "Record" list ("the shipped `Store` is 5 of 9 of §12's surface... Trigge
 `2026-08-03-step-1-remediation.md`, R4's "Record" list); the spec-conformance dimension's contribution is
 the concrete behavioral consequence of each absence, not the inventory itself.
 
+**Correction (added by a later branch's exit record, which retired deferral register row 14
+and rewrote row 13 — this is where the "nine" originates, so the correction is appended
+here).** The denominator above is wrong, and was wrong from this paragraph on: `seal` does not
+belong in it. SPEC §9 lists `seal()` as **operator-only**, grouped with
+`open()`/`review()`/`finalize()`/`redeem()` "and the sweep — §12," never as a `Store` method,
+and §12 discusses `seal(recordId)` in the storage section only because C4 seal-finality — the
+constraint that makes both of them true — lives there. SPEC states no method count anywhere;
+§12 gives an explicit signature to eight methods (`putStaged`, `getStaged`, `appendTransition`,
+`appendBatch`, `readChain`, `chainHead`, `findNonTerminal`, `listDue`), and the "five" above
+should read **five of eight**, not five of nine. What was actually absent when this document
+was written is unchanged by this correction — `appendBatch`, `findNonTerminal`, `listDue`, and
+the `meta` shape were all genuinely unbuilt, exactly as stated — only the count they were
+measured against was wrong. The same denominator, uncorrected, propagated into this build's own
+deferral register (row 13) and exit record until the branch that appends this note; both are
+fixed there (`docs/process/deferral-register.md`, `docs/process/implementation-status.md`).
+
 **The one genuine defect inside Class B: the mid-batch conflict mapping is wrong.**
 `kernel/finalize.ts:208, 222, 246` map *any* failed append in the success batch to
 `refused('record-not-open')`, without inspecting `AppendResult.conflict`. SPEC §8 defines

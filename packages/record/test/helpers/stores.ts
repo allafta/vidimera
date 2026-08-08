@@ -1,7 +1,8 @@
 // @vidimera/record — test/helpers/stores.ts: shared Store test-doubles, down-ported to
-// this build step's seven-method Store contract (`putStaged`/`getStaged`/
+// this build step's seven-of-eight-method Store contract (`putStaged`/`getStaged`/
 // `appendTransition`/`readChain`/`chainHead`/`appendBatch`/`listDue` — no
-// `findNonTerminal`/`seal`; both are a later-phase Store surface). Three shapes fold the
+// `findNonTerminal`; a later-phase Store surface. `seal` is not and never was a Store
+// method — it is an operator-only seam built atop these, SPEC §9/§12). Three shapes fold the
 // near-identical inline classes that would otherwise be hand-copied across the test corpus:
 //   - `TamperingStore` — `readChain` returns a TAMPERED copy of one targeted record's
 //     chain (a `tamperFn` over the real chain); every write delegates to a real inner
