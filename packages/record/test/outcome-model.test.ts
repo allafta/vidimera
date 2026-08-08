@@ -41,7 +41,7 @@ test("refused('content-drift') derives class 'refusal'", () => {
 });
 
 test('class derivation is total: every RefusalCode maps to a class, and ONLY chain-compromise is compromise', () => {
-  assert.equal(ALL_REFUSAL_CODES.length, 10, 'CORE registry must cover all ten RefusalCodes');
+  assert.equal(ALL_REFUSAL_CODES.length, 11, 'CORE registry must cover all eleven RefusalCodes');
   for (const code of ALL_REFUSAL_CODES) {
     const result = refused(code);
     assertRefused(result);
@@ -115,6 +115,7 @@ test('appendsOn: the never-append codes never append, even if a leg lists them i
     'unknown-leg',
     'record-not-open',
     'unredeemable-state',
+    'unsealable-state',
   ];
   for (const code of neverAppendCodes) {
     assert.equal(appendsOn(code, {}), false, `${code} must never append (no leg config)`);

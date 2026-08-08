@@ -12,7 +12,8 @@ export type RefusalCode =
   | 'record-not-open'
   | 'unknown-profile'
   | 'unknown-leg'
-  | 'unredeemable-state';
+  | 'unredeemable-state'
+  | 'unsealable-state';
 // class map: chain-compromise → 'compromise'; all others → 'refusal'
 // record-not-open: class 'refusal', terminal-record category — finalize() against a non-open, intact-chain
 //   record (double-finalize; an effect-seam confirmed record awaiting redemption; a refused record). NEVER
@@ -26,6 +27,9 @@ export type RefusalCode =
 //   resolves under at `open()`. BOTH are built in this build (`stage()`'s
 //   caller-named-legId check, kernel/stage.ts; `open()`'s staged-legId re-check,
 //   kernel/open.ts).
+// unsealable-state: class 'refusal'. SPEC §8 — `seal()` against a record that is not
+//   derived-terminal or is already sealed, and the residual of a racing or duplicate seal
+//   (C4 rejects through C3's terminal-state-mismatch path, §12). NEVER appends.
 
 export type RefusalClass = 'refusal' | 'compromise';
 
@@ -48,6 +52,7 @@ export const CORE: Record<RefusalCode, RefusalClass> = {
   'unknown-profile': 'refusal',
   'unknown-leg': 'refusal',
   'unredeemable-state': 'refusal',
+  'unsealable-state': 'refusal',
 };
 
 /**
@@ -63,7 +68,9 @@ export interface AppendDecisionLeg {
  * Codes that NEVER append a transition, regardless of leg configuration (SPEC §8's
  * never-appends set): `record-exists` / `unknown-profile` / `unknown-leg` (pre-record) and
  * `record-not-open` (terminal-record) never append; `unredeemable-state` (this build's
- * redeem() stub) never appends either.
+ * redeem() stub) never appends either; `unsealable-state` never appends — `seal()`'s only
+ * append is the `sealed` transition itself, folded into its own success path (`kernel/seal.ts`),
+ * never a byproduct of this refusal.
  */
 const NEVER_APPENDS: ReadonlySet<RefusalCode> = new Set<RefusalCode>([
   'record-exists',
@@ -71,6 +78,7 @@ const NEVER_APPENDS: ReadonlySet<RefusalCode> = new Set<RefusalCode>([
   'unknown-leg',
   'record-not-open',
   'unredeemable-state',
+  'unsealable-state',
 ]);
 
 /**

@@ -309,8 +309,17 @@ function batchConflict(conflict: 'seq', index: number): Error {
  * it: fall back to trying `'open'` then `'confirmed'`. Either way the append target is chosen
  * from an ORDERED candidate list and the FIRST target whose CAS succeeds wins (a failed CAS
  * appends nothing, so retrying against another target is safe).
+ *
+ * EXPORTED: `kernel/seal.ts`'s `seal()` is a second caller — chain-verify is its rung (1) too
+ * (SPEC §5: "Verification is first"), and it reuses this same append rather than a copy. That
+ * second caller is also what makes the no-candidate fallback below reachable for the first
+ * time: before `store/memory.ts`'s C4 seal-finality bar existed, nothing stopped an append
+ * against an already-sealed record, so a tampered chain over an already-sealed record could not
+ * exist as a scenario and this branch was dead code; C4 now makes exactly that combination
+ * the one that reaches it (an already-sealed record admits no CAS target at all, `open` and
+ * `confirmed` alike).
  */
-async function appendChainCompromise(
+export async function appendChainCompromise(
   store: Store,
   chain: readonly Transition[],
   now: () => Date,
