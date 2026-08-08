@@ -584,11 +584,16 @@ async function sealedRecord(store: MemoryStore, recordId = 'rec-sealed') {
 }
 
 test('C4: after a `sealed` transition, no further append of any kind is admitted', async () => {
+  // MUST be a kind C3 would otherwise ADMIT against a terminal record, or this test cannot
+  // discriminate C4 from C3: a state-LEAVING kind (e.g. `expired`) is already blocked by C3
+  // alone on an already-terminal record, so it would pass even with the C4 bar deleted. A
+  // state-PRESERVING kind (`isStateLeaving` false) sails past C3's gate — C3's `if` never
+  // fires for it — so only C4 can bar it here.
   const store = new MemoryStore();
   const { sealed, recordId } = await sealedRecord(store);
   const before = await store.readChain(recordId);
 
-  const later = storeNext(sealed, 'expired', { bound: '2026-01-01T00:00:00.000Z' });
+  const later = storeNext(sealed, 'finding-raised', { note: 'not emitted by this kernel build' });
   const res = await store.appendTransition('confirmed', later, { nonTerminal: false });
 
   assert.deepEqual(res, { appended: false, conflict: 'state-mismatch' });

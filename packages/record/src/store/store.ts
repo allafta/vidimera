@@ -25,9 +25,9 @@ export type { StagedDraft };
  * `AppendResult` — this build's encoding of SPEC §12's C1-C3 constraints, NOT a union the
  * SPEC declares. §12 states them as four prose bullets and no result type at all, and calls
  * its own signatures provisional — SPEC §12: "What is durable is the *behaviour* each
- * method guarantees, not its argument list." §12's C4 seal-finality is unbuilt here; a C4
- * rejection would surface through the same terminal-state-mismatch arm as C3 —
- * SPEC §12: "no separate conflict shape".
+ * method guarantees, not its argument list." §12's C4 seal-finality is built in
+ * `store/memory.ts`: a C4 rejection surfaces through the same terminal-state-mismatch arm
+ * as C3, not a separate shape — SPEC §12: "no separate conflict shape".
  *
  *  - `{appended:true; seq; transitionDigest}` — the accepted transition's own
  *    server-authoritative `seq` (§12's C2) and its `transitionDigest` (computed the same way
@@ -80,11 +80,11 @@ export interface AppendMeta {
  * genesis never appears in a batch. The type says what can happen rather than carrying a
  * variant nothing can produce.
  *
- * Same limit as `AppendResult` above, restated here because this is a second reader of it:
- * §12's C4 seal-finality is unbuilt in this build (deferral register row 14), so the
- * entry-level C4 rejection half of "entry-level failures report element index 0" has no bar
- * behind it — a C4 rejection would surface through this same `state-mismatch` arm as C3, not
- * as a distinct shape, exactly as it would at `appendTransition`.
+ * Same as `AppendResult` above, restated here because this is a second reader of it: §12's
+ * C4 seal-finality is built in `store/memory.ts`. The entry-level C4 rejection half of
+ * "entry-level failures report element index 0" has a bar behind it: `appendBatch` rejects
+ * with `index: 0` once the entry record is already sealed, through this same
+ * `state-mismatch` arm as C3, not a distinct shape, exactly as `appendTransition` does.
  */
 export type BatchResult =
   | { appended: true; transitionDigests: readonly Digest[] }
