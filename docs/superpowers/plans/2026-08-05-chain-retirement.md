@@ -88,6 +88,7 @@ out which test was dropped or duplicated before committing.
 | File | Responsibility after this increment |
 |---|---|
 | `packages/record/src/store/memory.ts` | C4: the `sealed` flag, the bar in both append paths |
+| `packages/record/src/store/store.ts` | its two "C4 is unbuilt" claims, which Task 1 falsifies |
 | `packages/record/src/chain/replay.ts` | the `sealed` arm folding to `status` |
 | `packages/record/src/types.ts` | `DecisionRecord.status` |
 | `packages/record/src/refusal-codes.ts` | `unsealable-state` in the union, `CORE`, `NEVER_APPENDS` |
@@ -865,11 +866,19 @@ No code. This is the increment's exit, and it carries a correction that predates
 - Consumes: the finished state of Tasks 1-3.
 - Produces: nothing code-facing.
 
-- [ ] **Step 1: Retire row 14**
+- [ ] **Step 1: Retire row 14, and correct its trigger as you retire it**
 
 Delete row 14 from `docs/process/deferral-register.md` — C4 seal-finality is its entire
 subject, and Task 1 built it. Numbers are stable identifiers and the file's preamble says a gap
 is an entry that has left, so **do not renumber anything**.
+
+Its trigger reads: *"The build step that first ships `seal()` — the same step must add the C4
+bar and its test, because shipping `seal()` makes this gap reachable in the same commit."*
+**That sequencing did not happen and did not need to.** C4 landed in Task 1, one task *ahead*
+of `seal()`, precisely so the store would already refuse correctly when the seam arrived. The
+trigger's prediction was reasonable and wrong; record that correction in the exit record where
+a reader can still find it after the row is gone, the same way the previous increment handled
+row 12's trigger.
 
 - [ ] **Step 2: Rewrite row 13 with the count correction**
 
