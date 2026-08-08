@@ -155,3 +155,44 @@ test('appendBatch: an empty batch is a caller error, not a silent success', asyn
     /appendBatch: empty batch/,
   );
 });
+
+test('appendBatch: a throwing clone applies nothing — the guarantee holds against a throw, not just a conflict', async () => {
+  const store = new MemoryStore();
+  const genesis = await openRecord(store);
+  const batch = successBatch(genesis);
+  const [cv, facts] = batch;
+  assert.ok(cv !== undefined && facts !== undefined, 'fixture: the batch has three elements');
+
+  // A function-valued payload member is not structured-cloneable, and this store deliberately
+  // lets `DataCloneError` propagate rather than degrading the copy. The dry-run checks pass:
+  // the digest step's JCS silently omits function members, so nothing upstream rejects this.
+  const poisoned: Transition = {
+    ...facts,
+    payload: { kind: 'facts', describe: () => 'not structured-cloneable' },
+  };
+  const before = await store.readChain(genesis.recordId);
+
+  await assert.rejects(() => store.appendBatch('open', [cv, poisoned], { nonTerminal: true }));
+
+  const after = await store.readChain(genesis.recordId);
+  assert.deepEqual(after, before, 'element 0 must not survive a throw at element 1');
+});
+
+test("appendBatch: the post-batch record state is the last element's, provably — a later CAS targets it", async () => {
+  const store = new MemoryStore();
+  const genesis = await openRecord(store);
+
+  const res = await store.appendBatch('open', successBatch(genesis), { nonTerminal: false });
+  assert.equal(res.appended, true, 'fixture: the batch must land');
+
+  // Discriminating probe. Asserting the chain's contents cannot distinguish an implementation
+  // that advances `state` from one that does not — both leave the same transitions. A CAS on
+  // 'confirmed' can: it succeeds only if the batch actually moved the record's state there.
+  // `sealed` is state-preserving, so C3 admits it against a terminal `confirmed` record.
+  const head = (await store.readChain(genesis.recordId)).at(-1);
+  assert.ok(head !== undefined, 'fixture: the chain is non-empty');
+  const sealed = storeNext(head, 'sealed', { chainHead: transitionDigest(head) });
+
+  const after = await store.appendTransition('confirmed', sealed, { nonTerminal: false });
+  assert.equal(after.appended, true, 'the record really is `confirmed` after the batch');
+});

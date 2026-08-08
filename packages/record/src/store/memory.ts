@@ -8,12 +8,17 @@
 // never as a separate advisory pre-check a concurrent caller could race past.
 //
 // Transactional-shape note (self-review requirement): although this Map is accessed
-// single-threaded (no real concurrency in-process), `appendTransition` still MODELS
-// the transactional shape a real DB txn would need — every check below runs
-// synchronously against `this.records`/`this.staged`, with the mutation (the `Map.set`
-// / `chain.push`) as the LAST step, only after every check has passed, and with no
-// `await` anywhere in between. That is what "checked atomically inside the append,
-// never an advisory pre-check" means when ported to a real transaction.
+// single-threaded (no real concurrency in-process), `appendTransition`/`appendBatch` still
+// MODEL the transactional shape a real DB txn would need — every check below runs
+// synchronously against `this.records`/`this.staged`, with the mutation (the `Map.set` /
+// `chain.push`) as the LAST step, only after every check AND every other failable
+// operation has completed, and with no `await` anywhere in between. `appendBatch`'s own
+// mutation step clones every element BEFORE pushing any of them, for exactly this reason:
+// `structuredClone` is itself failable (`DataCloneError` on a function- or symbol-valued
+// payload member — see the store-clone decision comment above the class), so a clone left
+// INSIDE the push loop would let a throw at element k leave elements 0..k-1 already
+// applied — a real partial batch, not a rollback. That is what "checked atomically inside
+// the append, never an advisory pre-check" means when ported to a real transaction.
 
 import { transitionDigest } from '../chain/encoding.js';
 import { CORE, type RefusalCode } from '../refusal-codes.js';
@@ -354,9 +359,9 @@ export class MemoryStore implements Store {
   }
 
   /**
-   * SPEC §12's atomic batch. Every check runs against a DRY-RUN of the batch before any
+   * SPEC §12's atomic batch. Every check and every failable operation runs before any
    * mutation, so the "nothing applied" guarantee is structural rather than a rollback: the
-   * first `chain.push` happens only after the last element has been checked.
+   * first `chain.push` happens only after the last element has been checked and cloned.
    *
    * The terminality INPUT is `existing.nonTerminal` read once at entry, while the state the
    * checks run against EVOLVES element by element (SPEC §12: a record "cannot become
@@ -408,9 +413,15 @@ export class MemoryStore implements Store {
       if (next !== null) state = next;
     }
 
-    // Every check passed — mutate last, exactly as the two single-append paths do.
-    for (const t of transitions) {
-      existing.chain.push(structuredClone(t));
+    // Every check passed. Clone BEFORE the first push, not inside the push loop:
+    // `structuredClone` is failable — it throws `DataCloneError` on a non-cloneable payload,
+    // which this store deliberately lets propagate — and a throw interleaved with the pushes
+    // would leave the earlier elements on the chain. Every failable operation happens before
+    // any mutation, which is what makes "nothing applied" structural rather than a rollback.
+    // A conflict still wins over a throw, because the check loop above returns first.
+    const cloned = transitions.map((t) => structuredClone(t));
+    for (const c of cloned) {
+      existing.chain.push(c);
     }
     existing.state = state;
     existing.nonTerminal = meta.nonTerminal;
