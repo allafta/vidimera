@@ -315,10 +315,6 @@ function batchConflict(conflict: 'seq', index: number): Error {
  * second caller adds a THIRD shape to the C3-forced corner named two paragraphs above (a
  * tampered chain over an already-terminal `expired`/`refused` record) — an already-SEALED
  * record, which C4 bars unconditionally, so neither `open` nor `confirmed` is admitted either.
- * `seal()`'s own already-sealed tamper test is the first fixture in this corpus that actually
- * CONSTRUCTS the fallback; against a terminal `expired`/`refused` record it was always
- * reachable through `finalize()` alone (verification outranks the state gate there too), just
- * never exercised by a test until now.
  */
 export async function appendChainCompromise(
   store: Store,
