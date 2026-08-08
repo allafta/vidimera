@@ -1,9 +1,9 @@
 // @vidimera/record — store/memory.ts: the in-memory (Map-backed) `Store` implementation
 // (DECISIONS.md #24: "reference semantics, never durable evidence"). Zero
 // native dep, day-one CI-able. Hand-
-// implements C1 exclusivity / C2 sequencing / C3 monotonicity to match SQLite/Postgres
-// semantics EXACTLY so a future real adapter can port this behavior 1:1 — a bare
-// `WHERE state=...` predicate is explicitly called out by SPEC §12 as wrong (its C1),
+// implements C1 exclusivity / C2 sequencing / C3 monotonicity / C4 seal-finality to match
+// SQLite/Postgres semantics EXACTLY so a future real adapter can port this behavior 1:1 — a
+// bare `WHERE state=...` predicate is explicitly called out by SPEC §12 as wrong (its C1),
 // so every constraint here is checked atomically INSIDE `appendTransition`/`appendBatch`,
 // never as a separate advisory pre-check a concurrent caller could race past.
 //
@@ -61,6 +61,15 @@ interface StoredRecord {
   nonTerminal: boolean;
   dueAt?: string;
   chain: Transition[];
+  /**
+   * SPEC §12's C4 seal-finality: set when a `sealed` transition lands, never cleared. Unlike
+   * `nonTerminal` and `dueAt` — library-derived flags the store persists verbatim from `meta`
+   * — this one is the store's own, derived from the transition's kind. C4 is one of §12's
+   * "Constraints an adapter MUST provide", and constraints are the store's work: C1 scans
+   * records, C2 computes `max+1`, C3 already switches on the kind. Putting `sealed` in
+   * `AppendMeta` instead would break the §12 meta shape.
+   */
+  sealed: boolean;
 }
 
 /**
@@ -295,6 +304,7 @@ export class MemoryStore implements Store {
       // across its first attempt and an expire-then-retry (kernel/open.ts:116,157) — the
       // caller's object must not become a live write handle into what gets persisted here.
       chain: [structuredClone(transition)],
+      sealed: false,
     });
     return { appended: true, seq: transition.seq, transitionDigest: digest };
   }
@@ -304,13 +314,16 @@ export class MemoryStore implements Store {
    * `await`):
    *  1. state CAS — the record must exist AND its current `state` must equal
    *     `expectedCurrentState` exactly.
-   *  2. C3 monotonicity — if the record is currently TERMINAL (persisted
+   *  2. C4 seal-finality — once a `sealed` transition has landed, every further append is
+   *     rejected outright, ahead of C3 and unconditional on it: C4 admits nothing C3 would
+   *     otherwise carve out (SPEC §12: "not even a `compromise` refusal edge").
+   *  3. C3 monotonicity — if the record is currently TERMINAL (persisted
    *     `nonTerminal === false`), a state-leaving append is rejected unless it is the
    *     compromise carve-out (the `sealed` carve-out needs no separate check here —
    *     see `isCompromiseCarveOut`'s doc comment).
-   *  3. C2 sequencing — the proposed `transition.seq` must equal the store's
+   *  4. C2 sequencing — the proposed `transition.seq` must equal the store's
    *     authoritative `max+1` (`existing.chain.length + 1`).
-   * Only once all three pass does the append land (push + flag/state update).
+   * Only once all four pass does the append land (push + flag/state update).
    */
   private appendSubsequent(
     expectedCurrentState: RecordState,
@@ -319,6 +332,16 @@ export class MemoryStore implements Store {
     existing: StoredRecord | undefined,
   ): AppendResult {
     if (!existing || existing.state !== expectedCurrentState) {
+      return { appended: false, conflict: 'state-mismatch' };
+    }
+
+    // C4 seal-finality (SPEC §12): after a `sealed` transition, NO further append of any kind
+    // is admitted — not even a `compromise` refusal edge, because a sealed record's body may
+    // be archived or destroyed as a unit and nothing may extend a chain whose evidence may be
+    // gone. C4 rejects through the same terminal-state-mismatch path as C3 (SPEC §12: "no
+    // separate conflict shape"), so a racing or duplicate seal loses deterministically and
+    // `kernel/seal.ts` maps the residual to `unsealable-state`.
+    if (existing.sealed) {
       return { appended: false, conflict: 'state-mismatch' };
     }
 
@@ -355,6 +378,9 @@ export class MemoryStore implements Store {
     if (nextState !== null) {
       existing.state = nextState;
     }
+    if (transition.kind === 'sealed') {
+      existing.sealed = true;
+    }
     return { appended: true, seq: transition.seq, transitionDigest: digest };
   }
 
@@ -384,6 +410,12 @@ export class MemoryStore implements Store {
 
     // Entry compare-and-swap, checked ONCE. Entry-level failures report index 0.
     if (!existing || existing.state !== expectedCurrentState) {
+      return { appended: false, conflict: 'state-mismatch', index: 0 };
+    }
+
+    // C4 is an ENTRY-level failure — SPEC §12: "Entry-level failures — an entry
+    // compare-and-swap mismatch or C4 seal-finality — report element index 0."
+    if (existing.sealed) {
       return { appended: false, conflict: 'state-mismatch', index: 0 };
     }
     const entryNonTerminal = existing.nonTerminal;
@@ -433,6 +465,9 @@ export class MemoryStore implements Store {
     existing.state = state;
     existing.nonTerminal = meta.nonTerminal;
     existing.dueAt = meta.dueAt;
+    if (cloned.some((t) => t.kind === 'sealed')) {
+      existing.sealed = true;
+    }
     return { appended: true, transitionDigests: digests };
   }
 

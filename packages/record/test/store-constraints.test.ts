@@ -1,6 +1,6 @@
 // @vidimera/record — store-constraints.test.ts (SPEC §12's storage interface): the
 // provisional in-memory `Store` — `putStaged`/`getStaged` idempotence, the CAS
-// `appendTransition` (`expectedCurrentState`), and the three hand-implemented constraints:
+// `appendTransition` (`expectedCurrentState`), and the four hand-implemented constraints:
 //   C1 exclusivity — partial UNIQUE(profileId, subjectRef) over the persisted
 //     `nonTerminal` flag: a second genesis for a still-live subject conflicts
 //     `'exclusivity'` and names the BLOCKER's recordId (the minimal locator).
@@ -11,6 +11,10 @@
 //     `confirmed`. (`isCompromiseCarveOut` also accepts a `redeeming` CAS target, but
 //     §12's C1 makes any `redeeming` non-terminal, so per §5 that edge is admitted
 //     directly and never reaches this gate.)
+//   C4 seal-finality — after a `sealed` transition lands, no append of any kind is
+//     admitted, not even the C3 compromise carve-out; rejected through the same
+//     terminal-state-mismatch conflict shape C3 uses (SPEC §12: "no separate conflict
+//     shape"), and its residual maps to `unsealable-state` at the `seal()` seam.
 // Transitions are built by hand via `chain/encoding.ts`
 // (`genesisPrevHash`/`transitionDigest`), driven one append at a time through the
 // Store under test — NOT via `tests/helpers/chain.ts`'s `buildChain`, which
@@ -558,4 +562,63 @@ test('putStaged: a StagedDraft carrying an extra FUNCTION-valued property throws
     (err: unknown) => err instanceof Error && err.name === 'DataCloneError',
     'a function-valued extra property must throw DataCloneError at the clone-on-write seam',
   );
+});
+
+// === C4 seal-finality ==================================================================
+
+/** An open record advanced to terminal `confirmed`, then sealed. Returns the sealed chain. */
+async function sealedRecord(store: MemoryStore, recordId = 'rec-sealed') {
+  const genesis = storeGenesis(recordId, 'profile.p1', 'subject:s1');
+  assert.equal((await store.appendTransition(null, genesis, { nonTerminal: true })).appended, true);
+  const confirmed = storeNext(genesis, 'confirmed', { actor: APPROVER });
+  assert.equal(
+    (await store.appendTransition('open', confirmed, { nonTerminal: false })).appended,
+    true,
+  );
+  const sealed = storeNext(confirmed, 'sealed', { chainHead: transitionDigest(confirmed) });
+  const res = await store.appendTransition('confirmed', sealed, { nonTerminal: false });
+  // The seal itself must be ADMITTED: `sealed` maps to null in `stateOf`, so
+  // `isStateLeaving('sealed')` is false and C3's terminal gate never reaches its predicate.
+  assert.equal(res.appended, true, 'the seal append is admitted against a terminal record');
+  return { sealed, recordId };
+}
+
+test('C4: after a `sealed` transition, no further append of any kind is admitted', async () => {
+  const store = new MemoryStore();
+  const { sealed, recordId } = await sealedRecord(store);
+  const before = await store.readChain(recordId);
+
+  const later = storeNext(sealed, 'expired', { bound: '2026-01-01T00:00:00.000Z' });
+  const res = await store.appendTransition('confirmed', later, { nonTerminal: false });
+
+  assert.deepEqual(res, { appended: false, conflict: 'state-mismatch' });
+  assert.deepEqual(await store.readChain(recordId), before, 'nothing landed');
+});
+
+test('C4 bars even a compromise refusal edge — the one append C3 would otherwise admit', async () => {
+  // SPEC §12 names this case: "not even a `compromise` refusal edge". It is the one place C4
+  // has to override a rule that says yes — C3's carve-out admits `confirmed → refused` for a
+  // compromise-classed code, and C4 must refuse it once the record is sealed.
+  const store = new MemoryStore();
+  const { sealed, recordId } = await sealedRecord(store);
+  const before = await store.readChain(recordId);
+
+  const compromise = storeNext(sealed, 'refused', { code: 'chain-compromise' });
+  const res = await store.appendTransition('confirmed', compromise, { nonTerminal: false });
+
+  assert.deepEqual(res, { appended: false, conflict: 'state-mismatch' });
+  assert.deepEqual(await store.readChain(recordId), before, 'nothing landed');
+});
+
+test('C4 in appendBatch is an ENTRY-level failure and reports index 0', async () => {
+  const store = new MemoryStore();
+  const { sealed, recordId } = await sealedRecord(store);
+  const before = await store.readChain(recordId);
+
+  const a = storeNext(sealed, 'consultation-recorded', { kind: 'facts', verdict: 'pass' });
+  const b = storeNext(a, 'refused', { code: 'chain-compromise' });
+  const res = await store.appendBatch('confirmed', [a, b], { nonTerminal: false });
+
+  assert.deepEqual(res, { appended: false, conflict: 'state-mismatch', index: 0 });
+  assert.deepEqual(await store.readChain(recordId), before, 'all-or-nothing: nothing landed');
 });
