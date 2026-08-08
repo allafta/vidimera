@@ -95,6 +95,46 @@ test("seal()'s `sealed` payload carries the chain head it caps", async () => {
   assert.equal(sealed.prevHash, transitionDigest(head));
 });
 
+test('seal() on a terminal EXPIRED record retires it', async () => {
+  // PINS: gate (4) reads §2's terminality derivation, not `state === 'confirmed'` — `expired` is
+  // terminal outright (SPEC §2: "`refused` and `expired` are terminal"), so it seals.
+  // Discriminating: an inverted gate (4) refuses `unsealable-state` here instead of appending.
+  // §13's end-of-life framing makes this the archetypal seal target, not a corner case.
+  // `confirmedRecord()` above cannot serve as the fixture — it produces a `confirmed` record —
+  // so the expiry idiom is borrowed from the DUE-but-open test below and from expiry.test.ts:
+  // the clock is INJECTED via `createWithClock` and finalize expires the due record en passant
+  // (its own rung (2)). Never sleep in a test here.
+  const TTL = 3600;
+  let nowMs = Date.UTC(2026, 0, 1, 0, 0, 0);
+  const clock = () => new Date(nowMs);
+  const handles = createWithClock(makeConfig([captureProfile({ ttl: TTL })]), clock);
+  const recordId = await openRecord(handles, CONTENT, 'test.capture.v1', DEFAULT_SUBJECT_REF);
+
+  nowMs += (TTL + 1) * 1000; // past the open window
+  const lapsed = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(lapsed.status, 'refused', 'fixture: the due record expires en passant');
+  assert.equal(
+    (await handles.operator.getRecord(recordId))?.state,
+    'expired',
+    'fixture: the record must be terminal `expired` before the seal',
+  );
+
+  const outcome = await handles.operator.seal(recordId);
+  assert.equal(outcome.status, 'ok');
+  if (outcome.status !== 'ok') return;
+  assert.equal(outcome.value.status, 'retired');
+
+  const chain = await handles.operator.readChain(recordId);
+  const last = chain.at(-1);
+  assert.ok(last !== undefined);
+  assert.equal(last.kind, 'sealed');
+  assert.equal(outcome.value.transitionRef, transitionDigest(last));
+
+  const record = await handles.operator.getRecord(recordId);
+  assert.equal(record?.status, 'retired');
+  assert.equal(record?.state, 'expired', 'sealing preserves state');
+});
+
 test('seal() on an OPEN record -> unsealable-state, nothing appended', async () => {
   const handles = create(makeConfig([captureProfile()]));
   const recordId = await openRecord(handles, CONTENT, 'test.capture.v1', DEFAULT_SUBJECT_REF);
