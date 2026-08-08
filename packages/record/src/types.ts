@@ -70,9 +70,10 @@ export interface DecisionRecord {
    * chain — never stored, never a caller input, the same discipline `state` follows.
    *
    * NOT a field of SPEC §2's record-model table, which names `state` and no status. §5 and
-   * §12 both require a sealed record to report `retired`, which is why the field exists here;
-   * this divergence — a derived status field outside §2's table — reflects the requirement
-   * from §5 and §12, and does not represent drift from the spec.
+   * §12 both require a sealed record to report `retired`, which is why the field exists here.
+   * That is a divergence from §2's table, recorded rather than reconciled: it is held for the
+   * repository owner in `docs/process/implementation-status.md`, because the only other place
+   * it could be resolved is the sealed concept set.
    */
   status: 'active' | 'retired';
   refusalCode?: RefusalCode;

@@ -393,7 +393,7 @@ them rather than adjudicated again:
   stays fail-closed; only the reported code is wrong.
 - A `terminalRefusals` member that is not a real refusal code constructs without error and
   then never matches, so a leg the operator believes is configured terminal is not.
-- **Three items are held for the repository owner rather than acted on**, because in each
+- **Four items are held for the repository owner rather than acted on**, because in each
   the plausible fix touches the **sealed** concept set. This record neither resolves nor
   adjudicates any of them.
 
@@ -416,6 +416,18 @@ them rather than adjudicated again:
   so §9.1's table and §2's list do not obviously agree with each other either. Which of the
   three texts moves is the owner's call; nothing here can be settled from the code, since
   `supersedes` throws at `open()` in this build and no profile can declare anything.
+
+  **The fourth is also a divergence inside the sealed set, and it is new at this increment:
+  `DecisionRecord.status`.** §5 (`docs/concept/SPEC.md:422`) — "A sealed record reports its
+  per-record status as `retired`" — §12 (`:1119`) and §13 (`:1151-1152`) all require a sealed
+  record to report `retired`, while §2's record-model field table (`:111-123`) has no `status`
+  row: it lists `state` and nothing that could carry a lifecycle status beside it. So the field
+  this build ships to satisfy §5, §12 and §13 is a field §2's own table does not carry a line
+  for — the same thing the §2 row of the table above records. The code cannot settle it and is
+  not waiting on it: three sections require the field, so removing it is not an option this
+  build has, and it ships. What is open is only which text should have named it — §2's table
+  gaining a `status` row, or §5/§12/§13 wording their requirement against `state` — and both
+  candidate fixes are edits to `docs/concept/`.
 
 Full accounts: `docs/analysis/2026-08-03-step-1-review.md` (Class D and "Findings that
 need a sealed `docs/concept/` decision"),
