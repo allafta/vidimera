@@ -24,7 +24,7 @@ export type { RefusalCode } from './refusal-codes.js';
 // seam. PUBLIC BUT EXPLICITLY UNSTABLE PRE-1.0 — see `MemoryStore`'s own doc comment
 // and the `Store` interface's (same marking).
 export { MemoryStore } from './store/memory.js';
-export type { AppendResult, Store } from './store/store.js';
+export type { AppendMeta, AppendResult, BatchResult, Store } from './store/store.js';
 export type {
   Consultation,
   DecisionRecord,

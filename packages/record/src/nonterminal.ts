@@ -1,8 +1,8 @@
 // @vidimera/record — nonterminal.ts: the ONE place the library-derived
-// `nonTerminal` flag is computed, then handed to `Store.appendTransition` as a plain
-// boolean argument (SPEC §12: "the library derives them, the store never recomputes
-// them") — the Store itself never re-derives this from a profile; it only persists what
-// it is told. This keeps the Store profile-ignorant.
+// `nonTerminal` flag is computed, then handed to `Store.appendTransition` and
+// `Store.appendBatch` alike, as `meta.nonTerminal` (SPEC §12: "the library derives them,
+// the store never recomputes them") — the Store itself never re-derives this from a
+// profile; it only persists what it is told. This keeps the Store profile-ignorant.
 
 import type { RecordState } from './types.js';
 

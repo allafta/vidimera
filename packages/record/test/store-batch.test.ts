@@ -156,6 +156,49 @@ test('appendBatch: an empty batch is a caller error, not a silent success', asyn
   );
 });
 
+test('appendBatch: an element naming a different recordId throws, and applies nothing', async () => {
+  const store = new MemoryStore();
+  const genesis = await openRecord(store);
+  const batch = successBatch(genesis);
+  const [cv, facts] = batch;
+  assert.ok(cv !== undefined && facts !== undefined, 'fixture: the batch has three elements');
+  const foreign: Transition = { ...facts, recordId: 'rec-other' };
+  const before = await store.readChain(genesis.recordId);
+
+  await assert.rejects(
+    () => store.appendBatch('open', [cv, foreign], { nonTerminal: true }),
+    /appendBatch: every element must name the same recordId/,
+  );
+
+  const after = await store.readChain(genesis.recordId);
+  assert.deepEqual(after, before, 'a batch spanning records leaves the chain untouched');
+});
+
+test('appendBatch: a genesis element inside a batch throws (SPEC §12: genesis never appears in a batch), and applies nothing', async () => {
+  const store = new MemoryStore();
+  const genesis = await openRecord(store);
+  const before = await store.readChain(genesis.recordId);
+
+  // Shaped so every OTHER check would pass: same recordId, and a seq that lines up with
+  // `chain.length + 1` — the exact shape that let this element slip through before the guard
+  // existed. Only the new `kind === 'opened'` check catches it.
+  const secondOpen = storeNext(genesis, 'opened', {
+    profileId: 'profile.p1',
+    profileDigest: `sha256:${'0'.repeat(64)}`,
+    legId: 'approver-decide',
+    subjectRef: 'subject:s1',
+    contentDigest: `sha256:${'1'.repeat(64)}`,
+  });
+
+  await assert.rejects(
+    () => store.appendBatch('open', [secondOpen], { nonTerminal: true }),
+    /appendBatch: genesis never appears in a batch/,
+  );
+
+  const after = await store.readChain(genesis.recordId);
+  assert.deepEqual(after, before, 'a genesis element inside a batch leaves the chain untouched');
+});
+
 test('appendBatch: a throwing clone applies nothing — the guarantee holds against a throw, not just a conflict', async () => {
   const store = new MemoryStore();
   const genesis = await openRecord(store);

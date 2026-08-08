@@ -4,7 +4,7 @@
 // implements C1 exclusivity / C2 sequencing / C3 monotonicity to match SQLite/Postgres
 // semantics EXACTLY so a future real adapter can port this behavior 1:1 — a bare
 // `WHERE state=...` predicate is explicitly called out by SPEC §12 as wrong (its C1),
-// so every constraint here is checked atomically INSIDE `appendTransition`,
+// so every constraint here is checked atomically INSIDE `appendTransition`/`appendBatch`,
 // never as a separate advisory pre-check a concurrent caller could race past.
 //
 // Transactional-shape note (self-review requirement): although this Map is accessed
@@ -407,6 +407,13 @@ export class MemoryStore implements Store {
       seq += 1;
       if (t.seq !== seq) {
         return { appended: false, conflict: 'seq', index: i };
+      }
+      if (t.kind === 'opened') {
+        throw new Error(
+          'appendBatch: genesis never appears in a batch (SPEC §12) — a genesis append has ' +
+            'no entry compare-and-swap target and needs the C1 exclusivity check ' +
+            '`appendTransition` runs',
+        );
       }
       digests.push(transitionDigest(t));
       const next = stateOf(t.kind);

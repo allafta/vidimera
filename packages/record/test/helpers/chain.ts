@@ -58,7 +58,8 @@ export function cloneChain(chain: Transition[]): Transition[] {
 /**
  * A genesis (`opened`) transition for `recordId`: seq 1, `prevHash` from the genesis rule.
  * Distinct from `buildChain`: these two builders make ONE transition at a time, for tests
- * that drive a Store append-by-append and must not hand it a pre-assembled chain.
+ * that build a Store's chain element by element — appending one at a time, or assembling a
+ * batch to hand `appendBatch` — rather than fabricating a whole chain the Store never saw.
  */
 export function storeGenesis(
   recordId: string,

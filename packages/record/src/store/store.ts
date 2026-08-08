@@ -1,5 +1,5 @@
 // @vidimera/record — store/store.ts: the provisional `Store` interface + its
-// `AppendResult` union.
+// `AppendResult`, `AppendMeta`, and `BatchResult` types.
 //
 // PUBLIC BUT EXPLICITLY UNSTABLE PRE-1.0 (SPEC §12: "provisional pre-1.0" —
 // "method signatures are unstable while 0.x and freeze only at 1.0"). The header line is
@@ -14,8 +14,8 @@
 // Placement note: `StagedDraft` lives in `types.ts` alongside the other core shapes;
 // this module RE-EXPORTS the existing `types.ts` definition (so callers can still
 // `import type { StagedDraft } from './store/store.js'` and get it grouped alongside
-// `AppendResult`) rather than duplicating/redefining it. `AppendResult` has no earlier
-// home, so it is defined here.
+// `AppendResult`) rather than duplicating/redefining it. `AppendResult`, `AppendMeta`, and
+// `BatchResult` all have no earlier home, so they are defined here.
 
 import type { Digest, RecordState, StagedDraft, Transition } from '../types.js';
 
@@ -79,6 +79,12 @@ export interface AppendMeta {
  * No `exclusivity` arm: C1 fires only on a genesis append, and SPEC §12 states that
  * genesis never appears in a batch. The type says what can happen rather than carrying a
  * variant nothing can produce.
+ *
+ * Same limit as `AppendResult` above, restated here because this is a second reader of it:
+ * §12's C4 seal-finality is unbuilt in this build (deferral register row 14), so the
+ * entry-level C4 rejection half of "entry-level failures report element index 0" has no bar
+ * behind it — a C4 rejection would surface through this same `state-mismatch` arm as C3, not
+ * as a distinct shape, exactly as it would at `appendTransition`.
  */
 export type BatchResult =
   | { appended: true; transitionDigests: readonly Digest[] }

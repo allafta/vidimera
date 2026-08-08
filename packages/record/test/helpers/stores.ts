@@ -1,7 +1,7 @@
 // @vidimera/record — test/helpers/stores.ts: shared Store test-doubles, down-ported to
 // this build step's seven-method Store contract (`putStaged`/`getStaged`/
 // `appendTransition`/`readChain`/`chainHead`/`appendBatch`/`listDue` — no
-// `findNonTerminal`; that is a later-phase Store surface). Three shapes fold the
+// `findNonTerminal`/`seal`; both are a later-phase Store surface). Three shapes fold the
 // near-identical inline classes that would otherwise be hand-copied across the test corpus:
 //   - `TamperingStore` — `readChain` returns a TAMPERED copy of one targeted record's
 //     chain (a `tamperFn` over the real chain); every write delegates to a real inner
@@ -68,9 +68,11 @@ export class TamperingStore implements Store {
 }
 
 /**
- * A Store decorator that counts `putStaged`/`appendTransition` invocations while
- * delegating everything to an inner MemoryStore (a fresh one unless the caller supplies
- * its own — needed when the test must reach the SAME backing store by another route).
+ * A Store decorator that counts `putStaged` calls and append calls — `appendTransition`
+ * and `appendBatch` both increment the same `appendCalls` counter, a batch counting as one
+ * append, same as a single `appendTransition` call — while delegating everything to an
+ * inner MemoryStore (a fresh one unless the caller supplies its own — needed when the test
+ * must reach the SAME backing store by another route).
  */
 export class CountingStore implements Store {
   putStagedCalls = 0;

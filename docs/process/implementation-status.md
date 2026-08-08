@@ -89,10 +89,12 @@ that threw a not-implemented error, and two tests asserting that it did.
 ### Gate outputs at exit (measured at `74f7e7b`)
 
 Commands and their summary lines. The thirteen Biome diagnostic bodies are elided (read
-below for what they are), as are run durations. `74f7e7b` is the last commit that touched
-code — this record itself lands after it and changes no TypeScript, so the four
-code-facing gates measure the same tree either way; only `contract-scan`, which reads
-tracked markdown too, re-runs against this file.
+below for what they are), as are run durations. `74f7e7b` is the last **build-step-1**
+commit that touched code — this record itself lands after it and changes no TypeScript, so
+the four code-facing gates measure the same tree either way at step 1's own exit; only
+`contract-scan`, which reads tracked markdown too, re-runs against this file. Later build
+steps have touched `packages/record/src` since — see the per-section table below, which
+tracks the current tree rather than this frozen exit snapshot.
 
 ```text
 $ pnpm typecheck
@@ -148,7 +150,10 @@ Read with their bounds, in the same breath:
 
 ### Per-SPEC-section status
 
-Twenty-five sections, settled against the code. "Not built here" means exactly that — not
+This table tracks the **current tree**, not a snapshot frozen at step 1's exit two sections
+above: its §12 and §2.1 rows already describe `appendBatch`, `listDue`, and the `meta`
+migration, all landed by a later increment inside build-order step 2, not by step 1. Twenty-
+five sections, settled against the code. "Not built here" means exactly that — not
 that the behavior is wrong, and not that a marker should move.
 
 | § | Section | Built here | Not built here |
