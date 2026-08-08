@@ -915,7 +915,7 @@ order to correct it:
 | Class | Documents | Treatment |
 |---|---|---|
 | **Live** | `docs/process/deferral-register.md` (row 13 — 1 site); `docs/process/implementation-status.md` (**4** sites: the steps table, the §12 row, the named boundary heading, the still-outstanding list) | Correct in place |
-| **Origin, dated** | `docs/analysis/2026-08-03-step-1-review.md` | Append a labelled `**Correction:**` in that document's own convention — it appends and never rewrites, and it is where the count entered |
+| **Carries it, dated** | `docs/analysis/2026-08-03-step-1-review.md` | Append a labelled `**Correction:**` in that document's own convention — it appends and never rewrites. It is NOT the origin: the count comes from the step-1 remediation plan (`:129` and `:179`, both "5 of 9"), which this document's own paragraph above the correction quotes, and which lands first under `git log --oneline -S'5 of 9' --reverse -- docs/`. That plan is in the Completed row below |
 | **Completed** | the step-1 remediation plan, the atomic-batch plan, the atomic-batch design | Leave as history |
 | **Corrects it deliberately** | `docs/superpowers/specs/2026-08-05-chain-retirement-design.md`, and this plan | Leave alone. Both state "7 of 8, not 7 of 9" — they match the grep *because* they carry the correction |
 

@@ -254,8 +254,12 @@ own R4 "Record" list ("the shipped `Store` is 5 of 9 of §12's surface... Trigge
 the concrete behavioral consequence of each absence, not the inventory itself.
 
 **Correction (added by a later branch's exit record, which retired deferral register row 14
-and rewrote row 13 — this is where the "nine" originates, so the correction is appended
-here).** The denominator above is wrong, and was wrong from this paragraph on: `seal` does not
+and rewrote row 13; appended here because this document carries the count and appends rather
+than rewrites — NOT because the count originates here. It does not: the paragraph immediately
+above quotes the count from `docs/superpowers/plans/2026-08-03-step-1-remediation.md`, whose
+lines 129 and 179 both read "5 of 9", and `git log --oneline -S'5 of 9' --reverse -- docs/`
+returns that plan's commit `afec8b2` before `cde4b5b`, the commit that put the count into this
+document. That plan is a completed plan, left uncorrected as history).** The denominator above is wrong, and was wrong from this paragraph on: `seal` does not
 belong in it. SPEC §9 lists `seal()` as **operator-only**, grouped with
 `open()`/`review()`/`finalize()`/`redeem()` "and the sweep — §12," never as a `Store` method,
 and §12 discusses `seal(recordId)` in the storage section only because C4 seal-finality — the
