@@ -186,7 +186,7 @@ that the behavior is wrong, and not that a marker should move.
 
 ### Named boundaries and divergences
 
-Seven things are called out on their own because a reader would otherwise have to
+Eight things are called out on their own because a reader would otherwise have to
 reconstruct them from the table.
 
 **The store is seven of eight.** `putStaged`, `getStaged`, `appendTransition`, `appendBatch`,
@@ -249,10 +249,10 @@ fallback — a sealed record is now also a no-candidate case — not the first o
 traces to this increment's own plan, `docs/superpowers/plans/2026-08-05-chain-retirement.md`,
 whose Step 5 directed the implementer to "add one line to its doc comment saying `seal()` is now
 a second caller and that C4 makes its no-candidate fallback reachable where it previously could
-not fire" — that plan line is corrected in place at this branch's final fix round, since it is
-the tracked sentence the false doc comment came from. From there the claim was carried into
-`kernel/finalize.ts`'s
-`appendChainCompromise` doc comment itself (the same file the commit body describes) — reworded
+not fire" — quoted as that line then read, because this branch's final fix round corrected it in
+place, it being the tracked sentence the false doc comment came from. From there the claim was
+carried into `kernel/finalize.ts`'s `appendChainCompromise` doc comment itself (the same file
+the commit body describes) — reworded
 once in `b779517` (to the weaker, still partly false claim that `seal()`'s own tamper test was
 "the first fixture in this corpus" to construct the fallback) and the surviving sentence deleted
 outright in `8a64b0d`; that doc comment now carries neither claim. The commit body can't be
@@ -326,8 +326,8 @@ only against a derived-terminal record, and SPEC §2 makes a final-leg `confirme
 effect-seam profile non-terminal. `packages/record/test/seal.test.ts`'s "seal() on an
 EFFECT-SEAM confirmed record -> unsealable-state (it is non-terminal, awaiting redemption)"
 now proves it by execution, not only by argument: that test pins the refusal and its code,
-`unsealable-state`, and `kernel/seal.ts` returns it at the terminality gate, ahead of the one
-append `seal()` makes — so the hold, which lives in the store's C1 exclusivity rather than in
+`unsealable-state`, and `kernel/seal.ts` returns it at the terminality gate, ahead of the
+`sealed` append — so the hold, which lives in the store's C1 exclusivity rather than in
 what any call returns or throws, is untouched.
 
 **Row 9 did need one edit, and it is not the claim above.** The row carried a second
