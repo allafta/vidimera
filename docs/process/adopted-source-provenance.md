@@ -475,10 +475,11 @@ arriving with its own future build step:
   `findNonTerminal`, `listDue`, and **C4 seal-finality** (`store/store.ts`, `store/memory.ts`).
   This is the largest single cluster and is what closes Class B's two recorded-not-fixed items
   in the companion whole-branch-review document (`docs/analysis/2026-08-03-step-1-review.md`).
-  **Update, present tense:** three of these six — `meta`/`dueAt`, atomic `appendBatch`, and
-  `listDue` — have since landed, inside the same in-memory backing; `tx?`, `findNonTerminal`,
-  and C4 seal-finality remain outstanding. This bullet is left as R1/R2 stated it, since it is
-  a dated audit record; `docs/process/implementation-status.md` carries the current account.
+  **Update, present tense:** four of these six — `meta`/`dueAt`, atomic `appendBatch`,
+  `listDue`, and **C4 seal-finality** (commit `e969e24`) — have since landed, inside the same
+  in-memory backing; `tx?` and `findNonTerminal` remain outstanding. This bullet is left as
+  R1/R2 stated it, since it is a dated audit record; `docs/process/implementation-status.md`
+  carries the current account.
 - **Redemption (the effect seam)** — the real `redeeming`/`redeemed`/`redemption-failed`
   transition kinds and their payload shapes, `kernel/redeem.ts`'s full gate ladder, token
   issuance, and the residual-conflict resolver (`chain/replay.ts`, `kernel/redeem.ts`,
@@ -486,6 +487,15 @@ arriving with its own future build step:
 - **Multi-leg separation of duties** — `PriorRecordRef`/`RecordedPriorRef`, `open()`'s
   prior-leg verification step, the finalize SoD gate, and the `sealed`/status-retirement fold
   (`kernel/open.ts`, `kernel/finalize.ts`, `types.ts`, `chain/replay.ts`).
+
+  **Correction:** the `sealed`/status-retirement fold has since landed (commit `e53ec7e`,
+  `chain/replay.ts`'s `replay()` folding a `sealed` transition and `types.ts`'s new
+  `DecisionRecord.status` field) — it is no longer part of this bundle's unbuilt set. The
+  other three items named above — `PriorRecordRef`/`RecordedPriorRef`, `open()`'s prior-leg
+  verification step, and the finalize SoD gate — remain unbuilt. This one item was also never
+  actually covered by this section's own "excluded because the profile fields that would
+  switch it on all throw `GOVERNED` at construction" framing: `seal()` is gated by no profile
+  field at all, unlike the other three, which really are gated by `legs.length > 1`.
 - **Consultations, policy-drift, and eligibility gating** — `finalize()`'s `opts` parameter
   (consultations and policy inputs), the argument-intake validation, gates (4.5)/(5.5), and the
   `availability` outcome class (`kernel/finalize.ts`, `outcome.ts`, `refusal-codes.ts`).
