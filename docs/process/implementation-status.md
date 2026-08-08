@@ -244,7 +244,12 @@ record: NO candidate CAS target is admitted — chain-compromise with NO append,
 transitionRef (C3-forced corner)") has pinned exactly that scenario since `7547b12`, part of
 build-order step 1's own test corpus. What C4 actually added is a *second* route into the same
 fallback — a sealed record is now also a no-candidate case — not the first one. The claim
-traces to this task's own planning brief and was carried into `kernel/finalize.ts`'s
+traces to this increment's own plan, `docs/superpowers/plans/2026-08-05-chain-retirement.md`,
+whose Step 5 directed the implementer to "add one line to its doc comment saying `seal()` is now
+a second caller and that C4 makes its no-candidate fallback reachable where it previously could
+not fire" — that plan line is corrected in place at this branch's final fix round, since it is
+the tracked sentence the false doc comment came from. From there the claim was carried into
+`kernel/finalize.ts`'s
 `appendChainCompromise` doc comment itself (the same file the commit body describes) — reworded
 once in `b779517` (to the weaker, still partly false claim that `seal()`'s own tamper test was
 "the first fixture in this corpus" to construct the fallback) and the surviving sentence deleted

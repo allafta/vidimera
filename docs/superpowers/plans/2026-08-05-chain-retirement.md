@@ -811,8 +811,20 @@ export async function seal(
 ```
 
 **`appendChainCompromise` is currently module-private in `finalize.ts`.** Export it, and add one
-line to its doc comment saying `seal()` is now a second caller and that C4 makes its
-no-candidate fallback reachable where it previously could not fire.
+line to its doc comment saying `seal()` is now a second caller and that C4 adds a **second**
+route into its no-candidate fallback — a tampered chain over an already-sealed record, alongside
+the already-terminal `expired`/`refused` shapes that reach it under C3.
+
+**Corrected after the fact.** This line first read "and that C4 makes its no-candidate fallback
+reachable where it previously could not fire," which is false as a general claim: that fallback
+has been reachable — and pinned — since build-order step 1's own corpus, at
+`packages/record/test/chain-verify.test.ts:292` ("a tampered chain on an ALREADY-EXPIRED record:
+NO candidate CAS target is admitted"), landed in `7547b12`, with no `sealed` transition or C4
+involved. The original wording is weaker than the commit body that later repeated it and admits
+a true reading scoped to the sealed case — "where it previously could not fire" can be read as
+"in this shape" — but it is the tracked sentence a doc comment was written from, and it was read
+the other way, so it is corrected rather than defended. The doc comment it produced was fixed in
+`b779517` and `8a64b0d`; the exit record carries the full account.
 
 - [ ] **Step 6: Wire it onto the operator handle**
 
