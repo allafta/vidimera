@@ -1,7 +1,7 @@
 // @vidimera/record — agent-unreachability.test.ts: the
 // object-capability freeze-enumerate-attack. The `agent` handle exposes ONLY
 // `stage` + the three pure reads; the record-transitioning calls (`open`/`review`/
-// `finalize`/`redeem`) live SOLELY on `operator`. This is in-process discipline, not
+// `finalize`/`redeem`/`seal`) live SOLELY on `operator`. This is in-process discipline, not
 // sandbox confinement (SPEC §9: "in-process object-capability discipline, not a
 // sandbox") — asserted here by:
 //   (1) the agent handle's own+inherited key set is EXACTLY {stage, getRecord, readChain,
@@ -20,7 +20,7 @@ import { captureProfile, makeConfig } from './helpers/profiles.js';
 import { CountingStore } from './helpers/stores.js';
 
 const ALLOWED_AGENT_KEYS = ['chainHead', 'getRecord', 'readChain', 'stage'];
-const TRANSITIONING = ['open', 'review', 'finalize', 'redeem', 'replay', 'verifyChain'];
+const TRANSITIONING = ['open', 'review', 'finalize', 'redeem', 'seal', 'replay', 'verifyChain'];
 
 function agentHandle() {
   const { agent } = create(makeConfig([captureProfile()]));

@@ -100,12 +100,11 @@ export async function seal(
     payload: { chainHead: headDigest },
     prevHash: headDigest,
   };
-  // State-preserving, so terminality is unchanged — computed via the helper rather than
-  // hardcoded `false`, matching the rest of the kernel. `dueAt` is omitted, which clears any
-  // pending clock: a retired record must never be swept.
-  const meta: AppendMeta = {
-    nonTerminal: nonTerminal(record.state, finalLeg, resolved.effectSeam),
-  };
+  // State-preserving, so terminality is unchanged — reusing `stillNonTerminal` (gate (4)
+  // already proved it `false`; sealing never crosses back from terminal to non-terminal, so
+  // recomputing it here would be the same pure expression evaluated twice for no reason).
+  // `dueAt` is omitted, which clears any pending clock: a retired record must never be swept.
+  const meta: AppendMeta = { nonTerminal: stillNonTerminal };
 
   const res = await store.appendTransition(record.state, sealedTransition, meta);
   if (!res.appended) {

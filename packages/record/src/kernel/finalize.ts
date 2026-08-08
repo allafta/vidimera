@@ -312,12 +312,13 @@ function batchConflict(conflict: 'seq', index: number): Error {
  *
  * EXPORTED: `kernel/seal.ts`'s `seal()` is a second caller — chain-verify is its rung (1) too
  * (SPEC §5: "Verification is first"), and it reuses this same append rather than a copy. That
- * second caller is also what makes the no-candidate fallback below reachable for the first
- * time: before `store/memory.ts`'s C4 seal-finality bar existed, nothing stopped an append
- * against an already-sealed record, so a tampered chain over an already-sealed record could not
- * exist as a scenario and this branch was dead code; C4 now makes exactly that combination
- * the one that reaches it (an already-sealed record admits no CAS target at all, `open` and
- * `confirmed` alike).
+ * second caller adds a THIRD shape to the C3-forced corner named two paragraphs above (a
+ * tampered chain over an already-terminal `expired`/`refused` record) — an already-SEALED
+ * record, which C4 bars unconditionally, so neither `open` nor `confirmed` is admitted either.
+ * `seal()`'s own already-sealed tamper test is the first fixture in this corpus that actually
+ * CONSTRUCTS the fallback; against a terminal `expired`/`refused` record it was always
+ * reachable through `finalize()` alone (verification outranks the state gate there too), just
+ * never exercised by a test until now.
  */
 export async function appendChainCompromise(
   store: Store,

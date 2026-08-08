@@ -13,9 +13,9 @@ import type { Digest } from './types.js';
 // (compromise wherever the record's state admits a state-leaving append, per SPEC §8 — §12's
 // C3 admits no edge against an already-terminal `expired`/`refused` record and its C4 admits
 // none against a sealed one, and the compromise then surfaces result-first with no ref, via
-// `appendChainCompromise`'s fallback in kernel/finalize.ts. C4 is UNBUILT in this build's
-// `store/memory.ts` (see `store/store.ts`'s `AppendResult` doc), so the sealed half of that
-// sentence is §12's rule, not a behaviour this Store enforces yet; record-exists /
+// `appendChainCompromise`'s fallback in kernel/finalize.ts. C4 IS BUILT in this build's
+// `store/memory.ts` (see `store/store.ts`'s `AppendResult` doc) — `seal.test.ts`'s "chain-
+// compromise with NO edge" test is a passing demonstration of it; record-exists /
 // unknown-profile / unknown-leg / pre-record /
 // terminal-record (incl. record-not-open) never; a refusal-class code only when
 // appended per `appendsOn`). `unavailable` has no producer in this build — forward-compat
