@@ -24,6 +24,11 @@ export type { RefusalCode } from './refusal-codes.js';
 // seam. PUBLIC BUT EXPLICITLY UNSTABLE PRE-1.0 — see `MemoryStore`'s own doc comment
 // and the `Store` interface's (same marking).
 export { MemoryStore } from './store/memory.js';
+// --- provisional embedded-SQL Store implementation ---
+// Same rationale as `MemoryStore` above — the seam an adopter wires rather than
+// hand-rolling. PUBLIC BUT EXPLICITLY UNSTABLE PRE-1.0 — see `SqliteStore`'s own doc
+// comment and the `Store` interface's (same marking).
+export { SqliteStore } from './store/sqlite.js';
 export type { AppendMeta, AppendResult, BatchResult, Store } from './store/store.js';
 export type {
   Consultation,
