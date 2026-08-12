@@ -533,6 +533,13 @@ them to match the reference project more closely would be a regression, not a co
   form some earlier reference states used. It is the one shape that serves all three
   consumers in this build: the ten per-field construction guards, `open()`'s unexpected-key
   guard, and `redeem()`'s build-capability throw.
+
+  **Correction, dated at commit `77cbc8d`:** the third consumer is gone. That commit landed
+  SPEC §11.2's direct redemption shape, replacing the loudness-throw this bullet named with
+  the redemption ladder itself — `kernel/redeem.ts` calls `governedUnavailable` nowhere today
+  (verified by grep across `packages/record/src`). Two consumers remain live: the ten
+  per-field construction guards and `open()`'s unexpected-key guard. The arity-2 shape itself
+  is unaffected; this is a count-of-callers correction, not a reason to revisit it.
 - **`redeem()` threw a build-capability error** on a confirmed effect-seam record, at the time
   this audit ran, rather than silently returning `unredeemable-state` or attempting to "close
   the strand." Neither a throw nor a refusal released the `(profile, subject)` pair such a
