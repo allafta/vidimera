@@ -83,7 +83,8 @@ export class SqliteStore implements Store {
    * Every write runs inside one transaction with the mutation last — the transactional
    * shape `store/memory.ts`'s header MODELS is literal here. SPEC §12: "When none is
    * supplied, an adapter uses its own transaction for the write." (Enlistment in a
-   * caller-supplied transaction arrives with the `tx` parameter in the next task.)
+   * caller-supplied transaction is `inTransaction`'s job, below — this is only the
+   * no-`tx` fallback it delegates to.)
    */
   private inOwnTransaction<T>(body: () => T): T {
     this.db.exec('BEGIN IMMEDIATE');
@@ -95,6 +96,45 @@ export class SqliteStore implements Store {
       this.db.exec('ROLLBACK');
       throw err;
     }
+  }
+
+  /**
+   * The adapter's own connection — the enlistment surface. SPEC §12's tx is "the driver's
+   * own transaction handle"; node:sqlite has no separate transaction object, so the handle
+   * IS the connection carrying an open transaction, and co-location (§11.2) means the host
+   * runs its own effect statements on THIS connection inside its BEGIN/COMMIT. A foreign
+   * connection is refused outright: for ':memory:' it is a different database entirely,
+   * and for a file it is a different transaction scope — either way a silent wrong-place
+   * write, which is exactly what loud validation exists to prevent.
+   */
+  get database(): DatabaseSync {
+    return this.db;
+  }
+
+  private validateTx(tx: DatabaseSync): void {
+    if (tx !== this.db) {
+      throw new Error(
+        "SqliteStore: tx is not this store's own connection — enlistment is same-connection " +
+          'by design (a foreign connection is a different database or transaction scope)',
+      );
+    }
+    if (!tx.isTransaction) {
+      throw new Error(
+        'SqliteStore: tx has no open transaction — the caller owns BEGIN/COMMIT (SPEC §12: ' +
+          '"The transaction boundary is never hidden from the caller")',
+      );
+    }
+  }
+
+  /** Enlisted (SPEC §12: "enlisted in that transaction and commits or rolls back with
+   * it") — the body runs on the open transaction with NO BEGIN/COMMIT/ROLLBACK of our
+   * own; or, with no tx, inside our own transaction. */
+  private inTransaction<T>(tx: DatabaseSync | undefined, body: () => T): T {
+    if (tx !== undefined) {
+      this.validateTx(tx);
+      return body();
+    }
+    return this.inOwnTransaction(body);
   }
 
   private recordRow(recordId: string): RecordRow | undefined {
@@ -128,12 +168,14 @@ export class SqliteStore implements Store {
       .run(t.recordId, t.seq, JSON.stringify(t));
   }
 
-  async putStaged(staged: StagedDraft): Promise<void> {
+  async putStaged(staged: StagedDraft, tx?: DatabaseSync): Promise<void> {
     // Idempotent, first-write-wins (SPEC §12) — literally ON CONFLICT DO NOTHING, the SQL
     // semantics the memory backing's comment names as its model.
-    this.db
-      .prepare('INSERT INTO staged (id, draft_json) VALUES (?, ?) ON CONFLICT(id) DO NOTHING')
-      .run(staged.id, JSON.stringify(staged));
+    this.inTransaction(tx, () => {
+      this.db
+        .prepare('INSERT INTO staged (id, draft_json) VALUES (?, ?) ON CONFLICT(id) DO NOTHING')
+        .run(staged.id, JSON.stringify(staged));
+    });
   }
 
   async getStaged(stagedRef: string): Promise<StagedDraft | null> {
@@ -148,8 +190,9 @@ export class SqliteStore implements Store {
     expectedCurrentState: RecordState | null,
     transition: Transition,
     meta: AppendMeta,
+    tx?: DatabaseSync,
   ): Promise<AppendResult> {
-    return this.inOwnTransaction(() => {
+    return this.inTransaction(tx, () => {
       if (expectedCurrentState === null) {
         return this.appendGenesis(transition, meta);
       }
@@ -232,6 +275,7 @@ export class SqliteStore implements Store {
     expectedCurrentState: RecordState,
     transitions: readonly Transition[],
     meta: AppendMeta,
+    tx?: DatabaseSync,
   ): Promise<BatchResult> {
     const first = transitions[0];
     if (first === undefined) {
@@ -240,7 +284,7 @@ export class SqliteStore implements Store {
           'report, and is a caller error rather than a domain outcome',
       );
     }
-    return this.inOwnTransaction(() => {
+    return this.inTransaction(tx, () => {
       const row = this.recordRow(first.recordId);
       if (row === undefined || row.state !== expectedCurrentState) {
         return { appended: false, conflict: 'state-mismatch', index: 0 };
