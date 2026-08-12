@@ -109,3 +109,29 @@ test('putStaged: a StagedDraft carrying an extra FUNCTION-valued property throws
     'a function-valued extra property must throw DataCloneError at the clone-on-write seam',
   );
 });
+
+test('MemoryStore rejects a supplied tx loudly — no driver, no transaction to enlist', async () => {
+  // SPEC §12's caller-transaction seam is adapter-generic; a backing with no driver has
+  // nothing to enlist a write in, and silently ignoring the handle is the failure mode the
+  // seam's deferral existed to avoid. The check runs FIRST in each write, ahead of every
+  // other validation, so no partial work precedes the throw.
+  const store = new MemoryStore();
+  const draft = {
+    id: `sha256:${'d'.repeat(64)}`,
+    profileId: 'profile.p1',
+    legId: 'approver-decide',
+    subjectRef: 'subject:tx-pin',
+    contentDigest: `sha256:${'e'.repeat(64)}`,
+  };
+  await assert.rejects(() => store.putStaged(draft, {}), /no transaction to enlist/);
+
+  const genesis = storeGenesis('rec-tx-pin', 'profile.p1', 'subject:tx-pin');
+  await assert.rejects(
+    () => store.appendTransition(null, genesis, { nonTerminal: true }, {}),
+    /no transaction to enlist/,
+  );
+  await assert.rejects(
+    () => store.appendBatch('open', [genesis], { nonTerminal: true }, {}),
+    /no transaction to enlist/,
+  );
+});

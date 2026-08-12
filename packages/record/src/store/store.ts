@@ -7,9 +7,10 @@
 // A host may inject its own `Store` implementation today (there is
 // no other way to run the library — `Config.store` is required), but this interface's
 // shape is provisional scaffolding for a future real SQLite/Postgres adapter, not
-// a frozen contract: it WILL change (most likely gaining a caller-transaction seam and a
-// committed-read surface — both named but not built in this build, SPEC §12) at a later
-// build step. Do not build long-lived external adapters against this exact shape yet.
+// a frozen contract: it WILL change (a committed-read surface is still named-not-built,
+// SPEC §12; the caller-transaction seam `tx?` is on every write as of the fifth step-2
+// increment) at a later build step. Do not build long-lived external adapters against
+// this exact shape yet.
 //
 // Placement note: `StagedDraft` lives in `types.ts` alongside the other core shapes;
 // this module RE-EXPORTS the existing `types.ts` definition (so callers can still
@@ -62,9 +63,9 @@ export type AppendResult =
  *    is in, RFC3339 UTC. Presence sets the record's pending-clock column; **absence clears
  *    it**. It is a listing index only and never authoritative — SPEC §12.
  *
- * §12 also puts an optional caller-supplied transaction on every write. It is NOT built
- * here: an in-memory backing has no transaction to receive, so the parameter would be
- * structurally ignored. It arrives with the first real adapter. Deferral register row 13.
+ * §12's optional caller-supplied transaction rides beside this as `tx?` on each write
+ * method — adapter-generic, validated by each backing (`store/sqlite.ts` enlists its own
+ * connection's open transaction; `MemoryStore` throws on presence, having no driver).
  */
 export interface AppendMeta {
   nonTerminal: boolean;
@@ -104,17 +105,23 @@ export type BatchResult =
  * `seal()` operator-only, alongside `open()`/`review()`/`finalize()`/`redeem()`, built atop
  * this interface rather than part of it (`kernel/seal.ts`). `appendTransition`'s `meta`
  * parameter (`AppendMeta` above) now matches §12's `meta = { nonTerminal, dueAt? }` shape
- * exactly — nothing about the parameter itself is narrowed anymore. What IS still narrowed is
- * `tx?`, the optional caller-supplied transaction §12 puts on every write: omitted here
- * because an in-memory backing has no transaction to receive it. `dueAt` now has both a
+ * exactly, and `tx?` (below) is likewise no longer narrowed as of the fifth step-2
+ * increment — nothing about either parameter is narrowed anymore. `dueAt` now has both a
  * producer (the genesis `opened` append, from the profile's open-window ttl —
  * `kernel/open.ts`) and a reader (`listDue` itself,
  * narrowed to recordIds — see its own doc comment). §12 is explicit that what is durable is
  * the behaviour each method guarantees rather than its argument list, so this narrowed surface
  * conforms behaviourally without mirroring §12's signatures — but a reader must not take it
  * for the whole adapter contract. Async throughout — committing now avoids a breaking
- * sync->async flip once a real Postgres adapter and caller-transaction seam land — even
- * though `store/memory.ts`'s Map-backed implementation has no genuine I/O to await.
+ * sync->async flip once a real Postgres adapter lands — even though `store/memory.ts`'s
+ * Map-backed implementation has no genuine I/O to await.
+ *
+ * `tx?` on every write is SPEC §12's caller-supplied transaction — adapter-generic: "its
+ * concrete type is the driver's own transaction handle, named only where an adapter is
+ * instantiated, never abstracted behind a library-owned transaction interface". When a
+ * host supplies one, the write is "enlisted in that transaction and commits or rolls
+ * back with it"; each backing validates the handle it receives and throws a caller error
+ * on one it cannot enlist (MemoryStore throws on any handle — it has no driver).
  */
 export interface Store {
   /**
@@ -122,7 +129,7 @@ export interface Store {
    * **First-write-wins** on a same-id collision (SQL `ON CONFLICT DO NOTHING` semantics):
    * a second put with the same id is a no-op, even if its content differs.
    */
-  putStaged(staged: StagedDraft): Promise<void>;
+  putStaged(staged: StagedDraft, tx?: unknown): Promise<void>;
 
   /** Read by `open()`; `null` for an unknown `stagedRef`. Returns a fresh clone. */
   getStaged(stagedRef: string): Promise<StagedDraft | null>;
@@ -139,6 +146,7 @@ export interface Store {
     expectedCurrentState: RecordState | null,
     transition: Transition,
     meta: AppendMeta,
+    tx?: unknown,
   ): Promise<AppendResult>;
 
   /**
@@ -171,6 +179,7 @@ export interface Store {
     expectedCurrentState: RecordState,
     transitions: readonly Transition[],
     meta: AppendMeta,
+    tx?: unknown,
   ): Promise<BatchResult>;
 
   /**

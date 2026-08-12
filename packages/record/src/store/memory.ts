@@ -21,35 +21,16 @@
 // the append, never an advisory pre-check" means when ported to a real transaction.
 
 import { transitionDigest } from '../chain/encoding.js';
-import { CORE, type RefusalCode } from '../refusal-codes.js';
-import type { Digest, RecordState, Transition, TransitionKind } from '../types.js';
+import type { Digest, RecordState, Transition } from '../types.js';
+import { type GenesisPayload, isCompromiseCarveOut, isStateLeaving, stateOf } from './semantics.js';
 import type { AppendMeta, AppendResult, BatchResult, StagedDraft, Store } from './store.js';
-
-/**
- * The `opened` transition's payload, read only for the two fields C1 exclusivity
- * needs — `profileId`/`subjectRef` for a record come from its opened
- * transition's payload. Mirrors `chain/replay.ts`'s own local `OpenedPayload`
- * convention: `Transition.payload` is `unknown` by design (the chain is the persisted,
- * opaque wire format), so each module that needs to read specific fields off a
- * transition's payload declares its own minimal local reading-convention interface
- * rather than widening the public contract.
- */
-interface GenesisPayload {
-  profileId: string;
-  subjectRef: string;
-}
-
-/** Mirrors `chain/replay.ts`'s local `RefusedPayload` reading convention. */
-interface RefusedPayload {
-  code: RefusalCode;
-}
 
 /**
  * A record's Store-side bookkeeping: the fields C1/C3 need to decide future appends
  * (`profileId`/`subjectRef`/`nonTerminal`/`state`), plus the full chain `readChain`
  * serves. `nonTerminal` and `state` are both maintained INCREMENTALLY as transitions
  * are appended (never recomputed by re-folding the whole chain) — `state` from the
- * TransitionKind→RecordState mapping below (`stateOf`), `nonTerminal` from whatever
+ * TransitionKind→RecordState mapping in `store/semantics.ts` (`stateOf`), `nonTerminal` from whatever
  * boolean the library passed to THIS append (SPEC §12: "the library derives them, the
  * store never recomputes them" — persisted verbatim).
  */
@@ -70,91 +51,6 @@ interface StoredRecord {
    * `AppendMeta` instead would break the §12 meta shape.
    */
   sealed: boolean;
-}
-
-/**
- * The `RecordState` a given `TransitionKind` transitions a record TO, or `null` if the
- * kind is state-PRESERVING: the transition kind drives state —
- * opened->open, confirmed->confirmed, refused->refused, expired->expired;
- * consultation-recorded/sealed are state-preserving. Written as an exhaustive
- * `switch` over the full `TransitionKind` union (no `default` arm) so a future kind
- * added to `types.ts` fails this file to COMPILE rather than silently falling through
- * to some guessed behavior — the same fail-loud posture `chain/replay.ts`'s `replay()`
- * takes with an unhandled kind (there it throws at runtime; here the union is closed
- * enough that TypeScript itself catches an omission at build time).
- *
- * `opened` is handled by a dedicated genesis code path before `stateOf` is ever
- * consulted in practice (a non-genesis `opened` transition is not a real scenario),
- * but is still given a real mapping (`'open'`) rather than `null`, for the same
- * completeness-over-narrowing reason `nonterminal.ts` writes its formula's full three
- * disjuncts rather than only the disjuncts this build can reach.
- *
- * `finding-raised`/`acknowledged` (GOVERNED annotations SPEC §10.2 defines, not emitted
- * by this build's kernel) are read as state-preserving on the same reasoning as
- * `sealed` — they record a fact ABOUT a record without themselves deciding it.
- */
-function stateOf(kind: TransitionKind): RecordState | null {
-  switch (kind) {
-    case 'opened':
-      return 'open';
-    case 'consultation-recorded':
-      return null;
-    case 'confirmed':
-      return 'confirmed';
-    case 'refused':
-      return 'refused';
-    case 'expired':
-      return 'expired';
-    case 'sealed':
-      return null;
-    case 'finding-raised':
-      return null;
-    case 'acknowledged':
-      return null;
-    case 'redeeming':
-      return 'redeeming';
-    case 'redeemed':
-      return 'redeemed';
-    case 'redemption-failed':
-      return 'redemption-failed';
-  }
-}
-
-/** A kind is "state-leaving" (SPEC §12's C3) iff it maps to a new `RecordState`. */
-function isStateLeaving(kind: TransitionKind): boolean {
-  return stateOf(kind) !== null;
-}
-
-/**
- * C3's second carve-out (SPEC §12's C3): "a `compromise`-classed refusal edge against a
- * terminal `confirmed` (decided) record — never against terminal `expired` or `refused`".
- * Implemented here as: a `kind:'refused'` append whose `expectedCurrentState` is
- * `'confirmed'` is allowed past the C3 gate below (it still must pass the state CAS).
- * Deliberately keyed off the code's CLASS (via the `refusal-codes.ts` `CORE` registry),
- * not the literal string `'chain-compromise'` — "compromise-classed" is the SPEC's own
- * framing, and `CORE` is already the single source of truth for which codes are
- * compromise-classed.
- *
- * The predicate ALSO accepts `expectedCurrentState === 'redeeming'`, which §12's C3 does
- * not name: that arm is defence in depth, not a C3 grant. §12's C1 counts any `redeeming`
- * as non-terminal, so a `redeeming` record never reaches the terminal branch that consults
- * this predicate at all, and SPEC §5 admits `redeeming → refused` directly — "both are
- * non-terminal states" — rather than through the carve-out. Keeping the arm costs nothing
- * and would still be correct if a later build step made that state reachable; claiming C3
- * grants it would not be.
- *
- * The FIRST carve-out (a state-preserving `sealed` append) needs no corresponding
- * check here: `sealed` maps to `null` in `stateOf`, so `isStateLeaving('sealed')` is
- * already `false` and the C3 gate below never even reaches this predicate for it. That
- * is `sealed`'s carve-out implemented honestly — the true reason a
- * `sealed` append is never blocked is that it never leaves the state in the first
- * place, not a hardcoded `kind === 'sealed'` bypass that would say otherwise.
- */
-function isCompromiseCarveOut(transition: Transition, expectedCurrentState: RecordState): boolean {
-  if (transition.kind !== 'refused') return false;
-  if (expectedCurrentState !== 'confirmed' && expectedCurrentState !== 'redeeming') return false;
-  const payload = transition.payload as RefusedPayload;
-  return CORE[payload.code] === 'compromise';
 }
 
 /**
@@ -209,7 +105,20 @@ export class MemoryStore implements Store {
   private readonly staged = new Map<string, StagedDraft>();
   private readonly records = new Map<string, StoredRecord>();
 
-  async putStaged(staged: StagedDraft): Promise<void> {
+  /**
+   * SPEC §12's caller-transaction seam is adapter-generic — "its concrete type is the
+   * driver's own transaction handle" — and this backing has no driver: a supplied handle
+   * is a caller error, thrown loudly rather than structurally ignored (the silent-ignore
+   * risk is why the seam was deferred until a real adapter existed to receive it).
+   */
+  private static rejectTx(tx: unknown): void {
+    if (tx !== undefined) {
+      throw new Error('MemoryStore: no transaction to enlist — this backing has no driver');
+    }
+  }
+
+  async putStaged(staged: StagedDraft, tx?: unknown): Promise<void> {
+    MemoryStore.rejectTx(tx);
     // Idempotent, first-write-wins (SPEC §12): a stagedRef is content-derived
     // (id.ts), so a re-put of the identical draft is the ordinary case, but a
     // genuine same-id collision must keep the FIRST write rather than the second —
@@ -235,7 +144,9 @@ export class MemoryStore implements Store {
     expectedCurrentState: RecordState | null,
     transition: Transition,
     meta: AppendMeta,
+    tx?: unknown,
   ): Promise<AppendResult> {
+    MemoryStore.rejectTx(tx);
     const existing = this.records.get(transition.recordId);
 
     if (expectedCurrentState === null) {
@@ -414,7 +325,9 @@ export class MemoryStore implements Store {
     expectedCurrentState: RecordState,
     transitions: readonly Transition[],
     meta: AppendMeta,
+    tx?: unknown,
   ): Promise<BatchResult> {
+    MemoryStore.rejectTx(tx);
     const first = transitions[0];
     if (first === undefined) {
       throw new Error(
