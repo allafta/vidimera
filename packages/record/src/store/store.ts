@@ -6,11 +6,12 @@
 // this file's own paraphrase; the two quoted fragments are §12's own words.
 // A host may inject its own `Store` implementation today (there is
 // no other way to run the library — `Config.store` is required), but this interface's
-// shape is provisional scaffolding for a future real SQLite/Postgres adapter, not
-// a frozen contract: it WILL change (a committed-read surface is still named-not-built,
-// SPEC §12; the caller-transaction seam `tx?` is on every write as of the fifth step-2
-// increment) at a later build step. Do not build long-lived external adapters against
-// this exact shape yet.
+// shape is still provisional, not a frozen contract: a real embedded adapter now exists
+// (`store/sqlite.ts`), a server-SQL adapter is still future, and the shape itself WILL
+// change (a committed-read surface is still named-not-built, SPEC §12; the
+// caller-transaction seam `tx?` is on every write as of the fifth step-2 increment) at a
+// later build step. Do not build long-lived external adapters against this exact shape
+// yet.
 //
 // Placement note: `StagedDraft` lives in `types.ts` alongside the other core shapes;
 // this module RE-EXPORTS the existing `types.ts` definition (so callers can still

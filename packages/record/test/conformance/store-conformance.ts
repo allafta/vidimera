@@ -8,8 +8,8 @@
 // non-serializable payload differently, so that shape is not contract.
 //
 // TEST-ONLY module (not `.test.ts`): it registers nothing until a per-backing caller file
-// invokes it — memory-store-conformance.test.ts is the one backing today; a future adapter
-// adds its own caller and inherits every pin below.
+// invokes it — memory-store-conformance.test.ts and sqlite-store-conformance.test.ts are
+// today's two callers; a further adapter adds its own caller and inherits every pin below.
 
 import assert from 'node:assert/strict';
 import { describe, test } from 'vitest';

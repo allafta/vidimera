@@ -23,14 +23,16 @@ parts:
   genuinely applicable are now applied, and the tenth was reclassified as a local
   improvement rather than an inherited fix (see that document). The remediation plan's
   units R1–R5 (`docs/superpowers/plans/2026-08-03-step-1-remediation.md`) are all
-  complete. Step 2 — the store, for real — is **started and has not exited**: four
+  complete. Step 2 — the store, for real — is **started and has not exited**: five
   increments have landed the atomic `appendBatch`, `listDue`, §12's
   `{ nonTerminal, dueAt? }` meta shape on both append seams, the C4 seal-finality bar,
   the operator-only `seal()` chain-retirement seam with its derived
-  `active`/`retired` status, and `findNonTerminal`, completing the eight-method Store
-  contract, and the backing-parameterized conformance suite (test-side, run over that one
-  backing) — all still inside the one in-memory backing, which is why
-  the step has not exited. **`docs/process/implementation-status.md` is the authoritative
+  `active`/`retired` status, `findNonTerminal`, completing the eight-method Store
+  contract, the backing-parameterized conformance suite (test-side, run over that one
+  backing), and the embedded-SQL adapter (`store/sqlite.ts`) with the `tx?` seam and the
+  cross-backing byte-identity test — which leaves the server-SQL adapter as step 2's one
+  unbuilt backing, and the step has not exited.
+  **`docs/process/implementation-status.md` is the authoritative
   account** of what this build does and does not implement, section by section, with the
   gate outputs and the outstanding list — read it rather than trusting a count here,
   which is a claim with a shelf life and no way to fail loudly. Seven of the eight
@@ -71,7 +73,7 @@ load-bearing structure:
 
 ## Commands
 
-pnpm workspace (Node 22+, pnpm via corepack):
+pnpm workspace (Node 22.13+, pnpm via corepack):
 
 - `pnpm install` — install dev dependencies
 - `pnpm typecheck` — tsc strict, no emit

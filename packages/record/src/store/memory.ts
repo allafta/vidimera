@@ -2,10 +2,12 @@
 // (DECISIONS.md #24: "reference semantics, never durable evidence"). Zero
 // native dep, day-one CI-able. Hand-
 // implements C1 exclusivity / C2 sequencing / C3 monotonicity / C4 seal-finality to match
-// SQLite/Postgres semantics EXACTLY so a future real adapter can port this behavior 1:1 — a
-// bare `WHERE state=...` predicate is explicitly called out by SPEC §12 as wrong (its C1),
-// so every constraint here is checked atomically INSIDE `appendTransition`/`appendBatch`,
-// never as a separate advisory pre-check a concurrent caller could race past.
+// SQLite/Postgres semantics EXACTLY so a real adapter can port this behavior 1:1 — the
+// embedded one now does (`store/sqlite.ts`), sharing this file's own `store/semantics.ts`
+// mapping for C3/C4 rather than re-deriving it. A bare `WHERE state=...` predicate is
+// explicitly called out by SPEC §12 as wrong (its C1), so every constraint here is
+// checked atomically INSIDE `appendTransition`/`appendBatch`, never as a separate
+// advisory pre-check a concurrent caller could race past.
 //
 // Transactional-shape note (self-review requirement): although this Map is accessed
 // single-threaded (no real concurrency in-process), `appendTransition`/`appendBatch` still
@@ -96,10 +98,11 @@ interface StoredRecord {
  * rather than hand-rolling a byte-identical copy.
  *
  * PUBLIC BUT EXPLICITLY UNSTABLE PRE-1.0 — same marking as the `Store` interface it
- * implements (`store/store.ts`): this class is provisional scaffolding standing in for
- * a future real SQLite/Postgres adapter, not a frozen contract. Chain/encoding
- * internals (`chain/encoding.ts`'s `transitionDigest`, etc.) remain unexported; only
- * this class is the seam.
+ * implements (`store/store.ts`): this class is the reference in-memory backing beside
+ * the real embedded adapter (`store/sqlite.ts`); a server-SQL adapter is still future,
+ * and neither class is a frozen contract. Chain/encoding internals
+ * (`chain/encoding.ts`'s `transitionDigest`, etc.) remain unexported; only this class is
+ * the seam.
  */
 export class MemoryStore implements Store {
   private readonly staged = new Map<string, StagedDraft>();
