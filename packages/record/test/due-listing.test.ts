@@ -9,8 +9,6 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { create } from '../src/create.js';
 import { MemoryStore } from '../src/store/memory.js';
-import type { Transition } from '../src/types.js';
-import { storeGenesis, storeNext } from './helpers/chain.js';
 import {
   captureProfile,
   DEFAULT_SUBJECT_REF,
@@ -77,30 +75,5 @@ test('listDue: finalizing clears the pending clock — a state-leaving append ca
     await store.listDue(new Date(Date.UTC(2099, 0, 1))),
     [],
     'the confirmed batch carries no clock, so its post-batch meta clears the column',
-  );
-});
-
-test('listDue applies NO state predicate — a due record is listed whatever state it is in', async () => {
-  // SPEC §12 states the gate as `dueAt` alone, with no state predicate. In this build only
-  // the genesis sets `dueAt` and every state-leaving append clears it, so no kernel path can
-  // produce a due non-open record. The STORE contract still has to honour the rule, so this
-  // one test drives the store directly and sets the meta itself. It is the only test in this
-  // file that does not go through the kernel, and that is why.
-  const store = new MemoryStore();
-  const genesis = storeGenesis('rec-due', 'profile.p1', 'subject:s1');
-  await store.appendTransition(null, genesis, { nonTerminal: true });
-
-  const confirmed: Transition = storeNext(genesis, 'confirmed', {
-    actor: { principal: 'a', authority: 'session:t' },
-  });
-  await store.appendTransition('open', confirmed, {
-    nonTerminal: false,
-    dueAt: '2026-01-01T00:00:00.000Z',
-  });
-
-  assert.deepEqual(
-    await store.listDue(new Date(Date.UTC(2026, 5, 1))),
-    ['rec-due'],
-    'terminal `confirmed`, and still listed — the gate reads `dueAt`, never `state`',
   );
 });

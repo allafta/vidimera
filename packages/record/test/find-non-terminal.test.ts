@@ -2,13 +2,11 @@
 // Store method, `findNonTerminal(profileId, subjectRef)` — SPEC §12: "the re-emit binding
 // that makes `record-exists` actionable, and the same record C1 names as the blocker".
 //
-// Two layers, because the method has both a store-level contract and a kernel-level
-// purpose:
-//   - store-level: a MemoryStore driven directly (store-constraints.test.ts style), the
-//     flags supplied by hand;
-//   - kernel-level: records driven through create()/createWithClock, the flags coming from
-//     the library's own terminality derivation (nonterminal.ts), so each test pins what a
-//     HOST would actually observe.
+// The store-level layer — a Store driven directly, the flags supplied by hand — moved to
+// the backing-parameterized conformance suite (conformance/store-conformance.ts) at the
+// fourth step-2 increment; this file keeps the kernel-level layer: records driven through
+// create()/createWithClock, the flags coming from the library's own terminality derivation
+// (nonterminal.ts), so each test pins what a HOST would actually observe.
 //
 // NARROWING, pinned here and recorded in store.ts: §12 says the method "returns the live
 // non-terminal record for the pair (or nothing)"; this build returns the recordId, on the
@@ -19,7 +17,6 @@ import { test } from 'vitest';
 
 import { create, createWithClock } from '../src/create.js';
 import { MemoryStore } from '../src/store/memory.js';
-import { storeGenesis, storeNext } from './helpers/chain.js';
 import {
   captureProfile,
   DEFAULT_SUBJECT_REF,
@@ -31,60 +28,6 @@ import {
 } from './helpers/profiles.js';
 
 const CONTENT = { subject: 'week-1', total: 40 };
-
-// === store-level: the contract, flags supplied by hand ================================
-
-test('findNonTerminal() on an unknown pair -> null', async () => {
-  const store = new MemoryStore();
-  assert.equal(await store.findNonTerminal('p-none', 's-none'), null);
-});
-
-test('findNonTerminal() after a non-terminal genesis -> that recordId', async () => {
-  const store = new MemoryStore();
-  const genesis = storeGenesis('rec-1', 'p-1', 's-1');
-  const landed = await store.appendTransition(null, genesis, { nonTerminal: true });
-  assert.equal(landed.appended, true, 'fixture: the genesis must land');
-  assert.equal(await store.findNonTerminal('p-1', 's-1'), 'rec-1');
-});
-
-test('findNonTerminal() matches the PAIR, not either half', async () => {
-  const store = new MemoryStore();
-  const landed = await store.appendTransition(null, storeGenesis('rec-1', 'p-1', 's-1'), {
-    nonTerminal: true,
-  });
-  assert.equal(landed.appended, true, 'fixture: the genesis must land');
-  assert.equal(await store.findNonTerminal('p-1', 's-other'), null);
-  assert.equal(await store.findNonTerminal('p-other', 's-1'), null);
-});
-
-test('C1 AGREEMENT: a rejected genesis names the same record findNonTerminal returns', async () => {
-  // SPEC §12's C1: "A rejected genesis append names the **blocking** record — the live
-  // non-terminal record for the pair, the same record `findNonTerminal` returns." The
-  // implementation shares one predicate between the two; this test pins the agreement
-  // OBSERVABLY, so a future backing that implements them separately still has to honor it.
-  const store = new MemoryStore();
-  await store.appendTransition(null, storeGenesis('rec-blocker', 'p-1', 's-1'), {
-    nonTerminal: true,
-  });
-  const rejected = await store.appendTransition(null, storeGenesis('rec-second', 'p-1', 's-1'), {
-    nonTerminal: true,
-  });
-  assert.equal(rejected.appended, false);
-  if (rejected.appended) return;
-  assert.equal(rejected.conflict, 'exclusivity');
-  if (rejected.conflict !== 'exclusivity') return;
-  assert.equal(rejected.blockingRecordId, await store.findNonTerminal('p-1', 's-1'));
-});
-
-test('findNonTerminal() after the persisted flag flips terminal -> null', async () => {
-  const store = new MemoryStore();
-  const genesis = storeGenesis('rec-1', 'p-1', 's-1');
-  await store.appendTransition(null, genesis, { nonTerminal: true });
-  const expired = storeNext(genesis, 'expired', { deadline: '2026-07-24T01:00:00.000Z' });
-  const landed = await store.appendTransition('open', expired, { nonTerminal: false });
-  assert.equal(landed.appended, true, 'fixture: the expired edge must land');
-  assert.equal(await store.findNonTerminal('p-1', 's-1'), null);
-});
 
 // === kernel-level: the flags coming from the library's own derivation =================
 
