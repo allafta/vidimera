@@ -418,7 +418,8 @@ export function runStoreConformance(label: string, makeStore: () => Store): void
         contentDigest: 'sha256:' + 'f'.repeat(64),
       };
       // Independent snapshot, taken BEFORE the put (and before any mutation) — see the
-      // section comment above for why `draft` itself cannot serve as the expected value.
+      // independent-snapshot note on the getStaged freshness test above for why `draft` itself
+      // cannot serve as the expected value.
       const originalSnapshot = { ...draft };
       await store.putStaged(draft);
 
@@ -553,7 +554,7 @@ export function runStoreConformance(label: string, makeStore: () => Store): void
     });
 
     test('appendBatch: terminality is fixed at the ENTRY flag, so a batch may end in the transition that makes the record terminal', async () => {
-      // The rule this file exists for. The entry flag is nonTerminal:true (the record is open),
+      // The rule the batch section exists for. The entry flag is nonTerminal:true (the record is open),
       // so C3's terminal arm cannot fire while the batch applies — even though the LAST element
       // is `confirmed`, which is exactly what makes the record terminal. Recomputing terminality
       // per element rejects that element and breaks finalize's only batch.
@@ -764,8 +765,7 @@ export function runStoreConformance(label: string, makeStore: () => Store): void
       // SPEC §12 states the gate as `dueAt` alone, with no state predicate. In this build only
       // the genesis sets `dueAt` and every state-leaving append clears it, so no kernel path can
       // produce a due non-open record. The STORE contract still has to honour the rule, so this
-      // one test drives the store directly and sets the meta itself. In this build only the
-      // genesis sets `dueAt` and every state-leaving append clears it, so this scenario is
+      // one test drives the store directly and sets the meta itself. That scenario is therefore
       // constructible only by driving the store directly.
       const store = makeStore();
       const genesis = storeGenesis('rec-due', 'profile.p1', 'subject:s1');

@@ -34,7 +34,7 @@ function openedPayload(profileId: string, subjectRef: string) {
 
 // === DataCloneError decision pin (see store/memory.ts's store-clone decision comment) ==
 //
-// `structuredClone` — used above to isolate store-internal state from a caller's own
+// `structuredClone` — used by `store/memory.ts` to isolate store-internal state from a caller's own
 // object — THROWS `DataCloneError` on a function- or symbol-valued member anywhere in the
 // object graph. This is a DELIBERATE choice (memory.ts documents the full reasoning): a
 // payload that digests fine today (JCS silently OMITS such a member rather than throwing,
