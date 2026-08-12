@@ -785,5 +785,54 @@ export function runStoreConformance(label: string, makeStore: () => Store): void
         'terminal `confirmed`, and still listed — the gate reads `dueAt`, never `state`',
       );
     });
+
+    test('listDue: the gate is dueAt ≤ now, boundary INCLUSIVE — at-the-instant is due, one ms later is not yet', async () => {
+      // SPEC §12's gate, verbatim: `dueAt ≠ null AND dueAt ≤ now`. The migrated
+      // no-state-predicate pin covers the state half; this one pins the comparison itself,
+      // including equality, with the meta supplied by hand.
+      const store = makeStore();
+      const genesis = storeGenesis('rec-boundary', 'profile.p1', 'subject:s1');
+      const dueAt = '2026-07-24T12:00:00.000Z';
+      await store.appendTransition(null, genesis, { nonTerminal: true, dueAt });
+
+      const justBefore = new Date(Date.parse(dueAt) - 1);
+      assert.deepEqual(await store.listDue(justBefore), [], 'not due one ms early');
+      assert.deepEqual(
+        await store.listDue(new Date(dueAt)),
+        ['rec-boundary'],
+        'due AT the instant — ≤, not <',
+      );
+      const justAfter = new Date(Date.parse(dueAt) + 1);
+      assert.deepEqual(await store.listDue(justAfter), ['rec-boundary'], 'still due after');
+    });
+
+    test('listDue: a record whose meta never carried dueAt is never listed', async () => {
+      // SPEC §12: "A record with no bound is never listed, regardless of state."
+      const store = makeStore();
+      const genesis = storeGenesis('rec-unclocked', 'profile.p1', 'subject:s1');
+      await store.appendTransition(null, genesis, { nonTerminal: true });
+      assert.deepEqual(await store.listDue(new Date(Date.UTC(2100, 0, 1))), []);
+    });
+
+    test('listDue: presence sets, absence clears — an append whose meta omits dueAt clears the pending clock', async () => {
+      // SPEC §12: "every state-leaving append that carries no new clock clears the column by
+      // omission" — pinned here at the meta level, with no kernel involved: the store must
+      // treat absence as clearing, not as keep-previous.
+      const store = makeStore();
+      const genesis = storeGenesis('rec-clearing', 'profile.p1', 'subject:s1');
+      const dueAt = '2026-07-24T12:00:00.000Z';
+      await store.appendTransition(null, genesis, { nonTerminal: true, dueAt });
+      const past = new Date(Date.parse(dueAt) + 1000);
+      assert.deepEqual(
+        await store.listDue(past),
+        ['rec-clearing'],
+        'fixture: listed while the clock is set',
+      );
+
+      const confirmed = storeNext(genesis, 'confirmed', { actor: APPROVER });
+      const res = await store.appendTransition('open', confirmed, { nonTerminal: false });
+      assert.equal(res.appended, true, 'fixture: the state-leaving append must land');
+      assert.deepEqual(await store.listDue(past), [], 'the omitted dueAt cleared the clock');
+    });
   });
 }
