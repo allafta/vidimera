@@ -49,9 +49,10 @@ test('findNonTerminal() after a non-terminal genesis -> that recordId', async ()
 
 test('findNonTerminal() matches the PAIR, not either half', async () => {
   const store = new MemoryStore();
-  await store.appendTransition(null, storeGenesis('rec-1', 'p-1', 's-1'), {
+  const landed = await store.appendTransition(null, storeGenesis('rec-1', 'p-1', 's-1'), {
     nonTerminal: true,
   });
+  assert.equal(landed.appended, true, 'fixture: the genesis must land');
   assert.equal(await store.findNonTerminal('p-1', 's-other'), null);
   assert.equal(await store.findNonTerminal('p-other', 's-1'), null);
 });

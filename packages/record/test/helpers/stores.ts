@@ -1,7 +1,8 @@
 // @vidimera/record — test/helpers/stores.ts: shared Store test-doubles over the full
 // eight-method Store contract (`putStaged`/`getStaged`/`appendTransition`/`readChain`/
-// `chainHead`/`appendBatch`/`listDue`/`findNonTerminal` — every double delegates each to
-// its inner MemoryStore. `seal` is not and never was a Store
+// `chainHead`/`appendBatch`/`listDue`/`findNonTerminal` — every double delegates
+// `findNonTerminal` (and every method it does not deliberately intercept) to its inner
+// MemoryStore. `seal` is not and never was a Store
 // method — it is an operator-only seam built atop these, SPEC §9/§12). Three shapes fold the
 // near-identical inline classes that would otherwise be hand-copied across the test corpus:
 //   - `TamperingStore` — `readChain` returns a TAMPERED copy of one targeted record's

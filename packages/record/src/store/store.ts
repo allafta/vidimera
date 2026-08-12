@@ -110,7 +110,7 @@ export type BatchResult =
  * producer (the genesis `opened` append, from the profile's open-window ttl —
  * `kernel/open.ts`) and a reader (`listDue` itself,
  * narrowed to recordIds — see its own doc comment). §12 is explicit that what is durable is
- * the behaviour each method guarantees rather than its argument list, so this subset
+ * the behaviour each method guarantees rather than its argument list, so this narrowed surface
  * conforms behaviourally without mirroring §12's signatures — but a reader must not take it
  * for the whole adapter contract. Async throughout — committing now avoids a breaking
  * sync->async flip once a real Postgres adapter and caller-transaction seam land — even
