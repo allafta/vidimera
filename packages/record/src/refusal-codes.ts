@@ -13,7 +13,11 @@ export type RefusalCode =
   | 'unknown-profile'
   | 'unknown-leg'
   | 'unredeemable-state'
-  | 'unsealable-state';
+  | 'unsealable-state'
+  // first PROFILE-CONDITIONAL codes (SPEC §8's conditional table): producers in
+  // kernel/redeem.ts
+  | 'effect-mismatch'
+  | 'already-redeemed';
 // class map: chain-compromise → 'compromise'; all others → 'refusal'
 // record-not-open: class 'refusal', terminal-record category — finalize() against a non-open, intact-chain
 //   record (double-finalize; an effect-seam confirmed record awaiting redemption; a refused record). NEVER
@@ -53,6 +57,8 @@ export const CORE: Record<RefusalCode, RefusalClass> = {
   'unknown-leg': 'refusal',
   'unredeemable-state': 'refusal',
   'unsealable-state': 'refusal',
+  'effect-mismatch': 'refusal',
+  'already-redeemed': 'refusal',
 };
 
 /**
@@ -67,10 +73,13 @@ export interface AppendDecisionLeg {
 /**
  * Codes that NEVER append a transition, regardless of leg configuration (SPEC §8's
  * never-appends set): `record-exists` / `unknown-profile` / `unknown-leg` (pre-record) and
- * `record-not-open` (terminal-record) never append; `unredeemable-state` (this build's
- * redeem() stub) never appends either; `unsealable-state` never appends — `seal()`'s only
- * append is the `sealed` transition itself, folded into its own success path (`kernel/seal.ts`),
- * never a byproduct of this refusal.
+ * `record-not-open` (terminal-record) never append; `unsealable-state` never appends —
+ * `seal()`'s only append is the `sealed` transition itself, folded into its own success path
+ * (`kernel/seal.ts`), never a byproduct of this refusal;
+ * `unredeemable-state`, `effect-mismatch` and `already-redeemed` never append —
+ * redemption's refusals are all result-first, the seam's only append being the `redeemed`
+ * transition folded into its own success path (`kernel/redeem.ts`), never a byproduct of a
+ * refusal;
  */
 const NEVER_APPENDS: ReadonlySet<RefusalCode> = new Set<RefusalCode>([
   'record-exists',
@@ -79,6 +88,8 @@ const NEVER_APPENDS: ReadonlySet<RefusalCode> = new Set<RefusalCode>([
   'record-not-open',
   'unredeemable-state',
   'unsealable-state',
+  'effect-mismatch',
+  'already-redeemed',
 ]);
 
 /**

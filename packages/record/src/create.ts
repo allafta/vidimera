@@ -8,11 +8,11 @@
 // The "shared kernel closures" all live here so the capability split
 // (agent-surface.ts / operator-surface.ts) stays a pure select-and-freeze. Every
 // record-transitioning closure (`stage`/`open`/`review`/`finalize`/`redeem`/`seal`) calls
-// into `kernel/*.ts` — `redeem` delegates to `kernel/redeem.ts`, which refuses
-// `unredeemable-state` on every profile/state except one: a confirmed effect-seam record
-// now throws a build-capability error instead (the real effect-seam behavior is still not
-// implemented; the throw only makes its absence loud instead of silent — see
-// kernel/redeem.ts); `seal` delegates to `kernel/seal.ts`, the operator-only chain-retirement
+// into `kernel/*.ts` — `redeem` delegates to `kernel/redeem.ts`, the DIRECT-shape
+// redemption seam (SPEC §11.2): a confirmed effect-seam record's final leg is coupled to
+// its effect via `confirmed → redeemed { via: 'direct' }`, enlisted in the caller's own
+// transaction when one is passed through; `unredeemable-state` on every profile/state with
+// no redeemable seam; `seal` delegates to `kernel/seal.ts`, the operator-only chain-retirement
 // seam that caps a verified derived-terminal record with a `sealed` transition and reports
 // `retired`. The reads (`getRecord`/`readChain`/`chainHead`) and the
 // `replay`/`verifyChain` `recordId` audit wrappers are REAL: direct Store delegation + the
@@ -96,11 +96,10 @@ export interface Kernel {
 
 /**
  * Assembles the shared kernel closures over `ctx`. All six transitioning/read closures
- * (`stage`/`open`/`review`/`finalize`/`redeem`/`seal`) delegate to `kernel/*.ts`;
- * `redeem` still has no real effect-seam behavior, but it no longer always refuses: a
- * confirmed effect-seam record now throws a build-capability error instead of silently
- * returning `unredeemable-state`, so a host declaring that profile shape finds out at the
- * seam rather than discovering it only later. `seal` is real: it caps a verified
+ * (`stage`/`open`/`review`/`finalize`/`redeem`/`seal`) delegate to `kernel/*.ts`; `redeem`
+ * is real: the DIRECT shape (SPEC §11.2) couples a confirmed effect-seam record's final
+ * leg to its effect via `confirmed → redeemed { via: 'direct' }`, `unredeemable-state` on
+ * every profile/state with no redeemable seam. `seal` is real: it caps a verified
  * derived-terminal record with a `sealed` transition and reports `retired`. The reads +
  * replay/verifyChain wrappers are real.
  */
@@ -116,9 +115,8 @@ function makeKernel(ctx: KernelContext): Kernel {
     finalize: (recordId, identity, content, facts) =>
       finalizeKernel(ctx, recordId, identity, content, facts),
 
-    // --- redeem(): kernel/redeem.ts — unredeemable-state, except a confirmed effect-seam
-    // record, which now throws a build-capability error instead ---
-    redeem: (recordId, content) => redeemKernel(ctx, recordId, content),
+    // --- redeem(): kernel/redeem.ts — the DIRECT-shape redemption seam (SPEC §11.2) ---
+    redeem: (recordId, content, tx) => redeemKernel(ctx, recordId, content, tx),
 
     // --- seal(): kernel/seal.ts — the operator-only chain-retirement seam ---
     seal: (recordId) => sealKernel(ctx, recordId),

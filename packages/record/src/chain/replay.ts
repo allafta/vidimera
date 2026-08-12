@@ -69,10 +69,13 @@ interface RefusedPayload {
  *    `state`/`refusalCode` are refusal-owned fields).
  *  - `sealed` (SPEC §5's chain retirement) sets `status: 'retired'` without moving `state`
  *    — a sealed `confirmed` record is still `confirmed`.
+ *  - `redeemed` (SPEC §11.2's direct shape; `{via}`) sets `state: 'redeemed'`. The `via`
+ *    payload field is EVIDENCE, not state — it records which redemption shape produced the
+ *    edge, and `replay` reads nothing from it; only `state` moves.
  *  - Any other `TransitionKind` (`finding-raised`,
- *    `acknowledged`, `redeeming`, `redeemed`, `redemption-failed`) is not yet emitted
+ *    `acknowledged`, `redeeming`, `redemption-failed`) is not yet emitted
  *    in this build — this kernel emits only opened, consultation-recorded, confirmed,
- *    refused, and expired — `replay` THROWS on one rather than silently ignoring it,
+ *    refused, expired, and redeemed — `replay` THROWS on one rather than silently ignoring it,
  *    matching the codebase's fail-closed posture (an unhandled kind reaching this fold
  *    is either a not-yet-wired future capability or chain corruption; both should be
  *    loud, not silently dropped state).
@@ -139,6 +142,14 @@ export function replay(chain: readonly Transition[]): DecisionRecord {
         // `chainHead` is not folded into the record: it is standalone evidence for after the
         // body is archived or destroyed (§5), not a field of the record model.
         record.status = 'retired';
+        break;
+      }
+      case 'redeemed': {
+        // State-MOVING (SPEC §11.2's direct shape): `confirmed → redeemed` is the release —
+        // `redeemed` is terminal (§2). The payload's `via` field is evidence of which
+        // redemption shape produced the edge, not state — replay reads nothing from it; only
+        // `state` moves, the same one field a `confirmed`/`refused`/`expired` arm moves.
+        record.state = 'redeemed';
         break;
       }
       default: {

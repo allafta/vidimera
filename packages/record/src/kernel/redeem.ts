@@ -1,74 +1,148 @@
-// @vidimera/record — kernel/redeem.ts: the operator-only
-// redemption seam is EXPORTED ON EVERY PROFILE (capture-only AND effect-seam alike —
-// SPEC §8: "`redeem()` and `seal()` are calls on every profile, with fail-closed domain
-// outcomes in every deployment"). It is still mostly a stub in this build: it refuses
-// `unredeemable-state`, result-first, on every profile and every record state — WITH ONE
-// EXCEPTION. A confirmed effect-seam record (the exact "awaiting redemption" case) now
-// throws a build-capability error instead of silently refusing (below). The real
-// effect-seam edges (`redeeming`/`redeemed`/`redemption-failed`) remain unimplemented
-// either way — the throw does not build them, it only stops the caller discovering their
-// absence by surprise. See the throw's own comment for what it does and does not do.
+// @vidimera/record — kernel/redeem.ts: the operator-only redemption seam, DIRECT shape
+// (SPEC §11.2): the single-use coupling of a confirmed final-leg decision to its effect —
+// `confirmed → redeemed { via: 'direct' }`. Exported on every profile (SPEC §8:
+// "`redeem()` and `seal()` are calls on every profile, with fail-closed domain outcomes in
+// every deployment"); on a pure-capture profile the domain outcome is `unredeemable-state`.
 //
-// Load-or-not: this stub now loads the chain (`store.readChain`) because the one new
-// path needs it — telling a confirmed effect-seam record apart from every other state.
-// Every OTHER path still ignores what the load showed, exactly as before: an unknown
-// recordId, an open/refused/expired record, and a confirmed capture-only record all fall
-// through to the same `unredeemable-state` refusal the load never needed to reach for
-// them. A `recordId` that does not exist still gets `unredeemable-state` rather than a
-// caller-error throw (unlike open()'s missing-stagedRef or finalize()'s unknown-recordId,
-// which DO throw on a genuinely nonexistent target) — this build step does not extend
-// that posture to redeem() generally; it adds a throw for exactly the one state that
-// would otherwise strand a host silently.
+// The gate ladder, and why:
+//   (1) chain-verify      -> chain-compromise    — §5: "Every operator-side mutating seam
+//                            verifies the chain before acting"
+//   (2) resolve profile   -> unknown-profile     — defensive; fail-closed
+//   (3) effect seam?      -> unredeemable-state  — §11.2: "on-iff-effects"
+//   (4) state gate        -> already-redeemed on 'redeemed' (at-most-once, replay half);
+//                            unredeemable-state otherwise-not-confirmed
+//   (5) correspondence    -> effect-mismatch     — re-digest vs the bound contentDigest
+//   (6) append redeemed   -> ok; a non-append residual is a racing writer ->
+//                            unredeemable-state, result-first
 //
-// Result-first (Outcome, never throws) on the refusal path: `refused()` is called with no
-// `transitionRef` argument, so the field is genuinely ABSENT (never `undefined`-valued)
-// per outcome.ts's contract — matching `unredeemable-state`'s registration in
-// refusal-codes.ts's NEVER_APPENDS set. Nothing is written to the Store on that path
-// either. The new throw below is the one exception to "never throws": a genuine `Error`
-// rejection, not a domain refusal — the caller must handle it as an exception. Nothing is
-// written to the Store there either; a throw is not an append, and it is not a release of
-// anything the Store already holds (see the throw's comment).
+// (4) before (5): a replayed redemption refuses `already-redeemed` whatever content it
+// carries — at-most-once outranks mismatch reporting.
+//
+// NO IDENTITY ARGUMENT, deliberately — SPEC §11.2: "It carries no identity argument — the
+// deciding actor was bound at finalize (§6); redemption evidences execution, not
+// judgment."
+//
+// NO EN-PASSANT EXPIRY — SPEC §4: "`redeem()` does not treat a due-`open` record as
+// expired — it refuses `unredeemable-state` without writing an edge". Vacuous in this
+// increment (no clock sets `dueAt` on any state this ladder examines until the clock
+// increment) and stated so nobody adds `expireIfDue` by analogy; §4's due-`confirmed`
+// resolution is the clock increment's work.
+//
+// THE ENLISTMENT CONTRACT (direct shape, SPEC §11.2): when the host passes its own
+// transaction handle, the edge is enlisted and "commits or rolls back with it". The host
+// "MUST `await` the redemption before ending that transaction"; "A host rollback erases
+// the edge entirely", and re-attempting a KNOWN rolled-back redemption is legitimate — the
+// forbidden retry is the token shape's unknown-outcome case, not this one. §11.2's honest
+// bound: the library never executes the effect; the co-located host's protection is the
+// shared transaction itself.
+//
+// The token shape (`redeeming`, tokenDigest, presentation) and both redemption clocks are
+// LATER step-3 increments; states `redeeming`/`redemption-failed` are defensively refused
+// below, never claimed as spec-granted arms.
 
-import { replay } from '../chain/replay.js';
-import { governedUnavailable } from '../config.js';
+import { canonicalize, digest } from '../canonical.js';
+import { transitionDigest } from '../chain/encoding.js';
+import { replay, verifyChain } from '../chain/replay.js';
 import type { KernelContext } from '../create.js';
+import { isFinalLeg, nonTerminal } from '../nonterminal.js';
 import type { Outcome } from '../outcome.js';
-import { refused } from '../outcome.js';
-import type { RecordState } from '../types.js';
+import { ok, refused } from '../outcome.js';
+import type { AppendMeta } from '../store/store.js';
+import type { Digest, Transition } from '../types.js';
+import { appendChainCompromise } from './finalize.js';
 
 export async function redeem(
   ctx: KernelContext,
   recordId: string,
-  _content: unknown,
-): Promise<Outcome<{ state: RecordState }>> {
-  const chain = await ctx.store.readChain(recordId);
-  if (chain.length > 0) {
-    const record = replay(chain);
-    const resolved = ctx.profiles.get(record.profileId);
-    if (resolved?.effectSeam === true && record.state === 'confirmed') {
-      // Loudness, not closure (an earlier framing of this remedy was corrected: neither
-      // this throw nor a refusal releases anything). The `(profile, subject)` pair this
-      // record holds stays held — the hold lives in the Store's C1 exclusivity, a
-      // structural property of the append log, not in whatever redeem() returns or
-      // throws. Nothing this function does can lift it. Real closure needs a later build
-      // step's redemption edge (§11.2) or a `confirmToRedeem` expiry edge (§9.1); neither
-      // exists yet. `seal()` is NOT a release path — §12 admits it only against a
-      // derived-terminal record, and this record is non-terminal by §2. What DOES
-      // change here: the host finds out at the seam, now, instead of discovering an
-      // unopenable subject much later via an unrelated open()'s `record-exists`.
-      throw new Error(
-        governedUnavailable(
-          'redeem',
-          'the effect-seam redemption seam (redeeming/redeemed/redemption-failed) is not ' +
-            'implemented in this build. A confirmed record on this profile stays held — ' +
-            'its (profile, subject) pair remains exclusive under the Store — until ' +
-            'redemption resolves it or a declared confirmToRedeem bound expires it ' +
-            '(confirmed -> expired). seal() is not a release path: §12 admits seal() only ' +
-            'against a derived-terminal record, and a final-leg confirmed on an ' +
-            'effect-seam profile is non-terminal (§2). Contract: §11.2, §12 and §9.1.',
-        ),
-      );
-    }
+  content: unknown,
+  tx?: unknown,
+): Promise<Outcome<{ recordId: string; state: 'redeemed'; transitionRef: Digest }>> {
+  const { store, profiles, now } = ctx;
+
+  const chain = await store.readChain(recordId);
+  if (chain.length === 0) {
+    throw new Error(
+      `redeem: unknown recordId '${recordId}' — no such record (open() first); a recordId ` +
+        'that resolves to no chain is a caller error, not a domain refusal (SPEC §8)',
+    );
   }
-  return refused('unredeemable-state');
+
+  // --- (1) chain-verify, FIRST ---------------------------------------------------------
+  if (!verifyChain(chain).intact) {
+    return appendChainCompromise(store, chain, now);
+  }
+
+  const record = replay(chain);
+
+  // --- (2) profile resolution ----------------------------------------------------------
+  const resolved = profiles.get(record.profileId);
+  if (resolved === undefined) {
+    // Defensive, fail-closed: a coherent instance always resolves a record it opened.
+    return refused('unknown-profile');
+  }
+  const legIndex = resolved.profile.legs.findIndex((l) => l.id === record.legId);
+  if (legIndex < 0) {
+    throw new Error(
+      `redeem: persisted legId '${record.legId}' is absent from profile '${record.profileId}'`,
+    );
+  }
+  const finalLeg = isFinalLeg(legIndex, resolved.profile.legs.length);
+
+  // --- (3) effect seam declared? -------------------------------------------------------
+  // §11.2's preamble: pure-capture profiles omit redemption entirely. The non-final-leg
+  // refusal it also names is structural here — no multi-leg profile can be constructed
+  // until the separation-of-duties build step, so `!finalLeg` is defensive, not reachable.
+  if (!resolved.effectSeam || !finalLeg) {
+    return refused('unredeemable-state');
+  }
+
+  // --- (4) state gate ------------------------------------------------------------------
+  if (record.state === 'redeemed') {
+    // At-most-once, the replay half — §11.2: "a replayed redemption of an already-redeemed
+    // record refuses `already-redeemed`". Checked BEFORE correspondence: at-most-once
+    // outranks mismatch reporting.
+    return refused('already-redeemed');
+  }
+  if (record.state !== 'confirmed') {
+    // open/refused/expired per §11.2's preamble; `redeeming`/`redemption-failed` have no
+    // producer until the token and clock increments — this arm is defensive for them.
+    return refused('unredeemable-state');
+  }
+
+  // --- (5) effect-content correspondence -----------------------------------------------
+  // The same recompute path stage() bound and finalize rung (4) checks:
+  // adopter canonicalizer -> library JCS -> digest, against the bound contentDigest.
+  // §11.2: refuse "any mismatch with `effect-mismatch`".
+  const recomputed = digest(canonicalize(resolved.canonicalizer(content)));
+  if (recomputed !== record.contentDigest) {
+    return refused('effect-mismatch');
+  }
+
+  // --- (6) append `confirmed → redeemed` -----------------------------------------------
+  const last = chain.at(-1);
+  if (last === undefined) {
+    throw new Error('redeem: empty chain — the length check above holds');
+  }
+  const redeemedTransition: Transition = {
+    recordId,
+    seq: chain.length + 1,
+    at: now().toISOString(),
+    kind: 'redeemed',
+    payload: { via: 'direct' },
+    prevHash: transitionDigest(last),
+  };
+  // `redeemed` is terminal (§2) — the derivation, never a hardcoded false: THIS is the
+  // release of the (profile, subject) pair C1 held while the record awaited redemption.
+  // `dueAt` omitted clears any pending clock by §12's omission rule.
+  const meta: AppendMeta = {
+    nonTerminal: nonTerminal('redeemed', finalLeg, resolved.effectSeam),
+  };
+
+  const res = await store.appendTransition('confirmed', redeemedTransition, meta, tx);
+  if (!res.appended) {
+    // A racing writer moved the record between the read and the CAS; result-first,
+    // nothing appended, the residual mapped to the seam's own domain code.
+    return refused('unredeemable-state');
+  }
+  return ok({ recordId, state: 'redeemed', transitionRef: res.transitionDigest });
 }

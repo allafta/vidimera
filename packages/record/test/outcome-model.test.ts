@@ -41,7 +41,7 @@ test("refused('content-drift') derives class 'refusal'", () => {
 });
 
 test('class derivation is total: every RefusalCode maps to a class, and ONLY chain-compromise is compromise', () => {
-  assert.equal(ALL_REFUSAL_CODES.length, 11, 'CORE registry must cover all eleven RefusalCodes');
+  assert.equal(ALL_REFUSAL_CODES.length, 13, 'CORE registry must cover all thirteen RefusalCodes');
   for (const code of ALL_REFUSAL_CODES) {
     const result = refused(code);
     assertRefused(result);

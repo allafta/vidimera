@@ -313,8 +313,11 @@ test('unknown-leg: registry/type presence + class only in this file — the prod
 
 // `unsealable-state` (seal()'s refusal, SPEC §8) is the eleventh code. Its own production-path
 // coverage is extensive — seal.test.ts's whole gate ladder — so, like unknown-leg, it is not
-// duplicated here with a registry-only stub; this sanity check's total simply grows to eleven.
-test('every CORE RefusalCode is accounted for in this matrix (9 production-path-tested here + unknown-leg registry-only + unsealable-state production-path-tested in seal.test.ts = 11)', () => {
+// duplicated here with a registry-only stub. `effect-mismatch` and `already-redeemed`
+// (redeem()'s two profile-conditional refusals, SPEC §11.2) are the twelfth and thirteenth —
+// same reasoning: their own production-path coverage is redeem.test.ts's whole gate ladder,
+// so this sanity check's total simply grows to thirteen.
+test('every CORE RefusalCode is accounted for in this matrix (9 production-path-tested here + unknown-leg registry-only + unsealable-state production-path-tested in seal.test.ts + effect-mismatch and already-redeemed production-path-tested in redeem.test.ts = 13)', () => {
   const allCodes = Object.keys(CORE) as RefusalCode[];
-  assert.equal(allCodes.length, 11);
+  assert.equal(allCodes.length, 13);
 });

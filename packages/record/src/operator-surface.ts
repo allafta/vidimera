@@ -4,25 +4,18 @@
 // audit wrappers and the three reads). Like agent-surface.ts, this file's job is the
 // CAPABILITY SPLIT — select the operator-reachable subset of the shared kernel closures
 // (assembled in `create.ts`) and FREEZE it. Every transitioning closure delegates to a real
-// `kernel/*.ts` behavior (`redeem` to `kernel/redeem.ts`, which refuses `unredeemable-state`
-// on every profile/state except one: a confirmed effect-seam record now throws a
-// build-capability error instead — the real effect-seam behavior is still not implemented;
-// `seal` to `kernel/seal.ts`, the operator-only chain-retirement seam — a verified
-// derived-terminal record is capped with a `sealed` transition, `unsealable-state` otherwise);
-// the reads + replay/verifyChain wrappers are already real.
+// `kernel/*.ts` behavior (`redeem` to `kernel/redeem.ts`, the DIRECT-shape redemption seam —
+// SPEC §11.2: a confirmed effect-seam record's final leg is coupled to its effect via
+// `confirmed → redeemed { via: 'direct' }`, `unredeemable-state` on every profile/state that
+// has no redeemable seam; `seal` to `kernel/seal.ts`, the operator-only chain-retirement
+// seam — a verified derived-terminal record is capped with a `sealed` transition,
+// `unsealable-state` otherwise); the reads + replay/verifyChain wrappers are already real.
 
 import type { ChainVerifyReport } from './chain/replay.js';
 import type { OpenOptions } from './config.js';
 import type { Kernel } from './create.js';
 import type { Outcome } from './outcome.js';
-import type {
-  DecisionRecord,
-  Digest,
-  IdentityAssertion,
-  RecordState,
-  ReviewView,
-  Transition,
-} from './types.js';
+import type { DecisionRecord, Digest, IdentityAssertion, ReviewView, Transition } from './types.js';
 
 export interface OperatorSurface {
   open(stagedRef: string, opts?: OpenOptions): Promise<Outcome<{ recordId: string }>>;
@@ -33,7 +26,11 @@ export interface OperatorSurface {
     content: unknown,
     facts: { figures: unknown; checker: IdentityAssertion }, // checker = review-surface identity (≠ actor)
   ): Promise<Outcome<{ recordId: string; state: 'confirmed'; transitionRef: Digest }>>;
-  redeem(recordId: string, content: unknown): Promise<Outcome<{ state: RecordState }>>; // unredeemable-state, except throws on a confirmed effect-seam record
+  redeem(
+    recordId: string,
+    content: unknown,
+    tx?: unknown, // SPEC §11.2's direct shape: the edge is enlisted in the host's transaction
+  ): Promise<Outcome<{ recordId: string; state: 'redeemed'; transitionRef: Digest }>>;
   seal(
     recordId: string,
   ): Promise<Outcome<{ recordId: string; status: 'retired'; transitionRef: Digest }>>;

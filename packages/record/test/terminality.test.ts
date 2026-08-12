@@ -328,17 +328,17 @@ test("finalize() refuses record-not-open when the batch's entry compare-and-swap
   );
 });
 
-// === redeem(): unredeemable-state on a capture-only profile; a build-capability throw on
+// === redeem(): unredeemable-state on a capture-only profile; the DIRECT-shape redemption on
 // an effect-seam profile's confirmed record ============================================
 //
 // redeem() is exported on every profile (capture-only and effect-seam alike). On a
 // capture-only profile it still refuses `unredeemable-state`, result-first, NOT appended,
-// NO transitionRef, on every state — that stub behavior is untouched here. On an
-// effect-seam profile's confirmed record specifically, it now THROWS instead (see the test
+// NO transitionRef, on every state — that behavior is untouched here. On an
+// effect-seam profile's confirmed record specifically, it now REDEEMS instead (see the test
 // below and its inversion note for why). Both cases finalize first so the record is
-// CONFIRMED — the capture-only case is capture-terminal (redundant but still refused: the
-// stub does not special-case terminality), and the effect-seam case is exactly the
-// "awaiting redemption" non-terminal state the throw targets. =========================
+// CONFIRMED — the capture-only case is capture-terminal (redundant but still refused:
+// redeem() does not special-case terminality), and the effect-seam case is exactly the
+// "awaiting redemption" non-terminal state the redemption edge targets. ================
 
 test('redeem() on a capture-terminal CONFIRMED record (capture-only profile) -> unredeemable-state, not appended, no transitionRef', async () => {
   const handles = create(makeConfig([captureProfile()]));
@@ -388,7 +388,13 @@ test('redeem() on a capture-terminal CONFIRMED record (capture-only profile) -> 
 // `unsealable-state` rather than releasing the held pair. See the deferral register for
 // the corrected framing; two successive framings there were wrong, one having this as
 // something redeem() or open() could itself close, the other naming seal() as a release path.
-test('redeem() on an effect-seam CONFIRMED record awaiting redemption throws a build-capability error at the seam (the held pair is not released)', async () => {
+//
+// INVERTED BACK, at the first step-3 increment: the loudness-throw this note argued for
+// completed its purpose — the direct-shape redemption edge (SPEC §11.2) now exists, so the
+// call this test pins succeeds instead of throwing. The original inversion's reasoning
+// stands as history above; this appended note is the authorization for the second move,
+// per the same discipline (argued in place, named in the commit body, never silent).
+test('redeem() on an effect-seam CONFIRMED record awaiting redemption now succeeds: confirmed → redeemed releases the held pair', async () => {
   const handles = create(makeConfig([effectSeamProfile()]));
   const recordId = await openRecord(handles, CONTENT, 'test.effect.v1', DEFAULT_SUBJECT_REF);
 
@@ -400,31 +406,16 @@ test('redeem() on an effect-seam CONFIRMED record awaiting redemption throws a b
     'confirmed',
     'the effect-seam confirmed record is non-terminal — exactly "awaiting redemption"',
   );
-  const chainBefore = await handles.operator.readChain(recordId);
 
-  await assert.rejects(
-    () => handles.operator.redeem(recordId, CONTENT),
-    (err: unknown) => {
-      assert.ok(err instanceof Error);
-      assert.ok(
-        err.message.startsWith('GOVERNED feature not available in this build (redeem)'),
-        `expected the GOVERNED message to start with the byte-preserved head, got: ${err.message}`,
-      );
-      return true;
-    },
-    'redeem() on a confirmed effect-seam record must throw, not silently refuse',
-  );
+  const outcome = await handles.operator.redeem(recordId, CONTENT);
+  assert.equal(outcome.status, 'ok', 'redeem() on a confirmed effect-seam record now succeeds');
+  if (outcome.status !== 'ok') return;
+  assert.equal(outcome.value.state, 'redeemed');
+  assert.equal(outcome.value.recordId, recordId);
 
-  const chainAfter = await handles.operator.readChain(recordId);
-  assert.deepEqual(
-    chainAfter,
-    chainBefore,
-    'the throw appends nothing — the chain is byte-for-byte unchanged',
-  );
   assert.equal(
     (await handles.operator.getRecord(recordId))?.state,
-    'confirmed',
-    'the record stays confirmed/non-terminal — the (profile, subject) pair remains held, ' +
-      'not released, by this throw',
+    'redeemed',
+    'the record moves to redeemed — the (profile, subject) pair is released, not held',
   );
 });
