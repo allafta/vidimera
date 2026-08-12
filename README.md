@@ -35,7 +35,7 @@ here.
 | `docs/process/` | Living process artifacts (implementation status, deferral register, adopted-source provenance) |
 | `docs/analysis/` | Point-in-time review documents (the step-1 whole-branch review) |
 | `docs/superpowers/` | Design and plan documents for the implementation work |
-| `packages/record` | `@vidimera/record` — build-order step 1 (the kernel) whole: the capability-split factory, canonicalization and digests, hash-chained transitions, and an in-memory store; plus the part of step 2 that has landed so far, now proven over two backings — in-memory and embedded-SQL (`store/sqlite.ts`) — with the server-SQL backing still unbuilt. `docs/process/implementation-status.md` is the section-by-section account of what it does and does not build |
+| `packages/record` | `@vidimera/record` — the kernel whole: the capability-split factory, canonicalization and digests, hash-chained transitions; the store's two backings — in-memory and embedded-SQL (`store/sqlite.ts`) — held equivalent by the conformance suite, with the server-SQL backing still unbuilt; and step 3's first increment, the direct-shape redemption seam (`redeem()`, SPEC §11.2). `docs/process/implementation-status.md` is the section-by-section account of what it does and does not build |
 | `scripts/` | Repo tooling (standalone-contract scan) |
 
 ## Development

@@ -316,6 +316,19 @@ function batchConflict(conflict: 'seq', index: number): Error {
  * second caller adds a THIRD shape to the C3-forced corner named two paragraphs above (a
  * tampered chain over an already-terminal `expired`/`refused` record) — an already-SEALED
  * record, which C4 bars unconditionally, so neither `open` nor `confirmed` is admitted either.
+ *
+ * ENLISTED CALLERS MUST NOT ROUTE THROUGH THIS FUNCTION while their own transaction is open:
+ * the no-tx fallback above BEGINs its OWN transaction on the same connection, which a
+ * caller-open transaction turns into a throw rather than a refusal — `kernel/redeem.ts`'s
+ * enlisted rung (1) refuses `chain-compromise` result-first itself instead, precisely so it
+ * never reaches this function with `tx !== undefined`.
+ *
+ * `kernel/redeem.ts`'s `redeem()` is a further (un-enlisted) caller of this same append, for
+ * the same chain-verify-first reason, and it adds a FOURTH shape to the no-edge corner named
+ * two paragraphs above: a tampered chain over an already-`redeemed` terminal record — the
+ * replayed state's own CAS candidate (`redeemed`) passes the entry state check but C3's
+ * monotonicity then rejects the state-leaving `refused` (no carve-out for `redeemed`), so this
+ * shape too surfaces result-first with no transitionRef.
  */
 export async function appendChainCompromise(
   store: Store,

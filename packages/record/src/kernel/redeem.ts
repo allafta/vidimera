@@ -69,6 +69,19 @@ export async function redeem(
 
   // --- (1) chain-verify, FIRST ---------------------------------------------------------
   if (!verifyChain(chain).intact) {
+    if (tx !== undefined) {
+      // ENLISTED: the host already has ITS OWN transaction open on this connection, and
+      // appendChainCompromise's no-tx fallback would BEGIN a SECOND transaction on that
+      // same connection — the embedded backing throws ("cannot start a transaction within
+      // a transaction") rather than refusing. Worse, even setting that aside, enlisting the
+      // evidence edge IN the host's transaction would let a host rollback erase tampering
+      // evidence, which SPEC §5's compromise guarantee cannot survive. So an enlisted
+      // caller never routes through the append at all: it gets the result-first, no-edge
+      // shape appendChainCompromise's OWN fallback already legitimizes for the
+      // already-terminal / already-sealed corner (SPEC §5/§12) — while an un-enlisted
+      // caller keeps the full edge-appending behavior below.
+      return refused('chain-compromise');
+    }
     return appendChainCompromise(store, chain, now);
   }
 

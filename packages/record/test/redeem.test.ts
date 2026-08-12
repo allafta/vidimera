@@ -140,6 +140,33 @@ test('ENLISTMENT: a host ROLLBACK erases the redeemed edge, and a known-rollback
   assert.equal((await handles.operator.getRecord(recordId))?.state, 'redeemed');
 });
 
+test('ENLISTED CHAIN-COMPROMISE: a tampered chain over an enlisted redeem() refuses chain-compromise with no edge, and the host transaction stays open and usable', async () => {
+  // The corner this pins: appendChainCompromise's own no-tx fallback runs its OWN `BEGIN
+  // IMMEDIATE` on the same connection an enlisted caller's transaction already has open —
+  // on the embedded backing that throws ("cannot start a transaction within a
+  // transaction") rather than refusing. Rung (1) now short-circuits before ever reaching
+  // that append: an enlisted caller over a tampered chain refuses `chain-compromise`
+  // result-first, with NO append attempted, no throw, and the host's own transaction left
+  // exactly as it was (see kernel/redeem.ts rung (1) and kernel/finalize.ts's
+  // `appendChainCompromise` doc comment).
+  const sqlite = new SqliteStore(':memory:');
+  const { recordId } = await confirmedEffectRecord(sqlite);
+
+  const tampering = new TamperingStore(sqlite, recordId, tamperNonLast);
+  const handles = create(makeConfig([effectSeamProfile()], { store: tampering }));
+
+  sqlite.database.exec('BEGIN IMMEDIATE');
+  const outcome = await handles.operator.redeem(recordId, CONTENT, sqlite.database);
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'chain-compromise');
+  assert.equal(outcome.transitionRef, undefined, 'no edge — the append was never attempted');
+
+  assert.equal(sqlite.database.isTransaction, true, "the host's transaction is still open");
+  sqlite.database.exec('ROLLBACK'); // must not throw — the connection is clean and usable
+  assert.equal(sqlite.database.isTransaction, false, 'the rollback landed cleanly');
+});
+
 // === at-most-once, replay half =========================================================
 
 test('a second redeem() refuses already-redeemed, appending nothing', async () => {

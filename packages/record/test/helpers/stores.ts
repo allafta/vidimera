@@ -7,7 +7,9 @@
 // near-identical inline classes that would otherwise be hand-copied across the test corpus:
 //   - `TamperingStore` — `readChain` returns a TAMPERED copy of one targeted record's
 //     chain (a `tamperFn` over the real chain); every write delegates to a real inner
-//     MemoryStore. Used here by chain-verify.test.ts and refusal-matrix.test.ts.
+//     Store (`inner` is typed `Store`, not narrowed to `MemoryStore`, so a fixture can
+//     wrap any backing — e.g. redeem.test.ts's enlisted-compromise fixture wraps a
+//     SqliteStore). Used here by chain-verify.test.ts and refusal-matrix.test.ts.
 //   - `CountingStore` — counts `putStaged`/`appendTransition` calls while delegating to
 //     an inner MemoryStore (its own by default, or a caller-supplied one); a batch append
 //     counts as one append, same as a single `appendTransition` call. Used here by
@@ -31,13 +33,15 @@ import type { Digest, RecordState, StagedDraft, Transition } from '../../src/typ
 /**
  * A Store wrapper whose `readChain` returns a TAMPERED copy of the target record's chain
  * (so finalize's pre-seam verify — and the operator `verifyChain()` wrapper — see the
- * tamper), while EVERY write delegates to a real inner MemoryStore (so any compromise
- * `refused` edge lands under real CAS/C3 semantics). Callers hold `inner` directly to
- * inspect the REAL (untampered) persisted chain.
+ * tamper), while EVERY write delegates to a real inner Store (so any compromise
+ * `refused` edge lands under real CAS/C3 semantics). `inner` is typed `Store`, not
+ * narrowed to `MemoryStore` — its methods only ever call interface methods — so a caller
+ * may wrap `SqliteStore` (or any other conforming backing) the same way. Callers hold
+ * `inner` directly to inspect the REAL (untampered) persisted chain.
  */
 export class TamperingStore implements Store {
   constructor(
-    public readonly inner: MemoryStore,
+    public readonly inner: Store,
     private readonly targetRecordId: string,
     private readonly tamperFn: (chain: Transition[]) => Transition[],
   ) {}

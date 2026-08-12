@@ -414,6 +414,14 @@ them rather than adjudicated again:
   review found.
 - A `terminalRefusals` member that is not a real refusal code constructs without error and
   then never matches, so a leg the operator believes is configured terminal is not.
+- **2026-08-12**: an enlisted `redeem()` over a tampered chain called rung (1)'s
+  `appendChainCompromise` with no `tx`, so its own no-tx fallback's `BEGIN IMMEDIATE`
+  collided with the host's already-open transaction on the same connection and threw
+  rather than refusing. Found by the first step-3 increment's whole-branch review; fixed
+  in the same increment: an enlisted rung (1) now refuses `chain-compromise` result-first
+  with no edge instead of ever routing through the append, the rule stated at the seam
+  (`kernel/redeem.ts` rung (1); `kernel/finalize.ts`'s `appendChainCompromise` doc
+  comment), and pinned by a new test in `redeem.test.ts`.
 - **Four items are held for the repository owner rather than acted on**, because in each
   the plausible fix touches the **sealed** concept set. This record neither resolves nor
   adjudicates any of them.

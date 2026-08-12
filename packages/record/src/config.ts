@@ -69,9 +69,8 @@ export function profileDeclaresEffectSeam(profile: ConfirmProfile): boolean {
  * head through the closing parenthesis — `GOVERNED feature not available in this build
  * (<field>)` — is byte-preserved (pinned by construction-validation.test.ts); the
  * caller-supplied `contract` is the appended tail: what is unavailable, and the SPEC
- * section(s) that lift it. Arity-2 because it serves three consumers: the per-field
- * construction guards below, `kernel/open.ts`'s `supersedes` options guard, and a future
- * `redeem()` capability throw.
+ * section(s) that lift it. Arity-2 because it serves two consumers: the per-field
+ * construction guards below and `kernel/open.ts`'s `supersedes` options guard.
  */
 export function governedUnavailable(field: string, contract: string): string {
   return `GOVERNED feature not available in this build (${field}) — ${contract}`;

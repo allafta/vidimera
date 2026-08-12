@@ -44,6 +44,10 @@ export type RefusalClass = 'refusal' | 'compromise';
  * this file fails to type-check. Only `chain-compromise` is `'compromise'`; every other
  * code is `'refusal'`. This is the ONLY place class is derived from — outcome.ts's
  * `refused()` looks class up here; callers never supply it directly.
+ *
+ * NOTE: despite the name, `CORE` now also carries the profile-conditional codes
+ * (`effect-mismatch`, `already-redeemed`) alongside the original core set — a rename is
+ * deferred to the token-shape increment, not done here.
  */
 export const CORE: Record<RefusalCode, RefusalClass> = {
   'content-drift': 'refusal',

@@ -166,6 +166,47 @@ test('seal() on an EFFECT-SEAM confirmed record -> unsealable-state (it is non-t
   assert.equal(outcome.code, 'unsealable-state');
 });
 
+test('seal() on a REDEEMED effect-seam record retires it, and a further redeem() then refuses already-redeemed', async () => {
+  // The effect-seam counterpart of the confirmed-terminal test above: an effect-seam
+  // record becomes derived-terminal only once `redeemed` (SPEC §2), so seal() refuses it
+  // right up until redemption and succeeds right after — this is the seal() side of the
+  // direct-shape redemption edge redeem.test.ts's "THE RELEASE" test pins. Once sealed, C4
+  // bars every further append on top of the state gate's own at-most-once refusal, so a
+  // further redeem() still refuses cleanly, result-first, with the chain untouched.
+  const handles = create(makeConfig([effectSeamProfile()]));
+  const recordId = await openRecord(handles, CONTENT, 'test.effect.v1', DEFAULT_SUBJECT_REF);
+  const done = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(done.status, 'ok', 'fixture: the record must confirm');
+  const redeemed = await handles.operator.redeem(recordId, CONTENT);
+  assert.equal(redeemed.status, 'ok', 'fixture: the record must redeem');
+
+  const outcome = await handles.operator.seal(recordId);
+  assert.equal(outcome.status, 'ok');
+  if (outcome.status !== 'ok') return;
+  assert.equal(outcome.value.status, 'retired');
+
+  const record = await handles.operator.getRecord(recordId);
+  assert.equal(record?.state, 'redeemed');
+  assert.equal(record?.status, 'retired');
+
+  const before = await handles.operator.readChain(recordId);
+  const further = await handles.operator.redeem(recordId, CONTENT);
+  assert.equal(further.status, 'refused');
+  if (further.status !== 'refused') return;
+  assert.equal(
+    further.code,
+    'already-redeemed',
+    'the state gate refuses before any append — C4 would bar it either way',
+  );
+  assert.equal(further.transitionRef, undefined);
+
+  assert.deepEqual(
+    await handles.operator.readChain(recordId),
+    before,
+    'byte-identical after — nothing appended',
+  );
+});
+
 test('seal() twice -> the second refuses unsealable-state and appends nothing', async () => {
   const { handles, recordId } = await confirmedRecord();
   assert.equal((await handles.operator.seal(recordId)).status, 'ok');
