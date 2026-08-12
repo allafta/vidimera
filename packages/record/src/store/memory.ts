@@ -245,6 +245,29 @@ export class MemoryStore implements Store {
   }
 
   /**
+   * The C1 exclusivity scan (SPEC §12's C1: a partial `UNIQUE(profileId, subjectRef)` over
+   * the persisted non-terminal flag), shared by `appendGenesis`'s rejection path and
+   * `findNonTerminal` — SPEC §12: "A rejected genesis append names the **blocking**
+   * record — the live non-terminal record for the pair, the same record `findNonTerminal`
+   * returns." ONE predicate, so the two agree by construction rather than by parallel
+   * code; find-non-terminal.test.ts pins the agreement observably as well. A linear scan,
+   * hand-simulating the partial unique index a real adapter would query — correct for the
+   * provisional in-memory backing.
+   */
+  private liveNonTerminalFor(profileId: string, subjectRef: string): StoredRecord | undefined {
+    for (const record of this.records.values()) {
+      if (
+        record.nonTerminal &&
+        record.profileId === profileId &&
+        record.subjectRef === subjectRef
+      ) {
+        return record;
+      }
+    }
+    return undefined;
+  }
+
+  /**
    * Genesis append (SPEC §12: "null" is the genesis CAS target). Check order
    * (all inside this one synchronous call, no `await`):
    *  1. state CAS — the record must NOT already exist.
@@ -269,19 +292,12 @@ export class MemoryStore implements Store {
 
     const payload = transition.payload as GenesisPayload;
 
-    // C1 exclusivity (SPEC §12's C1: a partial `UNIQUE(profileId, subjectRef)` over the
-    // persisted non-terminal flag). A partial-UNIQUE-index scan,
-    // hand-simulated as a linear scan over every currently-tracked record — correct
-    // for the provisional in-memory backing; a real adapter enforces the same
-    // predicate via an actual partial unique index.
-    for (const other of this.records.values()) {
-      if (
-        other.nonTerminal &&
-        other.profileId === payload.profileId &&
-        other.subjectRef === payload.subjectRef
-      ) {
-        return { appended: false, conflict: 'exclusivity', blockingRecordId: other.id };
-      }
+    // C1 exclusivity (SPEC §12's C1) — the scan lives in `liveNonTerminalFor`, shared with
+    // `findNonTerminal` so the blocker named here and the record that method returns agree
+    // by construction (see the helper's own doc comment).
+    const blocker = this.liveNonTerminalFor(payload.profileId, payload.subjectRef);
+    if (blocker !== undefined) {
+      return { appended: false, conflict: 'exclusivity', blockingRecordId: blocker.id };
     }
 
     // C2 sequencing (genesis case): the first transition of any record is always seq 1.
@@ -497,5 +513,9 @@ export class MemoryStore implements Store {
       }
     }
     return due;
+  }
+
+  async findNonTerminal(profileId: string, subjectRef: string): Promise<string | null> {
+    return this.liveNonTerminalFor(profileId, subjectRef)?.id ?? null;
   }
 }

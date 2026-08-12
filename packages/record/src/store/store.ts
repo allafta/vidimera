@@ -97,10 +97,10 @@ export type BatchResult =
   | { appended: false; conflict: 'state-mismatch' | 'seq'; index: number };
 
 /**
- * The provisional Store — a strict SUBSET of the storage surface SPEC §12 names, not a
- * transcription of it. Shipped here: `putStaged`/`getStaged`/`appendTransition`/
- * `readChain`/`chainHead`/`appendBatch`/`listDue`. NOT built in this build step:
- * `findNonTerminal` — the sole absence. `seal` is not a Store method at all: SPEC §9 lists
+ * The provisional Store — SPEC §12's storage surface, complete at the method level: all
+ * eight methods §12 gives a signature to are shipped here — `putStaged`/`getStaged`/
+ * `appendTransition`/`readChain`/`chainHead`/`appendBatch`/`listDue`/`findNonTerminal`.
+ * `seal` is not a Store method at all: SPEC §9 lists
  * `seal()` operator-only, alongside `open()`/`review()`/`finalize()`/`redeem()`, built atop
  * this interface rather than part of it (`kernel/seal.ts`). `appendTransition`'s `meta`
  * parameter (`AppendMeta` above) now matches §12's `meta = { nonTerminal, dueAt? }` shape
@@ -183,4 +183,19 @@ export interface Store {
    * records would require the store to replay chains it deliberately does not interpret.
    */
   listDue(now: Date): Promise<string[]>;
+
+  /**
+   * The live non-terminal record for the pair, or `null` — SPEC §12: "the re-emit binding
+   * that makes `record-exists` actionable, and the same record C1 names as the blocker".
+   * A host that draws `record-exists` from `open()` holds the `(profileId, subjectRef)` it
+   * just tried; this read turns that pair into the blocking record's id.
+   *
+   * NARROWED from SPEC §12, which says this "returns the live non-terminal record for the
+   * pair (or nothing)": this build returns the recordId, on the same reasoning as
+   * `listDue` — the id is what every downstream seam takes (`review`, `readChain`,
+   * `replay`), and returning a full record would require the store to replay chains it
+   * deliberately does not interpret. Freshness (SPEC §12: "All reads return fresh values")
+   * is satisfied structurally — a string is immutable, so there is nothing to clone.
+   */
+  findNonTerminal(profileId: string, subjectRef: string): Promise<string | null>;
 }

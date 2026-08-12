@@ -1,7 +1,7 @@
-// @vidimera/record — test/helpers/stores.ts: shared Store test-doubles, down-ported to
-// this build step's seven-of-eight-method Store contract (`putStaged`/`getStaged`/
-// `appendTransition`/`readChain`/`chainHead`/`appendBatch`/`listDue` — no
-// `findNonTerminal`; a later-phase Store surface. `seal` is not and never was a Store
+// @vidimera/record — test/helpers/stores.ts: shared Store test-doubles over the full
+// eight-method Store contract (`putStaged`/`getStaged`/`appendTransition`/`readChain`/
+// `chainHead`/`appendBatch`/`listDue`/`findNonTerminal` — every double delegates each to
+// its inner MemoryStore. `seal` is not and never was a Store
 // method — it is an operator-only seam built atop these, SPEC §9/§12). Three shapes fold the
 // near-identical inline classes that would otherwise be hand-copied across the test corpus:
 //   - `TamperingStore` — `readChain` returns a TAMPERED copy of one targeted record's
@@ -66,6 +66,9 @@ export class TamperingStore implements Store {
   listDue(now: Date): Promise<string[]> {
     return this.inner.listDue(now);
   }
+  findNonTerminal(p: string, s: string): Promise<string | null> {
+    return this.inner.findNonTerminal(p, s);
+  }
 }
 
 /**
@@ -115,6 +118,9 @@ export class CountingStore implements Store {
   }
   listDue(now: Date): Promise<string[]> {
     return this.inner.listDue(now);
+  }
+  findNonTerminal(profileId: string, subjectRef: string): Promise<string | null> {
+    return this.inner.findNonTerminal(profileId, subjectRef);
   }
 }
 
@@ -170,5 +176,8 @@ export class RaceOnceStore implements Store {
   }
   listDue(now: Date): Promise<string[]> {
     return this.inner.listDue(now);
+  }
+  findNonTerminal(p: string, s: string): Promise<string | null> {
+    return this.inner.findNonTerminal(p, s);
   }
 }

@@ -358,6 +358,9 @@ class RaceStore implements Store {
   listDue(now: Date): Promise<string[]> {
     return this.inner.listDue(now);
   }
+  findNonTerminal(profileId: string, subjectRef: string): Promise<string | null> {
+    return this.inner.findNonTerminal(profileId, subjectRef);
+  }
 }
 
 test('an expire-CAS state-mismatch (a race flipped the blocker) -> record-exists, NEVER re-loop (exactly one genesis attempt)', async () => {

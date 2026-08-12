@@ -113,6 +113,9 @@ class BatchConflictStore implements Store {
   listDue(now: Date): Promise<string[]> {
     return this.inner.listDue(now);
   }
+  findNonTerminal(p: string, s: string): Promise<string | null> {
+    return this.inner.findNonTerminal(p, s);
+  }
 }
 
 test("finalize()'s success batch is atomic: an entry conflict refuses record-not-open and leaves the chain untouched", async () => {
@@ -284,6 +287,9 @@ class RaceThenAppendStore implements Store {
   }
   listDue(now: Date): Promise<string[]> {
     return this.inner.listDue(now);
+  }
+  findNonTerminal(p: string, s: string): Promise<string | null> {
+    return this.inner.findNonTerminal(p, s);
   }
 }
 
