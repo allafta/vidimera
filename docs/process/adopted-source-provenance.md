@@ -533,14 +533,19 @@ them to match the reference project more closely would be a regression, not a co
   form some earlier reference states used. It is the one shape that serves all three
   consumers in this build: the ten per-field construction guards, `open()`'s unexpected-key
   guard, and `redeem()`'s build-capability throw.
-- **`redeem()` throws a build-capability error** on a confirmed effect-seam record
-  (`kernel/redeem.ts:57-66`), rather than silently returning `unredeemable-state` or attempting
-  to "close the strand." Neither a throw nor a refusal can release the `(profile, subject)`
-  pair such a record holds — the hold lives in the Store's C1 exclusivity constraint, not in
-  anything `redeem()` returns — so the throw's purpose is to make the missing capability loud
-  at the seam, immediately, rather than letting a host discover the stranded pair later via an
-  unrelated `open()`'s `record-exists`. `docs/process/deferral-register.md` entry 9 records
-  that the pair stays permanently held either way.
+- **`redeem()` threw a build-capability error** on a confirmed effect-seam record, at the time
+  this audit ran, rather than silently returning `unredeemable-state` or attempting to "close
+  the strand." Neither a throw nor a refusal released the `(profile, subject)` pair such a
+  record held — the hold lived in the Store's C1 exclusivity constraint, not in anything
+  `redeem()` returned — so the throw's purpose was to make the missing capability loud at the
+  seam, immediately, rather than letting a host discover the stranded pair later via an
+  unrelated `open()`'s `record-exists`. `docs/process/deferral-register.md` entry 9 recorded
+  that the pair stayed held either way, at that time. **SUPERSEDED at the first step-3
+  increment**: SPEC §11.2's direct redemption shape now ships, so `redeem()` on a confirmed
+  effect-seam record performs the redemption ladder instead of throwing, and the
+  `confirmed → redeemed` edge releases the pair (deferral register row 9, retired by that
+  landing) — the divergence this bullet named no longer describes the current build, and is
+  kept here only as the record of the choice this audit's own moment made.
 - **A hand-written, zero-dependency RFC 8785 (JCS) serializer** (`jcs.ts`), in place of an
   external canonicalization package the reference project depends on. Byte-output equivalence
   is pinned by this repository's own JCS vector tests and by the four byte-compatibility

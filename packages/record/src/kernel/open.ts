@@ -134,8 +134,9 @@ export async function open(
     nonTerminal: openedNonTerminal,
     // SPEC §12: presence sets the pending-clock column. This is the only producer in this
     // build — the open ttl window. The effect-seam `confirmToRedeem` window and the
-    // `redeeming` window are §9.1's other two clocks and neither is built (deferral register
-    // row 9), so finalize's batch carries no `dueAt` and thereby clears the column.
+    // `redeeming` window are §9.1's other two clocks, and both remain inert until the clock
+    // increment (the status doc's §9.1 row records it), so finalize's batch carries no
+    // `dueAt` and thereby clears the column.
     ...(deadlineMs === null ? {} : { dueAt: new Date(deadlineMs).toISOString() }),
   };
 

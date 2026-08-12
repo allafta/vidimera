@@ -85,9 +85,10 @@ test('redeem() on a confirmed effect-seam record appends redeemed { via: "direct
 });
 
 test('THE RELEASE: after redeemed, the (profile, subject) pair is held no longer', async () => {
-  // Register row 9's own text named "the redemption edge itself (SPEC §11.2)" as the first
-  // release path. This is that edge, doing that release: the persisted flag comes from the
-  // terminality derivation (redeemed is terminal, §2), so C1's partial-unique hold lifts.
+  // Deferral register row 9 (retired by this landing) named "the redemption edge itself
+  // (SPEC §11.2)" as the first release path. This is that edge, doing that release: the
+  // persisted flag comes from the terminality derivation (redeemed is terminal, §2), so
+  // C1's partial-unique hold lifts.
   const store = new MemoryStore();
   const { handles, recordId } = await confirmedEffectRecord(store);
 

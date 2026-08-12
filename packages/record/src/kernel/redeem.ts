@@ -23,18 +23,18 @@
 // judgment."
 //
 // NO EN-PASSANT EXPIRY — SPEC §4: "`redeem()` does not treat a due-`open` record as
-// expired — it refuses `unredeemable-state` without writing an edge". Vacuous in this
-// increment (no clock sets `dueAt` on any state this ladder examines until the clock
+// expired — it refuses `unredeemable-state` without writing an edge". Vacuous in the first
+// step-3 increment (no clock sets `dueAt` on any state this ladder examines until the clock
 // increment) and stated so nobody adds `expireIfDue` by analogy; §4's due-`confirmed`
 // resolution is the clock increment's work.
 //
 // THE ENLISTMENT CONTRACT (direct shape, SPEC §11.2): when the host passes its own
-// transaction handle, the edge is enlisted and "commits or rolls back with it". The host
-// "MUST `await` the redemption before ending that transaction"; "A host rollback erases
-// the edge entirely", and re-attempting a KNOWN rolled-back redemption is legitimate — the
-// forbidden retry is the token shape's unknown-outcome case, not this one. §11.2's honest
-// bound: the library never executes the effect; the co-located host's protection is the
-// shared transaction itself.
+// transaction handle, the edge is enlisted and "commits or rolls back with it" (SPEC §12).
+// The host "MUST `await` the redemption before ending that transaction"; "A host rollback
+// erases the edge entirely", and re-attempting a KNOWN rolled-back redemption is legitimate
+// — the forbidden retry is the token shape's unknown-outcome case, not this one. §11.2's
+// honest bound: the library never executes the effect; the co-located host's protection is
+// the shared transaction itself.
 //
 // The token shape (`redeeming`, tokenDigest, presentation) and both redemption clocks are
 // LATER step-3 increments; states `redeeming`/`redemption-failed` are defensively refused

@@ -14,12 +14,18 @@ adopted from a reference implementation of the same spec — has reached its
 exit, recorded with its gate outputs, a per-spec-section account of what is and
 is not built, and its outstanding list at
 [`docs/process/implementation-status.md`](docs/process/implementation-status.md).
-Step 2 — the store, for real — is under way and **has not exited**, so seven
-of the eight build-order steps remain and the package is **not consumable by
-a host today** — no build, no published artifact; that record states it in the
-same breath as the green gates. The maturity markers inside
-the concept set speak to a reference implementation of the spec and move only
-when the behavior actually lands here.
+Step 2 — the store, for real — has **exited, with a recorded deferral**: two
+of the three reference backings SPEC §12 names are built and held equivalent
+by the conformance suite and the byte-identity test, and the third — the
+server-SQL backing — is deferred to the deferral register, which carries the
+exit ruling. Step 3 — redemption (the effect seam) — is **under way**: its
+first increment landed SPEC §11.2's direct redemption shape; the token shape
+and both redemption clocks remain. So six of the eight build-order steps
+remain unstarted, and the package is **not consumable by a host today** — no
+build, no published artifact; that record states it in the same breath as the
+green gates. The maturity markers inside the concept set speak to a reference
+implementation of the spec and move only when the behavior actually lands
+here.
 
 ## Layout
 
@@ -45,18 +51,26 @@ pnpm contract-scan  # exit 0 today, zero findings
 ```
 
 In the build order (`docs/concept/SCOPING-GUIDE.md` section 7), step 2 — the
-store, for real — is **started, not exited**. Landed so far: the all-or-nothing
-`appendBatch`, the `listDue` due-record query, the `{ nonTerminal, dueAt? }`
-metadata shape section 12 gives both append seams, the C4 seal-finality bar,
-the operator-only `seal()` chain-retirement seam with the derived
-`active`/`retired` status behind it, `findNonTerminal`, completing the
-eight-method `Store` interface section 12 describes, the
-backing-parameterized conformance suite (test-side, run over that one
-backing), and the embedded-SQL adapter (`store/sqlite.ts`) with the
+store, for real — has **exited, with a recorded deferral**. Landed across its
+five increments: the all-or-nothing `appendBatch`, the `listDue` due-record
+query, the `{ nonTerminal, dueAt? }` metadata shape section 12 gives both
+append seams, the C4 seal-finality bar, the operator-only `seal()`
+chain-retirement seam with the derived `active`/`retired` status behind it,
+`findNonTerminal`, completing the eight-method `Store` interface section 12
+describes, the backing-parameterized conformance suite (test-side, run over
+that one backing), and the embedded-SQL adapter (`store/sqlite.ts`) with the
 caller-supplied transaction seam (`tx?`) and the cross-backing
-byte-identical-chains test. The server-SQL adapter is section 12's one
-reference backing still unbuilt; whether step 2 can exit without it is an
-owner ruling not yet made.
+byte-identical-chains test — two of section 12's three reference backings,
+held equivalent by the suite and the byte-identity test. The server-SQL
+adapter is deferred to the deferral register, which carries the ruling that
+exited the step without it.
+
+Step 3 — redemption (the effect seam) — is **started, not exited**: its first
+increment landed section 11.2's direct shape, `redeem(recordId, content,
+tx?)` as a verify-first gate ladder ending in `confirmed → redeemed { via:
+'direct' }`, enlisted through the caller's own transaction handle where
+supplied. The token shape (`redeeming`, a single-use token) and both
+redemption clocks are the second and third increments, not yet built.
 
 ## License
 

@@ -23,20 +23,25 @@ parts:
   genuinely applicable are now applied, and the tenth was reclassified as a local
   improvement rather than an inherited fix (see that document). The remediation plan's
   units R1–R5 (`docs/superpowers/plans/2026-08-03-step-1-remediation.md`) are all
-  complete. Step 2 — the store, for real — is **started and has not exited**: five
-  increments have landed the atomic `appendBatch`, `listDue`, §12's
+  complete. Step 2 — the store, for real — **exited, with a recorded deferral**: five
+  increments landed the atomic `appendBatch`, `listDue`, §12's
   `{ nonTerminal, dueAt? }` meta shape on both append seams, the C4 seal-finality bar,
   the operator-only `seal()` chain-retirement seam with its derived
   `active`/`retired` status, `findNonTerminal`, completing the eight-method Store
   contract, the backing-parameterized conformance suite (test-side, run over that one
   backing), and the embedded-SQL adapter (`store/sqlite.ts`) with the `tx?` seam and the
-  cross-backing byte-identity test — which leaves the server-SQL adapter as step 2's one
-  unbuilt backing, and the step has not exited.
+  cross-backing byte-identity test — two of §12's three reference backings, held
+  equivalent by the suite and the byte-identity test; the server-SQL adapter is deferred
+  to deferral register row 15, which carries the exit ruling. Step 3 — redemption (the
+  effect seam) — is **started, not exited**: its first increment landed SPEC §11.2's
+  direct shape, `redeem(recordId, content, tx?)` as a verify-first ladder ending in
+  `confirmed → redeemed { via: 'direct' }`; the token shape and both redemption clocks
+  remain.
   **`docs/process/implementation-status.md` is the authoritative
   account** of what this build does and does not implement, section by section, with the
   gate outputs and the outstanding list — read it rather than trusting a count here,
-  which is a claim with a shelf life and no way to fail loudly. Seven of the eight
-  build-order steps remain, and the package is not consumable by a host today.
+  which is a claim with a shelf life and no way to fail loudly. Six of the eight
+  build-order steps remain unstarted, and the package is not consumable by a host today.
 
 ## The standalone contract
 
@@ -127,19 +132,21 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   inversions have been authorized so far, both during the step-1 remediation, each argued
   in place at `packages/record/test/terminality.test.ts` and recorded in the exit record.
 - Feature guards from day one — an unimplemented capability throws at construction
-  (`config.ts` `validateProfile`; ten governed profile fields throw there). `redeem` is
-  the eleventh governed capability: it throws at the call seam instead
-  (`kernel/redeem.ts`), on a confirmed effect-seam record, rather than at construction.
-  Neither throw nor a refusal releases the `(profile, subject)` pair such a record
-  holds — the hold lives in the Store's C1 exclusivity, not in what `redeem()` returns or
-  throws — so the throw is loud, not silent; real closure needs a later build step's
-  redemption edge (SPEC §11.2) or a `confirmToRedeem` expiry edge (SPEC §9.1). `seal()`
-  is **not** a release path: SPEC §12 admits it only against a derived-terminal record,
-  and a final-leg `confirmed` on an effect-seam profile is non-terminal (SPEC §2). That
-  last claim is no longer argued only in prose — now that `seal()` is built, it is pinned
-  by an executing test in `packages/record/test/seal.test.ts`. Recorded in the deferral
-  register (an earlier framing of this remedy was itself wrong and has been corrected
-  there; the `seal()`-as-release half was a second error, found by the citation audit and
-  corrected in the same place).
+  (`config.ts` `validateProfile`; ten governed profile fields throw there). `redeem` was
+  the eleventh governed capability, throwing at the call seam instead
+  (`kernel/redeem.ts`) rather than at construction; the first step-3 increment landed
+  SPEC §11.2's direct shape, so that throw is gone from a confirmed effect-seam record —
+  what remains governed at that seam is the token shape and both redemption clocks,
+  still unbuilt. A confirmed effect-seam record's held `(profile, subject)` pair is now
+  released by that direct-shape redemption — the `confirmed → redeemed` edge lifts the
+  Store's C1 exclusivity hold, where before neither a throw nor a refusal could. `seal()`
+  remains **not** a release path: SPEC §12 admits it only against a derived-terminal
+  record, and a final-leg `confirmed` on an effect-seam profile is non-terminal (SPEC §2).
+  That last claim is no longer argued only in prose — now that `seal()` is built, it is
+  pinned by an executing test in `packages/record/test/seal.test.ts`. Recorded in
+  `docs/process/implementation-status.md` (an earlier framing of this remedy was itself
+  wrong and was corrected in place, first in the now-retired deferral register row 9 and
+  carried forward when that row retired; the `seal()`-as-release half was a second error,
+  found by the citation audit and corrected in the same place).
 - Byte-stability pins and adjacent-pair gate-order tests, from the kernel increment on.
 - The living deferral register: `docs/process/deferral-register.md`.

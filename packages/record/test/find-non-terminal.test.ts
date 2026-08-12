@@ -98,11 +98,12 @@ test('a TERMINAL REFUSED record: findNonTerminal -> null', async () => {
   assert.equal(await store.findNonTerminal('test.capture.v1', DEFAULT_SUBJECT_REF), null);
 });
 
-test('an EFFECT-SEAM confirmed record IS the live non-terminal record (row 9 made visible)', async () => {
+test('an EFFECT-SEAM confirmed record IS the live non-terminal record (the held pair, made visible)', async () => {
   // SPEC §2 makes a final-leg `confirmed` on an effect-seam profile NON-terminal (awaiting
-  // redemption). This is deferral register row 9's held (profile, subject) pair made
-  // VISIBLE: findNonTerminal is how a host discovers which record holds it. Located, not
-  // released — the hold lives in C1 and nothing this method returns changes it.
+  // redemption). This is the once-registered held (profile, subject) pair (deferral register
+  // row 9, retired by building) made VISIBLE: findNonTerminal is how a host discovers which
+  // record holds it. Located, not released — the hold lives in C1 and nothing this method
+  // returns changes it.
   const store = new MemoryStore();
   const handles = create(makeConfig([effectSeamProfile()], { store }));
   const recordId = await openRecord(handles, CONTENT, 'test.effect.v1', DEFAULT_SUBJECT_REF);

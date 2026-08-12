@@ -150,9 +150,11 @@ test('seal() on an OPEN record -> unsealable-state, nothing appended', async () 
 });
 
 test('seal() on an EFFECT-SEAM confirmed record -> unsealable-state (it is non-terminal, awaiting redemption)', async () => {
-  // Deferral register row 9's most-corrected claim, pinned: seal() is NOT a release path for
-  // the (profile, subject) pair such a record holds. §12 admits seal only against a
-  // derived-terminal record, and §2 makes this one non-terminal.
+  // Deferral register row 9 (retired by building) carried this most-corrected claim, pinned
+  // here: seal() is NOT a release path for the (profile, subject) pair such a record holds.
+  // §12 admits seal only against a derived-terminal record, and §2 makes this one
+  // non-terminal. What changed since row 9 retired is that a release path exists elsewhere
+  // (redeem()'s own direct-shape edge) — not that seal() became one.
   const handles = create(makeConfig([effectSeamProfile()]));
   const recordId = await openRecord(handles, CONTENT, 'test.effect.v1', DEFAULT_SUBJECT_REF);
   const done = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
