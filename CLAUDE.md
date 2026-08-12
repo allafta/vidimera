@@ -23,12 +23,13 @@ parts:
   genuinely applicable are now applied, and the tenth was reclassified as a local
   improvement rather than an inherited fix (see that document). The remediation plan's
   units R1–R5 (`docs/superpowers/plans/2026-08-03-step-1-remediation.md`) are all
-  complete. Step 2 — the store, for real — is **started and has not exited**: three
+  complete. Step 2 — the store, for real — is **started and has not exited**: four
   increments have landed the atomic `appendBatch`, `listDue`, §12's
   `{ nonTerminal, dueAt? }` meta shape on both append seams, the C4 seal-finality bar,
   the operator-only `seal()` chain-retirement seam with its derived
   `active`/`retired` status, and `findNonTerminal`, completing the eight-method Store
-  contract — all still inside the one in-memory backing, which is why
+  contract, and the backing-parameterized conformance suite (test-side, run over that one
+  backing) — all still inside the one in-memory backing, which is why
   the step has not exited. **`docs/process/implementation-status.md` is the authoritative
   account** of what this build does and does not implement, section by section, with the
   gate outputs and the outstanding list — read it rather than trusting a count here,

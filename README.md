@@ -49,11 +49,12 @@ store, for real — is **started, not exited**. Landed so far: the all-or-nothin
 `appendBatch`, the `listDue` due-record query, the `{ nonTerminal, dueAt? }`
 metadata shape section 12 gives both append seams, the C4 seal-finality bar,
 the operator-only `seal()` chain-retirement seam with the derived
-`active`/`retired` status behind it, and `findNonTerminal`, completing the
-eight-method `Store` interface section 12 describes. Still to come before
-step 2 can exit: a real storage adapter, the backing-parameterized
-conformance suite and the cross-backing byte-identical-chains test, and the
-caller-supplied transaction seam (`tx?`).
+`active`/`retired` status behind it, `findNonTerminal`, completing the
+eight-method `Store` interface section 12 describes, and the
+backing-parameterized conformance suite (test-side, run over that one
+backing). Still to come before step 2 can exit: a real storage adapter, the
+cross-backing byte-identical-chains test, and the caller-supplied
+transaction seam (`tx?`).
 
 ## License
 
