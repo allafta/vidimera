@@ -40,7 +40,7 @@ parts:
   **`docs/process/implementation-status.md` is the authoritative
   account** of what this build does and does not implement, section by section, with the
   gate outputs and the outstanding list — read it rather than trusting a count here,
-  which is a claim with a shelf life and no way to fail loudly. Six of the eight
+  which is a claim with a shelf life and no way to fail loudly. Five of the eight
   build-order steps remain unstarted, and the package is not consumable by a host today.
 
 ## The standalone contract

@@ -20,7 +20,7 @@ by the conformance suite and the byte-identity test, and the third — the
 server-SQL backing — is deferred to the deferral register, which carries the
 exit ruling. Step 3 — redemption (the effect seam) — is **under way**: its
 first increment landed SPEC §11.2's direct redemption shape; the token shape
-and both redemption clocks remain. So six of the eight build-order steps
+and both redemption clocks remain. So five of the eight build-order steps
 remain unstarted, and the package is **not consumable by a host today** — no
 build, no published artifact; that record states it in the same breath as the
 green gates. The maturity markers inside the concept set speak to a reference
