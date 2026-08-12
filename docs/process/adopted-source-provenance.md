@@ -475,11 +475,11 @@ arriving with its own future build step:
   `findNonTerminal`, `listDue`, and **C4 seal-finality** (`store/store.ts`, `store/memory.ts`).
   This is the largest single cluster and is what closes Class B's two recorded-not-fixed items
   in the companion whole-branch-review document (`docs/analysis/2026-08-03-step-1-review.md`).
-  **Update, present tense:** four of these six — `meta`/`dueAt`, atomic `appendBatch`,
-  `listDue`, and **C4 seal-finality** (commit `e969e24`) — have since landed, inside the same
-  in-memory backing; `tx?` and `findNonTerminal` remain outstanding. This bullet is left as
-  R1/R2 stated it, since it is a dated audit record; `docs/process/implementation-status.md`
-  carries the current account.
+  **Update, present tense:** five of these six — `meta`/`dueAt`, atomic `appendBatch`,
+  `listDue`, **C4 seal-finality** (commit `e969e24`), and `findNonTerminal` (commit
+  `baf88fe`) — have since landed, inside the same in-memory backing; `tx?` alone remains
+  outstanding. This bullet is left as R1/R2 stated it, since it is a dated audit record;
+  `docs/process/implementation-status.md` carries the current account.
 - **Redemption (the effect seam)** — the real `redeeming`/`redeemed`/`redemption-failed`
   transition kinds and their payload shapes, `kernel/redeem.ts`'s full gate ladder, token
   issuance, and the residual-conflict resolver (`chain/replay.ts`, `kernel/redeem.ts`,

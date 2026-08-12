@@ -48,12 +48,12 @@ In the build order (`docs/concept/SCOPING-GUIDE.md` section 7), step 2 — the
 store, for real — is **started, not exited**. Landed so far: the all-or-nothing
 `appendBatch`, the `listDue` due-record query, the `{ nonTerminal, dueAt? }`
 metadata shape section 12 gives both append seams, the C4 seal-finality bar,
-and the operator-only `seal()` chain-retirement seam with the derived
-`active`/`retired` status behind it. Still to come before step 2 can exit: a
-real storage adapter, the backing-parameterized conformance suite and the
-cross-backing byte-identical-chains test, the caller-supplied transaction, and
-`findNonTerminal` — the one method of section 12's eight the `Store` interface
-still does not carry.
+the operator-only `seal()` chain-retirement seam with the derived
+`active`/`retired` status behind it, and `findNonTerminal`, completing the
+eight-method `Store` interface section 12 describes. Still to come before
+step 2 can exit: a real storage adapter, the backing-parameterized
+conformance suite and the cross-backing byte-identical-chains test, and the
+caller-supplied transaction seam (`tx?`).
 
 ## License
 
