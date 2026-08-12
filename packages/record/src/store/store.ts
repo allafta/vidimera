@@ -61,8 +61,10 @@ export type AppendResult =
  *  - `nonTerminal` — the derived (`nonterminal.ts`) flag for the record's state AFTER this
  *    append, which C1 exclusivity reads.
  *  - `dueAt` — the library-computed clock deadline for whichever pending window the record
- *    is in, RFC3339 UTC. Presence sets the record's pending-clock column; **absence clears
- *    it**. It is a listing index only and never authoritative — SPEC §12.
+ *    is in, in `Date.prototype.toISOString()`'s exact grammar (`YYYY-MM-DDTHH:mm:ss.sssZ` —
+ *    constant length, so lexicographic order IS chronological order — a property
+ *    `listDue`'s SQL backing relies on). Presence sets the record's pending-clock column;
+ *    **absence clears it**. It is a listing index only and never authoritative — SPEC §12.
  *
  * §12's optional caller-supplied transaction rides beside this as `tx?` on each write
  * method — adapter-generic, validated by each backing (`store/sqlite.ts` enlists its own

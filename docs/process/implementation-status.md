@@ -221,7 +221,7 @@ real, if narrowed, gap stays on the table under its own number. **UPDATED, at th
 step-2 increment**: the signature divergence this paragraph tracks is closed — `tx?` is
 built on all three interface writes, adapter-generic on the interface and validated per
 backing (see the §12 row). Row 13 retires at the fifth step-2 increment's exit, per the
-register's own preamble ("a gap is an entry that has left; the number is not reused"),
+register's own preamble (a gap is an entry that has left; the number is not reused),
 rather than being rewritten again as this paragraph once predicted it would be.
 
 **Chain retirement is built, and deferral register row 14 retires.** §5's "sealed"/"retired"

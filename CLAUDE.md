@@ -73,7 +73,7 @@ load-bearing structure:
 
 ## Commands
 
-pnpm workspace (Node 22.13+, pnpm via corepack):
+pnpm workspace (Node 22.16+, pnpm via corepack):
 
 - `pnpm install` — install dev dependencies
 - `pnpm typecheck` — tsc strict, no emit

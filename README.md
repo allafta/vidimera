@@ -34,7 +34,7 @@ when the behavior actually lands here.
 
 ## Development
 
-Requires Node 22.13+ and pnpm (via corepack).
+Requires Node 22.16+ and pnpm (via corepack).
 
 ```text
 pnpm install
@@ -54,8 +54,9 @@ eight-method `Store` interface section 12 describes, the
 backing-parameterized conformance suite (test-side, run over that one
 backing), and the embedded-SQL adapter (`store/sqlite.ts`) with the
 caller-supplied transaction seam (`tx?`) and the cross-backing
-byte-identical-chains test. Still to come before step 2 can exit: the
-server-SQL adapter, section 12's one reference backing still unbuilt.
+byte-identical-chains test. The server-SQL adapter is section 12's one
+reference backing still unbuilt; whether step 2 can exit without it is an
+owner ruling not yet made.
 
 ## License
 

@@ -16,15 +16,20 @@
 // the durable backstop.
 //
 // Payload posture, BACKING-SPECIFIC by design (the conformance suite deliberately does
-// not bind it): transitions persist as `JSON.stringify` text, so a function-valued
-// payload member is silently dropped — consistently with the digest, since library JCS
-// drops the same member when digesting, so persisted bytes and digest agree and
-// `verifyChain` stays green over the round-trip. The memory backing throws
-// `DataCloneError` on the same input; each backing owns its rejection shape.
+// not bind it): transitions persist as `JSON.stringify` text, so any JCS-invisible payload
+// member — a function-valued member, an `undefined`-valued member, `-0`, `[undefined]`
+// inside an array, and the like — is silently dropped or normalized on the round-trip,
+// exactly the same way library JCS drops or normalizes it when digesting, so persisted
+// bytes and digest agree and `verifyChain` stays green. The memory backing instead throws
+// `DataCloneError` on a function- or symbol-valued member, and otherwise PRESERVES what
+// JSON would drop (structuredClone has no notion of JCS); each backing owns its own
+// rejection/round-trip shape, and the two disagreeing on posture is consistent, not
+// corrupt.
 //
 // WATCH ITEM: `node:sqlite` is experimental — its API may move under a Node upgrade; the
-// conformance suite is what catches it. The engines floor is >=22.13, where the module
-// lost its CLI flag.
+// conformance suite is what catches it. The engines floor is >=22.16: the module lost its
+// CLI flag at 22.13, and `isTransaction` — which `validateTx` relies on — arrived at 22.16
+// (and 24.0).
 
 import { DatabaseSync } from 'node:sqlite';
 import { transitionDigest } from '../chain/encoding.js';
@@ -93,7 +98,12 @@ export class SqliteStore implements Store {
       this.db.exec('COMMIT');
       return result;
     } catch (err) {
-      this.db.exec('ROLLBACK');
+      try {
+        this.db.exec('ROLLBACK');
+      } catch {
+        // ROLLBACK itself can throw (e.g. a failed COMMIT already auto-rolled back, leaving
+        // no open transaction) — swallow it and surface the ORIGINAL error, never this one.
+      }
       throw err;
     }
   }
@@ -277,6 +287,12 @@ export class SqliteStore implements Store {
     meta: AppendMeta,
     tx?: DatabaseSync,
   ): Promise<BatchResult> {
+    if (tx !== undefined) {
+      // Validate a supplied tx BEFORE the empty-batch check, to match `store/memory.ts`'s
+      // `appendBatch` order (`MemoryStore.rejectTx` runs first there) — a caller-error
+      // precedence should not depend on which backing is behind the interface.
+      this.validateTx(tx);
+    }
     const first = transitions[0];
     if (first === undefined) {
       throw new Error(
@@ -362,9 +378,13 @@ export class SqliteStore implements Store {
 
   async listDue(now: Date): Promise<string[]> {
     // SPEC §12's gate verbatim: `dueAt ≠ null AND dueAt ≤ now`, no state predicate.
-    // RFC3339 UTC strings with fixed 'Z' and millisecond precision compare
-    // lexicographically in chronological order, so string `<=` is the gate. No ordering
-    // of the returned ids is promised.
+    // SQLite compares TEXT lexicographically, not numerically — the string `<=` below is
+    // correct ONLY because `AppendMeta.dueAt` (store.ts) is constrained to
+    // `Date.prototype.toISOString()`'s exact grammar (`YYYY-MM-DDTHH:mm:ss.sssZ`): fixed
+    // 'Z', always-present millisecond precision, constant length, so lexicographic order
+    // IS chronological order. A second-precision RFC3339 string ('…T12:00:00Z') would
+    // diverge under this comparison; nothing here produces one. No ordering of the
+    // returned ids is promised.
     const rows = this.db
       .prepare('SELECT id FROM records WHERE due_at IS NOT NULL AND due_at <= ?')
       .all(now.toISOString()) as { id: string }[];
