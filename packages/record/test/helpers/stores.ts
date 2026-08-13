@@ -17,11 +17,12 @@
 //   - `RaceOnceStore` — the FIRST `appendTransition` call matching `match` fires a
 //     one-shot `run` hook BEFORE delegating; `run` may mutate `inner` directly (a racing
 //     writer wins the CAS) and return `undefined`, or return an `AppendResult` to
-//     SHORT-CIRCUIT the caller's append. No file in this corpus consumes it yet —
-//     exclusivity.test.ts's own race scenario is a hand-rolled, differently-shaped
-//     fixture (counts every genesis/expire attempt, not just the matched one) and stays
-//     local to that file, same as terminality.test.ts's ConfirmBlockingStore. This class
-//     is included so a later phase, when it rewrites that scenario, has it ready.
+//     SHORT-CIRCUIT the caller's append. Consumed by redeem-token.test.ts's racing
+//     residual tests (the second step-3 increment's family-wide CAS-residual re-read):
+//     exclusivity.test.ts's own race scenario stays a hand-rolled, differently-shaped
+//     fixture of its own (counts every genesis/expire attempt, not just the matched
+//     one), same as terminality.test.ts's ConfirmBlockingStore — neither was rewritten
+//     to use this class, only redeem-token.test.ts's new tests.
 //
 // This is a TEST-ONLY helper module (not `.test.ts`), same convention as
 // helpers/chain.ts and helpers/profiles.ts.

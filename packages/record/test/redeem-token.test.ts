@@ -28,7 +28,7 @@ import {
   openRecord,
   tamperNonLast,
 } from './helpers/profiles.js';
-import { TamperingStore } from './helpers/stores.js';
+import { RaceOnceStore, TamperingStore } from './helpers/stores.js';
 
 const CONTENT = { subject: 'week-1', total: 40 };
 
@@ -555,4 +555,94 @@ test('order (4)->(5), complete ladder: a redeemed record with a WRONG token refu
   assert.equal(outcome.status, 'refused');
   if (outcome.status !== 'refused') return;
   assert.equal(outcome.code, 'already-redeemed');
+});
+
+// === the racing residual: the loser's code agrees with what re-invocation says =========
+
+test('complete-vs-complete race: the CAS loser refuses already-redeemed, not unredeemable-state', async () => {
+  // §11.2's at-most-once names the loser's true situation: the record IS redeemed. A
+  // crash-recovering separated executor needs `already-redeemed` ("the edge landed —
+  // consult your idempotency store") to be distinguishable from `unredeemable-state`
+  // ("redemption does not apply"). The residual re-reads once (advisory, no append).
+  const inner = new MemoryStore();
+  const { recordId, token } = await redeemingRecord(inner);
+
+  const racing = new RaceOnceStore(
+    inner,
+    (expected, t) => expected === 'redeeming' && t.kind === 'redeemed',
+    async (innerStore, rid) => {
+      // The WINNER: land a completed redemption directly before the loser's append.
+      const chain = await innerStore.readChain(rid);
+      const head = chain.at(-1);
+      if (head === undefined) throw new Error('fixture: chain has a head');
+      const winner = storeNext(head, 'redeemed', {
+        via: 'token',
+        tokenDigest: digest(token),
+      });
+      const res = await innerStore.appendTransition('redeeming', winner, { nonTerminal: false });
+      if (!res.appended) throw new Error('fixture: the winner must land');
+      return undefined; // loser's append then delegates and CAS-fails
+    },
+  );
+  const handles = create(makeConfig([effectSeamProfile()], { store: racing }));
+
+  const loser = await handles.operator.completeRedemption(recordId, token, CONTENT);
+  assert.equal(loser.status, 'refused');
+  if (loser.status !== 'refused') return;
+  assert.equal(loser.code, 'already-redeemed');
+});
+
+test('begin-vs-begin race: the loser refuses unredeemable-state — agreeing with the no-re-issue gate', async () => {
+  const inner = new MemoryStore();
+  const { recordId } = await confirmedEffectRecord(inner);
+
+  const racing = new RaceOnceStore(
+    inner,
+    (expected, t) => expected === 'confirmed' && t.kind === 'redeeming',
+    async (innerStore, rid) => {
+      const chain = await innerStore.readChain(rid);
+      const head = chain.at(-1);
+      if (head === undefined) throw new Error('fixture: chain has a head');
+      const winner = storeNext(head, 'redeeming', {
+        tokenDigest: `sha256:${'c'.repeat(64)}`,
+      });
+      const res = await innerStore.appendTransition('confirmed', winner, { nonTerminal: true });
+      if (!res.appended) throw new Error('fixture: the winner must land');
+      return undefined;
+    },
+  );
+  const handles = create(makeConfig([effectSeamProfile()], { store: racing }));
+
+  const loser = await handles.operator.beginRedemption(recordId, CONTENT);
+  assert.equal(loser.status, 'refused');
+  if (loser.status !== 'refused') return;
+  assert.equal(loser.code, 'unredeemable-state');
+});
+
+test('direct-vs-direct race: the loser refuses already-redeemed — the family-wide refinement, first increment seam included', async () => {
+  // An AUTHORIZED behavior change to the first step-3 increment's seam (its flat
+  // residual was never pinned — that increment's derivation comment declined a racing
+  // store): the refusal now agrees with what re-invocation would say.
+  const inner = new MemoryStore();
+  const { recordId } = await confirmedEffectRecord(inner);
+
+  const racing = new RaceOnceStore(
+    inner,
+    (expected, t) => expected === 'confirmed' && t.kind === 'redeemed',
+    async (innerStore, rid) => {
+      const chain = await innerStore.readChain(rid);
+      const head = chain.at(-1);
+      if (head === undefined) throw new Error('fixture: chain has a head');
+      const winner = storeNext(head, 'redeemed', { via: 'direct' });
+      const res = await innerStore.appendTransition('confirmed', winner, { nonTerminal: false });
+      if (!res.appended) throw new Error('fixture: the winner must land');
+      return undefined;
+    },
+  );
+  const handles = create(makeConfig([effectSeamProfile()], { store: racing }));
+
+  const loser = await handles.operator.redeem(recordId, CONTENT);
+  assert.equal(loser.status, 'refused');
+  if (loser.status !== 'refused') return;
+  assert.equal(loser.code, 'already-redeemed');
 });

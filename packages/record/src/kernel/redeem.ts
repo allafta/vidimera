@@ -12,8 +12,8 @@
 //   (4) state gate        -> already-redeemed on 'redeemed' (at-most-once, replay half);
 //                            unredeemable-state otherwise-not-confirmed
 //   (5) correspondence    -> effect-mismatch     — re-digest vs the bound contentDigest
-//   (6) append redeemed   -> ok; a non-append residual is a racing writer ->
-//                            unredeemable-state, result-first
+//   (6) append redeemed   -> ok; a non-append residual is a racing writer -> the
+//                            family-wide CAS-residual re-read (`residualRefusal` below)
 //
 // (4) before (5): a replayed redemption refuses `already-redeemed` whatever content it
 // carries — at-most-once outranks mismatch reporting.
@@ -49,9 +49,31 @@ import type { KernelContext, ResolvedProfile } from '../create.js';
 import { isFinalLeg, nonTerminal } from '../nonterminal.js';
 import type { Outcome } from '../outcome.js';
 import { ok, refused } from '../outcome.js';
-import type { AppendMeta } from '../store/store.js';
+import type { AppendMeta, Store } from '../store/store.js';
 import type { DecisionRecord, Digest, Transition } from '../types.js';
 import { appendChainCompromise } from './finalize.js';
+
+/**
+ * The family-wide CAS-residual refusal (second step-3 increment; an authorized behavior
+ * change to the first increment's direct seam, whose flat `unredeemable-state` residual
+ * was never pinned): when an append's compare-and-swap fails, a racing writer moved the
+ * record between the read and the CAS. Re-read ONCE — advisory, no append, at-most-once
+ * untouched — and let the fresh state pick the code, so the loser's refusal always
+ * agrees with what re-invocation would say: a record now `redeemed` is §11.2's "replayed
+ * redemption of an already-redeemed record" (`already-redeemed` — the case a
+ * crash-recovering separated executor must be able to distinguish); anything else maps
+ * to the seams' own residual, `unredeemable-state`. A chain that no longer replays is
+ * not this helper's to diagnose (the caller's NEXT invocation will hit verify-first).
+ */
+async function residualRefusal(store: Store, recordId: string): Promise<Outcome<never>> {
+  try {
+    const fresh = replay(await store.readChain(recordId));
+    if (fresh.state === 'redeemed') return refused('already-redeemed');
+  } catch {
+    // fall through — result-first either way
+  }
+  return refused('unredeemable-state');
+}
 
 /**
  * The shared prologue of every redemption ladder — rungs (1)-(3) of all three seams
@@ -185,9 +207,7 @@ export async function redeem(
 
   const res = await store.appendTransition('confirmed', redeemedTransition, meta, tx);
   if (!res.appended) {
-    // A racing writer moved the record between the read and the CAS; result-first,
-    // nothing appended, the residual mapped to the seam's own domain code.
-    return refused('unredeemable-state');
+    return residualRefusal(store, recordId);
   }
   return ok({ recordId, state: 'redeemed', transitionRef: res.transitionDigest });
 }
@@ -268,10 +288,7 @@ export async function beginRedemption(
   };
   const res = await store.appendTransition('confirmed', redeemingTransition, meta);
   if (!res.appended) {
-    // A racing writer moved the record between the read and the CAS; result-first.
-    // (The family-wide residual re-read refinement replaces this in a later task of the
-    // second step-3 increment.)
-    return refused('unredeemable-state');
+    return residualRefusal(store, recordId);
   }
   return ok({ recordId, state: 'redeeming', token, transitionRef: res.transitionDigest });
 }
@@ -378,9 +395,7 @@ export async function completeRedemption(
   };
   const res = await store.appendTransition('redeeming', redeemedTransition, meta);
   if (!res.appended) {
-    // A racing writer; result-first. (The family-wide residual re-read refinement
-    // replaces this in a later task of the second step-3 increment.)
-    return refused('unredeemable-state');
+    return residualRefusal(store, recordId);
   }
   return ok({ recordId, state: 'redeemed', transitionRef: res.transitionDigest });
 }

@@ -19,7 +19,11 @@
 //   (5) correspondence -> effect-mismatch     — re-digest of the supplied content vs the
 //                                               bound contentDigest, same path as stage()
 //   (6) append redeemed { via: 'direct' }     — meta from the terminality derivation
-//                                               (redeemed is terminal: THE RELEASE)
+//                                               (redeemed is terminal: THE RELEASE); a
+//                                               non-append residual re-reads once and
+//                                               agrees with re-invocation (already-
+//                                               redeemed if the fresh state is
+//                                               'redeemed', unredeemable-state otherwise)
 //
 // ADJACENT-PAIR ORDER TESTS, derived as finalize-check-order.test.ts derives its own — one
 // test per consecutive-rung ordered pair that is JOINTLY CONSTRUCTIBLE:
