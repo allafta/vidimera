@@ -46,6 +46,9 @@ export interface OperatorSurface {
     recordId: string,
     content: unknown, // begin-time correspondence: this build's addition, argued at the seam
   ): Promise<
+    // `token` is the single-use redemption token, returned exactly once and never persisted.
+    // The `ok` value is secret material — a host MUST NOT log it; the chain and store carry
+    // only its digest (SPEC §11.2's token shape; DECISIONS #30).
     Outcome<{ recordId: string; state: 'redeeming'; token: string; transitionRef: Digest }>
   >;
   completeRedemption(

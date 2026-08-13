@@ -311,9 +311,9 @@ function batchConflict(conflict: 'seq', index: number): Error {
  * increment — `'redeeming'`, the fallback's third producible target (deferral-register row
  * 10). A genesis-KIND-tampered `redeeming` chain forces exactly this fallback (`replay`
  * throws before it can even fold a state) and now lands `redeeming→refused` WITH a
- * transitionRef via the `'redeeming'` candidate; before this increment named that target, the
- * same corner exhausted `'open'`/`'confirmed'` without a match and surfaced result-first with
- * NO transitionRef instead. Either way the append target is chosen from an ORDERED candidate
+ * transitionRef via the `'redeeming'` candidate; before the second step-3 increment named
+ * that target, the same corner exhausted `'open'`/`'confirmed'` without a match and surfaced
+ * result-first with NO transitionRef instead. Either way the append target is chosen from an ORDERED candidate
  * list and the FIRST target whose CAS succeeds wins (a failed CAS appends nothing, so
  * retrying against another target is safe).
  *
@@ -336,10 +336,10 @@ function batchConflict(conflict: 'seq', index: number): Error {
  * monotonicity then rejects the state-leaving `refused` (no carve-out for `redeemed`), so this
  * shape too surfaces result-first with no transitionRef.
  *
- * `kernel/redeem.ts`'s `beginRedemption` (second step-3 increment) and `completeRedemption`
- * (a later increment) are FURTHER un-enlisted callers of this same append, through the SAME
- * shared `prologue()` chain-verify-first rung the direct shape uses — no copy of this
- * function, and no new shape beyond the `redeeming` candidate named above.
+ * `kernel/redeem.ts`'s `beginRedemption` and `completeRedemption` (the second step-3
+ * increment, alongside each other) are FURTHER un-enlisted callers of this same append,
+ * through the SAME shared `prologue()` chain-verify-first rung the direct shape uses — no
+ * copy of this function, and no new shape beyond the `redeeming` candidate named above.
  */
 export async function appendChainCompromise(
   store: Store,

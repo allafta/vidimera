@@ -348,7 +348,7 @@ test('exclusivity through the token window: a second open() refuses record-exist
   // in this build). ALSO the latent-throw fix pin: before the second step-3 increment,
   // open()'s blocker replay THREW on a redeeming chain; the replay arm fixed it.
   const store = new MemoryStore();
-  const { handles } = await redeemingRecord(store);
+  const { handles, recordId } = await redeemingRecord(store);
 
   const staged = await handles.agent.stage(
     { subject: 'week-2', total: 99 },
@@ -361,6 +361,7 @@ test('exclusivity through the token window: a second open() refuses record-exist
   assert.equal(second.status, 'refused');
   if (second.status !== 'refused') return;
   assert.equal(second.code, 'record-exists');
+  assert.equal(await store.findNonTerminal('test.effect.v1', DEFAULT_SUBJECT_REF), recordId);
 });
 
 test('at-most-once, replay half: a second completion refuses already-redeemed (even with the right token)', async () => {
@@ -401,6 +402,8 @@ test('a wrong token refuses effect-mismatch, no append', async () => {
 
 test('mismatched content at completion refuses effect-mismatch, no append', async () => {
   const { handles, recordId, token } = await redeemingRecord();
+  const before = (await handles.operator.readChain(recordId)).length;
+
   const outcome = await handles.operator.completeRedemption(recordId, token, {
     subject: 'week-1',
     total: 41,
@@ -408,6 +411,7 @@ test('mismatched content at completion refuses effect-mismatch, no append', asyn
   assert.equal(outcome.status, 'refused');
   if (outcome.status !== 'refused') return;
   assert.equal(outcome.code, 'effect-mismatch');
+  assert.equal((await handles.operator.readChain(recordId)).length, before);
 });
 
 test('content that re-canonicalizes identically completes ok (key order is not content)', async () => {
