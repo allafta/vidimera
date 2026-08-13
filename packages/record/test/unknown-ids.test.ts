@@ -148,7 +148,7 @@ test("open() on a staged draft whose legId is absent from the profile it resolve
 //
 // A stagedRef that resolves to no staged draft at all (never staged, or the store was
 // never given one) is distinct from the unknown-PROFILE case above (a draft exists but
-// names an unconfigured profile — that's a domain refusal). No CORE RefusalCode fits a
+// names an unconfigured profile — that's a domain refusal). No REGISTRY RefusalCode fits a
 // missing draft, so open() throws rather than mint a code — mirroring replay()/
 // verifyChain()'s "a record that does not exist is a caller error" posture.
 

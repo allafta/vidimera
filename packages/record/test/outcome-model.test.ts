@@ -1,16 +1,16 @@
 // @vidimera/record — outcome-model.test.ts (DECISIONS.md #10 "Result-first outcomes"):
 // Outcome<T> constructors are
 // result-first (never throw for a domain refusal), `class` is derived from `code` via
-// the CORE registry (never caller-supplied), and `transitionRef` is representable as
+// the REGISTRY (never caller-supplied), and `transitionRef` is representable as
 // present-or-absent per that same result-first discipline.
 
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import type { Outcome } from '../src/outcome.js';
 import { ok, refused, unavailable } from '../src/outcome.js';
-import { appendsOn, CORE, type RefusalCode } from '../src/refusal-codes.js';
+import { appendsOn, REGISTRY, type RefusalCode } from '../src/refusal-codes.js';
 
-const ALL_REFUSAL_CODES = Object.keys(CORE) as RefusalCode[];
+const ALL_REFUSAL_CODES = Object.keys(REGISTRY) as RefusalCode[];
 
 // Runtime-checks status==='refused' (a real assertion, not a type-only cast) and then
 // narrows so the branch-specific `code`/`class`/`transitionRef` fields compile.
@@ -41,7 +41,7 @@ test("refused('content-drift') derives class 'refusal'", () => {
 });
 
 test('class derivation is total: every RefusalCode maps to a class, and ONLY chain-compromise is compromise', () => {
-  assert.equal(ALL_REFUSAL_CODES.length, 13, 'CORE registry must cover all thirteen RefusalCodes');
+  assert.equal(ALL_REFUSAL_CODES.length, 13, 'REGISTRY must cover all thirteen RefusalCodes');
   for (const code of ALL_REFUSAL_CODES) {
     const result = refused(code);
     assertRefused(result);
@@ -52,7 +52,7 @@ test('class derivation is total: every RefusalCode maps to a class, and ONLY cha
       `code ${code} should derive class '${expectedClass}'`,
     );
     assert.equal(
-      CORE[code],
+      REGISTRY[code],
       expectedClass,
       `registry entry for ${code} should be '${expectedClass}'`,
     );

@@ -1,4 +1,4 @@
-// @vidimera/record — RefusalCode union, the CORE code→class registry, and the
+// @vidimera/record — RefusalCode union, the REGISTRY code→class map, and the
 // append-decision helper (SPEC §8 "Refusal codes"; DECISIONS.md #14 "The refusal
 // registry is a compiler-total map; append behavior is one shared derivation").
 
@@ -38,18 +38,20 @@ export type RefusalCode =
 export type RefusalClass = 'refusal' | 'compromise';
 
 /**
- * CORE code→class registry (DECISIONS.md #14: "a compiler-total map"). Typed as
+ * REGISTRY code→class map (DECISIONS.md #14: "a compiler-total map"). Typed as
  * `Record<RefusalCode, RefusalClass>`
  * so the mapping is compiler-enforced TOTAL — every RefusalCode must have an entry or
  * this file fails to type-check. Only `chain-compromise` is `'compromise'`; every other
  * code is `'refusal'`. This is the ONLY place class is derived from — outcome.ts's
  * `refused()` looks class up here; callers never supply it directly.
  *
- * NOTE: despite the name, `CORE` now also carries the profile-conditional codes
- * (`effect-mismatch`, `already-redeemed`) alongside the original core set — a rename is
- * deferred to the token-shape increment, not done here.
+ * Named `REGISTRY` (DECISIONS.md #14's own word — "the refusal registry is a
+ * compiler-total map") since the second step-3 increment: it carries the core set AND the
+ * profile-conditional codes (`effect-mismatch`, `already-redeemed`), so the earlier name
+ * `CORE` misdescribed it — that increment honored the rename its predecessor recorded
+ * here as deferred.
  */
-export const CORE: Record<RefusalCode, RefusalClass> = {
+export const REGISTRY: Record<RefusalCode, RefusalClass> = {
   'content-drift': 'refusal',
   'identity-authority-refused': 'refusal',
   'record-exists': 'refusal',
@@ -120,7 +122,7 @@ const NEVER_APPENDS: ReadonlySet<RefusalCode> = new Set<RefusalCode>([
  * gate it explicitly if/when `appendsOn` usage widens beyond finalize's steps (3)-(5).
  */
 export function appendsOn(code: RefusalCode, leg: AppendDecisionLeg): boolean {
-  if (CORE[code] === 'compromise') return true;
+  if (REGISTRY[code] === 'compromise') return true;
   if (NEVER_APPENDS.has(code)) return false;
   return leg.terminalRefusals?.includes(code) ?? false;
 }

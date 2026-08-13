@@ -1,5 +1,5 @@
 // @vidimera/record — refusal-matrix.test.ts: ONE
-// production-path assertion per CORE RefusalCode this build can produce, driven through
+// production-path assertion per REGISTRY RefusalCode this build can produce, driven through
 // the PUBLIC agent/operator surfaces (a fixture may ARRANGE store state via direct appends,
 // mirroring the existing per-behavior suites — e.g. chain-verify.test.ts's TamperingStore —
 // but the OUTCOME under test always comes from a public call). Per-code depth (multiple
@@ -29,7 +29,7 @@ import { test } from 'vitest';
 import { create, createWithClock } from '../src/create.js';
 import { isFinalLeg, nonTerminal } from '../src/nonterminal.js';
 import { profileDigest } from '../src/profile-digest.js';
-import { CORE, type RefusalCode } from '../src/refusal-codes.js';
+import { REGISTRY, type RefusalCode } from '../src/refusal-codes.js';
 import { MemoryStore } from '../src/store/memory.js';
 import type { Consultation } from '../src/types.js';
 import { buildChain } from './helpers/chain.js';
@@ -306,7 +306,7 @@ test('unknown-leg: registry/type presence + class only in this file — the prod
   // `code: RefusalCode = 'unknown-leg'` is itself a COMPILE-TIME union-membership check
   // (this file fails to type-check if 'unknown-leg' is ever removed from the union).
   const code: RefusalCode = 'unknown-leg';
-  assert.equal(CORE[code], 'refusal');
+  assert.equal(REGISTRY[code], 'refusal');
 });
 
 // === registry totality sanity (cross-check against outcome-model.test.ts's own total) ===
@@ -317,7 +317,7 @@ test('unknown-leg: registry/type presence + class only in this file — the prod
 // (redeem()'s two profile-conditional refusals, SPEC §11.2) are the twelfth and thirteenth —
 // same reasoning: their own production-path coverage is redeem.test.ts's whole gate ladder,
 // so this sanity check's total simply grows to thirteen.
-test('every CORE RefusalCode is accounted for in this matrix (9 production-path-tested here + unknown-leg registry-only + unsealable-state production-path-tested in seal.test.ts + effect-mismatch and already-redeemed production-path-tested in redeem.test.ts = 13)', () => {
-  const allCodes = Object.keys(CORE) as RefusalCode[];
+test('every REGISTRY RefusalCode is accounted for in this matrix (9 production-path-tested here + unknown-leg registry-only + unsealable-state production-path-tested in seal.test.ts + effect-mismatch and already-redeemed production-path-tested in redeem.test.ts = 13)', () => {
+  const allCodes = Object.keys(REGISTRY) as RefusalCode[];
   assert.equal(allCodes.length, 13);
 });

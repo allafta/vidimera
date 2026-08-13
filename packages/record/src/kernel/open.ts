@@ -11,7 +11,7 @@
 //
 // Missing-stagedRef choice (the SPEC names NO RefusalCode for it): open() is operator-only,
 // and a `stagedRef` that resolves to no draft is a CALLER error — the host must have
-// obtained it from a prior `stage()`. No CORE RefusalCode fits (`unknown-profile` names a
+// obtained it from a prior `stage()`. No REGISTRY RefusalCode fits (`unknown-profile` names a
 // profile, not a staged draft; the union is contract-fixed — do not invent one),
 // so open() THROWS, mirroring `replay()`/`verifyChain()`'s "a record that does not exist is
 // a caller error" posture (SPEC §8). This is the caller-error half of the exceptions

@@ -5,10 +5,10 @@
 // SPEC §8's "Caller errors are not refusals."; e.g. config.ts's construction guards and
 // open.ts's missing-stagedRef throw).
 
-import { CORE, type RefusalCode } from './refusal-codes.js';
+import { REGISTRY, type RefusalCode } from './refusal-codes.js';
 import type { Digest } from './types.js';
 
-// `class` is DERIVED from `code` via the CORE registry — never a caller-supplied
+// `class` is DERIVED from `code` via the REGISTRY — never a caller-supplied
 // field. `transitionRef` is present ONLY when a transition was actually appended
 // (compromise wherever the record's state admits a state-leaving append, per SPEC §8 — §12's
 // C3 admits no edge against an already-terminal `expired`/`refused` record and its C4 admits
@@ -37,7 +37,7 @@ export function ok<T>(value: T): Outcome<T> {
 
 /**
  * Never throws for a domain refusal — a refusal is a RETURNED value. `class` is looked
- * up from the CORE registry by `code` (never a parameter). `transitionRef` is optional:
+ * up from the REGISTRY by `code` (never a parameter). `transitionRef` is optional:
  * pass it only when the caller actually appended a transition for this refusal; omit
  * it (leave undefined) otherwise — the field is genuinely ABSENT from the returned
  * object in that case, not merely `undefined`-valued.
@@ -47,7 +47,7 @@ export function ok<T>(value: T): Outcome<T> {
  * need to thread a generic through call sites that never produce an `ok` value.
  */
 export function refused(code: RefusalCode, transitionRef?: Digest): Outcome<never> {
-  const refusalClass = CORE[code];
+  const refusalClass = REGISTRY[code];
   return transitionRef === undefined
     ? { status: 'refused', code, class: refusalClass }
     : { status: 'refused', code, class: refusalClass, transitionRef };

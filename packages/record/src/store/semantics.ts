@@ -6,7 +6,7 @@
 // carried; the conformance suite over MemoryStore is the regression gate on the
 // extraction.
 
-import { CORE, type RefusalCode } from '../refusal-codes.js';
+import { REGISTRY, type RefusalCode } from '../refusal-codes.js';
 import type { RecordState, Transition, TransitionKind } from '../types.js';
 
 /**
@@ -86,9 +86,9 @@ export function isStateLeaving(kind: TransitionKind): boolean {
  * terminal `confirmed` (decided) record — never against terminal `expired` or `refused`".
  * Implemented here as: a `kind:'refused'` append whose `expectedCurrentState` is
  * `'confirmed'` is allowed past the backings' C3 gates (it still must pass the state CAS).
- * Deliberately keyed off the code's CLASS (via the `refusal-codes.ts` `CORE` registry),
+ * Deliberately keyed off the code's CLASS (via the `refusal-codes.ts` `REGISTRY`),
  * not the literal string `'chain-compromise'` — "compromise-classed" is the SPEC's own
- * framing, and `CORE` is already the single source of truth for which codes are
+ * framing, and `REGISTRY` is already the single source of truth for which codes are
  * compromise-classed.
  *
  * The predicate ALSO accepts `expectedCurrentState === 'redeeming'`, which §12's C3 does
@@ -113,5 +113,5 @@ export function isCompromiseCarveOut(
   if (transition.kind !== 'refused') return false;
   if (expectedCurrentState !== 'confirmed' && expectedCurrentState !== 'redeeming') return false;
   const payload = transition.payload as RefusedPayload;
-  return CORE[payload.code] === 'compromise';
+  return REGISTRY[payload.code] === 'compromise';
 }
