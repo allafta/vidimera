@@ -43,31 +43,53 @@
 import { canonicalize, digest } from '../canonical.js';
 import { transitionDigest } from '../chain/encoding.js';
 import { replay, verifyChain } from '../chain/replay.js';
-import type { KernelContext } from '../create.js';
+import type { KernelContext, ResolvedProfile } from '../create.js';
 import { isFinalLeg, nonTerminal } from '../nonterminal.js';
 import type { Outcome } from '../outcome.js';
 import { ok, refused } from '../outcome.js';
 import type { AppendMeta } from '../store/store.js';
-import type { Digest, Transition } from '../types.js';
+import type { DecisionRecord, Digest, Transition } from '../types.js';
 import { appendChainCompromise } from './finalize.js';
 
-export async function redeem(
+/**
+ * The shared prologue of every redemption ladder — rungs (1)-(3) of all three seams
+ * (direct redeem, beginRedemption, completeRedemption), byte-identical across them:
+ *   load chain      -> THROW on unknown recordId (a caller error, SPEC §8)
+ *   (1) chain-verify -> chain-compromise — §5: "Every operator-side mutating seam
+ *       verifies the chain before acting". ENLISTED callers (tx !== undefined — today
+ *       only direct redeem carries tx) refuse result-first with NO edge: see the comment
+ *       in place below. Un-enlisted callers append the edge via appendChainCompromise.
+ *   (2) resolve profile -> unknown-profile (fail-closed); persisted legId absent -> THROW
+ *   (3) effect seam + final leg -> unredeemable-state (§11.2 "on-iff-effects"; the
+ *       non-final-leg refusal is structural until the separation-of-duties step)
+ * The STATE gates stay in each ladder — they are where the three seams differ.
+ * The clock increment's en-passant resolution (due-`confirmed` / due-`redeeming`, §4)
+ * lands HERE once, not three times — that is this helper's reason to exist.
+ */
+async function prologue(
   ctx: KernelContext,
+  seam: 'redeem' | 'beginRedemption' | 'completeRedemption',
   recordId: string,
-  content: unknown,
   tx?: unknown,
-): Promise<Outcome<{ recordId: string; state: 'redeemed'; transitionRef: Digest }>> {
+): Promise<
+  | { refusal: Outcome<never> }
+  | {
+      gated: {
+        chain: Transition[];
+        record: DecisionRecord;
+        resolved: ResolvedProfile;
+        finalLeg: boolean;
+      };
+    }
+> {
   const { store, profiles, now } = ctx;
-
   const chain = await store.readChain(recordId);
   if (chain.length === 0) {
     throw new Error(
-      `redeem: unknown recordId '${recordId}' — no such record (open() first); a recordId ` +
+      `${seam}: unknown recordId '${recordId}' — no such record (open() first); a recordId ` +
         'that resolves to no chain is a caller error, not a domain refusal (SPEC §8)',
     );
   }
-
-  // --- (1) chain-verify, FIRST ---------------------------------------------------------
   if (!verifyChain(chain).intact) {
     if (tx !== undefined) {
       // ENLISTED: the host already has ITS OWN transaction open on this connection, and
@@ -80,34 +102,39 @@ export async function redeem(
       // shape appendChainCompromise's OWN fallback already legitimizes for the
       // already-terminal / already-sealed corner (SPEC §5/§12) — while an un-enlisted
       // caller keeps the full edge-appending behavior below.
-      return refused('chain-compromise');
+      return { refusal: refused('chain-compromise') };
     }
-    return appendChainCompromise(store, chain, now);
+    return { refusal: await appendChainCompromise(store, chain, now) };
   }
-
   const record = replay(chain);
-
-  // --- (2) profile resolution ----------------------------------------------------------
   const resolved = profiles.get(record.profileId);
   if (resolved === undefined) {
     // Defensive, fail-closed: a coherent instance always resolves a record it opened.
-    return refused('unknown-profile');
+    return { refusal: refused('unknown-profile') };
   }
   const legIndex = resolved.profile.legs.findIndex((l) => l.id === record.legId);
   if (legIndex < 0) {
     throw new Error(
-      `redeem: persisted legId '${record.legId}' is absent from profile '${record.profileId}'`,
+      `${seam}: persisted legId '${record.legId}' is absent from profile '${record.profileId}'`,
     );
   }
   const finalLeg = isFinalLeg(legIndex, resolved.profile.legs.length);
-
-  // --- (3) effect seam declared? -------------------------------------------------------
-  // §11.2's preamble: pure-capture profiles omit redemption entirely. The non-final-leg
-  // refusal it also names is structural here — no multi-leg profile can be constructed
-  // until the separation-of-duties build step, so `!finalLeg` is defensive, not reachable.
   if (!resolved.effectSeam || !finalLeg) {
-    return refused('unredeemable-state');
+    return { refusal: refused('unredeemable-state') };
   }
+  return { gated: { chain, record, resolved, finalLeg } };
+}
+
+export async function redeem(
+  ctx: KernelContext,
+  recordId: string,
+  content: unknown,
+  tx?: unknown,
+): Promise<Outcome<{ recordId: string; state: 'redeemed'; transitionRef: Digest }>> {
+  const { store, now } = ctx;
+  const pro = await prologue(ctx, 'redeem', recordId, tx);
+  if ('refusal' in pro) return pro.refusal;
+  const { chain, record, resolved, finalLeg } = pro.gated;
 
   // --- (4) state gate ------------------------------------------------------------------
   if (record.state === 'redeemed') {
