@@ -315,6 +315,78 @@ export function runStoreConformance(label: string, makeStore: () => Store): void
       assert.equal(result.appended, true);
     });
 
+    test('redeeming: confirmed → redeeming is a CAS-gated state-leaving append; nonTerminal:true persists', async () => {
+      // New KINDS first minted by the second step-3 increment — the store semantics
+      // (stateOf / C1 / C3) were built ahead of the producer; these pins convert that
+      // from argued to executed against EVERY backing.
+      const store = makeStore();
+      const genesis = storeGenesis('rec-rdm-1', 'profile.p1', 'subject:rdm1');
+      await store.appendTransition(null, genesis, { nonTerminal: true });
+      const confirmed = storeNext(genesis, 'confirmed', { actor: APPROVER });
+      await store.appendTransition('open', confirmed, { nonTerminal: true });
+
+      const redeeming = storeNext(confirmed, 'redeeming', {
+        tokenDigest: `sha256:${'f'.repeat(64)}`,
+      });
+      const wrongCas = await store.appendTransition('open', redeeming, { nonTerminal: true });
+      assert.equal(wrongCas.appended, false, 'the CAS gates the redeeming append');
+      const result = await store.appendTransition('confirmed', redeeming, { nonTerminal: true });
+      assert.equal(result.appended, true);
+    });
+
+    test('C1: a redeeming record holds the (profile, subject) pair — a second genesis conflicts, findNonTerminal names it', async () => {
+      const store = makeStore();
+      const genesis = storeGenesis('rec-rdm-2', 'profile.p1', 'subject:rdm2');
+      await store.appendTransition(null, genesis, { nonTerminal: true });
+      const confirmed = storeNext(genesis, 'confirmed', { actor: APPROVER });
+      await store.appendTransition('open', confirmed, { nonTerminal: true });
+      const redeeming = storeNext(confirmed, 'redeeming', {
+        tokenDigest: `sha256:${'1'.repeat(64)}`,
+      });
+      await store.appendTransition('confirmed', redeeming, { nonTerminal: true });
+
+      const second = storeGenesis('rec-rdm-2b', 'profile.p1', 'subject:rdm2');
+      const conflict = await store.appendTransition(null, second, { nonTerminal: true });
+      assert.equal(conflict.appended, false, 'C1 blocks a second live record for the pair');
+      assert.equal(await store.findNonTerminal('profile.p1', 'subject:rdm2'), 'rec-rdm-2');
+    });
+
+    test('redeeming → redeemed releases the pair (nonTerminal:false persists via meta)', async () => {
+      const store = makeStore();
+      const genesis = storeGenesis('rec-rdm-3', 'profile.p1', 'subject:rdm3');
+      await store.appendTransition(null, genesis, { nonTerminal: true });
+      const confirmed = storeNext(genesis, 'confirmed', { actor: APPROVER });
+      await store.appendTransition('open', confirmed, { nonTerminal: true });
+      const redeeming = storeNext(confirmed, 'redeeming', {
+        tokenDigest: `sha256:${'2'.repeat(64)}`,
+      });
+      await store.appendTransition('confirmed', redeeming, { nonTerminal: true });
+
+      const redeemed = storeNext(redeeming, 'redeemed', {
+        via: 'token',
+        tokenDigest: `sha256:${'2'.repeat(64)}`,
+      });
+      const result = await store.appendTransition('redeeming', redeemed, { nonTerminal: false });
+      assert.equal(result.appended, true);
+      assert.equal(await store.findNonTerminal('profile.p1', 'subject:rdm3'), null);
+    });
+
+    test('C3: a compromise-classed refused edge is admitted against a redeeming record (SPEC §5: directly — both non-terminal)', async () => {
+      const store = makeStore();
+      const genesis = storeGenesis('rec-rdm-4', 'profile.p1', 'subject:rdm4');
+      await store.appendTransition(null, genesis, { nonTerminal: true });
+      const confirmed = storeNext(genesis, 'confirmed', { actor: APPROVER });
+      await store.appendTransition('open', confirmed, { nonTerminal: true });
+      const redeeming = storeNext(confirmed, 'redeeming', {
+        tokenDigest: `sha256:${'3'.repeat(64)}`,
+      });
+      await store.appendTransition('confirmed', redeeming, { nonTerminal: true });
+
+      const refusedEdge = storeNext(redeeming, 'refused', { code: 'chain-compromise' });
+      const result = await store.appendTransition('redeeming', refusedEdge, { nonTerminal: false });
+      assert.equal(result.appended, true, 'a redeeming record admits the compromise edge directly');
+    });
+
     // === readChain / chainHead ======================================================
 
     test('readChain/chainHead: an unknown recordId -> readChain [] and chainHead null', async () => {

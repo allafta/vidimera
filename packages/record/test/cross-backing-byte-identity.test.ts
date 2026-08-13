@@ -2,10 +2,11 @@
 // end-to-end — all backings "produce **byte-identical chains** from the same scripted
 // flow under a fixed clock". Byte-level in substance: per-transition library-JCS
 // serialization compared as strings, plus head-digest equality — not just deepEqual.
-// Determinism needs BOTH injectable knobs createWithClock carries: the fixed clock (`at`
-// stamps) and the fixed recordId sequence (recordId sits inside every transition digest,
-// so real randomness would make byte-for-byte comparison impossible — create.ts's own
-// words for why the minter seam exists).
+// Determinism needs all three injectable knobs createWithClock carries: the fixed clock
+// (`at` stamps), the fixed recordId sequence (recordId sits inside every transition
+// digest, so real randomness would make byte-for-byte comparison impossible — create.ts's
+// own words for why the minter seam exists), and the fixed token source (tokenDigest sits
+// inside the transition digest).
 
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
@@ -20,6 +21,7 @@ import type { Transition } from '../src/types.js';
 import {
   captureProfile,
   DEFAULT_SUBJECT_REF,
+  effectSeamProfile,
   facts,
   identity,
   makeConfig,
@@ -73,6 +75,26 @@ async function refusalFlow(store: Store): Promise<Transition[]> {
   return handles.operator.readChain(recordId);
 }
 
+const FIXED_TOKEN = 'byte-identity-fixed-token-00000000000000000';
+
+async function tokenFlow(store: Store): Promise<Transition[]> {
+  const clock = () => new Date(T0);
+  const handles = createWithClock(
+    makeConfig([effectSeamProfile()], { store }),
+    clock,
+    fixedMint('cross-token'),
+    () => FIXED_TOKEN,
+  );
+  const recordId = await openRecord(handles, CONTENT, 'test.effect.v1', DEFAULT_SUBJECT_REF);
+  const done = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(done.status, 'ok', 'fixture: the record must confirm');
+  const begun = await handles.operator.beginRedemption(recordId, CONTENT);
+  assert.equal(begun.status, 'ok', 'fixture: the issuance must succeed');
+  const completed = await handles.operator.completeRedemption(recordId, FIXED_TOKEN, CONTENT);
+  assert.equal(completed.status, 'ok', 'fixture: the completion must succeed');
+  return handles.operator.readChain(recordId);
+}
+
 function assertByteIdentical(a: Transition[], b: Transition[], flow: string): void {
   assert.equal(a.length, b.length, `${flow}: same chain length`);
   for (const [i, ta] of a.entries()) {
@@ -100,4 +122,16 @@ test('a terminal refusal produces byte-identical chains over both backings', asy
   const memory = await refusalFlow(new MemoryStore());
   const sqlite = await refusalFlow(new SqliteStore(':memory:'));
   assertByteIdentical(memory, sqlite, 'refusal path');
+});
+
+test('the token shape produces byte-identical chains over both backings (fixed token via the internal seam)', async () => {
+  // The first minted kinds whose payloads exercise the two backings' differing
+  // round-trip postures (JSON round-trip vs structuredClone) — exactly where
+  // cross-backing encoding drift is likeliest. Determinism needs the THIRD injectable
+  // knob (tokenSource) beside the clock and the id minter: tokenDigest sits inside the
+  // transition digest, so real randomness would make byte-for-byte comparison
+  // impossible.
+  const memory = await tokenFlow(new MemoryStore());
+  const sqlite = await tokenFlow(new SqliteStore(':memory:'));
+  assertByteIdentical(memory, sqlite, 'token path');
 });
