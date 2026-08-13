@@ -17,6 +17,7 @@ import { digest } from '../src/canonical.js';
 import { create, createWithClock } from '../src/create.js';
 import { MemoryStore } from '../src/store/memory.js';
 import { SqliteStore } from '../src/store/sqlite.js';
+import { storeGenesis, storeNext } from './helpers/chain.js';
 import {
   captureProfile,
   DEFAULT_SUBJECT_REF,
@@ -274,4 +275,284 @@ test('verify-first on a GENESIS-KIND-tampered redeeming chain (replay throws, fo
   assert.ok(last !== undefined);
   assert.equal(last.kind, 'refused');
   assert.deepEqual(last.payload, { code: 'chain-compromise' });
+});
+
+test('verify-first at completion: a tampered redeeming chain refuses chain-compromise before any token check', async () => {
+  // The completion-driven twin of the two tests above, promised there ("the
+  // completion-driven twin of this test lands with completeRedemption").
+  const inner = new MemoryStore();
+  const { recordId, token } = await redeemingRecord(inner);
+  const tampering = new TamperingStore(inner, recordId, tamperNonLast);
+  const handles = create(makeConfig([effectSeamProfile()], { store: tampering }));
+
+  const outcome = await handles.operator.completeRedemption(recordId, token, CONTENT);
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'chain-compromise');
+  assert.ok(outcome.transitionRef !== undefined);
+});
+
+// === completeRedemption: the presentation ==============================================
+
+test('completeRedemption() with the issued token appends redeemed { via: "token", tokenDigest }', async () => {
+  const { handles, recordId, token } = await redeemingRecord();
+
+  const outcome = await handles.operator.completeRedemption(recordId, token, CONTENT);
+  assert.equal(outcome.status, 'ok');
+  if (outcome.status !== 'ok') return;
+  assert.equal(outcome.value.state, 'redeemed');
+
+  const chain = await handles.operator.readChain(recordId);
+  const last = chain.at(-1);
+  assert.ok(last !== undefined);
+  assert.equal(last.kind, 'redeemed');
+  // PAYLOAD KEY-SET PIN: exactly { via, tokenDigest } — §4's table row for the token
+  // completion; the digest ties completion to issuance in the chain itself.
+  assert.deepEqual(Object.keys(last.payload as object).sort(), ['tokenDigest', 'via']);
+  assert.deepEqual(last.payload, { via: 'token', tokenDigest: digest(token) });
+  assert.ok(!JSON.stringify(chain).includes(token), 'completion must not persist the token');
+
+  const record = await handles.operator.getRecord(recordId);
+  assert.equal(record?.state, 'redeemed');
+});
+
+test('THE RELEASE via the token path: after completion, the pair is held no longer', async () => {
+  const store = new MemoryStore();
+  const { handles, recordId, token } = await redeemingRecord(store);
+
+  assert.equal(
+    await store.findNonTerminal('test.effect.v1', DEFAULT_SUBJECT_REF),
+    recordId,
+    'fixture: the redeeming record holds the pair through the token window',
+  );
+
+  const outcome = await handles.operator.completeRedemption(recordId, token, CONTENT);
+  assert.equal(outcome.status, 'ok', 'fixture: the completion must succeed');
+
+  assert.equal(await store.findNonTerminal('test.effect.v1', DEFAULT_SUBJECT_REF), null);
+
+  const staged = await handles.agent.stage(
+    { subject: 'week-2', total: 41 },
+    'test.effect.v1',
+    DEFAULT_SUBJECT_REF,
+  );
+  assert.equal(staged.status, 'ok');
+  if (staged.status !== 'ok') return;
+  const reopened = await handles.operator.open(staged.value.stagedRef);
+  assert.equal(reopened.status, 'ok', 'a fresh decision for the released pair opens');
+});
+
+test('exclusivity through the token window: a second open() refuses record-exists, findNonTerminal names the blocker', async () => {
+  // §4: "open()'s exclusivity check never auto-resolves a `redeeming` blocker, due or
+  // not — it refuses `record-exists`" (the non-due variant is the only constructible one
+  // in this build). ALSO the latent-throw fix pin: before the second step-3 increment,
+  // open()'s blocker replay THREW on a redeeming chain; the replay arm fixed it.
+  const store = new MemoryStore();
+  const { handles } = await redeemingRecord(store);
+
+  const staged = await handles.agent.stage(
+    { subject: 'week-2', total: 99 },
+    'test.effect.v1',
+    DEFAULT_SUBJECT_REF,
+  );
+  assert.equal(staged.status, 'ok');
+  if (staged.status !== 'ok') return;
+  const second = await handles.operator.open(staged.value.stagedRef);
+  assert.equal(second.status, 'refused');
+  if (second.status !== 'refused') return;
+  assert.equal(second.code, 'record-exists');
+});
+
+test('at-most-once, replay half: a second completion refuses already-redeemed (even with the right token)', async () => {
+  const { handles, recordId, token } = await redeemingRecord();
+  const first = await handles.operator.completeRedemption(recordId, token, CONTENT);
+  assert.equal(first.status, 'ok');
+
+  const again = await handles.operator.completeRedemption(recordId, token, CONTENT);
+  assert.equal(again.status, 'refused');
+  if (again.status !== 'refused') return;
+  assert.equal(again.code, 'already-redeemed');
+});
+
+test('begin after completion refuses already-redeemed (a begin is a redemption attempt too)', async () => {
+  const { handles, recordId, token } = await redeemingRecord();
+  await handles.operator.completeRedemption(recordId, token, CONTENT);
+
+  const begun = await handles.operator.beginRedemption(recordId, CONTENT);
+  assert.equal(begun.status, 'refused');
+  if (begun.status !== 'refused') return;
+  assert.equal(begun.code, 'already-redeemed');
+});
+
+test('a wrong token refuses effect-mismatch, no append', async () => {
+  const { handles, recordId } = await redeemingRecord();
+  const before = (await handles.operator.readChain(recordId)).length;
+
+  const outcome = await handles.operator.completeRedemption(
+    recordId,
+    'A'.repeat(43), // format-plausible, value-wrong
+    CONTENT,
+  );
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'effect-mismatch');
+  assert.equal((await handles.operator.readChain(recordId)).length, before);
+});
+
+test('mismatched content at completion refuses effect-mismatch, no append', async () => {
+  const { handles, recordId, token } = await redeemingRecord();
+  const outcome = await handles.operator.completeRedemption(recordId, token, {
+    subject: 'week-1',
+    total: 41,
+  });
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'effect-mismatch');
+});
+
+test('content that re-canonicalizes identically completes ok (key order is not content)', async () => {
+  const { handles, recordId, token } = await redeemingRecord();
+  const outcome = await handles.operator.completeRedemption(recordId, token, {
+    total: 40,
+    subject: 'week-1', // same content, different key order — JCS canonicalizes
+  });
+  assert.equal(outcome.status, 'ok');
+});
+
+test('completion against a never-began confirmed record refuses unredeemable-state', async () => {
+  const { handles, recordId } = await confirmedEffectRecord();
+  const outcome = await handles.operator.completeRedemption(recordId, 'A'.repeat(43), CONTENT);
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'unredeemable-state');
+});
+
+test('direct redeem() on a redeeming record refuses unredeemable-state — no token-bypassing close', async () => {
+  // The first increment's defensive arm, now REACHABLE and pinned: a direct close of a
+  // token-opened window would bypass the presentation the executor deduplicates on
+  // (§11.2's Honest bound).
+  const { handles, recordId } = await redeemingRecord();
+  const outcome = await handles.operator.redeem(recordId, CONTENT);
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'unredeemable-state');
+});
+
+test('completeRedemption: a non-string token throws at argument intake (caller bug, not a refusal)', async () => {
+  const { handles, recordId } = await redeemingRecord();
+  await assert.rejects(
+    handles.operator.completeRedemption(recordId, undefined as unknown as string, CONTENT),
+    /token must be a string/,
+  );
+});
+
+test('completeRedemption: a garbled persisted tokenDigest THROWS naming the storage fault, never loops on effect-mismatch', async () => {
+  // A hash-intact chain whose redeeming payload lacks a string tokenDigest is a
+  // storage/config fault (SPEC §8's loud-throw posture — the legId-throw precedent), not
+  // "your token does not correspond": no token could ever correspond, and refusing
+  // effect-mismatch would send the operator into a permanent retry loop against a lie.
+  //
+  // A TamperingStore cannot build this fixture: a payload tamper breaks the hash chain,
+  // so rung (1) would refuse chain-compromise before the payload read. Instead the chain
+  // is constructed DIRECTLY with storeGenesis/storeNext, which compute VALID hashes over
+  // whatever payload they are given — the chain verifies clean and the garbled payload
+  // reaches rung (5).
+  const store = new MemoryStore();
+  const genesis = storeGenesis('rec-garbled', 'test.effect.v1', DEFAULT_SUBJECT_REF);
+  const confirmed = storeNext(genesis, 'confirmed', {
+    actor: { principal: 'approver:1', authority: 'session:test-app' },
+  });
+  const redeeming = storeNext(confirmed, 'redeeming', { tokenDigest: 42 });
+  await store.appendTransition(null, genesis, { nonTerminal: true });
+  await store.appendTransition('open', confirmed, { nonTerminal: true });
+  await store.appendTransition('confirmed', redeeming, { nonTerminal: true });
+
+  const handles = create(makeConfig([effectSeamProfile()], { store }));
+  await assert.rejects(
+    handles.operator.completeRedemption('rec-garbled', 'A'.repeat(43), CONTENT),
+    /tokenDigest/,
+  );
+});
+
+// === safe to ship, not yet safe to operate: the strand set ============================
+
+test('a begun record with a lost token has NO exit in this build except completion with the token', async () => {
+  // Until the clock increment lands redeemBound's resolution, a lost token strands the
+  // pair (SPEC §11.2 prices exactly this; §9.1's SHOULD-declare-redeemBound is
+  // GOVERNED-guarded until the clock exists). Every seam refuses; the sweep is blind
+  // (no dueAt was ever written). Pinned so the operational bound is executable fact.
+  const store = new MemoryStore();
+  const { handles, recordId, token } = await redeemingRecord(store);
+
+  const sealed = await handles.operator.seal(recordId);
+  assert.equal(sealed.status, 'refused');
+  if (sealed.status === 'refused') assert.equal(sealed.code, 'unsealable-state');
+
+  const direct = await handles.operator.redeem(recordId, CONTENT);
+  assert.equal(direct.status, 'refused');
+  if (direct.status === 'refused') assert.equal(direct.code, 'unredeemable-state');
+
+  const fin = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(fin.status, 'refused');
+  if (fin.status === 'refused') assert.equal(fin.code, 'record-not-open');
+
+  assert.deepEqual(
+    await store.listDue(new Date('2999-01-01T00:00:00.000Z')),
+    [],
+    'no dueAt exists — the sweep is blind to the stranded record',
+  );
+
+  // The sole exit works:
+  const done = await handles.operator.completeRedemption(recordId, token, CONTENT);
+  assert.equal(done.status, 'ok');
+});
+
+// === adjacent-pair order tests, both ladders ===========================================
+// Derived per redeem.test.ts's discipline. BEGIN ladder — jointly constructible pairs:
+//   (1)->(4): tampered chain + redeeming state — chain-compromise must win (covered by
+//     the tampered-redeeming tests above).
+//   (4)->(5): a redeemed record offered WRONG content — already-redeemed must win.
+//   (4)->(5) re-issue half: a redeeming record offered wrong content —
+//     unredeemable-state must win.
+// COMPLETE ladder — jointly constructible pairs:
+//   (4)->(5): a redeemed record + WRONG token — already-redeemed must win (at-most-once
+//     outranks mismatch reporting).
+//   (5) internal (token-vs-content order): NOT pinnable via codes — both refuse
+//     effect-mismatch; recorded here, not tested.
+//   (5)->(6): a mismatch plus a racing writer — needs the racing store; the racing task
+//     covers the (6) residual on its own.
+// Not jointly constructible (and why): (2)->(x) — an unconfigured profile is
+// defensive-only, as redeem.test.ts's derivation records; (3)->(4) — a pure-capture
+// record cannot reach redeeming/redeemed.
+
+test('order (4)->(5), begin ladder: a redeemed record with wrong content refuses already-redeemed', async () => {
+  const { handles, recordId, token } = await redeemingRecord();
+  await handles.operator.completeRedemption(recordId, token, CONTENT);
+  const outcome = await handles.operator.beginRedemption(recordId, {
+    subject: 'week-1',
+    total: 999,
+  });
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'already-redeemed');
+});
+
+test('order (4)->(5), begin ladder re-issue half: a redeeming record with wrong content refuses unredeemable-state', async () => {
+  const { handles, recordId } = await redeemingRecord();
+  const outcome = await handles.operator.beginRedemption(recordId, {
+    subject: 'week-1',
+    total: 999,
+  });
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'unredeemable-state');
+});
+
+test('order (4)->(5), complete ladder: a redeemed record with a WRONG token refuses already-redeemed', async () => {
+  const { handles, recordId, token } = await redeemingRecord();
+  await handles.operator.completeRedemption(recordId, token, CONTENT);
+  const outcome = await handles.operator.completeRedemption(recordId, 'A'.repeat(43), CONTENT);
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'already-redeemed');
 });

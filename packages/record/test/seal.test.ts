@@ -297,6 +297,24 @@ test('seal() on a tampered chain over an ALREADY-SEALED record -> chain-compromi
   assert.deepEqual(await inner.readChain(recordId), before, 'nothing landed');
 });
 
+test('seal() on a redeeming record refuses unsealable-state — the token window is non-terminal (argued → proven)', async () => {
+  // SPEC §2: `redeeming` is non-terminal (decided, effect unresolved); §12 admits seal
+  // only against a derived-terminal record. Constructible since the second step-3
+  // increment — this pin converts seal.ts's gate-(4) argument into an executing proof.
+  const store = new MemoryStore();
+  const handles = create(makeConfig([effectSeamProfile()], { store }));
+  const recordId = await openRecord(handles, CONTENT, 'test.effect.v1', DEFAULT_SUBJECT_REF);
+  const done = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(done.status, 'ok');
+  const begun = await handles.operator.beginRedemption(recordId, CONTENT);
+  assert.equal(begun.status, 'ok');
+
+  const sealed = await handles.operator.seal(recordId);
+  assert.equal(sealed.status, 'refused');
+  if (sealed.status !== 'refused') return;
+  assert.equal(sealed.code, 'unsealable-state');
+});
+
 test('seal() on a tampered chain over a NON-TERMINAL record -> chain-compromise, not unsealable-state', async () => {
   // Adjacent-pair order test (1)->(4). `tamperNonLast` needs a NON-LAST transition to
   // tamper, and a bare open() leaves a 1-transition chain (genesis only) — nothing precedes

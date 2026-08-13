@@ -33,6 +33,7 @@ import { finalize as finalizeKernel } from './kernel/finalize.js';
 import { open as openKernel } from './kernel/open.js';
 import {
   beginRedemption as beginRedemptionKernel,
+  completeRedemption as completeRedemptionKernel,
   redeem as redeemKernel,
 } from './kernel/redeem.js';
 import { review as reviewKernel } from './kernel/review.js';
@@ -102,6 +103,7 @@ export interface Kernel {
   finalize: OperatorSurface['finalize'];
   redeem: OperatorSurface['redeem'];
   beginRedemption: OperatorSurface['beginRedemption'];
+  completeRedemption: OperatorSurface['completeRedemption'];
   seal: OperatorSurface['seal'];
   replay: OperatorSurface['replay'];
   verifyChain: OperatorSurface['verifyChain'];
@@ -134,6 +136,12 @@ function makeKernel(ctx: KernelContext): Kernel {
     // --- beginRedemption(): kernel/redeem.ts — the TOKEN shape's issuance half (SPEC
     // §11.2, second step-3 increment): `confirmed → redeeming { tokenDigest }` ---
     beginRedemption: (recordId, content) => beginRedemptionKernel(ctx, recordId, content),
+
+    // --- completeRedemption(): kernel/redeem.ts — the TOKEN shape's presentation half
+    // (SPEC §11.2, second step-3 increment): `redeeming → redeemed { via: 'token',
+    // tokenDigest }` on presenting the issued token ---
+    completeRedemption: (recordId, token, content) =>
+      completeRedemptionKernel(ctx, recordId, token, content),
 
     // --- seal(): kernel/seal.ts — the operator-only chain-retirement seam ---
     seal: (recordId) => sealKernel(ctx, recordId),

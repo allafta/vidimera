@@ -37,10 +37,10 @@
 // the shared transaction itself.
 //
 // The token shape (`redeeming`, tokenDigest, presentation) is REAL as of the second
-// step-3 increment: `beginRedemption` below is its issuance half; `completeRedemption`,
-// its presentation half, is a later increment's addition. Both redemption clocks remain
-// the third increment's; `redemption-failed` stays a defensive, dead-until-clock arm,
-// never claimed as a spec-granted producer.
+// step-3 increment: `beginRedemption` below is its issuance half, `completeRedemption`
+// its presentation half. Both redemption clocks remain the third increment's;
+// `redemption-failed` stays a defensive, dead-until-clock arm, never claimed as a
+// spec-granted producer.
 
 import { canonicalize, digest } from '../canonical.js';
 import { transitionDigest } from '../chain/encoding.js';
@@ -274,4 +274,113 @@ export async function beginRedemption(
     return refused('unredeemable-state');
   }
   return ok({ recordId, state: 'redeeming', token, transitionRef: res.transitionDigest });
+}
+
+/**
+ * completeRedemption — SPEC §11.2's token shape, the PRESENTATION half (second step-3
+ * increment): `redeeming → redeemed { via: 'token', tokenDigest }` on presenting the
+ * issued token. At-most-once's replay half is the state gate (`already-redeemed`,
+ * checked BEFORE correspondence — outranks mismatch reporting); the correspondence rung
+ * checks the token (digest of the presented token vs the chain-recorded tokenDigest)
+ * then the content, both refusing `effect-mismatch` — one code by §11.2's own sentence,
+ * so the internal order is unobservable and recorded here rather than pinned. The
+ * executor's own deduplication, keyed on the token, remains the separated host's MUST
+ * (§11.2's Honest bound) — this seam is defense-in-depth beside it, never a substitute.
+ * NO tx, deliberately — same argument as beginRedemption's doc comment.
+ */
+export async function completeRedemption(
+  ctx: KernelContext,
+  recordId: string,
+  token: string,
+  content: unknown,
+): Promise<Outcome<{ recordId: string; state: 'redeemed'; transitionRef: Digest }>> {
+  if (typeof token !== 'string') {
+    // A caller bug throws at argument intake, ahead of every outcome — the same depth as
+    // finalize's consultation-shape throw (SPEC §8: caller errors are not refusals). An
+    // unguarded non-string would surface as an incidental TypeError out of the digest
+    // internals, which is the one wrong answer.
+    throw new TypeError(
+      `completeRedemption: token must be a string (got ${typeof token}) — a caller error, not a domain refusal (SPEC §8)`,
+    );
+  }
+  const { store, now } = ctx;
+  const pro = await prologue(ctx, 'completeRedemption', recordId);
+  if ('refusal' in pro) return pro.refusal;
+  const { chain, record, resolved, finalLeg } = pro.gated;
+
+  // --- (4) state gate ------------------------------------------------------------------
+  if (record.state === 'redeemed') {
+    // §11.2: "a replayed redemption of an already-redeemed record refuses
+    // `already-redeemed`" — checked before any correspondence.
+    return refused('already-redeemed');
+  }
+  if (record.state !== 'redeeming') {
+    // A never-began `confirmed`, and open/refused/expired. `redemption-failed` is DEAD
+    // CODE until the clock increment — replay() still throws on that kind upstream, so
+    // no record can reach this gate carrying it; the arm exists for the day it can.
+    return refused('unredeemable-state');
+  }
+
+  // --- (5) correspondence: the token, then the content -----------------------------------
+  let issued: Transition | undefined;
+  for (let i = chain.length - 1; i >= 0; i--) {
+    const t = chain[i];
+    if (t !== undefined && t.kind === 'redeeming') {
+      issued = t;
+      break;
+    }
+  }
+  if (issued === undefined) {
+    throw new Error(
+      `completeRedemption: state is 'redeeming' but no redeeming transition exists in the chain for '${recordId}' — the replay fold guarantees one`,
+    );
+  }
+  const persisted = (issued.payload as { tokenDigest?: unknown }).tokenDigest;
+  if (typeof persisted !== 'string') {
+    // A hash-intact chain whose redeeming payload carries no string tokenDigest is a
+    // storage/config fault — SPEC §8's loud-throw posture (the legId-throw precedent),
+    // NEVER `effect-mismatch`: no presentable token could ever correspond, and the
+    // refusal would send the operator into a permanent retry loop against a lie.
+    throw new Error(
+      `completeRedemption: persisted 'redeeming' payload for record '${recordId}' carries no string tokenDigest — a garbled or foreign chain is a storage/config fault, not a domain outcome (SPEC §8)`,
+    );
+  }
+  // Plain `===` over digest strings, DELIBERATELY not a constant-time compare: the
+  // compared value (tokenDigest) is public chain data any chain reader already holds;
+  // the secret is the PREIMAGE, protected by the digest's preimage resistance. A timing
+  // oracle on `===` can only ever recover the non-secret side; `timingSafeEqual` here
+  // would defend nothing. (Written down so nobody "fixes" it.)
+  if (digest(token) !== persisted) {
+    return refused('effect-mismatch');
+  }
+  const recomputed = digest(canonicalize(resolved.canonicalizer(content)));
+  if (recomputed !== record.contentDigest) {
+    return refused('effect-mismatch');
+  }
+
+  // --- (6) append `redeeming → redeemed { via: 'token', tokenDigest }` ------------------
+  const last = chain.at(-1);
+  if (last === undefined) {
+    throw new Error('completeRedemption: empty chain — the prologue length check holds');
+  }
+  const redeemedTransition: Transition = {
+    recordId,
+    seq: chain.length + 1,
+    at: now().toISOString(),
+    kind: 'redeemed',
+    payload: { via: 'token', tokenDigest: persisted },
+    prevHash: transitionDigest(last),
+  };
+  // Terminal by the derivation — THE RELEASE via the token path; dueAt omitted clears
+  // nothing (none was ever written in this build) and is §12's omission rule regardless.
+  const meta: AppendMeta = {
+    nonTerminal: nonTerminal('redeemed', finalLeg, resolved.effectSeam),
+  };
+  const res = await store.appendTransition('redeeming', redeemedTransition, meta);
+  if (!res.appended) {
+    // A racing writer; result-first. (The family-wide residual re-read refinement
+    // replaces this in a later task of the second step-3 increment.)
+    return refused('unredeemable-state');
+  }
+  return ok({ recordId, state: 'redeemed', transitionRef: res.transitionDigest });
 }
