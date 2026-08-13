@@ -87,7 +87,14 @@ export function effectSeamProfile(overrides: ProfileOverrides = {}): ConfirmProf
     legs: [buildLeg(overrides)],
     captureMode: 'staged',
     expiry: resolveExpiry(overrides),
-    redeem: { confirmToRedeem: 1, redeemBound: 86400 },
+    // `redeemBound` was declared here (86400) from step 1 until the second step-3
+    // increment, riding the accepted-but-inert posture. That increment GOVERNED-guarded
+    // it (config.ts): the token shape mints `redeeming` edges, and SPEC §4's
+    // present-iff-declared `bound` would make a declaring profile's chain bytes
+    // permanently divergent until the clock increment builds the bound whole. Dropping
+    // it here is that increment's authorized fixture inversion — construction-
+    // validation.test.ts pins the throw.
+    redeem: { confirmToRedeem: 1 },
   };
 }
 
