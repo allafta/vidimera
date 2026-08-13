@@ -25,7 +25,9 @@ import {
   identity,
   makeConfig,
   openRecord,
+  tamperNonLast,
 } from './helpers/profiles.js';
+import { TamperingStore } from './helpers/stores.js';
 
 const CONTENT = { subject: 'week-1', total: 40 };
 
@@ -208,4 +210,68 @@ test('the injectable tokenSource drives a deterministic token (internal seam, li
   assert.equal(begun.status, 'ok');
   if (begun.status !== 'ok') return;
   assert.equal(begun.value.token, 'fixed-token-under-test-000000000000000000000');
+});
+
+// === row 10: the redeeming chain-compromise candidates =================================
+
+test('verify-first on a tampered redeeming chain: chain-compromise WITH a transitionRef, edge redeeming→refused', async () => {
+  // Deferral-register row 10, retired by building at the second step-3 increment: SPEC §5
+  // admits `redeeming → refused` DIRECTLY ("both are non-terminal states"). Before this
+  // increment, a tampered redeeming chain fell through appendChainCompromise's catch
+  // branch (replay threw on the kind) and would have surfaced REF-LESS; the candidate
+  // lists now carry 'redeeming'.
+  const inner = new MemoryStore();
+  const { recordId, token } = await redeemingRecord(inner);
+
+  void token; // the completion-driven twin of this test lands with completeRedemption
+  const tampering = new TamperingStore(inner, recordId, tamperNonLast);
+  const handles = create(makeConfig([effectSeamProfile()], { store: tampering }));
+
+  const outcome = await handles.operator.beginRedemption(recordId, CONTENT);
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'chain-compromise');
+  assert.ok(outcome.transitionRef !== undefined, 'the compromise edge must carry a ref');
+
+  const real = await inner.readChain(recordId);
+  const last = real.at(-1);
+  assert.ok(last !== undefined);
+  assert.equal(last.kind, 'refused');
+  assert.deepEqual(last.payload, { code: 'chain-compromise' });
+});
+
+test('verify-first on a GENESIS-KIND-tampered redeeming chain (replay throws, forcing the catch-branch candidate fallback): chain-compromise WITH a transitionRef', async () => {
+  // The corner row 10 actually names: replay(chain) THROWS on the tampered chain (the
+  // genesis kind is corrupted, so replay cannot even seed a DecisionRecord), forcing
+  // appendChainCompromise's catch branch — the STATIC candidate list — rather than the
+  // dynamic replay(chain).state candidate the test above exercises. Before this
+  // increment's kernel/finalize.ts edit, that static list was `['open', 'confirmed']`,
+  // neither of which matches the record's true persisted state ('redeeming'), so every
+  // candidate CAS would have failed state-mismatch and the compromise would have
+  // surfaced result-first with NO transitionRef (the ref-less fallback). The static list
+  // now carries 'redeeming' too, so the CAS against the record's true state succeeds.
+  const inner = new MemoryStore();
+  const { recordId, token } = await redeemingRecord(inner);
+  void token; // the completion-driven twin of this test lands with completeRedemption
+
+  const tampering = new TamperingStore(inner, recordId, (chain) => {
+    const t = structuredClone(chain);
+    const genesis = t[0];
+    if (genesis === undefined) throw new Error('fixture: chain has a genesis');
+    t[0] = { ...genesis, kind: 'confirmed' }; // genesis KIND tamper — replay() throws
+    return t;
+  });
+  const handles = create(makeConfig([effectSeamProfile()], { store: tampering }));
+
+  const outcome = await handles.operator.beginRedemption(recordId, CONTENT);
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'chain-compromise');
+  assert.ok(outcome.transitionRef !== undefined, 'the compromise edge must carry a ref');
+
+  const real = await inner.readChain(recordId);
+  const last = real.at(-1);
+  assert.ok(last !== undefined);
+  assert.equal(last.kind, 'refused');
+  assert.deepEqual(last.payload, { code: 'chain-compromise' });
 });

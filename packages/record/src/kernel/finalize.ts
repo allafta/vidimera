@@ -307,9 +307,15 @@ function batchConflict(conflict: 'seq', index: number): Error {
  * non-last transition (the tests' fixtures) leaves the kinds intact and replay yields the true
  * state. If replay itself THROWS on a tampered chain (a corrupted field it reads / a non-genesis
  * first kind — not producible by the tests' payload tampers), we cannot pick a CAS target from
- * it: fall back to trying `'open'` then `'confirmed'`. Either way the append target is chosen
- * from an ORDERED candidate list and the FIRST target whose CAS succeeds wins (a failed CAS
- * appends nothing, so retrying against another target is safe).
+ * it: fall back to trying `'open'` then `'confirmed'`, and — since the second step-3
+ * increment — `'redeeming'`, the fallback's third producible target (deferral-register row
+ * 10). A genesis-KIND-tampered `redeeming` chain forces exactly this fallback (`replay`
+ * throws before it can even fold a state) and now lands `redeeming→refused` WITH a
+ * transitionRef via the `'redeeming'` candidate; before this increment named that target, the
+ * same corner exhausted `'open'`/`'confirmed'` without a match and surfaced result-first with
+ * NO transitionRef instead. Either way the append target is chosen from an ORDERED candidate
+ * list and the FIRST target whose CAS succeeds wins (a failed CAS appends nothing, so
+ * retrying against another target is safe).
  *
  * EXPORTED: `kernel/seal.ts`'s `seal()` is a second caller — chain-verify is its rung (1) too
  * (SPEC §5: "Verification is first"), and it reuses this same append rather than a copy. That
@@ -329,6 +335,11 @@ function batchConflict(conflict: 'seq', index: number): Error {
  * replayed state's own CAS candidate (`redeemed`) passes the entry state check but C3's
  * monotonicity then rejects the state-leaving `refused` (no carve-out for `redeemed`), so this
  * shape too surfaces result-first with no transitionRef.
+ *
+ * `kernel/redeem.ts`'s `beginRedemption` (second step-3 increment) and `completeRedemption`
+ * (a later increment) are FURTHER un-enlisted callers of this same append, through the SAME
+ * shared `prologue()` chain-verify-first rung the direct shape uses — no copy of this
+ * function, and no new shape beyond the `redeeming` candidate named above.
  */
 export async function appendChainCompromise(
   store: Store,
@@ -337,10 +348,10 @@ export async function appendChainCompromise(
 ): Promise<Outcome<never>> {
   let candidates: RecordState[];
   try {
-    candidates = dedupe([replay(chain).state, 'open', 'confirmed']);
+    candidates = dedupe([replay(chain).state, 'open', 'confirmed', 'redeeming']);
   } catch {
-    // A tampered chain replay cannot fold a state — fall back to the two producible targets.
-    candidates = ['open', 'confirmed'];
+    // A tampered chain replay cannot fold a state — fall back to the three producible targets.
+    candidates = ['open', 'confirmed', 'redeeming'];
   }
 
   const last = chain.at(-1);
