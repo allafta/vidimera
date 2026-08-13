@@ -72,10 +72,14 @@ interface RefusedPayload {
  *  - `redeemed` (SPEC §11.2's direct shape; `{via}`) sets `state: 'redeemed'`. The `via`
  *    payload field is EVIDENCE, not state — it records which redemption shape produced the
  *    edge, and `replay` reads nothing from it; only `state` moves.
+ *  - `redeeming` (SPEC §11.2's token shape, second step-3 increment; `{tokenDigest}`) sets
+ *    `state: 'redeeming'`. The `tokenDigest` payload field is EVIDENCE, not state — replay
+ *    reads nothing from it; only `state` moves.
  *  - Any other `TransitionKind` (`finding-raised`,
- *    `acknowledged`, `redeeming`, `redemption-failed`) is not yet emitted
+ *    `acknowledged`, `redemption-failed`) is not yet emitted
  *    in this build — this kernel emits only opened, consultation-recorded, confirmed,
- *    refused, expired, and redeemed — `replay` THROWS on one rather than silently ignoring it,
+ *    refused, expired, sealed, redeemed, and — as of the second step-3 increment —
+ *    redeeming — `replay` THROWS on one rather than silently ignoring it,
  *    matching the codebase's fail-closed posture (an unhandled kind reaching this fold
  *    is either a not-yet-wired future capability or chain corruption; both should be
  *    loud, not silently dropped state).
@@ -150,6 +154,15 @@ export function replay(chain: readonly Transition[]): DecisionRecord {
         // redemption shape produced the edge, not state — replay reads nothing from it; only
         // `state` moves, the same one field a `confirmed`/`refused`/`expired` arm moves.
         record.state = 'redeemed';
+        break;
+      }
+      case 'redeeming': {
+        // State-MOVING (SPEC §11.2's token shape, second step-3 increment):
+        // `confirmed → redeeming` records the issued token's digest. Non-terminal (§2:
+        // decided, effect unresolved). The payload's `tokenDigest` (and, when the clock
+        // increment lands it, `bound`) is EVIDENCE — replay reads nothing from it; only
+        // `state` moves.
+        record.state = 'redeeming';
         break;
       }
       default: {

@@ -11,7 +11,7 @@ import { digest } from '../src/canonical.js';
 import { genesisPrevHash, transitionDigest } from '../src/chain/encoding.js';
 import { replay, verifyChain } from '../src/chain/replay.js';
 import type { Consultation, IdentityAssertion, Transition } from '../src/types.js';
-import { buildChain, cloneChain } from './helpers/chain.js';
+import { buildChain, cloneChain, storeGenesis, storeNext } from './helpers/chain.js';
 
 // --- fixtures ----------------------------------------------------------------------
 
@@ -201,6 +201,39 @@ test('replay(): throws on a TransitionKind the kernel in this build never emits 
     { kind: 'finding-raised', payload: { note: 'not a kind this build emits' } },
   ]);
   assert.throws(() => replay(chain), /finding-raised/);
+});
+
+test('replay: a redeeming transition folds state to "redeeming" — tokenDigest is evidence, not state', () => {
+  // New at the second step-3 increment: `redeeming` gets a replay arm (SPEC §2: decided,
+  // effect unresolved — non-terminal). The payload's tokenDigest is never folded into
+  // DecisionRecord — the same evidence-not-state posture as `redeemed`'s `via`.
+  const genesis = storeGenesis('rec-replay-redeeming', 'profile.p1', 'subject:rr');
+  const confirmed = storeNext(genesis, 'confirmed', {
+    actor: { principal: 'approver:1', authority: 'session:test-app' },
+  });
+  const redeeming = storeNext(confirmed, 'redeeming', {
+    tokenDigest: `sha256:${'a'.repeat(64)}`,
+  });
+  const record = replay([genesis, confirmed, redeeming]);
+  assert.equal(record.state, 'redeeming');
+  assert.equal(record.status, 'active');
+  assert.equal(record.actor?.principal, 'approver:1');
+  assert.equal('tokenDigest' in record, false);
+});
+
+test('replay: redemption-failed still throws — no producer until the clock increment', () => {
+  const genesis = storeGenesis('rec-replay-rf', 'profile.p1', 'subject:rf');
+  const confirmed = storeNext(genesis, 'confirmed', {
+    actor: { principal: 'approver:1', authority: 'session:test-app' },
+  });
+  const redeeming = storeNext(confirmed, 'redeeming', {
+    tokenDigest: `sha256:${'b'.repeat(64)}`,
+  });
+  const failed = storeNext(redeeming, 'redemption-failed', { bound: '2026-01-01T00:00:00.000Z' });
+  assert.throws(
+    () => replay([genesis, confirmed, redeeming, failed]),
+    /unhandled TransitionKind 'redemption-failed'/,
+  );
 });
 
 // === verifyChain() ===================================================================
