@@ -18,6 +18,7 @@
 // `replay`/`verifyChain` `recordId` audit wrappers are REAL: direct Store delegation + the
 // pure `chain/replay.ts` core.
 
+import { randomBytes } from 'node:crypto';
 import { type AgentSurface, makeAgentSurface } from './agent-surface.js';
 import { type Canonicalizer, resolveCanonicalizer } from './canonical.js';
 import { replay as replayCore, verifyChain as verifyChainCore } from './chain/replay.js';
@@ -30,7 +31,10 @@ import {
 import { mintRecordId } from './id.js';
 import { finalize as finalizeKernel } from './kernel/finalize.js';
 import { open as openKernel } from './kernel/open.js';
-import { redeem as redeemKernel } from './kernel/redeem.js';
+import {
+  beginRedemption as beginRedemptionKernel,
+  redeem as redeemKernel,
+} from './kernel/redeem.js';
 import { review as reviewKernel } from './kernel/review.js';
 import { seal as sealKernel } from './kernel/seal.js';
 import { stage as stageKernel } from './kernel/stage.js';
@@ -67,12 +71,20 @@ export interface ResolvedProfile {
  * inside every transition digest, so real randomness would make byte-for-byte
  * reproduction impossible). Like `now`, it is deliberately OFF the public surface —
  * `open()` consumes it in place of importing `mintRecordId` directly.
+ *
+ * `tokenSource` is the injectable single-use-token minter (SPEC §11.2's token shape,
+ * second step-3 increment): it defaults to `defaultTokenSource` below (32 bytes of
+ * crypto randomness) and, like `now`/`mintId`, is deliberately OFF the public surface —
+ * overridden ONLY by `createWithClock` so a cross-backing byte-identity test can drive a
+ * FIXED token (the token's digest, `tokenDigest`, sits inside the `redeeming`
+ * transition's digest, the same reproducibility argument `mintId` makes for `recordId`).
  */
 export interface KernelContext {
   store: Store;
   profiles: Map<string, ResolvedProfile>;
   now: () => Date;
   mintId: () => string;
+  tokenSource: () => string;
 }
 
 /**
@@ -89,6 +101,7 @@ export interface Kernel {
   review: OperatorSurface['review'];
   finalize: OperatorSurface['finalize'];
   redeem: OperatorSurface['redeem'];
+  beginRedemption: OperatorSurface['beginRedemption'];
   seal: OperatorSurface['seal'];
   replay: OperatorSurface['replay'];
   verifyChain: OperatorSurface['verifyChain'];
@@ -118,6 +131,10 @@ function makeKernel(ctx: KernelContext): Kernel {
     // --- redeem(): kernel/redeem.ts — the DIRECT-shape redemption seam (SPEC §11.2) ---
     redeem: (recordId, content, tx) => redeemKernel(ctx, recordId, content, tx),
 
+    // --- beginRedemption(): kernel/redeem.ts — the TOKEN shape's issuance half (SPEC
+    // §11.2, second step-3 increment): `confirmed → redeeming { tokenDigest }` ---
+    beginRedemption: (recordId, content) => beginRedemptionKernel(ctx, recordId, content),
+
     // --- seal(): kernel/seal.ts — the operator-only chain-retirement seam ---
     seal: (recordId) => sealKernel(ctx, recordId),
 
@@ -140,20 +157,32 @@ function realClock(): Date {
   return new Date();
 }
 
+/** The default token source: 32 bytes of crypto randomness, base64url (43 chars) —
+ * SPEC §11.2's "cryptographic randomness and enough entropy that its digest is not
+ * invertible by guessing" (§13's low-entropy-preimage limit). */
+function defaultTokenSource(): string {
+  return randomBytes(32).toString('base64url');
+}
+
 /**
- * `createWithClock(config, now, mintId?)` — the internal assembly with an INJECTABLE
- * clock AND `recordId` minter. The clock seam is the ONLY seam expiry tests use to
- * control "now" deterministically (no sleeping); the minter seam is what a
- * byte-stability test uses to drive a fixed id sequence so its digests reproduce
- * byte-for-byte. `mintId` defaults to real behavior (`id.ts`'s `mintRecordId`). Both are
- * exported for tests to import from `'../src/create.js'` but deliberately NOT
- * re-exported from `index.ts`, so neither knob enters the public surface — the public
- * factory is the 1-arg `create(config)` below.
+ * `createWithClock(config, now, mintId?, tokenSource?)` — the internal assembly with an
+ * INJECTABLE clock, `recordId` minter, AND single-use-token source. The clock seam is
+ * the ONLY seam expiry tests use to control "now" deterministically (no sleeping); the
+ * minter seam is what a byte-stability test uses to drive a fixed id sequence so its
+ * digests reproduce byte-for-byte; the token seam is the same determinism knob for
+ * `beginRedemption`'s minted token — the cross-backing byte-identity test drives a FIXED
+ * token through it so a `redeeming` transition's digest (which embeds `tokenDigest`)
+ * reproduces byte-for-byte too. `mintId` defaults to real behavior (`id.ts`'s
+ * `mintRecordId`); `tokenSource` defaults to real behavior (`defaultTokenSource` above).
+ * All three are exported for tests to import from `'../src/create.js'` but deliberately
+ * NOT re-exported from `index.ts`, so none of the three knobs enters the public
+ * surface — the public factory is the 1-arg `create(config)` below.
  */
 export function createWithClock(
   config: Config,
   now: () => Date,
   mintId: () => string = mintRecordId,
+  tokenSource: () => string = defaultTokenSource,
 ): { agent: AgentSurface; operator: OperatorSurface } {
   const profiles = new Map<string, ResolvedProfile>();
 
@@ -173,7 +202,7 @@ export function createWithClock(
     });
   }
 
-  const kernel = makeKernel({ store: config.store, profiles, now, mintId });
+  const kernel = makeKernel({ store: config.store, profiles, now, mintId, tokenSource });
   return {
     agent: makeAgentSurface(kernel),
     operator: makeOperatorSurface(kernel),

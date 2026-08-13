@@ -20,7 +20,17 @@ import { captureProfile, makeConfig } from './helpers/profiles.js';
 import { CountingStore } from './helpers/stores.js';
 
 const ALLOWED_AGENT_KEYS = ['chainHead', 'getRecord', 'readChain', 'stage'];
-const TRANSITIONING = ['open', 'review', 'finalize', 'redeem', 'seal', 'replay', 'verifyChain'];
+const TRANSITIONING = [
+  'open',
+  'review',
+  'finalize',
+  'redeem',
+  'beginRedemption',
+  'completeRedemption',
+  'seal',
+  'replay',
+  'verifyChain',
+];
 
 function agentHandle() {
   const { agent } = create(makeConfig([captureProfile()]));

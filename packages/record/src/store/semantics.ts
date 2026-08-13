@@ -92,11 +92,17 @@ export function isStateLeaving(kind: TransitionKind): boolean {
  * compromise-classed.
  *
  * The predicate ALSO accepts `expectedCurrentState === 'redeeming'`, which §12's C3 does
- * not name: that arm is defence in depth, not a C3 grant. §12's C1 counts any `redeeming`
- * as non-terminal, so a `redeeming` record never reaches the terminal branch that consults
- * this predicate at all, and SPEC §5 admits `redeeming → refused` directly — "both are
- * non-terminal states" — rather than through the carve-out. Keeping the arm costs nothing
- * and would still be correct if a later build step made that state reachable; claiming C3
+ * not name. The arm it services is now EXERCISED, not merely hypothetical: `beginRedemption`
+ * (second step-3 increment) produces real `redeeming` records, and
+ * `appendChainCompromise`'s candidate walk (kernel/finalize.ts, deferral-register row 10)
+ * now attempts a live CAS with `expectedCurrentState: 'redeeming'` against one. It remains
+ * defence in depth, not a C3 grant, though: §12's C1 counts any `redeeming` as non-terminal,
+ * so a `redeeming` record's persisted `non_terminal` flag is always 1, and a `redeeming`
+ * record therefore still never reaches the terminal branch that actually CONSULTS this
+ * predicate — that CAS succeeds through the ordinary non-terminal path instead. SPEC §5
+ * admits `redeeming → refused` directly — "both are non-terminal states" — rather than
+ * through the carve-out. Keeping the arm costs nothing and would still be correct if a
+ * later build step made a terminal-but-redeeming combination reachable; claiming C3
  * grants it would not be.
  *
  * The FIRST carve-out (a state-preserving `sealed` append) needs no corresponding

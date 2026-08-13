@@ -20,9 +20,9 @@ import type { RecordState } from './types.js';
  *    awaits redemption (SPEC §2: "non-terminal — it awaits redemption", of a final-leg
  *    `confirmed` on an effect-seam profile). A capture-only profile's final-leg `confirmed`
  *    (no effect seam) is terminal — this function returns `false` for it.
- *  - `redeeming` is always non-terminal — unreachable in this build (no
- *    caller here can ever produce this state, but the disjunction is written completely
- *    per the SPEC rather than narrowed to only the reachable disjuncts).
+ *  - `redeeming` is always non-terminal — produced by `beginRedemption` since the second
+ *    step-3 increment (the disjunction was written complete from step 1, ahead of that
+ *    producer).
  *  - Every other `RecordState` (`refused`, `expired`, `redeemed`, `redemption-failed`)
  *    is terminal: `false`.
  */

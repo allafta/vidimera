@@ -2,8 +2,9 @@
 // shape): the co-located coupling of a confirmed final-leg decision to its effect —
 // `confirmed → redeemed { via: 'direct' }`, enlisted in the host's transaction when one is
 // supplied, inside the adapter's own otherwise. The token shape (`redeeming`, tokenDigest,
-// presentation) and both redemption clocks are LATER step-3 increments; nothing here
-// constructs them.
+// presentation) is REAL as of the second step-3 increment — its issuance half
+// (`beginRedemption`) is covered in redeem-token.test.ts, not here; both redemption clocks
+// remain the third increment's, and nothing here constructs them either.
 //
 // The ladder under test (kernel/redeem.ts):
 //   (1) chain-verify -> chain-compromise      — §5: verification first, at every
@@ -12,8 +13,9 @@
 //                                               resolves a record it opened)
 //   (3) effect seam declared? -> unredeemable-state (pure-capture; §11.2 "on-iff-effects")
 //   (4) state gate -> already-redeemed on 'redeemed' (at-most-once, replay half);
-//       unredeemable-state on open/refused/expired (§11.2's preamble); redeeming and
-//       redemption-failed are defensive arms with no producer until the later increments
+//       unredeemable-state on open/refused/expired (§11.2's preamble) AND on 'redeeming'
+//       (this direct ladder holds no token to consume — completeRedemption is that seam);
+//       redemption-failed remains a defensive arm with no producer until the clock increment
 //   (5) correspondence -> effect-mismatch     — re-digest of the supplied content vs the
 //                                               bound contentDigest, same path as stage()
 //   (6) append redeemed { via: 'direct' }     — meta from the terminality derivation
