@@ -484,6 +484,18 @@ arriving with its own future build step:
   transition kinds and their payload shapes, `kernel/redeem.ts`'s full gate ladder, token
   issuance, and the residual-conflict resolver (`chain/replay.ts`, `kernel/redeem.ts`,
   `kernel/expiry.ts`'s two redemption clocks, `refusal-codes.ts`'s four redemption codes).
+
+  **Update, present tense:** most of this has since landed, across two increments. The
+  first (commit `77cbc8d`) landed the direct shape: `redeeming`/`redeemed` transition kinds
+  real for that path, `kernel/redeem.ts`'s gate ladder, and the `effect-mismatch` /
+  `already-redeemed` codes — a gap this bullet's own increment's sweep missed, corrected
+  only now. The second landed the token shape: `beginRedemption`/`completeRedemption`
+  (`kernel/redeem.ts`), the token's issuance and presentation, and the family-wide
+  residual-conflict resolver (the CAS-residual re-read). What remains LATER-STEP: the two
+  redemption clocks (`kernel/expiry.ts`'s `confirmToRedeem`/`redeemBound` resolution) and
+  `redemption-failed`'s producer, including the fourth redemption code,
+  `redemption-timeout`. `docs/process/implementation-status.md` carries the current
+  account.
 - **Multi-leg separation of duties** — `PriorRecordRef`/`RecordedPriorRef`, `open()`'s
   prior-leg verification step, the finalize SoD gate, and the `sealed`/status-retirement fold
   (`kernel/open.ts`, `kernel/finalize.ts`, `types.ts`, `chain/replay.ts`).
@@ -540,6 +552,11 @@ them to match the reference project more closely would be a regression, not a co
   (verified by grep across `packages/record/src`). Two consumers remain live: the ten
   per-field construction guards and `open()`'s unexpected-key guard. The arity-2 shape itself
   is unaffected; this is a count-of-callers correction, not a reason to revisit it.
+
+  **Further update, at the second step-3 increment:** the per-field count itself moved, from
+  ten to **eleven** — `redeemBound` joined the construction-time guards (`config.ts`) as an
+  eleventh field guarded the same way the original ten are; this does not change the
+  two-consumer count the correction above states.
 - **`redeem()` throws a build-capability error** on a confirmed effect-seam record
   (`kernel/redeem.ts:57-66`), rather than silently returning `unredeemable-state` or attempting
   to "close the strand." Neither a throw nor a refusal can release the `(profile, subject)`

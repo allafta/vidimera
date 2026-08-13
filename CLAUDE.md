@@ -33,10 +33,11 @@ parts:
   cross-backing byte-identity test — two of §12's three reference backings, held
   equivalent by the suite and the byte-identity test; the server-SQL adapter is deferred
   to deferral register row 15, which carries the exit ruling. Step 3 — redemption (the
-  effect seam) — is **started, not exited**: its first increment landed SPEC §11.2's
-  direct shape, `redeem(recordId, content, tx?)` as a verify-first ladder ending in
-  `confirmed → redeemed { via: 'direct' }`; the token shape and both redemption clocks
-  remain.
+  effect seam) — is **started, not exited**: two of three increments landed. The first
+  landed SPEC §11.2's direct shape, `redeem(recordId, content, tx?)` as a verify-first
+  ladder ending in `confirmed → redeemed { via: 'direct' }`. The second landed the token
+  shape, `beginRedemption`/`completeRedemption`, ending in `confirmed → redeeming { tokenDigest }`
+  then `redeeming → redeemed { via: 'token', tokenDigest }`; both redemption clocks remain.
   **`docs/process/implementation-status.md` is the authoritative
   account** of what this build does and does not implement, section by section, with the
   gate outputs and the outstanding list — read it rather than trusting a count here,
@@ -132,12 +133,17 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   inversions have been authorized so far, both during the step-1 remediation, each argued
   in place at `packages/record/test/terminality.test.ts` and recorded in the exit record.
 - Feature guards from day one — an unimplemented capability throws at construction
-  (`config.ts` `validateProfile`; ten governed profile fields throw there). `redeem` was
-  the eleventh governed capability, throwing at the call seam instead
+  (`config.ts` `validateProfile`; eleven governed profile fields throw there). `redeem`
+  was originally the eleventh governed capability, throwing at the call seam instead
   (`kernel/redeem.ts`) rather than at construction; the first step-3 increment landed
-  SPEC §11.2's direct shape, so that throw is gone from a confirmed effect-seam record —
-  what remains governed at that seam is the token shape and both redemption clocks,
-  still unbuilt. A confirmed effect-seam record's held `(profile, subject)` pair is now
+  SPEC §11.2's direct shape, and the second landed the token shape —
+  `beginRedemption`/`completeRedemption`, two NEW operator calls with no throwing-stub
+  history to lift, unlike `redeem`'s own — so that throw is gone from every confirmed or
+  redeeming effect-seam record. What remains governed at that seam is the clocks alone:
+  `redeemBound` now throws at construction too (`config.ts`, among the eleven fields
+  above, since the second step-3 increment), `confirmToRedeem` stays accepted-but-inert,
+  and `redemption-timeout` has no producer until the clock increment. A confirmed
+  effect-seam record's held `(profile, subject)` pair is now
   released by that direct-shape redemption — the `confirmed → redeemed` edge lifts the
   Store's C1 exclusivity hold, where before neither a throw nor a refusal could. `seal()`
   remains **not** a release path: SPEC §12 admits it only against a derived-terminal

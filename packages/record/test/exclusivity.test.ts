@@ -213,7 +213,8 @@ test('expiry:"none" blocker NEVER lapses: even far in the future, a second open(
 // === (4) non-open non-terminal blocker -> record-exists, NO expire attempt ============
 
 test('a NON-open non-terminal blocker (effect-seam `confirmed` awaiting redemption) -> record-exists directly, blocker chain unchanged', async () => {
-  // Arrange the blocker state by DIRECT store appends (finalize() does not exist yet):
+  // Arrange the blocker state by DIRECT store appends (this test predates finalize() and
+  // deliberately keeps store-level arrangement):
   // an effect-seam profile's final-leg `confirmed` is NON-terminal (awaits redemption).
   const store = new MemoryStore();
   const profile = effectSeamProfile();

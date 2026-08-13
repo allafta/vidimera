@@ -18,9 +18,10 @@ Step 2 — the store, for real — has **exited, with a recorded deferral**: two
 of the three reference backings SPEC §12 names are built and held equivalent
 by the conformance suite and the byte-identity test, and the third — the
 server-SQL backing — is deferred to the deferral register, which carries the
-exit ruling. Step 3 — redemption (the effect seam) — is **under way**: its
-first increment landed SPEC §11.2's direct redemption shape; the token shape
-and both redemption clocks remain. So five of the eight build-order steps
+exit ruling. Step 3 — redemption (the effect seam) — is **under way**: two
+of its three increments have landed — SPEC §11.2's direct redemption shape,
+then its token shape (`beginRedemption`/`completeRedemption`); both
+redemption clocks remain. So five of the eight build-order steps
 remain unstarted, and the package is **not consumable by a host today** — no
 build, no published artifact; that record states it in the same breath as the
 green gates. The maturity markers inside the concept set speak to a reference
@@ -35,7 +36,7 @@ here.
 | `docs/process/` | Living process artifacts (implementation status, deferral register, adopted-source provenance) |
 | `docs/analysis/` | Point-in-time review documents (the step-1 whole-branch review) |
 | `docs/superpowers/` | Design and plan documents for the implementation work |
-| `packages/record` | `@vidimera/record` — the kernel whole: the capability-split factory, canonicalization and digests, hash-chained transitions; the store's two backings — in-memory and embedded-SQL (`store/sqlite.ts`) — held equivalent by the conformance suite, with the server-SQL backing still unbuilt; and step 3's first increment, the direct-shape redemption seam (`redeem()`, SPEC §11.2). `docs/process/implementation-status.md` is the section-by-section account of what it does and does not build |
+| `packages/record` | `@vidimera/record` — the kernel whole: the capability-split factory, canonicalization and digests, hash-chained transitions; the store's two backings — in-memory and embedded-SQL (`store/sqlite.ts`) — held equivalent by the conformance suite, with the server-SQL backing still unbuilt; and step 3's two landed increments, the direct-shape and token-shape redemption seams (`redeem()`, `beginRedemption()`/`completeRedemption()`, SPEC §11.2). `docs/process/implementation-status.md` is the section-by-section account of what it does and does not build |
 | `scripts/` | Repo tooling (standalone-contract scan) |
 
 ## Development
@@ -65,12 +66,15 @@ held equivalent by the suite and the byte-identity test. The server-SQL
 adapter is deferred to the deferral register, which carries the ruling that
 exited the step without it.
 
-Step 3 — redemption (the effect seam) — is **started, not exited**: its first
-increment landed section 11.2's direct shape, `redeem(recordId, content,
-tx?)` as a verify-first gate ladder ending in `confirmed → redeemed { via:
-'direct' }`, enlisted through the caller's own transaction handle where
-supplied. The token shape (`redeeming`, a single-use token) and both
-redemption clocks are the second and third increments, not yet built.
+Step 3 — redemption (the effect seam) — is **started, not exited**: two of
+its three increments have landed. The first built section 11.2's direct
+shape, `redeem(recordId, content, tx?)` as a verify-first gate ladder ending
+in `confirmed → redeemed { via: 'direct' }`, enlisted through the caller's
+own transaction handle where supplied. The second built its token shape,
+`beginRedemption()`/`completeRedemption()`, a single-use token issued on
+`confirmed → redeeming` and presented on `redeeming → redeemed`, returned to
+the caller exactly once and never persisted. Both redemption clocks are the
+third increment, not yet built.
 
 ## License
 
