@@ -19,7 +19,7 @@
 //     `verifyChain` still reports only the original tamper). Because chain-verify precedes the
 //     state gate, a tampered non-open record refuses `chain-compromise`, not `record-not-open`.
 // (2) State/expiry gate (intact chain, before any append): a due-open record → en-passant
-//     `expireIfDue` CAS-append `expired` → `leg-expired`; already-`expired` → `leg-expired`;
+//     `resolveDueClock` CAS-append `expired` → `leg-expired`; already-`expired` → `leg-expired`;
 //     `state !== 'open'` (confirmed/refused) → `record-not-open` (no append, no transitionRef).
 // (3) Identity — both branches → `identity-authority-refused`: the arg missing/malformed (the
 //     library reads identity ONLY from the explicit arg — a payload-carried id is never
