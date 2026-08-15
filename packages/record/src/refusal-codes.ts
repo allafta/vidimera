@@ -89,9 +89,10 @@ export interface AppendDecisionLeg {
  * `unredeemable-state`, `effect-mismatch`, `already-redeemed`, and `redemption-timeout` never append —
  * redemption's refusals are all result-first, the seam's only append being the `redeemed`
  * transition folded into its own success path (`kernel/redeem.ts`), never a byproduct of a
- * refusal; `redemption-timeout` is produced by the clock (`kernel/expiry.ts`), and its
- * edge is the `redemption-failed` KIND (SPEC §4's table), never a `refused` transition —
- * SPEC §8 lists it in the never-appends set.
+ * refusal; `redemption-timeout`'s producer is the clock resolution at the redemption seams
+ * (`kernel/expiry.ts`'s `resolveDueClock` consumed in `kernel/redeem.ts`), landing later
+ * in the third step-3 increment, and its edge is the `redemption-failed` KIND (SPEC §4's
+ * table), never a `refused` transition — SPEC §8 lists it in the never-appends set.
  */
 const NEVER_APPENDS: ReadonlySet<RefusalCode> = new Set<RefusalCode>([
   'record-exists',

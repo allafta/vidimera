@@ -82,14 +82,14 @@ interface RefusedPayload {
  *    refusalCode move. The kind is handled; its kernel producer (the clock resolution) lands
  *    later in the third step-3 increment.
  *  - Any other `TransitionKind` (`finding-raised`,
- *    `acknowledged`) is not yet emitted
+ *    `acknowledged`, `redemption-failed`) is not yet emitted
  *    in this build — this kernel emits opened, consultation-recorded, confirmed, refused,
- *    expired, sealed, redeemed, redeeming, and (since the second step-3 increment's
- *    `beginRedemption`) redemption-failed — `replay` THROWS on any other kind rather than
- *    silently ignoring it, matching the codebase's fail-closed posture (an unhandled kind
- *    reaching this fold is either a not-yet-wired future capability or chain corruption;
- *    both should be
- *    loud, not silently dropped state).
+ *    expired, sealed, redeemed, and (since the second step-3 increment's
+ *    `beginRedemption`) redeeming. The kind is handled; its kernel producer (the clock
+ *    resolution) lands later in the third step-3 increment. `replay` THROWS on any other kind
+ *    rather than silently ignoring it, matching the codebase's fail-closed posture (an
+ *    unhandled kind reaching this fold is either a not-yet-wired future capability or chain
+ *    corruption; both should be loud, not silently dropped state).
  *
  * Empty-chain choice: THROWS. Replaying a
  * record that doesn't exist (no `opened` transition to seed the required fields) is a

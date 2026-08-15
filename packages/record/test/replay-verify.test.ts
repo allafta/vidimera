@@ -223,7 +223,8 @@ test('replay: a redeeming transition folds state to "redeeming" — tokenDigest 
 
 test('replay: a redemption-failed transition folds state AND refusalCode redemption-timeout', () => {
   // INVERTED, at the third step-3 increment: the second increment pinned the loud throw
-  // here while no producer existed. The clock now produces the kind, and §4's table says
+  // here while no producer existed. The clock resolution that produces the kind lands
+  // later in the third step-3 increment; §4's table already fixes what replay folds —
   // it "folds `refusalCode: redemption-timeout` on replay" — the constant, from the
   // registry; `bound` stays evidence, never folded.
   const genesis = storeGenesis('rec-replay-rf', 'profile.p1', 'subject:rf');
