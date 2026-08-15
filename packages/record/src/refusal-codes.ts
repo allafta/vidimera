@@ -16,8 +16,8 @@ export type RefusalCode =
   | 'unsealable-state'
   // first PROFILE-CONDITIONAL codes (SPEC §8's conditional table): producers in
   // kernel/redeem.ts (effect-mismatch, already-redeemed); redemption-timeout produced by
-  // kernel/expiry.ts's resolution via the redemption seams (the resolver rung from
-  // kernel/redeem.ts's completion path, the third step-3 increment)
+  // kernel/expiry.ts's resolution, consumed by kernel/redeem.ts's shared prologue across
+  // all three redemption seams (the third step-3 increment)
   | 'effect-mismatch'
   | 'already-redeemed'
   | 'redemption-timeout';
@@ -90,9 +90,10 @@ export interface AppendDecisionLeg {
  * redemption's refusals are all result-first, the seam's only append being the `redeemed`
  * transition folded into its own success path (`kernel/redeem.ts`), never a byproduct of a
  * refusal; `redemption-timeout`'s producer is the clock resolution at the redemption seams
- * (`kernel/expiry.ts`'s `resolveDueClock` consumed in `kernel/redeem.ts`), landing later
- * in the third step-3 increment, and its edge is the `redemption-failed` KIND (SPEC §4's
- * table), never a `refused` transition — SPEC §8 lists it in the never-appends set.
+ * (`kernel/expiry.ts`'s `resolveDueClock` consumed in `kernel/redeem.ts`'s shared
+ * prologue), real as of the third step-3 increment, and its edge is the
+ * `redemption-failed` KIND (SPEC §4's table), never a `refused` transition — SPEC §8
+ * lists it in the never-appends set.
  */
 const NEVER_APPENDS: ReadonlySet<RefusalCode> = new Set<RefusalCode>([
   'record-exists',

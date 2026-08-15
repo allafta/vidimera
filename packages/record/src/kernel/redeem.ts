@@ -22,11 +22,13 @@
 // deciding actor was bound at finalize (§6); redemption evidences execution, not
 // judgment."
 //
-// NO EN-PASSANT EXPIRY — SPEC §4: "`redeem()` does not treat a due-`open` record as
-// expired — it refuses `unredeemable-state` without writing an edge". Vacuous in the first
-// step-3 increment (no clock sets `dueAt` on any state this ladder examines until the clock
-// increment) and stated so nobody adds `expireIfDue` by analogy; §4's due-`confirmed`
-// resolution is the clock increment's work.
+// THE DUE-OPEN EXCEPTION, PINNED — SPEC §4: "`redeem()` does not treat a due-`open`
+// record as expired — it refuses `unredeemable-state` without writing an edge". A due-open
+// record's state skips the clock rung in the shared `prologue` below (which resolves only
+// `confirmed`/`redeeming`) and reaches each seam's own state gate, which refuses
+// `unredeemable-state` with no edge — stated so nobody widens the rung to `open` by
+// analogy. §4's due-`confirmed` and due-`redeeming` resolutions are REAL as of the third
+// step-3 increment: the clock rung itself, in `prologue` below.
 //
 // THE ENLISTMENT CONTRACT (direct shape, SPEC §11.2): when the host passes its own
 // transaction handle, the edge is enlisted and "commits or rolls back with it" (SPEC §12).
@@ -38,9 +40,11 @@
 //
 // The token shape (`redeeming`, tokenDigest, presentation) is REAL as of the second
 // step-3 increment: `beginRedemption` below is its issuance half, `completeRedemption`
-// its presentation half. Both redemption clocks remain the third increment's;
-// `redemption-failed` stays a defensive, dead-until-clock arm, never claimed as a
-// spec-granted producer.
+// its presentation half. Both redemption clocks are REAL as of the third step-3
+// increment: the shared `prologue`'s clock rung resolves an elapsed confirmed or
+// redeeming window before any seam-specific state gate runs; `redemption-failed` now has
+// that rung as its spec-granted producer (§11.2), no longer a defensive dead-until-clock
+// arm.
 
 import { canonicalize, digest } from '../canonical.js';
 import { transitionDigest } from '../chain/encoding.js';
@@ -51,7 +55,7 @@ import type { Outcome } from '../outcome.js';
 import { ok, refused } from '../outcome.js';
 import type { AppendMeta, Store } from '../store/store.js';
 import type { DecisionRecord, Digest, Transition } from '../types.js';
-import { deadlineIso } from './expiry.js';
+import { deadlineIso, resolveDueClock } from './expiry.js';
 import { appendChainCompromise } from './finalize.js';
 
 /**
@@ -147,6 +151,32 @@ async function prologue(
   if (!resolved.effectSeam || !finalLeg) {
     return { refusal: refused('unredeemable-state') };
   }
+
+  // --- the clock rung (third step-3 increment; §4 "appended lazily at the next
+  // operator-side mutating seam that observes the bound has passed") -------------------
+  // Placed AFTER the seam gate: a pure-capture record never reaches here, and a
+  // due-OPEN record is deliberately NOT resolved at these seams — §4: "`redeem()` does
+  // not treat a due-`open` record as expired — it refuses `unredeemable-state` without
+  // writing an edge" (pendingWindow's open arm is skipped by the state check below).
+  // The RESOLVER REPORTS the outcome: an elapsed confirmed window resolves to `expired`
+  // and the seam refuses `unredeemable-state` (§11.2's preamble — the record is now
+  // expired); an elapsed redeeming window resolves to `redemption-failed` and the seam
+  // refuses `redemption-timeout` (§11.2: the bound elapsed "with the outcome unknown...
+  // with `redemption-timeout`"). A seam arriving AFTER a resolution finds the terminal
+  // state at its own state gate and refuses `unredeemable-state` — nothing timed out at
+  // that call. A lost resolution CAS re-reads once (the family residual discipline).
+  if (record.state === 'confirmed' || record.state === 'redeeming') {
+    const due = await resolveDueClock(store, chain, resolved, now());
+    if (due.due) {
+      if (!due.result.appended) {
+        return { refusal: await residualRefusal(store, recordId) };
+      }
+      return {
+        refusal: refused(due.window === 'redeeming' ? 'redemption-timeout' : 'unredeemable-state'),
+      };
+    }
+  }
+
   return { gated: { chain, record, resolved, finalLeg } };
 }
 
@@ -173,7 +203,8 @@ export async function redeem(
     // second step-3 increment (`beginRedemption` below) — a direct redeem() reaching a
     // `redeeming` record still refuses `unredeemable-state` here (this ladder holds no
     // token to consume; `completeRedemption` is the seam that does). `redemption-failed`
-    // has no producer until the clock increment — this arm is defensive for that one alone.
+    // has a producer since the third step-3 increment (the clock rung in the shared
+    // prologue above) — this arm is a post-resolution arrival, not dead code.
     return refused('unredeemable-state');
   }
 
@@ -229,11 +260,12 @@ export async function redeem(
  * this build's ADDITION, not spec-granted: §11.2's correspondence sentence reads at the
  * effect's execution (completion), but the Honest bound's "mismatched effects refusable
  * at the seam" is exactly what refusing BEFORE a token is issued buys.
- * A declared `redeemBound` now prices the lost-token strand finitely (§11.2's lost-token
+ * A declared `redeemBound` prices the lost-token strand finitely (§11.2's lost-token
  * pricing): the bound is stamped into the payload and `dueAt`, so the record becomes
- * LISTABLE once it elapses — the en-passant resolution that actually ends the strand lands
- * at the seams later in the third step-3 increment. A profile declaring no `redeemBound`
- * keeps the strand risk knowingly (§9.1's SHOULD, not a MUST).
+ * LISTABLE once it elapses, and the en-passant resolution that actually ends the strand —
+ * the shared `prologue`'s clock rung, above — is REAL as of the third step-3 increment. A
+ * profile declaring no `redeemBound` keeps the strand risk knowingly (§9.1's SHOULD, not a
+ * MUST).
  */
 export async function beginRedemption(
   ctx: KernelContext,
@@ -257,8 +289,9 @@ export async function beginRedemption(
     return refused('unredeemable-state'); // no re-issue — doc comment above
   }
   if (record.state !== 'confirmed') {
-    // open/refused/expired per §11.2's preamble; `redemption-failed` has no producer
-    // until the clock increment — that arm of this check is dead code until then.
+    // open/refused/expired/redemption-failed per §11.2's preamble; `redemption-failed`
+    // has a producer since the third step-3 increment (the clock rung in the shared
+    // prologue above) — this arm is a post-resolution arrival, not dead code.
     return refused('unredeemable-state');
   }
 
@@ -342,9 +375,10 @@ export async function completeRedemption(
     return refused('already-redeemed');
   }
   if (record.state !== 'redeeming') {
-    // A never-began `confirmed`, and open/refused/expired. `redemption-failed` is DEAD
-    // CODE until the clock increment — replay() still throws on that kind upstream, so
-    // no record can reach this gate carrying it; the arm exists for the day it can.
+    // A never-began `confirmed`, and open/refused/expired. `redemption-failed` has a
+    // producer since the third step-3 increment (the clock rung in the shared prologue
+    // above, resolving an elapsed redeeming window) — a post-resolution arrival reaches
+    // this gate carrying it and refuses `unredeemable-state` here, not dead code.
     return refused('unredeemable-state');
   }
 

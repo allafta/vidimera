@@ -498,7 +498,16 @@ test('completeRedemption: a garbled persisted tokenDigest THROWS naming the stor
   await store.appendTransition('open', confirmed, { nonTerminal: true });
   await store.appendTransition('confirmed', redeeming, { nonTerminal: true });
 
-  const handles = create(makeConfig([effectSeamProfile()], { store }));
+  // A fixed clock just after `redeeming.at`, INSIDE the declared redeemBound window (third
+  // step-3 increment's clock rung is now live): the fixture's hand-built transitions carry
+  // fixed 2026-01-01 timestamps unrelated to wall-clock "now", so an un-pinned clock would
+  // let the redeemBound window go due by the time this suite runs and have the shared
+  // prologue's clock rung resolve `redemption-timeout` before rung (5)'s garbled-payload
+  // throw — the thing this test actually pins — is ever reached.
+  const handles = createWithClock(
+    makeConfig([effectSeamProfile()], { store }),
+    () => new Date(Date.parse(redeeming.at) + 60_000),
+  );
   await assert.rejects(
     handles.operator.completeRedemption('rec-garbled', 'A'.repeat(43), CONTENT),
     /tokenDigest/,

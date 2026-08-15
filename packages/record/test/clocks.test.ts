@@ -10,14 +10,18 @@ import { test } from 'vitest';
 import { createWithClock } from '../src/create.js';
 import { pendingWindow, resolveDueClock } from '../src/kernel/expiry.js';
 import { MemoryStore } from '../src/store/memory.js';
+import { storeNext } from './helpers/chain.js';
 import {
+  captureProfile,
   DEFAULT_SUBJECT_REF,
   effectSeamProfile,
   facts,
   identity,
   makeConfig,
   openRecord,
+  tamperNonLast,
 } from './helpers/profiles.js';
+import { RaceOnceStore, TamperingStore } from './helpers/stores.js';
 
 const CONTENT = { subject: 'week-1', total: 40 };
 const T0 = Date.UTC(2026, 0, 1, 0, 0, 0);
@@ -157,4 +161,183 @@ test('beginRedemption on a redeemBound-declaring profile: payload is exactly { t
   assert.deepEqual(await store.listDue(new Date(Date.parse(last.at) + (declared + 1) * 1000)), [
     recordId,
   ]);
+});
+
+/** Confirms then begins redemption under a controllable clock; returns the issued token. */
+async function redeemingAt(clock: { t: number }, store = new MemoryStore()) {
+  const { handles, recordId } = await confirmedAt(clock, store);
+  const begun = await handles.operator.beginRedemption(recordId, CONTENT);
+  assert.equal(begun.status, 'ok', 'fixture: the issuance must succeed');
+  if (begun.status !== 'ok') throw new Error('unreachable');
+  return { handles, recordId, store, token: begun.value.token };
+}
+
+const CONFIRM_BOUND = effectSeamProfile().redeem?.confirmToRedeem ?? NaN;
+const REDEEM_BOUND = effectSeamProfile().redeem?.redeemBound ?? NaN;
+
+test('an elapsed confirmed window at redeem(): expired edge appended, unredeemable-state, pair released', async () => {
+  const clock = { t: T0 };
+  const { handles, recordId, store } = await confirmedAt(clock);
+  clock.t = T0 + (CONFIRM_BOUND + 10) * 1000;
+
+  const outcome = await handles.operator.redeem(recordId, CONTENT);
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'unredeemable-state'); // §11.2's preamble: the record is now expired
+
+  const last = (await store.readChain(recordId)).at(-1);
+  assert.ok(last !== undefined);
+  assert.equal(last.kind, 'expired');
+  assert.equal(await store.findNonTerminal('test.effect.v1', DEFAULT_SUBJECT_REF), null);
+  assert.deepEqual(await store.listDue(new Date(clock.t + 1000 * 1000)), [], 'dueAt cleared');
+});
+
+test('THE UNKNOWN-OUTCOME PIN: a CORRECT token after the redeemBound elapsed — redemption-timeout, edge redemption-failed, token dead', async () => {
+  // §11.2: "a `redeeming` bound elapsing with the outcome unknown resolves
+  // `redeeming → redemption-failed` with `redemption-timeout`, and an unknown outcome is
+  // never retried" — at-most-once over convenience, now an executing pin.
+  const clock = { t: T0 };
+  const { handles, recordId, store, token } = await redeemingAt(clock);
+  clock.t += (REDEEM_BOUND + 10) * 1000;
+
+  const outcome = await handles.operator.completeRedemption(recordId, token, CONTENT);
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'redemption-timeout'); // the RESOLVER reports what this call did
+
+  const chain = await store.readChain(recordId);
+  const last = chain.at(-1);
+  assert.ok(last !== undefined);
+  assert.equal(last.kind, 'redemption-failed');
+  assert.deepEqual(Object.keys(last.payload as object), ['bound']);
+
+  const record = await handles.operator.getRecord(recordId);
+  assert.equal(record?.state, 'redemption-failed');
+  assert.equal(record?.refusalCode, 'redemption-timeout');
+  assert.equal(await store.findNonTerminal('test.effect.v1', DEFAULT_SUBJECT_REF), null);
+
+  // The token is DEAD: a later arrival finds the resolved record — unredeemable-state,
+  // and NO second append (the resolver reported; the later arrival only reads).
+  const lengthAfterResolution = chain.length;
+  const again = await handles.operator.completeRedemption(recordId, token, CONTENT);
+  assert.equal(again.status, 'refused');
+  if (again.status !== 'refused') return;
+  assert.equal(again.code, 'unredeemable-state');
+  assert.equal((await store.readChain(recordId)).length, lengthAfterResolution);
+});
+
+test('the clock rung never touches a pure-capture record: elapsed time changes nothing at redeem()', async () => {
+  // The rung sits AFTER the effect-seam gate, so a capture-only record — which has no
+  // confirmed or redeeming window to be in — refuses exactly as before, with no edge,
+  // however far the clock has advanced (the adjacent-pair gate-order discipline).
+  const clock = { t: T0 };
+  const store = new MemoryStore();
+  const handles = createWithClock(
+    makeConfig([captureProfile()], { store }),
+    () => new Date(clock.t),
+  );
+  const recordId = await openRecord(handles, CONTENT, 'test.capture.v1', DEFAULT_SUBJECT_REF);
+  const done = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(done.status, 'ok');
+  const before = (await store.readChain(recordId)).length;
+
+  clock.t = T0 + 400 * HOUR;
+  const outcome = await handles.operator.redeem(recordId, CONTENT);
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'unredeemable-state');
+  assert.equal(
+    (await store.readChain(recordId)).length,
+    before,
+    'no edge on a capture record, ever',
+  );
+});
+
+test('begin and direct redeem() resolving an elapsed redeeming window also report redemption-timeout', async () => {
+  const clock = { t: T0 };
+  const a = await redeemingAt(clock);
+  clock.t += (REDEEM_BOUND + 10) * 1000;
+  const viaBegin = await a.handles.operator.beginRedemption(a.recordId, CONTENT);
+  assert.equal(viaBegin.status, 'refused');
+  if (viaBegin.status === 'refused') assert.equal(viaBegin.code, 'redemption-timeout');
+
+  const clock2 = { t: T0 };
+  const b = await redeemingAt(clock2);
+  clock2.t += (REDEEM_BOUND + 10) * 1000;
+  const viaDirect = await b.handles.operator.redeem(b.recordId, CONTENT);
+  assert.equal(viaDirect.status, 'refused');
+  if (viaDirect.status === 'refused') assert.equal(viaDirect.code, 'redemption-timeout');
+});
+
+test('§4 exception, now non-vacuous: redeem() on a due-OPEN record refuses with NO edge', async () => {
+  const clock = { t: T0 };
+  const store = new MemoryStore();
+  const handles = createWithClock(
+    makeConfig([effectSeamProfile()], { store }),
+    () => new Date(clock.t),
+  );
+  const recordId = await openRecord(handles, CONTENT, 'test.effect.v1', DEFAULT_SUBJECT_REF);
+  clock.t = T0 + 400 * HOUR; // far past the open ttl
+  const before = (await store.readChain(recordId)).length;
+
+  const outcome = await handles.operator.redeem(recordId, CONTENT);
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'unredeemable-state');
+  assert.equal(
+    (await store.readChain(recordId)).length,
+    before,
+    'no edge — §4 names this exception',
+  );
+});
+
+test('verify-first outranks the clock: a tampered chain with an elapsed bound refuses chain-compromise', async () => {
+  const clock = { t: T0 };
+  const inner = new MemoryStore();
+  const { recordId } = await confirmedAt(clock, inner);
+  clock.t = T0 + (CONFIRM_BOUND + 10) * 1000;
+
+  const tampering = new TamperingStore(inner, recordId, tamperNonLast);
+  const handles = createWithClock(
+    makeConfig([effectSeamProfile()], { store: tampering }),
+    () => new Date(clock.t),
+  );
+  const outcome = await handles.operator.redeem(recordId, CONTENT);
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'chain-compromise');
+});
+
+test('the resolution race: a resolver losing the CAS re-reads and reports the fresh state honestly', async () => {
+  // The winner resolves redeeming → redemption-failed first; the loser's own resolution
+  // CAS fails, re-reads, finds redemption-failed — unredeemable-state (nothing timed out
+  // at the loser's call; the SECOND increment's residual discipline extended to clocks).
+  const clock = { t: T0 };
+  const inner = new MemoryStore();
+  const { handles: _h, recordId, token } = await redeemingAt(clock, inner);
+  clock.t += (REDEEM_BOUND + 10) * 1000;
+
+  const racing = new RaceOnceStore(
+    inner,
+    (expected, t) => expected === 'redeeming' && t.kind === 'redemption-failed',
+    async (innerStore, rid) => {
+      const chain = await innerStore.readChain(rid);
+      const head = chain.at(-1);
+      if (head === undefined) throw new Error('fixture: chain has a head');
+      const winner = storeNext(head, 'redemption-failed', {
+        bound: new Date(clock.t - 10 * 1000).toISOString(),
+      });
+      const res = await innerStore.appendTransition('redeeming', winner, { nonTerminal: false });
+      if (!res.appended) throw new Error('fixture: the winner must land');
+      return undefined;
+    },
+  );
+  const handles = createWithClock(
+    makeConfig([effectSeamProfile()], { store: racing }),
+    () => new Date(clock.t),
+  );
+  const loser = await handles.operator.completeRedemption(recordId, token, CONTENT);
+  assert.equal(loser.status, 'refused');
+  if (loser.status !== 'refused') return;
+  assert.equal(loser.code, 'unredeemable-state');
 });

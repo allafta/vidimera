@@ -79,17 +79,17 @@ interface RefusedPayload {
  *    `state: 'redemption-failed'` and `refusalCode: 'redemption-timeout'` — the constant,
  *    from the registry. The `bound` payload field is EVIDENCE, not state — the elapsed
  *    deadline timestamp, not a clause name — replay reads nothing from it; only `state` and
- *    refusalCode move. The kind is handled; its kernel producer (the clock resolution) lands
- *    later in the third step-3 increment.
- *  - Any other `TransitionKind` (`finding-raised`,
- *    `acknowledged`, `redemption-failed`) is not yet emitted
+ *    refusalCode move. The kind is handled, and its kernel producer (the clock resolution,
+ *    `kernel/expiry.ts`'s `resolveDueClock`, consumed by `kernel/redeem.ts`'s shared
+ *    prologue) is REAL as of the third step-3 increment.
+ *  - Any other `TransitionKind` (`finding-raised`, `acknowledged`) is not yet emitted
  *    in this build — this kernel emits opened, consultation-recorded, confirmed, refused,
- *    expired, sealed, redeemed, and (since the second step-3 increment's
- *    `beginRedemption`) redeeming. The kind is handled; its kernel producer (the clock
- *    resolution) lands later in the third step-3 increment. `replay` THROWS on any other kind
- *    rather than silently ignoring it, matching the codebase's fail-closed posture (an
- *    unhandled kind reaching this fold is either a not-yet-wired future capability or chain
- *    corruption; both should be loud, not silently dropped state).
+ *    expired, sealed, redeemed, redeeming (since the second step-3 increment's
+ *    `beginRedemption`), and redemption-failed (since the third step-3 increment's clock
+ *    resolution). `replay` THROWS on any other kind rather than silently ignoring it,
+ *    matching the codebase's fail-closed posture (an unhandled kind reaching this fold is
+ *    either a not-yet-wired future capability or chain corruption; both should be loud, not
+ *    silently dropped state).
  *
  * Empty-chain choice: THROWS. Replaying a
  * record that doesn't exist (no `opened` transition to seed the required fields) is a
