@@ -27,7 +27,7 @@ import { ok, refused } from '../outcome.js';
 import { profileDigest } from '../profile-digest.js';
 import type { AppendMeta } from '../store/store.js';
 import type { Transition } from '../types.js';
-import { expireIfDue, expiryDeadlineMs } from './expiry.js';
+import { expiryDeadlineMs, resolveDueClock } from './expiry.js';
 
 /**
  * Per-key GOVERNED message for an `open()` options key (config.ts's `OpenOptions`): the
@@ -167,11 +167,11 @@ export async function open(
 
   // The blocker shares (profileId, subjectRef) with our genesis payload (C1 keys on both),
   // so its profile IS `resolved` — pass it for the expired transition's ttl + nonTerminal.
-  // expireIfDue gates on `openedAt + ttl < now` (expiry:'none' ⇒ never due).
-  const ex = await expireIfDue(store, blockerChain, resolved, now());
-  if (!ex.expired) {
-    // The blocker is open but has NOT lapsed (or the profile is expiry:'none') — no CAS was
-    // attempted; the live record still holds -> record-exists.
+  // resolveDueClock gates on the open window's deadline.
+  const ex = await resolveDueClock(store, blockerChain, resolved, now());
+  if (!ex.due) {
+    // The blocker is open but its window has NOT elapsed — no CAS was attempted;
+    // the live record still holds -> record-exists.
     return refused('record-exists');
   }
   if (!ex.result.appended) {

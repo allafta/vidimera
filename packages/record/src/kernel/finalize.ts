@@ -56,7 +56,7 @@ import { ok, refused } from '../outcome.js';
 import { appendsOn, type RefusalCode } from '../refusal-codes.js';
 import type { AppendMeta, Store } from '../store/store.js';
 import type { Consultation, Digest, IdentityAssertion, RecordState, Transition } from '../types.js';
-import { expireIfDue } from './expiry.js';
+import { resolveDueClock } from './expiry.js';
 
 /** The finalize `facts` arg (SPEC §3's "Reviewed-surface (`facts`) binding"): the reviewed-surface figures + the review-surface checker. */
 type Facts = { figures: unknown; checker: IdentityAssertion };
@@ -134,9 +134,9 @@ export async function finalize(
     // on an effect-seam confirmed record awaiting redemption, and finalize on a refused record.
     return refused('record-not-open');
   }
-  // state === 'open': en-passant expiry (expireIfDue performs the CAS append if due).
-  const ex = await expireIfDue(store, chain, resolved, now());
-  if (ex.expired) {
+  // state === 'open': en-passant expiry (resolveDueClock performs the CAS append if due).
+  const ex = await resolveDueClock(store, chain, resolved, now());
+  if (ex.due) {
     // Due — the `expired` transition was appended (the en-passant expiry edge; if the CAS
     // raced, the record is past its deadline regardless). `leg-expired` carries no
     // transitionRef — the expired edge is an expiry transition, not a `refused` edge.
