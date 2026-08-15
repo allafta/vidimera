@@ -221,7 +221,11 @@ test('replay: a redeeming transition folds state to "redeeming" — tokenDigest 
   assert.equal('tokenDigest' in record, false);
 });
 
-test('replay: redemption-failed still throws — no producer until the clock increment', () => {
+test('replay: a redemption-failed transition folds state AND refusalCode redemption-timeout', () => {
+  // INVERTED, at the third step-3 increment: the second increment pinned the loud throw
+  // here while no producer existed. The clock now produces the kind, and §4's table says
+  // it "folds `refusalCode: redemption-timeout` on replay" — the constant, from the
+  // registry; `bound` stays evidence, never folded.
   const genesis = storeGenesis('rec-replay-rf', 'profile.p1', 'subject:rf');
   const confirmed = storeNext(genesis, 'confirmed', {
     actor: { principal: 'approver:1', authority: 'session:test-app' },
@@ -230,10 +234,10 @@ test('replay: redemption-failed still throws — no producer until the clock inc
     tokenDigest: `sha256:${'b'.repeat(64)}`,
   });
   const failed = storeNext(redeeming, 'redemption-failed', { bound: '2026-01-01T00:00:00.000Z' });
-  assert.throws(
-    () => replay([genesis, confirmed, redeeming, failed]),
-    /unhandled TransitionKind 'redemption-failed'/,
-  );
+  const record = replay([genesis, confirmed, redeeming, failed]);
+  assert.equal(record.state, 'redemption-failed');
+  assert.equal(record.refusalCode, 'redemption-timeout');
+  assert.equal('bound' in record, false);
 });
 
 // === verifyChain() ===================================================================

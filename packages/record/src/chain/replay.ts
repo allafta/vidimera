@@ -75,11 +75,17 @@ interface RefusedPayload {
  *  - `redeeming` (SPEC §11.2's token shape, second step-3 increment; `{tokenDigest}`) sets
  *    `state: 'redeeming'`. The `tokenDigest` payload field is EVIDENCE, not state — replay
  *    reads nothing from it; only `state` moves.
+ *  - `redemption-failed` (SPEC §11.2, the third step-3 increment; `{bound}`) sets
+ *    `state: 'redemption-failed'` and `refusalCode: 'redemption-timeout'` — the constant,
+ *    from the registry. The `bound` payload field is EVIDENCE, not state — the elapsed
+ *    deadline timestamp, not a clause name — replay reads nothing from it; only `state` and
+ *    refusalCode move. The kind is handled; its kernel producer (the clock resolution) lands
+ *    later in the third step-3 increment.
  *  - Any other `TransitionKind` (`finding-raised`,
- *    `acknowledged`, `redemption-failed`) is not yet emitted
+ *    `acknowledged`) is not yet emitted
  *    in this build — this kernel emits opened, consultation-recorded, confirmed, refused,
- *    expired, sealed, redeemed, and (since the second step-3 increment's
- *    `beginRedemption`) redeeming — `replay` THROWS on any other kind rather than
+ *    expired, sealed, redeemed, redeeming, and (since the second step-3 increment's
+ *    `beginRedemption`) redemption-failed — `replay` THROWS on any other kind rather than
  *    silently ignoring it, matching the codebase's fail-closed posture (an unhandled kind
  *    reaching this fold is either a not-yet-wired future capability or chain corruption;
  *    both should be
@@ -164,6 +170,14 @@ export function replay(chain: readonly Transition[]): DecisionRecord {
         // increment lands it, `bound`) is EVIDENCE — replay reads nothing from it; only
         // `state` moves.
         record.state = 'redeeming';
+        break;
+      }
+      case 'redemption-failed': {
+        // The redemption bound elapsed with the outcome unknown (SPEC §11.2; third
+        // step-3 increment): state moves, and §4's table folds the CONSTANT refusal code
+        // — "folds `refusalCode: redemption-timeout` on replay". `bound` is evidence.
+        record.state = 'redemption-failed';
+        record.refusalCode = 'redemption-timeout';
         break;
       }
       default: {
