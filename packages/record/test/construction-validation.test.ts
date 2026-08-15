@@ -170,17 +170,18 @@ test('GOVERNED: a profile declaring policySource throws (policySource)', () => {
   assertGoverned({ ...captureProfile(), policySource: 'opa://x' }, 'policySource');
 });
 
-test('GOVERNED: redeem.redeemBound throws (redeemBound) — the redeeming-payload bound is chain bytes, not an index', () => {
-  // The token shape (second step-3 increment) mints `redeeming` edges; SPEC §4 makes the
-  // payload's `bound` present-IFF-declared. Until the clock increment builds the bound
-  // whole (payload + dueAt + resolution), a declaring profile must fail loud, not mint
-  // permanently divergent bytes. `confirmToRedeem` stays accepted-but-inert: its gap is
-  // dueAt-only, "never authoritative" (SPEC §12), recorded since the first increment.
+test('redeem.redeemBound is accepted at construction — the clock that honors it is built', () => {
+  // INVERTED, at the third step-3 increment: the second step-3 increment pinned a
+  // GOVERNED throw here (its `redeeming` edges could not carry §4's declared `bound`
+  // until the clock existed). The third increment builds the bound whole — payload,
+  // dueAt, en-passant resolution — so the guard's own stated trigger ("lifted by the
+  // third step-3 increment") has fired and the throw is deleted. Bound-value validation
+  // deliberately mirrors expiry.ttl's treatment (no novel posture).
   const declaring = {
     ...effectSeamProfile(),
     redeem: { confirmToRedeem: 1, redeemBound: 86400 },
   };
-  assertGoverned(declaring, 'redeemBound');
+  assert.doesNotThrow(() => create(makeConfig([declaring])));
 });
 
 // === the guard sweep is TOTAL ========================================================

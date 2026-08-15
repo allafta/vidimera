@@ -56,7 +56,7 @@ import { ok, refused } from '../outcome.js';
 import { appendsOn, type RefusalCode } from '../refusal-codes.js';
 import type { AppendMeta, Store } from '../store/store.js';
 import type { Consultation, Digest, IdentityAssertion, RecordState, Transition } from '../types.js';
-import { resolveDueClock } from './expiry.js';
+import { deadlineIso, resolveDueClock } from './expiry.js';
 
 /** The finalize `facts` arg (SPEC §3's "Reviewed-surface (`facts`) binding"): the reviewed-surface figures + the review-surface checker. */
 type Facts = { figures: unknown; checker: IdentityAssertion };
@@ -233,13 +233,18 @@ export async function finalize(
   // `meta` is the POST-batch record flag, applied once. The entry terminality flag is the
   // store's own, read at entry — which is what admits the `confirmed` element that makes the
   // record terminal (SPEC §12).
+  const confirmToRedeem = resolved.profile.redeem?.confirmToRedeem;
+  const confirmedDue =
+    resolved.effectSeam && finalLeg && confirmToRedeem !== undefined
+      ? deadlineIso(nowIso, confirmToRedeem)
+      : undefined;
   const postBatch: AppendMeta = {
     nonTerminal: nonTerminal('confirmed', finalLeg, resolved.effectSeam),
-    // No `dueAt`: a capture-only final-leg `confirmed` is terminal and has no pending clock,
-    // and the effect-seam `confirmToRedeem` window that WOULD set one here is unbuilt — the
-    // redemption bounds remain inert until the clock increment (the status doc's §9.1 row
-    // records it). Absent is the honest value today; this is the site that must set it when
-    // that clock lands.
+    // §12: presence sets the pending-clock column — the confirmed-awaiting-redemption
+    // window (§9.1's confirmToRedeem), stamped from the batch's own single clock reading
+    // (§2.1) at the third step-3 increment. Capture-only or undeclared: omitted, clearing
+    // the open window's column as before.
+    ...(confirmedDue === undefined ? {} : { dueAt: confirmedDue }),
   };
   const res = await store.appendBatch(
     'open',

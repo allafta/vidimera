@@ -51,6 +51,7 @@ import type { Outcome } from '../outcome.js';
 import { ok, refused } from '../outcome.js';
 import type { AppendMeta, Store } from '../store/store.js';
 import type { DecisionRecord, Digest, Transition } from '../types.js';
+import { deadlineIso } from './expiry.js';
 import { appendChainCompromise } from './finalize.js';
 
 /**
@@ -228,9 +229,10 @@ export async function redeem(
  * this build's ADDITION, not spec-granted: §11.2's correspondence sentence reads at the
  * effect's execution (completion), but the Honest bound's "mismatched effects refusable
  * at the seam" is exactly what refusing BEFORE a token is issued buys.
- * Until the clock increment, a lost token permanently strands the (profile, subject)
- * pair — completeRedemption with the token is the sole exit (status doc: safe to ship,
- * not yet safe to operate).
+ * A lost token strands the (profile, subject) pair only until the declared `redeemBound`
+ * elapses (§11.2's lost-token pricing) — completeRedemption with the token is the sole
+ * exit before that; a profile declaring no `redeemBound` keeps the strand risk knowingly
+ * (§9.1's SHOULD, not a MUST).
  */
 export async function beginRedemption(
   ctx: KernelContext,
@@ -272,19 +274,26 @@ export async function beginRedemption(
   if (last === undefined) {
     throw new Error('beginRedemption: empty chain — the prologue length check holds');
   }
+  const redeemBound = resolved.profile.redeem?.redeemBound;
+  const at = now().toISOString();
+  // §4's table: `redeeming` is `{ tokenDigest, bound? }`, `bound` present-IFF-declared —
+  // built whole at the third step-3 increment (payload, dueAt, and resolution together).
+  const bound = redeemBound === undefined ? undefined : deadlineIso(at, redeemBound);
   const redeemingTransition: Transition = {
     recordId,
     seq: chain.length + 1,
-    at: now().toISOString(),
+    at,
     kind: 'redeeming',
-    payload: { tokenDigest },
+    payload: bound === undefined ? { tokenDigest } : { tokenDigest, bound },
     prevHash: transitionDigest(last),
   };
   // `redeeming` is non-terminal (§2) — the derivation, never a literal: the pair's C1
-  // hold CONTINUES through the token window. `dueAt` omitted: no clock exists in this
-  // build (redeemBound is GOVERNED-guarded at construction).
+  // hold CONTINUES through the token window. `dueAt` mirrors the payload's `bound`
+  // present-iff-declared; omitted (undeclared profile) clears the pending-clock column
+  // (§12's omission rule) exactly as it did before this profile could declare a bound.
   const meta: AppendMeta = {
     nonTerminal: nonTerminal('redeeming', finalLeg, resolved.effectSeam),
+    ...(bound === undefined ? {} : { dueAt: bound }),
   };
   const res = await store.appendTransition('confirmed', redeemingTransition, meta);
   if (!res.appended) {

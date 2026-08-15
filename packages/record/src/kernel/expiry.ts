@@ -54,9 +54,9 @@ export function deadlineIso(atIso: string, seconds: number): string {
  * increment): the OPEN window (openedAt + expiry.ttl; `expiry:'none'` ⇒ none), the
  * CONFIRMED window (confirmedAt + confirmToRedeem — only a final-leg, effect-seam,
  * declaring profile; §9.1), the REDEEMING window (redeemingAt + redeemBound — only
- * declared; its executing pins land with the guard lift, later in the third step-3
- * increment). Terminal states and undeclared bounds ⇒ 'none'. The derivation reads the
- * REPLAYED state — never the dueAt column, which §12 keeps an index only.
+ * declared). Terminal states and undeclared bounds ⇒ 'none'. The derivation reads the
+ * REPLAYED state — never the dueAt column, which §12 keeps an index only. Its executing
+ * pins live in clocks.test.ts and redeem-token.test.ts.
  */
 export function pendingWindow(
   chain: readonly Transition[],

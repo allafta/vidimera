@@ -91,10 +91,12 @@ export function effectSeamProfile(overrides: ProfileOverrides = {}): ConfirmProf
     // increment, riding the accepted-but-inert posture. That increment GOVERNED-guarded
     // it (config.ts): the token shape mints `redeeming` edges, and SPEC §4's
     // present-iff-declared `bound` would make a declaring profile's chain bytes
-    // permanently divergent until the clock increment builds the bound whole. Dropping
-    // it here is that increment's authorized fixture inversion — construction-
-    // validation.test.ts pins the throw.
-    redeem: { confirmToRedeem: 1 },
+    // permanently divergent until the clock increment builds the bound whole. The third
+    // step-3 increment lifts that guard with the clock built, so `redeemBound` is
+    // declared again here. `confirmToRedeem` WIDENS from 1 to 3600 in the same edit:
+    // finalize now stamps a real `dueAt` from it, and a one-second fixture bound would
+    // race every real-clock test between finalize and the next seam call.
+    redeem: { confirmToRedeem: 3600, redeemBound: 86400 },
   };
 }
 

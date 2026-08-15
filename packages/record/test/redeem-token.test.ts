@@ -69,9 +69,9 @@ test('beginRedemption() on a confirmed effect-seam record appends redeeming { to
   const last = chain.at(-1);
   assert.ok(last !== undefined);
   assert.equal(last.kind, 'redeeming');
-  // PAYLOAD KEY-SET PIN: exactly { tokenDigest } — no bound key exists in this build
-  // (redeemBound is GOVERNED-guarded; the clock increment lands the bound whole).
-  assert.deepEqual(Object.keys(last.payload as object), ['tokenDigest']);
+  // PAYLOAD KEY-SET PIN: exactly { tokenDigest, bound } — `effectSeamProfile()` declares
+  // `redeemBound`, so §4's present-iff-declared `bound` is present here.
+  assert.deepEqual(Object.keys(last.payload as object).sort(), ['bound', 'tokenDigest']);
   assert.equal(
     (last.payload as { tokenDigest: string }).tokenDigest,
     digest(outcome.value.token),
@@ -81,6 +81,33 @@ test('beginRedemption() on a confirmed effect-seam record appends redeeming { to
   const record = await handles.operator.getRecord(recordId);
   assert.equal(record?.state, 'redeeming');
   assert.equal(record?.status, 'active');
+});
+
+/** An effect-seam profile that deliberately declares NO redeemBound (§9.1's SHOULD is a
+ * policy choice, not a MUST): the strand-risk shape, and §4's bound-absent byte pin. */
+function noRedeemBoundProfile() {
+  return {
+    ...effectSeamProfile({ id: 'test.effect.nobound.v1' }),
+    redeem: { confirmToRedeem: 3600 },
+  };
+}
+
+test('beginRedemption without redeemBound: payload stays exactly { tokenDigest } — present-iff-declared, absent half', async () => {
+  const store = new MemoryStore();
+  const handles = create(makeConfig([noRedeemBoundProfile()], { store }));
+  const recordId = await openRecord(
+    handles,
+    CONTENT,
+    'test.effect.nobound.v1',
+    DEFAULT_SUBJECT_REF,
+  );
+  const done = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(done.status, 'ok');
+  const begun = await handles.operator.beginRedemption(recordId, CONTENT);
+  assert.equal(begun.status, 'ok');
+  const last = (await store.readChain(recordId)).at(-1);
+  assert.ok(last !== undefined);
+  assert.deepEqual(Object.keys(last.payload as object), ['tokenDigest']);
 });
 
 test('token custody: the token appears in the begin ok value and NOWHERE else (chain, store rows, refusals)', async () => {
@@ -480,13 +507,31 @@ test('completeRedemption: a garbled persisted tokenDigest THROWS naming the stor
 
 // === safe to ship, not yet safe to operate: the strand set ============================
 
-test('a begun record with a lost token has NO exit in this build except completion with the token', async () => {
-  // Until the clock increment lands redeemBound's resolution, a lost token strands the
-  // pair (SPEC §11.2 prices exactly this; §9.1's SHOULD-declare-redeemBound is
-  // GOVERNED-guarded until the clock exists). Every seam refuses; the sweep is blind
-  // (no dueAt was ever written). Pinned so the operational bound is executable fact.
+test('a begun record with a lost token has NO exit in this build except completion with the token — a host that declines the redeemBound SHOULD', async () => {
+  // REWORKED at the third step-3 increment: this pinned across the whole effect-seam
+  // surface while the second step-3 increment's guard blocked every declaring profile.
+  // Now that the clock is built, a profile that DOES declare `redeemBound`
+  // (`effectSeamProfile()`) sets `dueAt` at begin (pinned in clocks.test.ts) and its
+  // strand closes on its own bound (a later step-3 producer lands the closing edge — not
+  // this file's pin). The strand shape survives ONLY for a host that declines §9.1's SHOULD and
+  // declares no `redeemBound` at all — `noRedeemBoundProfile()` above. Its seal/direct/
+  // finalize refusals and the sole-exit assertion keep their force unchanged under that
+  // profile; the `listDue`-blind assertion stays true there too: no bound means no dueAt
+  // (§4's present-iff-declared), and §12: "A record with no bound is never listed".
   const store = new MemoryStore();
-  const { handles, recordId, token } = await redeemingRecord(store);
+  const handles = create(makeConfig([noRedeemBoundProfile()], { store }));
+  const recordId = await openRecord(
+    handles,
+    CONTENT,
+    'test.effect.nobound.v1',
+    DEFAULT_SUBJECT_REF,
+  );
+  const confirmed = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(confirmed.status, 'ok', 'fixture: the record must confirm');
+  const begun = await handles.operator.beginRedemption(recordId, CONTENT);
+  assert.equal(begun.status, 'ok', 'fixture: beginRedemption must succeed');
+  if (begun.status !== 'ok') throw new Error('unreachable');
+  const token = begun.value.token;
 
   const sealed = await handles.operator.seal(recordId);
   assert.equal(sealed.status, 'refused');
@@ -507,8 +552,8 @@ test('a begun record with a lost token has NO exit in this build except completi
   );
 
   // The sole exit works:
-  const done = await handles.operator.completeRedemption(recordId, token, CONTENT);
-  assert.equal(done.status, 'ok');
+  const completed = await handles.operator.completeRedemption(recordId, token, CONTENT);
+  assert.equal(completed.status, 'ok');
 });
 
 // === adjacent-pair order tests, both ladders ===========================================

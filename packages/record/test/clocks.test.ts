@@ -125,3 +125,36 @@ test('resolveDueClock: a not-yet-elapsed window reports { due: false } and appen
   assert.deepEqual(res, { due: false });
   assert.equal((await store.readChain(recordId)).length, before);
 });
+
+test('finalize stamps dueAt for a declared confirmToRedeem: listDue lists the record after the bound, not before', async () => {
+  const clock = { t: T0 };
+  const { recordId, store } = await confirmedAt(clock);
+  const declared = effectSeamProfile().redeem?.confirmToRedeem;
+  assert.ok(declared !== undefined);
+
+  assert.deepEqual(await store.listDue(new Date(T0 + (declared - 1) * 1000)), []);
+  assert.deepEqual(await store.listDue(new Date(T0 + (declared + 1) * 1000)), [recordId]);
+});
+
+test('beginRedemption on a redeemBound-declaring profile: payload is exactly { tokenDigest, bound }, dueAt set', async () => {
+  const clock = { t: T0 };
+  const { handles, recordId, store } = await confirmedAt(clock);
+  const begun = await handles.operator.beginRedemption(recordId, CONTENT);
+  assert.equal(begun.status, 'ok', 'fixture: the issuance must succeed');
+
+  const chain = await store.readChain(recordId);
+  const last = chain.at(-1);
+  assert.ok(last !== undefined);
+  assert.equal(last.kind, 'redeeming');
+  // KEY-SET PIN, declared shape: §4's present-iff-declared, both keys, nothing else.
+  assert.deepEqual(Object.keys(last.payload as object).sort(), ['bound', 'tokenDigest']);
+  const declared = effectSeamProfile().redeem?.redeemBound;
+  assert.ok(declared !== undefined);
+  assert.equal(
+    (last.payload as { bound: string }).bound,
+    new Date(Date.parse(last.at) + declared * 1000).toISOString(),
+  );
+  assert.deepEqual(await store.listDue(new Date(Date.parse(last.at) + (declared + 1) * 1000)), [
+    recordId,
+  ]);
+});

@@ -161,11 +161,13 @@ function validateLeg(profileId: string, leg: LegSpec): void {
  *  3. GOVERNED `captureMode:'live'` (live capture, SPEC §9.2) — checked BEFORE the reverify
  *     guard so a live profile throws GOVERNED(captureMode), never the reverify refusal;
  *  4. GOVERNED `policySource` (policy drift, SPEC §10.3);
- *  5. GOVERNED `redeemBound` (redeeming-window bound, SPEC §4 & §11.2);
- *  6. per-leg GOVERNED guards + stray-redemption-key check;
- *  7. structural: stray redemption key on the profile itself;
- *  8. structural: `reverify` on a non-live profile — not built in this build (SPEC §9.2's
+ *  5. per-leg GOVERNED guards + stray-redemption-key check;
+ *  6. structural: stray redemption key on the profile itself;
+ *  7. structural: `reverify` on a non-live profile — not built in this build (SPEC §9.2's
  *     live mode).
+ * `redeemBound` (redeeming-window bound, SPEC §4 & §11.2) is accepted-at-construction as of
+ * the third step-3 increment — the clock module builds the bound whole (payload, dueAt,
+ * resolution), so there is no longer a GOVERNED guard on it here.
  * The sweep is TOTAL: a profile declaring any governed feature throws — the first one
  * reached wins, but none slips through. Canonicalizer resolution + duplicate-id detection
  * are `create.ts`'s (they need the registry / the whole profile list).
@@ -195,18 +197,6 @@ export function validateProfile(profile: ConfirmProfile): void {
       governedUnavailable(
         'policySource',
         'policy-drift notarization is not implemented in this build. Contract: §10.3.',
-      ),
-    );
-  }
-  if (profile.redeem?.redeemBound !== undefined) {
-    throw new Error(
-      governedUnavailable(
-        'redeemBound',
-        'the redeeming-window bound is not built in this build — SPEC §4 makes the ' +
-          "`redeeming` payload's `bound` present-iff-declared in chain bytes, and the " +
-          'clock that writes and resolves it is the third step-3 increment. ' +
-          '`confirmToRedeem` stays accepted-but-inert (a dueAt-only gap, recorded). ' +
-          'Contract: §4, §9.1, §11.2.',
       ),
     );
   }
