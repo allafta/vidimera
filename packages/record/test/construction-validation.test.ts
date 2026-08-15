@@ -173,10 +173,10 @@ test('GOVERNED: a profile declaring policySource throws (policySource)', () => {
 test('redeem.redeemBound is accepted at construction — the clock that honors it is built', () => {
   // INVERTED, at the third step-3 increment: the second step-3 increment pinned a
   // GOVERNED throw here (its `redeeming` edges could not carry §4's declared `bound`
-  // until the clock existed). The third increment builds the bound whole — payload,
-  // dueAt, en-passant resolution — so the guard's own stated trigger ("lifted by the
-  // third step-3 increment") has fired and the throw is deleted. Bound-value validation
-  // deliberately mirrors expiry.ttl's treatment (no novel posture).
+  // until the clock existed). The third step-3 increment lifts the guard as its own
+  // stated trigger names, landing the payload and `dueAt` here; the en-passant
+  // resolution that consumes `dueAt` at the seams follows later in the same increment.
+  // Bound-value validation deliberately mirrors expiry.ttl's treatment (no novel posture).
   const declaring = {
     ...effectSeamProfile(),
     redeem: { confirmToRedeem: 1, redeemBound: 86400 },

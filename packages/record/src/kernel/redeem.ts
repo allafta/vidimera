@@ -229,10 +229,11 @@ export async function redeem(
  * this build's ADDITION, not spec-granted: §11.2's correspondence sentence reads at the
  * effect's execution (completion), but the Honest bound's "mismatched effects refusable
  * at the seam" is exactly what refusing BEFORE a token is issued buys.
- * A lost token strands the (profile, subject) pair only until the declared `redeemBound`
- * elapses (§11.2's lost-token pricing) — completeRedemption with the token is the sole
- * exit before that; a profile declaring no `redeemBound` keeps the strand risk knowingly
- * (§9.1's SHOULD, not a MUST).
+ * A declared `redeemBound` now prices the lost-token strand finitely (§11.2's lost-token
+ * pricing): the bound is stamped into the payload and `dueAt`, so the record becomes
+ * LISTABLE once it elapses — the en-passant resolution that actually ends the strand lands
+ * at the seams later in the third step-3 increment. A profile declaring no `redeemBound`
+ * keeps the strand risk knowingly (§9.1's SHOULD, not a MUST).
  */
 export async function beginRedemption(
   ctx: KernelContext,

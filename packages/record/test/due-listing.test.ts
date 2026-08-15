@@ -1,9 +1,11 @@
 // @vidimera/record — due-listing.test.ts (SPEC §12's `listDue`): the pending-clock column
 // and the read that makes it observable. `dueAt` is a STORE column, not part of the record
 // model — SPEC §12 calls it a listing index and says it is never authoritative — so
-// `getRecord` cannot see it and `listDue` is the only shipped path that can. Exactly one
-// producer sets it (the genesis `opened` append, from the profile's open-window ttl) and
-// every state-leaving append clears it by omission.
+// `getRecord` cannot see it and `listDue` is the only shipped path that can. Three
+// producers set it as of the third step-3 increment: the genesis `opened` append (the
+// profile's open-window ttl), finalize's `confirmed` append (the declared `confirmToRedeem`
+// window), and beginRedemption's `redeeming` append (the declared `redeemBound` window) —
+// and every state-leaving append clears it by omission.
 
 import assert from 'node:assert/strict';
 import { test } from 'vitest';

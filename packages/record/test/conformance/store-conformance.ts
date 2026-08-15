@@ -834,11 +834,14 @@ export function runStoreConformance(label: string, makeStore: () => Store): void
     // === listDue =======================================================================
 
     test('listDue applies NO state predicate — a due record is listed whatever state it is in', async () => {
-      // SPEC §12 states the gate as `dueAt` alone, with no state predicate. In this build only
-      // the genesis sets `dueAt` and every state-leaving append clears it, so no kernel path can
-      // produce a due non-open record. The STORE contract still has to honour the rule, so this
-      // one test drives the store directly and sets the meta itself. That scenario is therefore
-      // constructible only by driving the store directly.
+      // SPEC §12 states the gate as `dueAt` alone, with no state predicate. As of the third
+      // step-3 increment, finalize (the declared `confirmToRedeem` window) and beginRedemption
+      // (the declared `redeemBound` window) join the genesis producer: a `confirmed` or
+      // `redeeming` record becomes due, and thus listed, once its stamped `dueAt` elapses —
+      // no further kernel append is needed to make it so. The STORE contract still has to
+      // honour the no-state-predicate rule independent of which producer set `dueAt`, so this
+      // one test drives the store directly and sets the meta itself, exercising a state/dueAt
+      // combination irrespective of which kernel path could reach it.
       const store = makeStore();
       const genesis = storeGenesis('rec-due', 'profile.p1', 'subject:s1');
       await store.appendTransition(null, genesis, { nonTerminal: true });
