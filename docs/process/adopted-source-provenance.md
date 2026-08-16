@@ -38,6 +38,16 @@ beyond "the reference implementation." Its commits are cited only by short hash.
   five increments ahead of base (multi-leg separation of duties, redemption, consultations,
   policy/eligibility gating, and a richer Store — none of which this build has; every profile
   field that would switch one on throws at construction, in `packages/record/src/config.ts`).
+
+  **Update, present tense:** this parenthetical describes the state at audit time (when R1
+  ran). As of build-order steps 3 and 4's exits and step 5's first increment, three of the
+  five head-ahead capabilities named above are built here too: redemption (SPEC §11.2, both
+  shapes and both clocks), multi-leg separation of duties (SPEC §10.1's sequencing rung and
+  SoD gate), and the consultation attach form (SPEC §11.1's unconditional half — the
+  required-consultation gate itself remains unbuilt). Seven governed profile fields still
+  throw at construction today, not "every" field that would switch one of these capabilities
+  on. This sentence is left as R1 stated it, since it is a dated audit record;
+  `docs/process/implementation-status.md` carries the current, per-section account.
 - **INHERIT** — a bug fix or hardening in the adopted code that base did not have and head did;
   we should take it. **This is the only bucket with action items.**
 - **LATER-STEP** — a genuine new capability, correctly excluded because we have not built the
