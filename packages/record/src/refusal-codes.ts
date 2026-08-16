@@ -42,7 +42,14 @@ export type RefusalCode =
   // a `refused` edge. Producers worded two-touch: §11.1's required-consultation gate
   // (finalize's rung 5.5) is real as of the second step-5 increment; §10.3's policy gate
   // remains a later build step's second producer (future)
-  | 'availability';
+  | 'availability'
+  // the nineteenth code (the first step-6 increment): SPEC §8's conditional table names it
+  // "`refusal`-class, open-by-default so a different eligible actor may decide" — the
+  // default appendsOn path (appends `open→refused` iff the leg's `terminalRefusals` lists
+  // it, else stays open per §10.1) IS the spec-mandated behavior with zero new code —
+  // producer: finalize's eligibility arm of the required-consultation rung (kernel/finalize.ts),
+  // landing later in the first step-6 increment
+  | 'ineligible';
 // class map: chain-compromise → 'compromise'; availability → 'availability'; all others →
 // 'refusal'
 // record-not-open: class 'refusal', terminal-record category — finalize() against a non-open, intact-chain
@@ -97,6 +104,7 @@ export const REGISTRY: Record<RefusalCode, RefusalClass> = {
   'sod-violation': 'refusal',
   'consultation-failed': 'refusal',
   availability: 'availability',
+  ineligible: 'refusal',
 };
 
 /**

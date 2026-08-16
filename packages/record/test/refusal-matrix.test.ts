@@ -397,6 +397,29 @@ test("availability PIN: a leg declaring terminalRefusals:['availability'] has NO
   );
 });
 
+// === ineligible (the first step-6 increment) ==============================================
+// `ineligible` (SPEC §8's conditional table: eligibility refusal, the first step-6
+// increment's code) is `refusal`-class, `terminalRefusals`-able, open-by-default so a
+// different eligible actor may decide — same as `content-drift`'s own default-open behavior
+// and `consultation-failed`'s own shape, requiring the leg's `terminalRefusals` to list it
+// to end the leg instead. Its producer is finalize's eligibility arm of the
+// required-consultation rung, landing later in the first step-6 increment, so this file
+// carries a registry-only assertion; production-path coverage will live in a future
+// increment when the producer is added.
+
+test("ineligible: registry/type presence + class + appendsOn shape only in this file — its producer is finalize's eligibility arm, landing later in the first step-6 increment; production-path coverage lives in a future increment", () => {
+  // `code: RefusalCode = 'ineligible'` is itself a COMPILE-TIME union-membership check
+  // (this file fails to type-check if 'ineligible' is ever removed from the union).
+  const code: RefusalCode = 'ineligible';
+  assert.equal(REGISTRY[code], 'refusal');
+  assert.equal(
+    appendsOn(code, {}),
+    false,
+    'no terminalRefusals -> record stays open, no append (open-by-default for different eligible actor)',
+  );
+  assert.equal(appendsOn(code, { terminalRefusals: [code] }), true);
+});
+
 // === registry totality sanity (cross-check against outcome-model.test.ts's own total) ===
 
 // `unsealable-state` (seal()'s refusal, SPEC §8) is the eleventh code. Its own production-path
@@ -428,7 +451,14 @@ test("availability PIN: a leg declaring terminalRefusals:['availability'] has NO
 // 5.5) is real as of the second step-5 increment — production-path coverage lives in
 // consultations.test.ts's "THE AVAILABILITY PIN" test — while §10.3's policy gate remains
 // a later build step's second producer (future).
-test('every REGISTRY RefusalCode is accounted for in this matrix (9 production-path-tested here + unknown-leg registry-only + unsealable-state production-path-tested in seal.test.ts + effect-mismatch and already-redeemed production-path-tested in redeem.test.ts + redemption-timeout registry-only (production path: clocks.test.ts, third step-3 increment) + prior-leg-unverified registry-only (production path: multi-leg.test.ts, first step-4 increment) + sod-violation registry-only (production path: multi-leg.test.ts, second step-4 increment) + consultation-failed registry-only (production path: consultations.test.ts, second step-5 increment) + availability registry-only (production path: consultations.test.ts, second step-5 increment) = 18)', () => {
+// `ineligible` (the first step-6 increment's eligibility refusal, SPEC §8) is the
+// nineteenth code; it is `refusal`-class and `terminalRefusals`-able, open-by-default so
+// a different eligible actor may decide — the default appendsOn path (appends `open→refused`
+// iff listed in the leg's `terminalRefusals`, else stays open per §10.1). Its producer is
+// finalize's eligibility arm of the required-consultation rung, landing later in the first
+// step-6 increment; registry-only in this file (production-path coverage lives in a future
+// increment when the producer is added).
+test('every REGISTRY RefusalCode is accounted for in this matrix (9 production-path-tested here + unknown-leg registry-only + unsealable-state production-path-tested in seal.test.ts + effect-mismatch and already-redeemed production-path-tested in redeem.test.ts + redemption-timeout registry-only (production path: clocks.test.ts, third step-3 increment) + prior-leg-unverified registry-only (production path: multi-leg.test.ts, first step-4 increment) + sod-violation registry-only (production path: multi-leg.test.ts, second step-4 increment) + consultation-failed registry-only (production path: consultations.test.ts, second step-5 increment) + availability registry-only (production path: consultations.test.ts, second step-5 increment) + ineligible registry-only (production path: first step-6 increment) = 19)', () => {
   const allCodes = Object.keys(REGISTRY) as RefusalCode[];
-  assert.equal(allCodes.length, 18);
+  assert.equal(allCodes.length, 19);
 });
