@@ -45,19 +45,32 @@ fabricated pass — never appending, so the record stays open for a bounded
 retry — with the construction guard on declaring `requiredConsultations`
 lifted alongside it. Consultation freshness gating stays out of scope
 deliberately (it could never fire honestly at this build's assurance level).
-Step 6 — authority checks: eligibility and policy drift — has **started**:
-the first of its two increments landed eligibility gating, SPEC §10.4
-whole — declaring a per-leg `eligibility` reference makes `'eligibility'`
-an implicit-first required consultation kind, checked ahead of the leg's
-own declared `requiredConsultations`; a `fail` verdict on that implicit
-kind refuses `ineligible` (the nineteenth code, open-by-default so a
-different eligible actor may decide), while every other trip along the
-gate — including `'eligibility'` on a leg that merely lists it in
-`requiredConsultations`, without declaring it — keeps the generic codes.
-The construction guard on declaring `eligibility` lifted alongside it. The
-second increment, policy drift, remains and exits the step; its
-cross-drift open decision is already ruled fail-close, banked for that
-increment's own spec. Two of the eight build-order
+Step 6 — authority checks: eligibility and policy drift — has **exited**:
+both of its increments have landed. The first landed eligibility gating,
+SPEC §10.4 whole — declaring a per-leg `eligibility` reference makes
+`'eligibility'` an implicit-first required consultation kind, checked
+ahead of the leg's own declared `requiredConsultations`; a `fail` verdict
+on that implicit kind refuses `ineligible` (the nineteenth code,
+open-by-default so a different eligible actor may decide), while every
+other trip along the gate — including `'eligibility'` on a leg that
+merely lists it in `requiredConsultations`, without declaring it — keeps
+the generic codes. The construction guard on declaring `eligibility`
+lifted alongside it. The second landed policy-drift notarization, SPEC
+§10.3 whole: `open()` binds an operator-attested `policyDigest` into the
+genesis, present-iff-declared and fail-closed loud both directions;
+`finalize()` gains the matching presence contract for `opts.policy` at
+profile-resolution depth; and a new gate rung compares the live digest
+against the record's bound one — a mismatch refuses `policy-drift` (the
+twentieth code), including both of the section's named cross-instance
+corners, and a reported-unreachable source produces the `availability`
+outcome again, its second producer. The cross-drift open decision named
+at the step-6 brainstorm is decided in code as fail-close: a record bound
+under a declaring profile and later finalized under a same-id
+non-declaring instance still refuses `policy-drift` rather than skipping
+the gate. The construction guard on declaring `policySource` lifted with
+all three of its seam obligations in the same commit. Step 7 — findings
+and acknowledgments, SPEC §10.2, where the first draft-ahead maturity
+marker could finally move — is next. Two of the eight build-order
 steps remain unstarted (steps 7–8), and the
 package is **not consumable by a host today** — no build, no published
 artifact; that record states it in the same breath as the green gates. The
@@ -156,20 +169,34 @@ deliberately: at this build's assurance level the library stamps every
 consultation's own recording time, so a freshness bound could never fire
 honestly.
 
-Step 6 — authority checks: eligibility and policy drift — has **started**:
-the first of its two increments has landed. Declaring a per-leg
-`eligibility` reference makes `'eligibility'` an implicit-first required
-consultation kind: rung 5.5 checks it ahead of the leg's own declared
-`requiredConsultations`, authority-to-decide before the evidence checks.
-An obtained `fail` verdict on that implicit kind refuses `ineligible` (the
-nineteenth refusal code), open-by-default so a different eligible actor
-may decide the same open record; a missing or reported-unreachable input
-keeps the generic codes, and a leg that merely lists `'eligibility'` in
-`requiredConsultations` without declaring it keeps the generic codes too.
-The construction guard on declaring `eligibility` lifted with the gate, in
-the same commit. The second increment, policy drift, remains and exits the
-step; its cross-drift open decision is already ruled fail-close, banked
-for that increment's own spec.
+Step 6 — authority checks: eligibility and policy drift — has **exited**:
+both increments have landed. The first landed eligibility gating.
+Declaring a per-leg `eligibility` reference makes `'eligibility'` an
+implicit-first required consultation kind: rung 5.5 checks it ahead of
+the leg's own declared `requiredConsultations`, authority-to-decide
+before the evidence checks. An obtained `fail` verdict on that implicit
+kind refuses `ineligible` (the nineteenth refusal code), open-by-default
+so a different eligible actor may decide the same open record; a missing
+or reported-unreachable input keeps the generic codes, and a leg that
+merely lists `'eligibility'` in `requiredConsultations` without declaring
+it keeps the generic codes too. The construction guard on declaring
+`eligibility` lifted with the gate, in the same commit. The second landed
+policy-drift notarization: `open()` gains a second options-bag key,
+`policyDigest`, binding the operator-attested drift baseline into the
+genesis, present-iff-declared and fail-closed loud both directions; a
+declaring profile opened without one, or a non-declaring profile opened
+with one, throws. `finalize()` gains a matching second options-bag key,
+`policy`, with the same fail-closed presence contract, checked after the
+chain-verify and profile-resolution rungs so a tampered chain or an
+unconfigured profile still wins first. A new gate rung, placed after
+content-drift and before the facts check, compares the live digest
+`opts.policy` attests against the record's bound one: a match confirms, a
+mismatch refuses `policy-drift` (the twentieth refusal code) — including
+both of the section's named cross-instance corners, the reverse one
+answering the section's own open decision fail-close — and a
+reported-unreachable policy source produces the `availability` outcome
+again, its second producer. The construction guard on declaring `policySource`
+lifted with all three of its seam obligations, in the same commit.
 
 ## License
 

@@ -583,6 +583,20 @@ arriving with its own future build step:
   yet declare `policySource`), and the policy half of `opts` named above, unchanged — the
   second step-6 increment's own ground. `docs/process/implementation-status.md` carries the
   current account.
+
+  **Correction, at the second step-6 increment: nothing named in this bundle remains
+  unbuilt.** Gate (4.5) policy-drift and its own second producer of the `availability`
+  class, and the policy half of `opts`, have since landed too. `policySource` is accepted
+  at construction (the eighth self-authored inversion); `open()`'s options bag binds the
+  operator-attested `policyDigest` into the genesis, present-iff-declared and fail-closed
+  loud both directions; `finalize()`'s `opts?: FinalizeOptions` gains its second real key,
+  `policy` (SPEC §10.3's `PolicyInput`), shape-checked at intake and presence-checked at
+  profile-resolution depth exactly as this bundle named; and `finalize()`'s rung (4.5)
+  compares the live digest against the record's bound one, raising the twentieth code,
+  `policy-drift`, on a mismatch (including both cross-instance corners) and the
+  `availability` outcome (its second producer) on a reported-unreachable source. This bullet
+  is left as R1/R2 stated it, since it is a dated audit record;
+  `docs/process/implementation-status.md` carries the current account.
 - **Structural riders** — the `kernel/context.ts` extraction (kills a kernel→create.ts type
   back-edge; type-only, zero behavior), a `mintToken` injectable seam, and a handful of
   index-export additions for types that do not exist here yet.
@@ -668,9 +682,11 @@ them to match the reference project more closely would be a regression, not a co
 - **`open()` throws on any unexpected key in its `opts` bag** (`kernel/open.ts:65-69`,
   `config.ts:234`'s `OpenOptions = Record<string, never>`), rather than relying on TypeScript's
   static type to silently drop an unrecognized key at runtime. A plain-JavaScript caller
-  passing `supersedes`, `priorRecordRefs`, or `policyDigest` today would otherwise have the key
-  silently dropped and believe it received a linkage it never got — type-level absence is not a
-  runtime guard for a JavaScript caller. Keep this until those capabilities are actually built.
+  passing `supersedes` today would otherwise have the key silently dropped and believe it
+  received a linkage it never got — type-level absence is not a runtime guard for a
+  JavaScript caller. `priorRecordRefs` (build-order step 4) and `policyDigest` (the second
+  step-6 increment) are no longer examples of this: both are real keys now, honored rather
+  than silently dropped. Keep this note for `supersedes` until it too is actually built.
 - **`kernel/stage.ts` was taken from the reference project's *head*, not its base** — the one
   file in this kernel where that is true. Every other adopted source file is base-first
   (deliberately — see the companion whole-branch-review document's account of why base-file-

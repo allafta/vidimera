@@ -73,17 +73,25 @@ parts:
   count 7 → 6). §11.1 is whole in this build except its freshness tail: `freshness` stays
   GOVERNED and `[SKETCHED]` deliberately (an AL1 build can never make that bound fire).
   Step 6 — authority checks: eligibility + policy drift, SPEC §10.4 + §10.3 — **has
-  started**: the first of its two increments landed eligibility gating, SPEC §10.4 whole —
-  declaring a per-leg `eligibility` reference makes `'eligibility'` an implicit-FIRST
-  required consultation kind at `finalize()`'s rung 5.5, checked ahead of the leg's own
-  declared `requiredConsultations`; a `fail` verdict on that implicit kind refuses
+  exited**: both of its two increments landed. The first landed eligibility gating, SPEC
+  §10.4 whole — declaring a per-leg `eligibility` reference makes `'eligibility'` an
+  implicit-FIRST required consultation kind at `finalize()`'s rung 5.5, checked ahead of the
+  leg's own declared `requiredConsultations`; a `fail` verdict on that implicit kind refuses
   `ineligible` (the nineteenth code, `refusal`-class, open-by-default so a different
   eligible actor may decide), while a missing or unreachable input keeps the generic codes,
   and a NON-declaring leg that merely lists `'eligibility'` in `requiredConsultations` keeps
   the generic codes too; the `eligibility` GOVERNED throw lifted with the gate in the same
-  commit (governed count 6 → 5). The second increment, policy drift (SPEC §10.3), remains
-  and exits the step; its cross-drift open decision is already ruled FAIL-CLOSE, taken at
-  the step-6 brainstorm and banked for that increment's own spec.
+  commit (governed count 6 → 5). The second landed policy-drift notarization, SPEC §10.3
+  whole: `open()`'s options bag binds the operator-attested `policyDigest` into the genesis,
+  present-iff-declared and fail-closed loud both directions; `finalize()`'s matching
+  presence contract requires (or, on a non-declaring profile, forbids) `opts.policy` at
+  profile-resolution depth; and rung (4.5) compares the live digest against the record's
+  bound one — `policy-drift` (the twentieth code) on mismatch, including both cross-instance
+  corners, and the `availability` outcome (its second producer) on a reported-unreachable
+  source; the cross-drift open decision named at the step-6 brainstorm is DECIDED in code as
+  FAIL-CLOSE, so a bound record finalized under a same-id non-declaring instance still
+  refuses `policy-drift` rather than skipping the gate; the `policySource` GOVERNED throw
+  lifted with all three seam obligations in the same commit (governed count 5 → 4).
   **`docs/process/implementation-status.md` is the authoritative
   account** of what this build does and does not implement, section by section, with the
   gate outputs and the outstanding list — read it rather than trusting a count here,
@@ -180,7 +188,9 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   inversions have been authorized so far, both during the step-1 remediation, each argued
   in place at `packages/record/test/terminality.test.ts` and recorded in the exit record.
 - Feature guards from day one — an unimplemented capability throws at construction
-  (`config.ts` `validateProfile`; five governed profile fields throw there). `redeem`
+  (`config.ts` `validateProfile`; four governed profile fields throw there, five before the
+  second step-6 increment lifted `policySource` alongside all three of its own seam
+  obligations). `redeem`
   was originally the eleventh governed capability, throwing at the call seam instead
   (`kernel/redeem.ts`) rather than at construction; the first step-3 increment landed
   SPEC §11.2's direct shape, and the second landed the token shape —
@@ -244,8 +254,20 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   the malformed-reference rule (the gate keys on the declaration's presence, never the
   label — NOT `proposer: ''`'s inertness trap), and declaring `eligibility` while also
   listing `'eligibility'` in the same leg's `requiredConsultations` throws SPEC §10.4's own
-  "declare it once" construction error. Five fields are governed today: the whole-profile
-  `captureMode:'live'` and `policySource`, and the per-leg `ackMode`, `requiredAcks`,
-  `freshness`.
+  "declare it once" construction error. **The construction-guarded count moves once more, at
+  the second step-6 increment: five down to four.** `policySource` — SPEC §10.3's opaque
+  per-profile policy-authority label — was GOVERNED from the kernel increment on; it lifted
+  because all three of its own seam obligations land in the same commit: `open()`'s binding
+  contract binds the operator-attested `policyDigest` into the genesis, present-iff-declared
+  and fail-closed loud both directions; `finalize()`'s presence contract requires (or, on a
+  non-declaring profile, forbids unconditionally) `opts.policy` at profile-resolution depth;
+  and `finalize()`'s new rung (4.5) compares the live digest against the record's bound one,
+  raising the twentieth refusal code, `policy-drift`, on a mismatch — including both
+  cross-instance corners, the reverse one answering §10.3's own named open decision
+  FAIL-CLOSE — and the `availability` outcome (its second producer) on a reported-unreachable
+  source. What replaces the guard is the same settled fail-closed structural class
+  `validateEligibility`'s own empty-label rule uses: an opaque reference that references
+  nothing is malformed config. Four fields are governed today: the whole-profile
+  `captureMode:'live'`, and the per-leg `ackMode`, `requiredAcks`, `freshness`.
 - Byte-stability pins and adjacent-pair gate-order tests, from the kernel increment on.
 - The living deferral register: `docs/process/deferral-register.md`.

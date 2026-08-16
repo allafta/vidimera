@@ -38,7 +38,7 @@ export interface OperatorSurface {
     facts: { figures: unknown; checker: IdentityAssertion }, // checker = review-surface identity (≠ actor)
     // SPEC §9: "finalize(recordId, identity, content, facts, opts?)" — `opts.consultations`
     // is real as of the first step-5 increment (the attach form, SPEC §11.1); `opts.policy`
-    // (§10.3) stays GOVERNED at the call seam until its own build step.
+    // (§10.3) is real as of the second step-6 increment (the presence contract + rung (4.5)).
     opts?: FinalizeOptions,
   ): Promise<Outcome<{ recordId: string; state: 'confirmed'; transitionRef: Digest }>>;
   redeem(

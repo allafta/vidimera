@@ -70,7 +70,7 @@
 //     are adjacent-but-for-4.5 in that fixture).
 //   (4.5)->(5) x 1 — policy drift over facts' consultation-missing (the second step-6
 //     increment's own review fold-in — flagged as an unpinned-but-constructible gap at
-//     this increment's own exit, then closed in the same increment). Genuinely
+//     the second step-6 increment's own exit, then closed in that same increment). Genuinely
 //     CONSECUTIVE — nothing sits between (4.5) and (5). ALREADY COVERED in
 //     policy-drift.test.ts: "order: (4.5) outranks (5) — a drifted policy moots even
 //     malformed facts", using the established non-canonicalizable-BigInt-figures shape
