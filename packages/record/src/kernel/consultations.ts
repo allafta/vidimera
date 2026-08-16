@@ -43,11 +43,21 @@ export function validateConsultations(
   if (inputs === undefined) {
     return { obtained, unreachable };
   }
+  if (!Array.isArray(inputs)) {
+    // A non-array `consultations` (null/string/object) is a malformed OPTIONS BAG, not a
+    // malformed entry inside one — reached here before the per-entry loop below so it never
+    // falls through to `inputs.entries()`, which throws an unnamed TypeError on anything
+    // that is not itself an array (SPEC §9's "throws at argument intake" applies to the whole
+    // bag, not just its elements).
+    throw new Error(
+      'finalize: consultations must be an array when supplied — a malformed options bag is a caller error (SPEC §11.1)',
+    );
+  }
   const seenKinds = new Set<string>();
   for (const [index, input] of inputs.entries()) {
     if (typeof input !== 'object' || input === null || Array.isArray(input)) {
       throw new Error(
-        `finalize: consultations[${index}] is not an object — a malformed entry is a caller error (SPEC §11.1)`,
+        `finalize: consultations[${index}] is not a plain object (arrays and primitives are malformed entries) — a caller error (SPEC §11.1)`,
       );
     }
     const record = input as unknown as Record<string, unknown>;
@@ -104,6 +114,12 @@ export function validateConsultations(
         );
       }
     }
+    // The exact-shape rule enforced by the two key-set loops above is ENTRY-shape-scoped
+    // only: `checker` itself is validated by `isValidIdentity` (a non-empty `principal` and
+    // `authority`) but is not, in turn, exact-shaped — the same recorded posture as the
+    // `confirmed` payload's `actor` and `facts.checker` since the kernel increment. Extra
+    // keys inside a supplied checker object are not rejected; they reach the digested
+    // payload as host attestation, not as anything this validator itself vouches for.
     if (!isValidIdentity(record.checker as never)) {
       throw new Error(
         `finalize: consultations[${index}] (obtained '${kind}') has a malformed checker identity — a caller error (SPEC §11.1)`,

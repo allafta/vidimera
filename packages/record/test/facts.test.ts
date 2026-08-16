@@ -143,7 +143,7 @@ test('finalize() with present facts records a kind:facts consultation whose chec
   assert.deepEqual((t3.payload as { actor: unknown }).actor, actor);
 });
 
-test('the success batch is [chain-verify, facts, confirmed] and the resulting chain verifies intact', async () => {
+test('the no-consultations success batch is [chain-verify, facts, confirmed] and the resulting chain verifies intact', async () => {
   const handles = create(makeConfig([captureProfile()]));
   const recordId = await openRecord(handles, CONTENT, PROFILE_ID, DEFAULT_SUBJECT_REF);
 

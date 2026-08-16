@@ -3,7 +3,8 @@
 // FIRST step after loading the chain is a pre-seam chain-verify sharing ONE replay/
 // verifyChain core with the operator `verifyChain()` audit wrapper.
 //   - clean verify → a `verdict:'pass'` `chain-verify` consultation is appended as the FIRST
-//     element of the success batch [chain-verify, facts, confirmed];
+//     element of the success batch (no consultations supplied here) [chain-verify, facts,
+//     confirmed];
 //   - a DETECTED BREAK → NO chain-verify consultation; finalize refuses `chain-compromise`
 //     (class compromise) and appends ONE `refused` edge at head via NORMAL C2 (seq=max+1,
 //     prevHash=chainHead) — `open→refused` for an unconfirmed record, and `confirmed→refused`

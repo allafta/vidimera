@@ -75,7 +75,12 @@ type Facts = { figures: unknown; checker: IdentityAssertion };
  * transport-established caller identity — it is the LIBRARY itself attesting a clean replay,
  * so its `authority` is an internal library authority (`system:vidimera-record`), never one of
  * the transport authorities (`oidc:`/`session:`/`mtls:`/`dev-stub`) a leg's `allowedAuthorities`
- * would list. Exported so audit/tooling can recognize a system-emitted consultation.
+ * would list. Exported so audit/tooling can recognize a system-emitted consultation — but
+ * recognition is by the RESERVED KIND (`facts`/`chain-verify`) alone, never by this constant's
+ * shape: with the attach form live (the first step-5 increment), a host-supplied consultation's
+ * own `checker` is host-attestable (`kernel/consultations.ts` validates its shape, not its
+ * truth), so only the reserved kinds are unforgeable — `SYSTEM_CHECKER` itself proves nothing
+ * about a consultation that merely happens to carry a similar-looking checker.
  */
 export const SYSTEM_CHECKER: IdentityAssertion = {
   principal: 'system:chain-verify',
@@ -266,7 +271,7 @@ export async function finalize(
     return refuseMaybeAppend(store, 'consultation-missing', leg, chain, resolved, finalLeg, now);
   }
 
-  // --- (6) success batch: [chain-verify, facts, confirmed] -----------------------------
+  // --- (6) success batch: [chain-verify, facts, …obtained consultations, confirmed] ----
   const nowIso = now().toISOString();
   const last = chain.at(-1);
   if (last === undefined) {

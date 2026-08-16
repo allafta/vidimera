@@ -53,6 +53,16 @@ test('validateConsultations: undefined and empty partition to nothing; order is 
   );
 });
 
+test('validateConsultations: a non-array consultations value throws — the options bag itself is malformed, not an entry inside it', () => {
+  // opts.consultations must be an array when supplied. Before this pin, null/string/object
+  // reached `inputs.entries()` directly and threw a raw, unnamed TypeError instead of a
+  // caller error naming the fault (distinct from the per-entry non-object pin below, which
+  // covers a malformed ELEMENT inside an already-array consultations list).
+  assert.throws(() => validateConsultations('nope' as never), /array/i);
+  assert.throws(() => validateConsultations(null as never), /array/i);
+  assert.throws(() => validateConsultations({ kind: 'x' } as never), /array/i);
+});
+
 test('validateConsultations: duplicate kinds throw — obtained+obtained AND obtained+marker', () => {
   assert.throws(
     () => validateConsultations([obtained('risk-check'), obtained('risk-check')]),

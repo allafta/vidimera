@@ -490,6 +490,16 @@ arriving with its own future build step:
   `baf88fe`) — have since landed, inside the same in-memory backing; `tx?` alone remains
   outstanding. This bullet is left as R1/R2 stated it, since it is a dated audit record;
   `docs/process/implementation-status.md` carries the current account.
+
+  **Correction, dated at commit `f681e92`:** `tx?` is no longer outstanding either. Commit
+  `04ab306` opened the seam on the `Store` interface itself — adapter-generic across all
+  three writes (`putStaged`, `appendTransition`, `appendBatch`), with `MemoryStore`
+  validating first and throwing loudly on any supplied handle, having no driver to enlist a
+  write in; commit `f681e92` made the seam real on a driver, enlisting `SqliteStore`'s
+  writes on the caller's own connection rather than a loud throw. The count is six of six as
+  of the fifth step-2 increment's exit (commit `8a03c45`), and the cross-backing
+  byte-identity test (commit `368e6ba`) holds across the divide.
+  `docs/process/implementation-status.md` carries the current account.
 - **Redemption (the effect seam)** — the real `redeeming`/`redeemed`/`redemption-failed`
   transition kinds and their payload shapes, `kernel/redeem.ts`'s full gate ladder, token
   issuance, and the residual-conflict resolver (`chain/replay.ts`, `kernel/redeem.ts`,
@@ -506,6 +516,17 @@ arriving with its own future build step:
   `redemption-failed`'s producer, including the fourth redemption code,
   `redemption-timeout`. `docs/process/implementation-status.md` carries the current
   account.
+
+  **Correction, dated at commit `266bd86`:** nothing named above remains LATER-STEP either —
+  the third step-3 increment landed the whole remaining bundle. `kernel/expiry.ts`'s shared
+  `pendingWindow`/`resolveDueClock` (built at commit `8626692`) resolves both clocks —
+  `confirmed → expired` (the `confirmToRedeem` window) and `redeeming → redemption-failed`
+  (the `redeemBound` window) — with the `redeemBound` construction guard lifted alongside its
+  clock (commit `b3ca3e8`) and the fourth redemption code, `redemption-timeout`, folded on
+  replay (commit `e28f368`); the three redemption seams' own resolver-reports rule (commit
+  `0ccf20f`) is `redemption-failed`'s producer. SPEC §11.2 is whole across all three step-3
+  increments: both shapes, both clocks, at-most-once including the elapsed-`redeeming`
+  unknown-outcome half. `docs/process/implementation-status.md` carries the current account.
 - **Multi-leg separation of duties** — `PriorRecordRef`/`RecordedPriorRef`, `open()`'s
   prior-leg verification step, the finalize SoD gate, and the `sealed`/status-retirement fold
   (`kernel/open.ts`, `kernel/finalize.ts`, `types.ts`, `chain/replay.ts`).
