@@ -3,13 +3,15 @@
 // and every refusal path wins over the ones after it:
 //
 //   load chain → (1) pre-seam chain-verify → (2) state/expiry gate → (3) identity (both
-//   branches) → (3.5) separation of duties → (4) content-drift → (5) facts → (5.7) ack
-//   coverage [reserved] → (6) success append batch.
+//   branches) → (3.5) separation of duties → (4) content-drift → (5) facts → (5.5)
+//   required consultations → (5.7) ack coverage [reserved] → (6) success append batch.
 //
-// This build implements rungs (1)/(2)/(3)/(3.5)/(4)/(5)/(6) of the SPEC's full ladder; the
-// SPEC's (4.5) policy-drift and (5.5) consultations/eligibility rungs are not built in this
-// build (their profile fields throw GOVERNED at construction, so no profile that would need
-// them can exist).
+// This build implements rungs (1)/(2)/(3)/(3.5)/(4)/(5)/(5.5)/(6) of the SPEC's full ladder;
+// the SPEC's (4.5) policy-drift rung is not built in this build (`policySource` throws
+// GOVERNED at construction, so no profile that would need it can exist). Rung (5.5) is built
+// for its required-consultation half only (SPEC §11.1, second step-5 increment); the SPEC's
+// eligibility half of the same rung is not built (`eligibility` still throws GOVERNED at
+// construction — SPEC §10.4, step 6's own ground).
 //
 // (1) Chain-verify is FIRST after load. A DETECTED BREAK → refuse `chain-compromise` (class
 //     compromise, TERMINAL) and append ONE `refused` edge at head via NORMAL C2 (seq=max+1,
@@ -32,6 +34,14 @@
 // (4) Content-drift — re-canonicalize the `content` arg through the profile's adopter
 //     canonicalizer + library JCS; mismatch vs the bound `contentDigest` → `content-drift`.
 // (5) Facts — missing/malformed `facts` (no figures / no checker) → `consultation-missing`.
+// (5.5) Required consultations (SPEC §11.1; second step-5 increment) — for each kind the
+//       resolved leg's `requiredConsultations` names, IN DECLARATION ORDER: a
+//       reported-unreachable marker → the `unavailable` outcome (status `unavailable`, code
+//       `availability`, carrying the marker's `authority`; NEVER appends — the record stays
+//       open and the seam re-arms for bounded host retry); missing from the supplied
+//       obtained set → `consultation-missing` (this rung's SECOND producer, after facts'
+//       own); an obtained `fail` verdict → `consultation-failed`. The first declared kind
+//       that trips decides the outcome — declaration order, not severity across kinds.
 // (5.7) Ack coverage — RESERVED. No producer at this build step; arrives with findings and
 //       acknowledgments (SPEC §10.2).
 // (6) Success batch — ONE atomic, variable-arity `appendBatch` call carrying SPEC §9's shape,
@@ -49,8 +59,11 @@
 //     with nothing recorded — the throw sits inside DECISIONS.md #10's "nothing was recorded"
 //     exception rather than beside it.
 //
-// (3)/(3.5)/(4)/(5) are refusal-class: each appends `open→refused` (terminal) IFF the leg's
-// `terminalRefusals` lists it (the `appendsOn` rule), else no append and the record stays open.
+// (3)/(3.5)/(4)/(5)/(5.5) are refusal-class ON THEIR consultation-missing/consultation-failed
+// ARMS: each appends `open→refused` (terminal) IFF the leg's `terminalRefusals` lists it (the
+// `appendsOn` rule), else no append and the record stays open. (5.5)'s availability arm is a
+// DIFFERENT outcome status entirely (`unavailable`, never `refused`) and never appends,
+// `terminalRefusals` notwithstanding (SPEC §8).
 
 import { canonicalize, digest } from '../canonical.js';
 import { transitionDigest } from '../chain/encoding.js';
@@ -59,7 +72,7 @@ import { type FinalizeOptions, governedUnavailable, type LegSpec } from '../conf
 import type { KernelContext, ResolvedProfile } from '../create.js';
 import { isFinalLeg, nonTerminal } from '../nonterminal.js';
 import type { Outcome } from '../outcome.js';
-import { ok, refused } from '../outcome.js';
+import { ok, refused, unavailable } from '../outcome.js';
 import { appendsOn, type RefusalCode } from '../refusal-codes.js';
 import type { AppendMeta, Store } from '../store/store.js';
 import type { Consultation, Digest, IdentityAssertion, RecordState, Transition } from '../types.js';
@@ -271,6 +284,46 @@ export async function finalize(
     return refuseMaybeAppend(store, 'consultation-missing', leg, chain, resolved, finalLeg, now);
   }
 
+  // --- (5.5) required consultations (SPEC §11.1; second step-5 increment) --------------
+  // The gate reads THIS record's own resolved leg (§11.1: on a multi-leg profile one
+  // leg's finalize is never gated by another leg's requiredConsultations) and iterates
+  // the declared kinds IN ORDER — "the first kind that trips resolving the call".
+  // Non-required supplied consultations are untouched here: evidence, never a gate.
+  if (leg.requiredConsultations !== undefined) {
+    for (const requiredKind of leg.requiredConsultations) {
+      const marker = supplied.unreachable.find((m) => m.kind === requiredKind);
+      if (marker !== undefined) {
+        // §11.1: a required kind the host reports unreachable produces the availability
+        // outcome — "never a fabricated pass", and it NEVER appends: the record stays
+        // open and the seam re-arms for bounded host retry (§8). Not a refusal; not
+        // terminalRefusals-able (appendsOn is never consulted — no refused edge exists).
+        return unavailable(marker.authority);
+      }
+      const obtained = supplied.obtained.find((entry) => entry.kind === requiredKind);
+      if (obtained === undefined) {
+        // Missing — consultation-missing's SECOND producer (the facts rung above is the
+        // first); terminalRefusals-governed, open by default for a corrected retry.
+        return refuseMaybeAppend(
+          store,
+          'consultation-missing',
+          leg,
+          chain,
+          resolved,
+          finalLeg,
+          now,
+        );
+      }
+      if (obtained.verdict === 'fail') {
+        // §11.1: an obtained verdict of fail refuses consultation-failed —
+        // terminalRefusals-governed, open by default "for a corrected retry".
+        return refuseMaybeAppend(store, 'consultation-failed', leg, chain, resolved, finalLeg, now);
+      }
+      // verdict 'pass': this required kind is satisfied; it records in the success
+      // batch with every other obtained consultation (the first step-5 increment's
+      // recording is unchanged — the gate adds no recording of its own).
+    }
+  }
+
   // --- (6) success batch: [chain-verify, facts, …obtained consultations, confirmed] ----
   const nowIso = now().toISOString();
   const last = chain.at(-1);
@@ -321,10 +374,11 @@ export async function finalize(
     prevHash: transitionDigest(cvTransition),
   };
   // The host's obtained consultations (SPEC §11.1's attach form), supplied order
-  // preserved, chained after facts and before confirmed. `supplied.unreachable` markers
-  // are validated above but go UNUSED here — SPEC §11.1: "an unreachable marker for a
-  // non-required kind is inert", and no kind can be required while `requiredConsultations`
-  // stays GOVERNED (config.ts); the second step-5 increment's gate is the consumer.
+  // preserved, chained after facts and before confirmed. Any `supplied.unreachable`
+  // marker reaching this point names a NON-required kind — SPEC §11.1: "an unreachable
+  // marker for a non-required kind is inert" — because rung (5.5) above already consumed
+  // (and returned on) any marker for a kind the leg's `requiredConsultations` names; it
+  // goes UNUSED here, same as before the gate, just for a narrower reason now.
   const suppliedTransitions: Transition[] = [];
   let suppliedPrevHash = transitionDigest(factsTransition);
   for (const [i, entry] of supplied.obtained.entries()) {

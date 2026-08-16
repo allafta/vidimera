@@ -77,6 +77,13 @@ export function governedUnavailable(field: string, contract: string): string {
   return `GOVERNED feature not available in this build (${field}) — ${contract}`;
 }
 
+/** SPEC §11.1: the library-emitted consultation kinds — reserved on BOTH sides of the
+ * seam: a supplied input naming one throws at finalize's intake ("would forge a library
+ * control"), and a profile declaring one in `requiredConsultations` is a construction
+ * error ("declaring a reserved kind in `requiredConsultations` is likewise a
+ * profile-construction error"). */
+export const RESERVED_CONSULTATION_KINDS: ReadonlySet<string> = new Set(['facts', 'chain-verify']);
+
 /**
  * The three redemption FIELDS: `confirmToRedeem` and `redeemBound` — SPEC §9.1's `redeem`
  * block, which names exactly those two — plus `reverify`, introduced only by SPEC §9.2's
@@ -112,13 +119,6 @@ function validateLeg(profileId: string, leg: LegSpec): void {
       governedUnavailable(
         'requiredAcks',
         'required-acknowledgment gating on findings is not implemented in this build. Contract: §10.2.',
-      ),
-    );
-  if (leg.requiredConsultations !== undefined)
-    throw new Error(
-      governedUnavailable(
-        'requiredConsultations',
-        'required-consultation gating is not implemented in this build. Contract: §11.1.',
       ),
     );
   if (leg.freshness !== undefined)
@@ -201,6 +201,42 @@ function validateSodShape(profile: ConfirmProfile, index: number, leg: LegSpec):
   }
 }
 
+/** Structural requiredConsultations validation (SPEC §11.1; second step-5 increment).
+ * The settled fail-closed class: no declarable-but-inert configuration exists — the
+ * list is non-empty, pairwise distinct, every kind a non-empty string, and never a
+ * reserved library-emitted kind. */
+function validateRequiredConsultations(profile: ConfirmProfile, leg: LegSpec): void {
+  if (leg.requiredConsultations === undefined) return;
+  const kinds = leg.requiredConsultations;
+  if (kinds.length === 0) {
+    throw new Error(
+      `invalid profile '${profile.id}': leg '${leg.id}' declares requiredConsultations as an empty array — ` +
+        'the control must require at least one kind (non-empty by the fail-closed ruling)',
+    );
+  }
+  const seen = new Set<string>();
+  for (const kind of kinds) {
+    if (typeof kind !== 'string' || kind.length === 0) {
+      throw new Error(
+        `invalid profile '${profile.id}': leg '${leg.id}' declares a missing or empty consultation kind in requiredConsultations`,
+      );
+    }
+    if (RESERVED_CONSULTATION_KINDS.has(kind)) {
+      throw new Error(
+        `invalid profile '${profile.id}': leg '${leg.id}' requires the reserved library-emitted kind '${kind}' — ` +
+          'SPEC §11.1: declaring a reserved kind in requiredConsultations is a profile-construction error',
+      );
+    }
+    if (seen.has(kind)) {
+      throw new Error(
+        `invalid profile '${profile.id}': leg '${leg.id}' requires '${kind}' twice in requiredConsultations — ` +
+          'entries must be pairwise distinct (duplicate)',
+      );
+    }
+    seen.add(kind);
+  }
+}
+
 /**
  * Fail-CLOSED structural validation of a single profile. Order:
  *  1. structural: at least one leg (internal legId derivation must be well-defined);
@@ -209,7 +245,8 @@ function validateSodShape(profile: ConfirmProfile, index: number, leg: LegSpec):
  *     guard so a live profile throws GOVERNED(captureMode), never the reverify refusal;
  *  4. GOVERNED `policySource` (policy drift, SPEC §10.3);
  *  5. per-leg GOVERNED guards + stray-redemption-key check (inside `validateLeg`), then
- *     structural SoD shape validation (`validateSodShape`, after);
+ *     structural SoD shape validation (`validateSodShape`) and structural
+ *     requiredConsultations validation (`validateRequiredConsultations`), both after;
  *  6. structural: stray redemption key on the profile itself;
  *  7. structural: `reverify` on a non-live profile — not built in this build (SPEC §9.2's
  *     live mode).
@@ -228,6 +265,12 @@ function validateSodShape(profile: ConfirmProfile, index: number, leg: LegSpec):
  * AND the en-passant resolution that consumes `dueAt` is built at the redemption seams'
  * shared prologue (`kernel/redeem.ts`) and at `finalize()`/`open()`'s own clock rungs, so
  * there is no longer a GOVERNED guard on it here.
+ * `requiredConsultations` (SPEC §11.1) is accepted-at-construction as of the second step-5
+ * increment: the gate that reads the declaration lands at finalize's rung 5.5 in the same
+ * commit as this lift, so the GOVERNED throw is gone — `validateRequiredConsultations`
+ * (above) replaces it with this build's fail-closed structural posture (non-empty, pairwise
+ * distinct, every kind a non-empty string, never a reserved kind — the same settled class
+ * as `validateSodShape`'s). The governed count moves 7 → 6 with this lift.
  * The sweep is TOTAL: a profile declaring any governed feature throws — the first one
  * reached wins, but none slips through. Canonicalizer resolution + duplicate-id detection
  * are `create.ts`'s (they need the registry / the whole profile list).
@@ -266,6 +309,7 @@ export function validateProfile(profile: ConfirmProfile): void {
   for (const [index, leg] of profile.legs.entries()) {
     validateLeg(profile.id, leg);
     validateSodShape(profile, index, leg);
+    validateRequiredConsultations(profile, leg);
   }
   assertNoStrayRedemptionKeys(profile.id, 'top-level profile', profile);
   // `reverify` on a non-live profile is refused — not built in this build (SPEC §9.2's

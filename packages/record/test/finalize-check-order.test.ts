@@ -1,9 +1,10 @@
 // @vidimera/record — finalize-check-order.test.ts (SPEC §9 "The finalize gate ladder"): pins the
 // check-order INVARIANT itself — every finalize() refusal path wins over the ones after it
-// in the seven-rung ladder this build implements (kernel/finalize.ts header), including
-// (3.5):
+// in the eight-rung ladder this build implements (kernel/finalize.ts header), including
+// (3.5) and (5.5):
 //   load chain → (1) pre-seam chain-verify → (2) state/expiry gate → (3) identity
-//   → (3.5) separation of duties → (4) content-drift → (5) facts → (6) success append batch.
+//   → (3.5) separation of duties → (4) content-drift → (5) facts → (5.5) required
+//   consultations → (6) success append batch.
 //
 // Definition (written here so the pair count is reproducible, not re-derived differently by
 // each reader): an ADJACENT-PAIR ORDER TEST is one test per (earlier-rung refusal code,
@@ -20,13 +21,19 @@
 //   (3.5) SoD          -> sod-violation                             (1 code)
 //   (4) content-drift  -> content-drift                             (1 code)
 //   (5) facts          -> consultation-missing                      (1 code)
+//   (5.5) consultations -> consultation-missing (second producer), consultation-failed
+//       (2 codes on its refused-class arms; its THIRD arm produces the `unavailable`
+//       status — a different outcome shape entirely, never a `refused` code, so it cannot
+//       enter an order pair by this file's own refusal-code-pair definition above)
 //   (6) success batch  -> record-not-open, but ONLY on a conflict at the batch's single entry
 //       compare-and-swap, where the batch is all-or-nothing so nothing of the call has
 //       landed. A `seq` conflict at that same entry THROWS a storage fault instead
 //       (kernel/finalize.ts's `batchConflict`), and a throw is not a refusal code — it cannot
 //       enter an order pair at all. The surviving refusal still needs a store that violates
 //       this build step's single-writer bound: there is no way to construct a RECORD whose
-//       data trips it, so (5)->(6) is NOT jointly constructible here and is excluded below.
+//       data trips it, so (5.5)->(6) is NOT jointly constructible here and is excluded below
+//       (the second step-5 increment's rung 5.5 now sits where (5)->(6) used to be adjacent;
+//       the same unreachability argument carries over unchanged to the new adjacent pair).
 //
 // Consecutive-rung pairs and their tests:
 //   (1)->(2) x 2 — chain-compromise over each of rung (2)'s two codes. ALREADY COVERED in
@@ -49,9 +56,14 @@
 //     in that fixture); the two genuinely consecutive pairs around (3.5) are the
 //     multi-leg.test.ts pair named above.
 //   (4)->(5) x 1 — content-drift over consultation-missing. NEW below.
+//   (5)->(5.5) x 1 — facts' consultation-missing over consultation-failed (the second
+//     step-5 increment). ALREADY COVERED in consultations.test.ts: "gate order: (5) facts
+//     outranks (5.5) ..." — that pair needs the gated-profile fixture (a leg declaring
+//     `requiredConsultations`) that only that file's helpers construct, so it is not
+//     duplicated here.
 //
-// Total order-pair tests across the corpus: 8 (2 in chain-verify.test.ts, 4 in this file,
-// 2 in multi-leg.test.ts).
+// Total order-pair tests across the corpus: 9 (2 in chain-verify.test.ts, 4 in this file,
+// 2 in multi-leg.test.ts, 1 in consultations.test.ts).
 
 import assert from 'node:assert/strict';
 import { test } from 'vitest';

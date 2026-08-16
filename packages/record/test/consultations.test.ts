@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
-import type { ConsultationInput } from '../src/config.js';
+import type { ConfirmProfile, ConsultationInput, LegSpec } from '../src/config.js';
 import { create } from '../src/create.js';
 import { validateConsultations } from '../src/kernel/consultations.js';
 import { MemoryStore } from '../src/store/memory.js';
@@ -323,4 +323,213 @@ test('the surface is leg-agnostic: a maker-leg finalize on a two-leg profile rec
   assert.equal(done.status, 'ok');
   const rec = await handles.operator.getRecord(makerId);
   assert.ok(rec?.consultations.some((c) => c.kind === 'risk-check'));
+});
+
+// === the required-consultation gate: rung 5.5 (second step-5 increment) ===
+
+/** captureProfile with the leg's requiredConsultations set (and optional extras). */
+function gatedProfile(extra?: Partial<LegSpec>): ConfirmProfile {
+  const p = captureProfile({ id: 'test.gated.v1' });
+  const leg = p.legs[0];
+  if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
+  p.legs[0] = { ...leg, requiredConsultations: ['risk-check', 'sanctions'], ...extra };
+  return p;
+}
+const GATED_SUBJECT = 'subject:gate-1';
+
+// Reuse the file's EXISTING `obtained(kind, extra?)` helper (the first step-5
+// increment's) for every obtained-consultation fixture below — `obtained('x')` is a
+// pass verdict; `obtained('x', { verdict: 'fail' })` the fail shape. Do not add a
+// duplicate builder.
+
+async function openGated(store: MemoryStore, extra?: Partial<LegSpec>) {
+  const handles = create(makeConfig([gatedProfile(extra)], { store }));
+  const recordId = await openRecord(handles, CONTENT, 'test.gated.v1', GATED_SUBJECT);
+  return { handles, recordId };
+}
+
+test('the full pass: both required kinds obtained pass — confirmed, both recorded', async () => {
+  const store = new MemoryStore();
+  const { handles, recordId } = await openGated(store);
+  const done = await handles.operator.finalize(recordId, identity(), CONTENT, facts(), {
+    consultations: [obtained('risk-check'), obtained('sanctions')],
+  });
+  assert.equal(done.status, 'ok');
+  const rec = await handles.operator.getRecord(recordId);
+  assert.deepEqual(
+    rec?.consultations.map((c) => c.kind),
+    ['chain-verify', 'facts', 'risk-check', 'sanctions'],
+  );
+});
+
+test('missing refuses consultation-missing, open by default, and the corrected retry confirms', async () => {
+  const store = new MemoryStore();
+  const { handles, recordId } = await openGated(store);
+  const out = await handles.operator.finalize(recordId, identity(), CONTENT, facts(), {
+    consultations: [obtained('risk-check')], // sanctions missing
+  });
+  assert.equal(out.status, 'refused');
+  if (out.status !== 'refused') return;
+  assert.equal(out.code, 'consultation-missing');
+  assert.equal((await store.readChain(recordId)).length, 1, 'open, no append — the default path');
+
+  const retry = await handles.operator.finalize(recordId, identity(), CONTENT, facts(), {
+    consultations: [obtained('risk-check'), obtained('sanctions')],
+  });
+  assert.equal(retry.status, 'ok');
+});
+
+test('an obtained fail on a required kind refuses consultation-failed; the corrected retry confirms', async () => {
+  const store = new MemoryStore();
+  const { handles, recordId } = await openGated(store);
+  const out = await handles.operator.finalize(recordId, identity(), CONTENT, facts(), {
+    consultations: [
+      { ...obtained('risk-check'), verdict: 'fail' } as ConsultationInput,
+      obtained('sanctions'),
+    ],
+  });
+  assert.equal(out.status, 'refused');
+  if (out.status !== 'refused') return;
+  assert.equal(out.code, 'consultation-failed');
+  assert.equal((await store.readChain(recordId)).length, 1);
+
+  const retry = await handles.operator.finalize(recordId, identity(), CONTENT, facts(), {
+    consultations: [obtained('risk-check'), obtained('sanctions')],
+  });
+  assert.equal(retry.status, 'ok');
+});
+
+test('THE AVAILABILITY PIN: a required kind reported unreachable — unavailable status, no edge, the seam re-arms', async () => {
+  // SPEC §11.1: "never a fabricated pass"; the availability outcome "never appends":
+  // the record stays open "and the seam re-arms for bounded host retry" — the retry
+  // budget is the HOST's, not the library's.
+  const store = new MemoryStore();
+  const { handles, recordId } = await openGated(store);
+  const out = await handles.operator.finalize(recordId, identity(), CONTENT, facts(), {
+    consultations: [
+      { kind: 'risk-check', unreachable: true, authority: 'svc:risk-check' },
+      obtained('sanctions'),
+    ],
+  });
+  assert.deepEqual(out, {
+    status: 'unavailable',
+    code: 'availability',
+    authority: 'svc:risk-check',
+  });
+  assert.equal((await store.readChain(recordId)).length, 1, 'nothing appended, ever');
+
+  const retry = await handles.operator.finalize(recordId, identity(), CONTENT, facts(), {
+    consultations: [obtained('risk-check'), obtained('sanctions')],
+  });
+  assert.equal(retry.status, 'ok', 'the re-armed seam accepts the recovered authority');
+});
+
+test('the FIRST declared kind trips: risk-check missing beats sanctions failing — declaration order, not severity', async () => {
+  const store = new MemoryStore();
+  const { handles, recordId } = await openGated(store);
+  const out = await handles.operator.finalize(recordId, identity(), CONTENT, facts(), {
+    consultations: [{ ...obtained('sanctions'), verdict: 'fail' } as ConsultationInput],
+  });
+  assert.equal(out.status, 'refused');
+  if (out.status !== 'refused') return;
+  assert.equal(out.code, 'consultation-missing'); // risk-check, declared first, is missing
+});
+
+test('non-required kinds stay evidence with the gate live: an extra fail records and confirm proceeds', async () => {
+  const store = new MemoryStore();
+  const { handles, recordId } = await openGated(store);
+  const done = await handles.operator.finalize(recordId, identity(), CONTENT, facts(), {
+    consultations: [
+      obtained('risk-check'),
+      obtained('sanctions'),
+      { kind: 'llm-judge', checker: CHECKER, payloadDigest: DIGEST, verdict: 'fail' },
+    ],
+  });
+  assert.equal(done.status, 'ok');
+  const rec = await handles.operator.getRecord(recordId);
+  assert.ok(rec?.consultations.some((c) => c.kind === 'llm-judge' && c.verdict === 'fail'));
+});
+
+test('terminalRefusals may make consultation-failed terminal: the refused edge appends and the pair releases', async () => {
+  const store = new MemoryStore();
+  const { handles, recordId } = await openGated(store, {
+    terminalRefusals: ['consultation-failed'],
+  });
+  const out = await handles.operator.finalize(recordId, identity(), CONTENT, facts(), {
+    consultations: [
+      { ...obtained('risk-check'), verdict: 'fail' } as ConsultationInput,
+      obtained('sanctions'),
+    ],
+  });
+  assert.equal(out.status, 'refused');
+  if (out.status !== 'refused') return;
+  assert.equal(out.code, 'consultation-failed');
+  assert.ok(out.transitionRef !== undefined, 'terminal path: the refused edge appended');
+  const last = (await store.readChain(recordId)).at(-1);
+  assert.ok(last !== undefined);
+  assert.equal(last.kind, 'refused');
+  assert.deepEqual(Object.keys(last.payload as object), ['code']);
+  assert.equal(await store.findNonTerminal('test.gated.v1', GATED_SUBJECT), null);
+});
+
+test('availability is legal-but-inert in terminalRefusals AT THE SEAM: still no edge, still open', async () => {
+  // SPEC §8 names `availability` (with `leg-expired`) as a legal terminalRefusals
+  // member that can never fire — "never a `refused` edge". The matrix pins appendsOn;
+  // this pins the seam itself.
+  const store = new MemoryStore();
+  const { handles, recordId } = await openGated(store, {
+    terminalRefusals: ['availability'],
+  });
+  const out = await handles.operator.finalize(recordId, identity(), CONTENT, facts(), {
+    consultations: [
+      { kind: 'risk-check', unreachable: true, authority: 'svc:x' },
+      obtained('sanctions'),
+    ],
+  });
+  assert.equal(out.status, 'unavailable');
+  assert.equal((await store.readChain(recordId)).length, 1);
+  assert.equal(
+    await store.findNonTerminal('test.gated.v1', GATED_SUBJECT),
+    recordId,
+    'still open, still held',
+  );
+});
+
+test("the gate reads the finalizing record's OWN leg: an undeclaring maker is ungated on a declaring-checker profile", async () => {
+  const store = new MemoryStore();
+  const p = twoLegProfile({ id: 'test.gated.twoleg.v1' });
+  const checker = p.legs[1];
+  if (checker === undefined) throw new Error('fixture: twoLegProfile has two legs');
+  p.legs[1] = { ...checker, requiredConsultations: ['risk-check'] };
+  const handles = create(makeConfig([p], { store }));
+  const makerId = await openRecord(
+    handles,
+    CONTENT,
+    'test.gated.twoleg.v1',
+    'subject:gate-2',
+    'maker-decide',
+  );
+  const done = await handles.operator.finalize(makerId, identity(), CONTENT, facts());
+  assert.equal(done.status, 'ok', 'no consultations supplied and none required of THIS leg');
+});
+
+test('gate order: (5) facts outranks (5.5) — invalid facts refuses consultation-missing from the facts rung', async () => {
+  // The discriminator: were (5.5) first, the obtained fail would say consultation-failed.
+  const store = new MemoryStore();
+  const { handles, recordId } = await openGated(store);
+  const out = await handles.operator.finalize(
+    recordId,
+    identity(),
+    CONTENT,
+    { figures: 1n, checker: facts().checker } as unknown as ReturnType<typeof facts>,
+    {
+      consultations: [
+        { ...obtained('risk-check'), verdict: 'fail' } as ConsultationInput,
+        obtained('sanctions'),
+      ],
+    },
+  );
+  assert.equal(out.status, 'refused');
+  if (out.status !== 'refused') return;
+  assert.equal(out.code, 'consultation-missing');
 });

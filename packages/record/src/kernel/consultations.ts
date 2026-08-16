@@ -10,17 +10,18 @@
 // or a reserved kind is a CALLER error that throws identically regardless of record
 // state — never a refusal, and never recorded.
 
-import type { ConsultationInput, ObtainedConsultation, UnreachableMarker } from '../config.js';
+import {
+  type ConsultationInput,
+  type ObtainedConsultation,
+  RESERVED_CONSULTATION_KINDS,
+  type UnreachableMarker,
+} from '../config.js';
 import { isValidIdentity } from './finalize.js';
 
 export interface PartitionedConsultations {
   obtained: ObtainedConsultation[]; // supplied order preserved — the batch records in this order
   unreachable: UnreachableMarker[];
 }
-
-/** SPEC §11.1: `facts` and `chain-verify` are the library-emitted kinds — an input
- * naming one "would forge a library control". */
-const RESERVED_KINDS: ReadonlySet<string> = new Set(['facts', 'chain-verify']);
 
 const OBTAINED_KEYS: ReadonlySet<string> = new Set([
   'kind',
@@ -67,7 +68,7 @@ export function validateConsultations(
       );
     }
     const kind = record.kind;
-    if (RESERVED_KINDS.has(kind)) {
+    if (RESERVED_CONSULTATION_KINDS.has(kind)) {
       throw new Error(
         `finalize: consultations[${index}] names the reserved library-emitted kind '${kind}' — ` +
           'SPEC §11.1: forging a library control is a caller error',

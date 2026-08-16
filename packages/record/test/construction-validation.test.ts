@@ -229,17 +229,36 @@ test('structural: notActorOf rejects empty, own-leg, later-leg, unknown, and dup
   assertStructural(threeLegs({ notActorOf: [leg.id, leg.id] }), /duplicate/i);
 });
 
-test('GOVERNED: a leg declaring requiredConsultations throws (requiredConsultations)', () => {
+test('requiredConsultations is accepted at construction — the gate is built', () => {
+  // INVERTED, at the second step-5 increment: the kernel increment pinned a GOVERNED
+  // throw here while no gate enforced the declaration. The required-consultation rung
+  // lands at finalize's rung 5.5 in the same commit as this lift, so the guard's stated
+  // trigger has fired.
   const p = captureProfile();
   const leg = p.legs[0];
-  if (leg === undefined)
-    throw new Error(
-      'construction-validation.test.ts: p.legs[0] missing — captureProfile() must have at least one leg',
-    );
-  assertGoverned(
-    { ...p, legs: [{ ...leg, requiredConsultations: ['facts'] }] },
-    'requiredConsultations',
+  if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
+  assert.doesNotThrow(() =>
+    create(makeConfig([{ ...p, legs: [{ ...leg, requiredConsultations: ['risk-check'] }] }])),
   );
+});
+
+test('structural: requiredConsultations rejects empty, duplicate, empty-string, and reserved kinds', () => {
+  // The settled fail-closed class (the notActorOf/proposer rulings): no
+  // declarable-but-inert configuration exists. The reserved half is SPEC §11.1's own
+  // sentence: "declaring a reserved kind in `requiredConsultations` is likewise a
+  // profile-construction error".
+  const p = captureProfile();
+  const leg = p.legs[0];
+  if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
+  const withReq = (kinds: string[]) => ({
+    ...p,
+    legs: [{ ...leg, requiredConsultations: kinds }],
+  });
+  assertStructural(withReq([]), /non-empty/i);
+  assertStructural(withReq(['risk-check', 'risk-check']), /duplicate/i);
+  assertStructural(withReq(['']), /kind/i);
+  assertStructural(withReq(['facts']), /reserved/i);
+  assertStructural(withReq(['chain-verify']), /reserved/i);
 });
 
 test('GOVERNED: a leg declaring freshness throws (freshness)', () => {

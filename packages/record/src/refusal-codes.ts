@@ -34,14 +34,14 @@ export type RefusalCode =
   | 'sod-violation'
   // the seventeenth code (the second step-5 increment): SPEC §8's conditional table names
   // it "`refusal`-class, open-by-default for re-run" (the required-consultation gate,
-  // §11.1); producer worded two-touch — finalize's required-consultation rung lands later
-  // in the second step-5 increment
+  // §11.1); producer: finalize's rung 5.5 (kernel/finalize.ts), real as of the second
+  // step-5 increment
   | 'consultation-failed'
   // the eighteenth code (the second step-5 increment): SPEC §8 names it the availability
   // class's single code, "never appends"; carried by the `unavailable` outcome status, never
-  // a `refused` edge. Producers worded two-touch: §11.1's required-consultation gate lands
-  // later in the second step-5 increment; §10.3's policy gate is a later build step's
-  // second producer
+  // a `refused` edge. Producers worded two-touch: §11.1's required-consultation gate
+  // (finalize's rung 5.5) is real as of the second step-5 increment; §10.3's policy gate
+  // remains a later build step's second producer (future)
   | 'availability';
 // class map: chain-compromise → 'compromise'; availability → 'availability'; all others →
 // 'refusal'

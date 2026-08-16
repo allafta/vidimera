@@ -344,16 +344,17 @@ test("sod-violation: registry/type presence + class only in this file — its pr
 
 // === consultation-failed (the second step-5 increment) ===================================
 // `consultation-failed` (SPEC §8's conditional table: required consultations, §11.1) has
-// content-drift's own shape once built: `refusal`-class, `terminalRefusals`-able, open-by-
-// default for re-run — a leg's `terminalRefusals` must list it to end the leg instead, same
-// as content-drift's own default-open behavior above. EVERYTHING INERT at this commit:
-// no producer exists yet anywhere in this build; the producer is finalize's
-// required-consultation rung, landing later in the second step-5 increment. Registry/type-
-// level only here, mirroring `redemption-timeout`'s and `sod-violation`'s own sections
-// above — but unlike those two, `appendsOn`'s append-decision behavior for this code is
-// exercised directly below, since that helper needs no producer to be meaningful.
+// content-drift's own shape: `refusal`-class, `terminalRefusals`-able, open-by-default for
+// re-run — a leg's `terminalRefusals` must list it to end the leg instead, same as
+// content-drift's own default-open behavior above. Its producer is finalize's rung 5.5
+// (kernel/finalize.ts), real as of the second step-5 increment, so this file carries a
+// registry-only assertion, mirroring `redemption-timeout`'s and `sod-violation`'s own
+// sections above; production-path coverage lives in consultations.test.ts, that
+// increment's own file — but unlike those two, `appendsOn`'s append-decision behavior for
+// this code is exercised directly below too, since that helper needs no producer to be
+// meaningful.
 
-test("consultation-failed: registry/type presence + class + appendsOn shape only in this file — no producer exists yet anywhere in this build; landing later in the second step-5 increment (finalize's required-consultation rung)", () => {
+test("consultation-failed: registry/type presence + class + appendsOn shape only in this file — its producer is finalize's rung 5.5, real as of the second step-5 increment; production-path coverage lives in consultations.test.ts", () => {
   // `code: RefusalCode = 'consultation-failed'` is itself a COMPILE-TIME union-membership
   // check (this file fails to type-check if 'consultation-failed' is ever removed from the
   // union).
@@ -376,10 +377,11 @@ test("consultation-failed: registry/type presence + class + appendsOn shape only
 // state/expiry gate resolves it before `appendsOn` is ever consulted, while `availability`
 // is inert because `appendsOn` itself returns `false` for the whole class before reaching
 // the `terminalRefusals` consult — no kernel timing is involved, so this pin needs no
-// fixture beyond the helper itself. EVERYTHING INERT at this commit: no producer exists
-// yet anywhere in this build; producers are worded two-touch — §11.1's
-// required-consultation gate lands later in the second step-5 increment, §10.3's policy
-// gate is a later build step's second producer.
+// fixture beyond the helper itself. Its producers are worded two-touch: §11.1's
+// required-consultation gate (finalize's rung 5.5) is real as of the second step-5
+// increment — production-path coverage lives in consultations.test.ts's "THE AVAILABILITY
+// PIN" test — while §10.3's policy gate remains a later build step's second producer
+// (future).
 
 test("availability PIN: a leg declaring terminalRefusals:['availability'] has NO effect — appendsOn returns false unconditionally for the availability class, never reaching the terminalRefusals consult", () => {
   assert.equal(REGISTRY.availability, 'availability');
@@ -414,17 +416,19 @@ test("availability PIN: a leg declaring terminalRefusals:['availability'] has NO
 // production-path coverage lives in multi-leg.test.ts, the second step-4 increment's own
 // file, not in this matrix.
 // `consultation-failed` (the second step-5 increment's required-consultation refusal,
-// SPEC §8) is the seventeenth code; EVERYTHING INERT at this commit — no producer exists
-// yet anywhere in this build, so this sanity check's total simply grows, same as every
-// profile-conditional code before it. Its producer, finalize's required-consultation
-// rung, lands later in the second step-5 increment.
+// SPEC §8) is the seventeenth code; its producer is finalize's rung 5.5, real as of the
+// second step-5 increment (this commit) — production-path coverage lives in
+// consultations.test.ts, so this sanity check's total simply grows, same as every
+// profile-conditional code before it (registry-only here).
 // `availability` (the second step-5 increment's third-class code, SPEC §8) is the
 // eighteenth and last code added by the second step-5 increment; it is carried by the
 // `unavailable`
-// outcome status alone and never appends (pinned above, not duplicated here). Its two
-// producers are worded two-touch: §11.1's required-consultation gate lands later in the
-// second step-5 increment, §10.3's policy gate is a later build step's second producer.
-test('every REGISTRY RefusalCode is accounted for in this matrix (9 production-path-tested here + unknown-leg registry-only + unsealable-state production-path-tested in seal.test.ts + effect-mismatch and already-redeemed production-path-tested in redeem.test.ts + redemption-timeout registry-only (production path: clocks.test.ts, third step-3 increment) + prior-leg-unverified registry-only (production path: multi-leg.test.ts, first step-4 increment) + sod-violation registry-only (production path: multi-leg.test.ts, second step-4 increment) + consultation-failed registry-only (no producer yet anywhere in this build) + availability registry-only (no producer yet anywhere in this build) = 18)', () => {
+// outcome status alone and never appends (pinned above, not duplicated here). Its
+// producers are worded two-touch: §11.1's required-consultation gate (finalize's rung
+// 5.5) is real as of the second step-5 increment — production-path coverage lives in
+// consultations.test.ts's "THE AVAILABILITY PIN" test — while §10.3's policy gate remains
+// a later build step's second producer (future).
+test('every REGISTRY RefusalCode is accounted for in this matrix (9 production-path-tested here + unknown-leg registry-only + unsealable-state production-path-tested in seal.test.ts + effect-mismatch and already-redeemed production-path-tested in redeem.test.ts + redemption-timeout registry-only (production path: clocks.test.ts, third step-3 increment) + prior-leg-unverified registry-only (production path: multi-leg.test.ts, first step-4 increment) + sod-violation registry-only (production path: multi-leg.test.ts, second step-4 increment) + consultation-failed registry-only (production path: consultations.test.ts, second step-5 increment) + availability registry-only (production path: consultations.test.ts, second step-5 increment) = 18)', () => {
   const allCodes = Object.keys(REGISTRY) as RefusalCode[];
   assert.equal(allCodes.length, 18);
 });
