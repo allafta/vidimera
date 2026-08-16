@@ -4,14 +4,18 @@
 // draft's `profileId` — and BOTH must fail CLOSED on an unconfigured profileId:
 // `refused('unknown-profile')`, NO append, NO record.
 //
-// `unknown-leg` has its FIRST producer here: `stage()` accepts an optional caller-named
-// `legId`; a NAMED legId absent from the resolved profile's legs refuses `unknown-leg`
-// BEFORE any `putStaged` — pre-record, fail-closed, no draft, no transitionRef. (Omitting
-// `legId` still derives `profile.legs[0].id` internally, byte-compatible with every prior
-// call site — that path never reaches this refusal.) SPEC §8 names a SECOND producer (a
-// persisted draft's legId absent from the resolved profile it resolves under at `open()`)
-// and multi-leg profiles add more surface still — neither is built or tested here yet
-// (open()'s own draft-legId check; a non-GOVERNED multi-leg profile).
+// `unknown-leg` has BOTH of SPEC §8's producers built and tested. The FIRST is here:
+// `stage()` accepts an optional caller-named `legId`; a NAMED legId absent from the
+// resolved profile's legs refuses `unknown-leg` BEFORE any `putStaged` — pre-record,
+// fail-closed, no draft, no transitionRef. (Omitting `legId` still derives
+// `profile.legs[0].id` internally, byte-compatible with every prior call site — that path
+// never reaches this refusal.) The SECOND is `open()`'s own staged-legId re-check
+// (kernel/open.ts's `legIndex` lookup) — a persisted draft's legId absent from the
+// profile it resolves under — also tested below, on a single-leg profile (the renamed-leg,
+// two-`create()`-instance shape). The first step-4 increment adds further coverage on a
+// multi-leg profile, now that non-GOVERNED ones exist: `multi-leg.test.ts`'s "gate order:
+// unknown-leg outranks prior-leg-unverified at open()" pins the SAME producer outranking
+// the newer `prior-leg-unverified` refusal at the same seam.
 
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
