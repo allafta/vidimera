@@ -92,11 +92,25 @@ parts:
   FAIL-CLOSE, so a bound record finalized under a same-id non-declaring instance still
   refuses `policy-drift` rather than skipping the gate; the `policySource` GOVERNED throw
   lifted with all three seam obligations in the same commit (governed count 5 → 4).
+  Step 7 — findings & acknowledgments, SPEC §10.2, where the first draft-ahead maturity
+  marker could finally move — **has started** (first of two increments): the read side
+  landed — SPEC §10.2's read half whole: `ack-missing`/`ack-stale` join the refusal-code
+  union (twenty-first and twenty-second; count 20 → 22 in one move), `replay()`'s two
+  throwing arms fold instead (a `kind`-mutating re-raise and an ack naming an absent
+  `findingId` now throw as storage/config faults, unreachable on any chain a seam can
+  mint), `DecisionRecord`/`ReviewView` gain a digest-only findings projection, and
+  `kernel/findings.ts` (new) carries the counting-ack predicate and the per-finding
+  coverage derivation the second increment's finalize gate will consume — every piece
+  exercisable today only over hand-built chains, since no seam mints either kind yet. The
+  seams (`raiseFinding`/`acknowledge`), rung (5.7)'s ack-coverage gate, the
+  `ackMode`/`requiredAcks` construction-guard lift (**governed count UNCHANGED at 4**), and
+  the maturity-marker move all remain — the second step-7 increment's own work, which exits
+  the step.
   **`docs/process/implementation-status.md` is the authoritative
   account** of what this build does and does not implement, section by section, with the
   gate outputs and the outstanding list — read it rather than trusting a count here,
-  which is a claim with a shelf life and no way to fail loudly. Two of the eight
-  build-order steps remain unstarted (steps 7–8), and the package is not consumable by a
+  which is a claim with a shelf life and no way to fail loudly. One of the eight
+  build-order steps remains unstarted (step 8), and the package is not consumable by a
   host today.
 
 ## The standalone contract

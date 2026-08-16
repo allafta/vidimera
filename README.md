@@ -70,8 +70,23 @@ non-declaring instance still refuses `policy-drift` rather than skipping
 the gate. The construction guard on declaring `policySource` lifted with
 all three of its seam obligations in the same commit. Step 7 — findings
 and acknowledgments, SPEC §10.2, where the first draft-ahead maturity
-marker could finally move — is next. Two of the eight build-order
-steps remain unstarted (steps 7–8), and the
+marker could finally move — has **started**: the first of its two
+increments landed the read side, SPEC §10.2's read half whole.
+`ack-missing`/`ack-stale` join the refusal-code union (count 20 → 22 in
+one move); `replay()`'s two throwing arms fold instead, so a re-raised
+finding and a recorded acknowledgment both read back, with a
+`kind`-mutating re-raise or an ack naming an absent finding still
+throwing as a fault on a chain no honest seam could produce;
+`DecisionRecord` and the review projection both gain a digest-only
+findings view; and a new pure module carries the counting-ack predicate
+and per-finding coverage derivation the second increment's finalize gate
+will consume. Every piece of this is exercisable today only over
+hand-built chains, because no seam yet mints a finding or an
+acknowledgment — that seam pair, the finalize gate that reads coverage,
+the construction-guard lift on `ackMode`/`requiredAcks`, and the
+maturity-marker move itself are all the second increment's own work,
+still ahead. One of the eight build-order
+steps remains unstarted (step 8), and the
 package is **not consumable by a host today** — no build, no published
 artifact; that record states it in the same breath as the green gates. The
 maturity markers inside the concept set speak to a reference implementation
@@ -197,6 +212,22 @@ answering the section's own open decision fail-close — and a
 reported-unreachable policy source produces the `availability` outcome
 again, its second producer. The construction guard on declaring `policySource`
 lifted with all three of its seam obligations, in the same commit.
+
+Step 7 — findings and acknowledgments — has **started**: the first of its
+two increments landed section 10.2's read half. `ack-missing`/`ack-stale`
+join the refusal-code union; `replay()` folds a re-raised finding and a
+recorded acknowledgment instead of throwing, while still throwing on the
+two chain shapes an honest seam can never produce (a re-raise that
+changes a finding's kind; an acknowledgment naming a finding the chain
+never raised); `DecisionRecord` and the review projection both gain a
+digest-only findings view, present iff the record carries findings; and a
+new pure module carries the counting-ack predicate and the per-finding
+coverage derivation the second increment's finalize gate will consume.
+None of it is reachable from a host yet — no seam mints a finding or an
+acknowledgment — so this increment is exercised only over hand-built
+chains. The seams themselves, the finalize gate that reads coverage, and
+the construction-guard lift on `ackMode`/`requiredAcks` are the second
+increment's own work, still ahead.
 
 ## License
 
