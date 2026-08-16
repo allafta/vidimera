@@ -44,10 +44,21 @@ unreachable produces a dedicated `unavailable` outcome rather than a
 fabricated pass — never appending, so the record stays open for a bounded
 retry — with the construction guard on declaring `requiredConsultations`
 lifted alongside it. Consultation freshness gating stays out of scope
-deliberately (it could never fire honestly at this build's assurance level),
-and eligibility gating is step 6's own ground. Step 6 — authority checks:
-eligibility and policy drift — is next. Three of the eight build-order
-steps remain unstarted (steps 6–8), and the
+deliberately (it could never fire honestly at this build's assurance level).
+Step 6 — authority checks: eligibility and policy drift — has **started**:
+the first of its two increments landed eligibility gating, SPEC §10.4
+whole — declaring a per-leg `eligibility` reference makes `'eligibility'`
+an implicit-first required consultation kind, checked ahead of the leg's
+own declared `requiredConsultations`; a `fail` verdict on that implicit
+kind refuses `ineligible` (the nineteenth code, open-by-default so a
+different eligible actor may decide), while every other trip along the
+gate — including `'eligibility'` on a leg that merely lists it in
+`requiredConsultations`, without declaring it — keeps the generic codes.
+The construction guard on declaring `eligibility` lifted alongside it. The
+second increment, policy drift, remains and exits the step; its
+cross-drift open decision is already ruled fail-close, banked for that
+increment's own spec. Two of the eight build-order
+steps remain unstarted (steps 7–8), and the
 package is **not consumable by a host today** — no build, no published
 artifact; that record states it in the same breath as the green gates. The
 maturity markers inside the concept set speak to a reference implementation
@@ -143,9 +154,22 @@ guard lifted with the gate, in the same commit. Section 11.1 is whole in
 this build except its freshness tail, which stays out of scope
 deliberately: at this build's assurance level the library stamps every
 consultation's own recording time, so a freshness bound could never fire
-honestly. Eligibility gating remains step 6's own ground.
+honestly.
 
-Step 6 — authority checks: eligibility and policy drift — is next.
+Step 6 — authority checks: eligibility and policy drift — has **started**:
+the first of its two increments has landed. Declaring a per-leg
+`eligibility` reference makes `'eligibility'` an implicit-first required
+consultation kind: rung 5.5 checks it ahead of the leg's own declared
+`requiredConsultations`, authority-to-decide before the evidence checks.
+An obtained `fail` verdict on that implicit kind refuses `ineligible` (the
+nineteenth refusal code), open-by-default so a different eligible actor
+may decide the same open record; a missing or reported-unreachable input
+keeps the generic codes, and a leg that merely lists `'eligibility'` in
+`requiredConsultations` without declaring it keeps the generic codes too.
+The construction guard on declaring `eligibility` lifted with the gate, in
+the same commit. The second increment, policy drift, remains and exits the
+step; its cross-drift open decision is already ruled fail-close, banked
+for that increment's own spec.
 
 ## License
 

@@ -3,7 +3,9 @@
 // "The attach form is always available" — and a consultation is "evidence, never a
 // decision": this module validates and partitions the host's supplied list; nothing
 // here gates. The required-consultation gate that consumes the partition's markers
-// lands at finalize's rung (5.5) in the second step-5 increment.
+// is real as of the second step-5 increment, at finalize's rung (5.5) — extended there
+// for eligibility (SPEC §10.4) at the first step-6 increment, this module unchanged by
+// that extension.
 //
 // Every rejection here THROWS at argument intake (SPEC §9: consultation shape "throws
 // at argument intake, before anything is loaded"): a malformed entry, a duplicate kind,

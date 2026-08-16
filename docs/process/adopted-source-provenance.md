@@ -569,6 +569,20 @@ arriving with its own future build step:
   can yet declare `policySource`), the eligibility half of gate (5.5) — §10.4's
   implicit-first required kind — and the policy half of `opts` named above, unchanged.
   `docs/process/implementation-status.md` carries the current account.
+
+  **Correction, at the first step-6 increment:** the eligibility half of gate (5.5) has
+  since landed too. A leg declaring `eligibility` (SPEC §10.4) gets an implicit
+  `'eligibility'` required kind prepended ahead of its own declared `requiredConsultations`,
+  checked FIRST at the same rung — a `fail` verdict on that implicit kind refuses the
+  nineteenth code, `ineligible` (`refusal`-class, `terminalRefusals`-able, open-by-default so
+  a different eligible actor may decide), while a missing or reported-unreachable input keeps
+  the generic codes, and a NON-declaring leg that merely lists `'eligibility'` in
+  `requiredConsultations` keeps the generic codes too. The `eligibility` GOVERNED throw
+  lifted with the gate in the same commit. What remains LATER-STEP: gate (4.5) policy-drift
+  itself and its own second producer of the `availability` class (SPEC §10.3, no profile can
+  yet declare `policySource`), and the policy half of `opts` named above, unchanged — the
+  second step-6 increment's own ground. `docs/process/implementation-status.md` carries the
+  current account.
 - **Structural riders** — the `kernel/context.ts` extraction (kills a kernel→create.ts type
   back-edge; type-only, zero behavior), a `mintToken` injectable seam, and a handful of
   index-export additions for types that do not exist here yet.

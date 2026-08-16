@@ -71,14 +71,24 @@ parts:
   record staying open so the seam re-arms for bounded host retry); the
   `requiredConsultations` GOVERNED throw lifted with the gate in the same commit (governed
   count 7 → 6). §11.1 is whole in this build except its freshness tail: `freshness` stays
-  GOVERNED and `[SKETCHED]` deliberately (an AL1 build can never make that bound fire), and
-  `eligibility`'s own implicit-first required kind (SPEC §10.4) is step 6's own ground.
-  Step 6 — authority checks: eligibility + policy drift (SPEC §10.4 and §10.3) — is next.
+  GOVERNED and `[SKETCHED]` deliberately (an AL1 build can never make that bound fire).
+  Step 6 — authority checks: eligibility + policy drift, SPEC §10.4 + §10.3 — **has
+  started**: the first of its two increments landed eligibility gating, SPEC §10.4 whole —
+  declaring a per-leg `eligibility` reference makes `'eligibility'` an implicit-FIRST
+  required consultation kind at `finalize()`'s rung 5.5, checked ahead of the leg's own
+  declared `requiredConsultations`; a `fail` verdict on that implicit kind refuses
+  `ineligible` (the nineteenth code, `refusal`-class, open-by-default so a different
+  eligible actor may decide), while a missing or unreachable input keeps the generic codes,
+  and a NON-declaring leg that merely lists `'eligibility'` in `requiredConsultations` keeps
+  the generic codes too; the `eligibility` GOVERNED throw lifted with the gate in the same
+  commit (governed count 6 → 5). The second increment, policy drift (SPEC §10.3), remains
+  and exits the step; its cross-drift open decision is already ruled FAIL-CLOSE, taken at
+  the step-6 brainstorm and banked for that increment's own spec.
   **`docs/process/implementation-status.md` is the authoritative
   account** of what this build does and does not implement, section by section, with the
   gate outputs and the outstanding list — read it rather than trusting a count here,
-  which is a claim with a shelf life and no way to fail loudly. Three of the eight
-  build-order steps remain unstarted (steps 6–8), and the package is not consumable by a
+  which is a claim with a shelf life and no way to fail loudly. Two of the eight
+  build-order steps remain unstarted (steps 7–8), and the package is not consumable by a
   host today.
 
 ## The standalone contract
@@ -170,7 +180,7 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   inversions have been authorized so far, both during the step-1 remediation, each argued
   in place at `packages/record/test/terminality.test.ts` and recorded in the exit record.
 - Feature guards from day one — an unimplemented capability throws at construction
-  (`config.ts` `validateProfile`; six governed profile fields throw there). `redeem`
+  (`config.ts` `validateProfile`; five governed profile fields throw there). `redeem`
   was originally the eleventh governed capability, throwing at the call seam instead
   (`kernel/redeem.ts`) rather than at construction; the first step-3 increment landed
   SPEC §11.2's direct shape, and the second landed the token shape —
@@ -221,11 +231,21 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   non-empty, pairwise distinct, every kind a non-empty string, and never a reserved
   library-emitted kind (`facts`, `chain-verify`) — the spec's own sentence for the last
   rule ("declaring a reserved kind in `requiredConsultations` is likewise a
-  profile-construction error"). `freshness` and `eligibility` stay governed on the same
-  leg — `freshness` deliberately, since at AL1 the library stamps every consultation's own
-  recording time, so a `freshness` bound could never fire (the spec's own vacuity
-  argument); `eligibility` is step 6's own ground (SPEC §10.4). Six fields are governed
-  today: the whole-profile `captureMode:'live'` and `policySource`, and the per-leg
-  `ackMode`, `requiredAcks`, `freshness`, `eligibility`.
+  profile-construction error"). `freshness` stays governed deliberately, since at AL1 the
+  library stamps every consultation's own recording time, so a `freshness` bound could
+  never fire (the spec's own vacuity argument). **The construction-guarded count moves once
+  more, at the first step-6 increment: six down to five.** `eligibility` — SPEC §10.4's
+  eligibility gating — was GOVERNED from the kernel increment on; it lifted because
+  `finalize()`'s rung 5.5 now reads the declaration too, prepending an implicit-FIRST
+  `'eligibility'` required kind ahead of the leg's own declared `requiredConsultations`,
+  landing in the same commit as the lift. What replaces the guard is this build's own
+  fail-closed structural posture, `validateEligibility` (`config.ts`), the same settled
+  class as `validateSodShape`'s/`validateRequiredConsultations`'s: an empty label throws as
+  the malformed-reference rule (the gate keys on the declaration's presence, never the
+  label — NOT `proposer: ''`'s inertness trap), and declaring `eligibility` while also
+  listing `'eligibility'` in the same leg's `requiredConsultations` throws SPEC §10.4's own
+  "declare it once" construction error. Five fields are governed today: the whole-profile
+  `captureMode:'live'` and `policySource`, and the per-leg `ackMode`, `requiredAcks`,
+  `freshness`.
 - Byte-stability pins and adjacent-pair gate-order tests, from the kernel increment on.
 - The living deferral register: `docs/process/deferral-register.md`.
