@@ -218,6 +218,24 @@ test('order: (4) content-drift outranks (4.5) — a drifted draft refuses conten
   assert.equal(out.code, 'content-drift');
 });
 
+test('order: (4.5) outranks (5) — a drifted policy moots even malformed facts', async () => {
+  // The discriminator: were rung (5) first, the non-canonicalizable BigInt figures would
+  // say consultation-missing instead — the same discriminator consultations.test.ts's own
+  // "gate order: (5) facts outranks (5.5)" pin uses for the (5)->(5.5) boundary.
+  const store = new MemoryStore();
+  const { handles, recordId } = await openBound(store);
+  const out = await handles.operator.finalize(
+    recordId,
+    identity(),
+    CONTENT,
+    { figures: 1n, checker: facts().checker } as unknown as ReturnType<typeof facts>,
+    { policy: { digest: LIVE_DRIFTED } },
+  );
+  assert.equal(out.status, 'refused');
+  if (out.status !== 'refused') return;
+  assert.equal(out.code, 'policy-drift');
+});
+
 test('order: (4.5) outranks (5.5) — deciding under the wrong policy version moots the evidence', async () => {
   const store = new MemoryStore();
   const profile = policyProfile();

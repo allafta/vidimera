@@ -68,12 +68,14 @@
 //     treatment (3)->(4) gets above: still a true rung-(4)-outranks-rung-(5) test on a
 //     profile that declares no `policySource` (so (4.5) is a no-op for it and the two rungs
 //     are adjacent-but-for-4.5 in that fixture).
-//   (4.5)->(5) — policy-drift over facts' consultation-missing — is jointly constructible (a
-//     policy-declaring profile, a drifted live digest, and facts with no figures) but is NOT
-//     separately tested anywhere in the corpus: policy-drift.test.ts's "(4.5) outranks
-//     (5.5)" test (below) demonstrates the same rung-(4.5)-outranks-the-evidence-gates claim
-//     against the required-consultations gate instead of the plain facts gate. Noted rather
-//     than left silently absent; it does not enter the total below.
+//   (4.5)->(5) x 1 — policy drift over facts' consultation-missing (the second step-6
+//     increment's own review fold-in — flagged as an unpinned-but-constructible gap at
+//     this increment's own exit, then closed in the same increment). Genuinely
+//     CONSECUTIVE — nothing sits between (4.5) and (5). ALREADY COVERED in
+//     policy-drift.test.ts: "order: (4.5) outranks (5) — a drifted policy moots even
+//     malformed facts", using the established non-canonicalizable-BigInt-figures shape
+//     (the same discriminator fixture consultations.test.ts's own (5)->(5.5) pin uses) as
+//     the malformed-facts trip. Not duplicated here.
 //   (4.5)->(5.5) x 1 — policy drift over the required-consultation gate's
 //     `consultation-missing` (the second step-6 increment). ALREADY COVERED in
 //     policy-drift.test.ts: "order: (4.5) outranks (5.5) ...". Not strictly CONSECUTIVE —
@@ -86,8 +88,8 @@
 //     `requiredConsultations`) that only that file's helpers construct, so it is not
 //     duplicated here.
 //
-// Total order-pair tests across the corpus: 11 (2 in chain-verify.test.ts, 4 in this file,
-// 2 in multi-leg.test.ts, 1 in consultations.test.ts, 2 in policy-drift.test.ts).
+// Total order-pair tests across the corpus: 12 (2 in chain-verify.test.ts, 4 in this file,
+// 2 in multi-leg.test.ts, 1 in consultations.test.ts, 3 in policy-drift.test.ts).
 
 import assert from 'node:assert/strict';
 import { test } from 'vitest';

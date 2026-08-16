@@ -356,12 +356,23 @@ test('redeem.redeemBound is accepted at construction — the clock that honors i
 // === the guard sweep is TOTAL ========================================================
 
 test('GOVERNED: a profile declaring TWO governed features still throws (guard sweep is total)', () => {
-  // captureMode:'live' AND policySource — must throw (on the first guard reached), never
-  // slip through. We only assert it throws GOVERNED for one of them, not which one.
-  const p: ConfirmProfile = { ...captureProfile(), captureMode: 'live', policySource: 'opa://x' };
+  // captureMode:'live' AND a leg declaring ackMode — must throw (on the first guard
+  // reached), never slip through. We only assert it throws GOVERNED for one of them, not
+  // which one. `policySource` no longer belongs in this pair — the second step-6
+  // increment lifted it, so it would make the regex's second alternative dead; `ackMode`
+  // stays GOVERNED (findings/acknowledgments, SPEC §10.2, not yet built) and keeps both
+  // alternatives real.
+  const p = captureProfile();
+  const leg = p.legs[0];
+  if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
+  const twoGoverned: ConfirmProfile = {
+    ...p,
+    captureMode: 'live',
+    legs: [{ ...leg, ackMode: 'self' }],
+  };
   assert.throws(
-    () => create(makeConfig([p])),
-    /GOVERNED feature not available in this build \((captureMode|policySource)\)/,
+    () => create(makeConfig([twoGoverned])),
+    /GOVERNED feature not available in this build \((captureMode|ackMode)\)/,
   );
 });
 
