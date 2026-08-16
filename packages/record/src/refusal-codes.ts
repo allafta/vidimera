@@ -57,7 +57,15 @@ export type RefusalCode =
   // iff the leg's `terminalRefusals` lists it, else stays open per §10.1) IS the
   // spec-mandated behavior with zero new code — producer: finalize's rung (4.5), real as
   // of the second step-6 increment
-  | 'policy-drift';
+  | 'policy-drift'
+  // the twenty-first and twenty-second codes (the first step-7 increment): SPEC §8's
+  // conditional table names them "`refusal`-class, `terminalRefusals`-able, open-by-default"
+  // under "findings flow (§10.2)". The distinction (§10.2): `ack-missing` = no ack at all
+  // for a required-kind finding; `ack-stale` = acks present but none counting (wrong
+  // digest, wrong magnitude, or violating ackMode). Producers: finalize's ack-coverage rung,
+  // landing in the second step-7 increment
+  | 'ack-missing'
+  | 'ack-stale';
 // class map: chain-compromise → 'compromise'; availability → 'availability'; all others →
 // 'refusal'
 // record-not-open: class 'refusal', terminal-record category — finalize() against a non-open, intact-chain
@@ -114,6 +122,8 @@ export const REGISTRY: Record<RefusalCode, RefusalClass> = {
   availability: 'availability',
   ineligible: 'refusal',
   'policy-drift': 'refusal',
+  'ack-missing': 'refusal',
+  'ack-stale': 'refusal',
 };
 
 /**

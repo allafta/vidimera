@@ -488,7 +488,43 @@ test("policy-drift: registry/type presence + class + appendsOn shape only in thi
 // finalize's rung (4.5), real as of the second step-6 increment; registry-only in this
 // file (production-path coverage lives in policy-drift.test.ts, that increment's own
 // file, including both cross-instance corners and the decided open question).
-test('every REGISTRY RefusalCode is accounted for in this matrix (9 production-path-tested here + unknown-leg registry-only + unsealable-state production-path-tested in seal.test.ts + effect-mismatch and already-redeemed production-path-tested in redeem.test.ts + redemption-timeout registry-only (production path: clocks.test.ts, third step-3 increment) + prior-leg-unverified registry-only (production path: multi-leg.test.ts, first step-4 increment) + sod-violation registry-only (production path: multi-leg.test.ts, second step-4 increment) + consultation-failed registry-only (production path: consultations.test.ts, second step-5 increment) + availability registry-only (production path: consultations.test.ts and policy-drift.test.ts, second step-5 and second step-6 increments) + ineligible registry-only (production path: consultations.test.ts, first step-6 increment) + policy-drift registry-only (production path: policy-drift.test.ts, second step-6 increment) = 20)', () => {
+
+// === ack-missing and ack-stale (the first step-7 increment) ==================================
+// `ack-missing` and `ack-stale` (SPEC §8's conditional table: findings flow, §10.2) are both
+// `refusal`-class, `terminalRefusals`-able, open-by-default. The distinction: `ack-missing`
+// fires when no ack at all exists for a required-kind finding; `ack-stale` fires when acks are
+// present but none count (wrong digest, wrong magnitude, or wrong ackMode principal). Their
+// producer is finalize's ack-coverage rung, landing in the second step-7 increment; this file
+// carries a registry-only assertion, since production-path coverage will live in
+// findings.test.ts (the second step-7 increment's own file).
+
+test("ack-missing: registry/type presence + class + appendsOn shape only in this file — its producer is finalize's ack-coverage rung, landing in the second step-7 increment; production-path coverage lives in findings.test.ts", () => {
+  // `code: RefusalCode = 'ack-missing'` is itself a COMPILE-TIME union-membership check
+  // (this file fails to type-check if 'ack-missing' is ever removed from the union).
+  const code: RefusalCode = 'ack-missing';
+  assert.equal(REGISTRY[code], 'refusal');
+  assert.equal(
+    appendsOn(code, {}),
+    false,
+    'no terminalRefusals -> record stays open, no append (open-by-default)',
+  );
+  assert.equal(appendsOn(code, { terminalRefusals: [code] }), true);
+});
+
+test("ack-stale: registry/type presence + class + appendsOn shape only in this file — its producer is finalize's ack-coverage rung, landing in the second step-7 increment; production-path coverage lives in findings.test.ts", () => {
+  // `code: RefusalCode = 'ack-stale'` is itself a COMPILE-TIME union-membership check
+  // (this file fails to type-check if 'ack-stale' is ever removed from the union).
+  const code: RefusalCode = 'ack-stale';
+  assert.equal(REGISTRY[code], 'refusal');
+  assert.equal(
+    appendsOn(code, {}),
+    false,
+    'no terminalRefusals -> record stays open, no append (open-by-default)',
+  );
+  assert.equal(appendsOn(code, { terminalRefusals: [code] }), true);
+});
+
+test('every REGISTRY RefusalCode is accounted for in this matrix (9 production-path-tested here + unknown-leg registry-only + unsealable-state production-path-tested in seal.test.ts + effect-mismatch and already-redeemed production-path-tested in redeem.test.ts + redemption-timeout registry-only (production path: clocks.test.ts, third step-3 increment) + prior-leg-unverified registry-only (production path: multi-leg.test.ts, first step-4 increment) + sod-violation registry-only (production path: multi-leg.test.ts, second step-4 increment) + consultation-failed registry-only (production path: consultations.test.ts, second step-5 increment) + availability registry-only (production path: consultations.test.ts and policy-drift.test.ts, second step-5 and second step-6 increments) + ineligible registry-only (production path: consultations.test.ts, first step-6 increment) + policy-drift registry-only (production path: policy-drift.test.ts, second step-6 increment) + ack-missing registry-only (production path: findings.test.ts, second step-7 increment) + ack-stale registry-only (production path: findings.test.ts, second step-7 increment) = 22)', () => {
   const allCodes = Object.keys(REGISTRY) as RefusalCode[];
-  assert.equal(allCodes.length, 20);
+  assert.equal(allCodes.length, 22);
 });
