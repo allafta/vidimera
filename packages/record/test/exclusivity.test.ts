@@ -8,8 +8,10 @@
 //       it reads the blocker via blockingRecordId, and ONLY when blocker.state==='open' &&
 //       openedAt+ttl < now appends `expired` (expectedCurrentState:'open') then retries the
 //       genesis open EXACTLY ONCE -> a NEW record opens; the blocker chain gains `expired`;
-//   (4) a NON-open non-terminal blocker (effect-seam `confirmed` awaiting redemption) ->
-//       record-exists directly, with NO open-state CAS (blocker chain unchanged);
+//   (4) a NON-open non-terminal blocker (effect-seam `confirmed` awaiting redemption,
+//       STILL WITHIN its confirmToRedeem window) -> record-exists directly, with NO
+//       open-state CAS (blocker chain unchanged) — a DUE confirmed blocker instead
+//       resolves en passant and is covered by clocks.test.ts (third step-3 increment);
 //   (5) an expire-CAS state-mismatch (a race flips the blocker between the exclusivity
 //       conflict and the expire CAS) -> record-exists, NEVER re-loop (exactly one genesis
 //       attempt, no retry).
@@ -212,10 +214,16 @@ test('expiry:"none" blocker NEVER lapses: even far in the future, a second open(
 
 // === (4) non-open non-terminal blocker -> record-exists, NO expire attempt ============
 
-test('a NON-open non-terminal blocker (effect-seam `confirmed` awaiting redemption) -> record-exists directly, blocker chain unchanged', async () => {
+test('a NON-open non-terminal blocker (effect-seam `confirmed` awaiting redemption, still within its window) -> record-exists directly, blocker chain unchanged', async () => {
   // Arrange the blocker state by DIRECT store appends (this test predates finalize() and
   // deliberately keeps store-level arrangement):
   // an effect-seam profile's final-leg `confirmed` is NON-terminal (awaits redemption).
+  // Third step-3 increment: open() now OBSERVES the confirmed window too, so this fixture
+  // needs a controlled clock that keeps the blocker's `confirmed` timestamp inside its
+  // declared confirmToRedeem bound — a real (wall-clock) `now()` would make ANY fixed past
+  // timestamp look elapsed, landing on the DIFFERENT, already-covered due path
+  // (clocks.test.ts's due-confirmed-blocker pin) instead of the not-yet-due one this test
+  // means to exercise.
   const store = new MemoryStore();
   const profile = effectSeamProfile();
   const leg = profile.legs[0];
@@ -225,6 +233,11 @@ test('a NON-open non-terminal blocker (effect-seam `confirmed` awaiting redempti
     );
   const legId = leg.id;
   const blockerId = 'blocker-effect-1';
+  const declared = profile.redeem?.confirmToRedeem;
+  if (declared === undefined) {
+    throw new Error('exclusivity.test.ts: effectSeamProfile() must declare confirmToRedeem');
+  }
+  const clockNow = new Date(Date.parse(T0) + (declared - 10) * 1000); // still within the window
 
   const openedPayload = {
     profileId: profile.id,
@@ -235,8 +248,8 @@ test('a NON-open non-terminal blocker (effect-seam `confirmed` awaiting redempti
   };
   const confirmedPayload = { actor: identity() };
   const blockerChain = buildChain(blockerId, [
-    { kind: 'opened', payload: openedPayload },
-    { kind: 'confirmed', payload: confirmedPayload },
+    { kind: 'opened', payload: openedPayload, at: T0 },
+    { kind: 'confirmed', payload: confirmedPayload, at: T0 },
   ]);
 
   // effect-seam => confirmed is non-terminal (awaits redemption).
@@ -254,7 +267,7 @@ test('a NON-open non-terminal blocker (effect-seam `confirmed` awaiting redempti
   });
   assert.equal(c.appended, true);
 
-  const { agent, operator } = create(makeConfig([profile], { store }));
+  const { agent, operator } = createWithClock(makeConfig([profile], { store }), () => clockNow);
 
   // A new open() for the SAME (profile, subject) — different content is irrelevant, C1
   // keys on (profileId, subjectRef) only.

@@ -127,11 +127,26 @@ export async function finalize(
     // the leg-expired refusal itself appends no separate `refused` edge → no transitionRef).
     return refused('leg-expired');
   }
+  if (record.state === 'confirmed' || record.state === 'redeeming') {
+    // The clock rung (third step-3 increment; §4's lazy rule at this seam too): an
+    // elapsed confirmed window resolves to `expired` → `leg-expired` (§8's "expired or
+    // due-expired record"); an elapsed redeeming window resolves to `redemption-failed`
+    // → `record-not-open` (a non-open, non-expired record). Not due, or the CAS lost to
+    // a racing writer: the plain state verdict below — the record is not open either way.
+    const due = await resolveDueClock(store, chain, resolved, now());
+    if (due.due && due.result.appended) {
+      return refused(due.window === 'confirmed' ? 'leg-expired' : 'record-not-open');
+    }
+    return refused('record-not-open');
+  }
   if (record.state !== 'open') {
-    // A DECIDED record (confirmed / refused) — `record-not-open` (SPEC §8's never-appends
-    // set): no append, no
-    // transitionRef. Covers double-finalize on a capture-terminal confirmed record, finalize
-    // on an effect-seam confirmed record awaiting redemption, and finalize on a refused record.
+    // A DECIDED, non-clocked record — `record-not-open` (SPEC §8's never-appends set): no
+    // append, no transitionRef. `confirmed`/`redeeming` are peeled off by the clock-rung arm
+    // above (third step-3 increment) — including double-finalize on a capture-terminal
+    // confirmed record and finalize on an effect-seam confirmed record awaiting redemption,
+    // both of which now report `record-not-open` from THAT arm's own not-due fallthrough, not
+    // this one. What remains here is finalize on a `refused`, `redeemed`, or
+    // `redemption-failed` record.
     return refused('record-not-open');
   }
   // state === 'open': en-passant expiry (resolveDueClock performs the CAS append if due).

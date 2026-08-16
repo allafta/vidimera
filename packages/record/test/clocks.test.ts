@@ -341,3 +341,99 @@ test('the resolution race: a resolver losing the CAS re-reads and reports the fr
   if (loser.status !== 'refused') return;
   assert.equal(loser.code, 'unredeemable-state');
 });
+
+test('finalize on a due-confirmed record resolves it en passant and refuses leg-expired', async () => {
+  const clock = { t: T0 };
+  const { handles, recordId, store } = await confirmedAt(clock);
+  clock.t = T0 + (CONFIRM_BOUND + 10) * 1000;
+
+  const outcome = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'leg-expired'); // §8: an expired or due-expired record at a decision-progress seam
+
+  const last = (await store.readChain(recordId)).at(-1);
+  assert.ok(last !== undefined);
+  assert.equal(last.kind, 'expired');
+});
+
+test('finalize on a due-redeeming record resolves it en passant and refuses record-not-open', async () => {
+  const clock = { t: T0 };
+  const { handles, recordId, store } = await redeemingAt(clock);
+  clock.t += (REDEEM_BOUND + 10) * 1000;
+
+  const outcome = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'record-not-open'); // resolved to redemption-failed: non-open, non-expired
+
+  const last = (await store.readChain(recordId)).at(-1);
+  assert.ok(last !== undefined);
+  assert.equal(last.kind, 'redemption-failed');
+});
+
+test('open(): a due-CONFIRMED blocker is expired en passant and the fresh open succeeds — §9.1 un-strands the pair', async () => {
+  const clock = { t: T0 };
+  const { handles, store } = await confirmedAt(clock);
+  clock.t = T0 + (CONFIRM_BOUND + 10) * 1000;
+
+  const staged = await handles.agent.stage(
+    { subject: 'week-2', total: 41 },
+    'test.effect.v1',
+    DEFAULT_SUBJECT_REF,
+  );
+  assert.equal(staged.status, 'ok');
+  if (staged.status !== 'ok') return;
+  const reopened = await handles.operator.open(staged.value.stagedRef);
+  assert.equal(reopened.status, 'ok', 'expire-then-retry: the elapsed window releases the pair');
+  if (reopened.status !== 'ok') return;
+
+  // Far in the future only the NEW record's own open window pends — the blocker resolved
+  // terminal, its dueAt cleared by the resolution append's omission.
+  const due = await store.listDue(new Date(clock.t + 400 * HOUR));
+  assert.deepEqual(due, [reopened.value.recordId]);
+});
+
+test('open(): a due-REDEEMING blocker is NEVER auto-resolved — record-exists, no edge (§4 named exception)', async () => {
+  const clock = { t: T0 };
+  const { handles, recordId, store } = await redeemingAt(clock);
+  clock.t += (REDEEM_BOUND + 10) * 1000;
+  const before = (await store.readChain(recordId)).length;
+
+  const staged = await handles.agent.stage(
+    { subject: 'week-2', total: 41 },
+    'test.effect.v1',
+    DEFAULT_SUBJECT_REF,
+  );
+  assert.equal(staged.status, 'ok');
+  if (staged.status !== 'ok') return;
+  const second = await handles.operator.open(staged.value.stagedRef);
+  assert.equal(second.status, 'refused');
+  if (second.status !== 'refused') return;
+  assert.equal(second.code, 'record-exists');
+  assert.equal(
+    (await store.readChain(recordId)).length,
+    before,
+    'no edge — the redemption seam owns that clock',
+  );
+});
+
+test('seal() on due-confirmed and due-redeeming records refuses unsealable-state with no edge — sweep first, then seal', async () => {
+  const clock = { t: T0 };
+  const a = await confirmedAt(clock);
+  clock.t = T0 + (CONFIRM_BOUND + 10) * 1000;
+  const beforeA = (await a.store.readChain(a.recordId)).length;
+  const sealA = await a.handles.operator.seal(a.recordId);
+  assert.equal(sealA.status, 'refused');
+  if (sealA.status === 'refused') assert.equal(sealA.code, 'unsealable-state');
+  assert.equal((await a.store.readChain(a.recordId)).length, beforeA);
+
+  const clock2 = { t: T0 };
+  const b = await redeemingAt(clock2);
+  clock2.t += (REDEEM_BOUND + 10) * 1000;
+  const beforeB = (await b.store.readChain(b.recordId)).length;
+  const sealB = await b.handles.operator.seal(b.recordId);
+  assert.equal(sealB.status, 'refused');
+  if (sealB.status === 'refused') assert.equal(sealB.code, 'unsealable-state');
+  assert.equal((await b.store.readChain(b.recordId)).length, beforeB);
+});

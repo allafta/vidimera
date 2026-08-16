@@ -132,11 +132,13 @@ export async function open(
   const deadlineMs = expiryDeadlineMs(openedTransition.at, profile.expiry);
   const genesisMeta: AppendMeta = {
     nonTerminal: openedNonTerminal,
-    // SPEC §12: presence sets the pending-clock column. This is the only producer in this
-    // build — the open ttl window. The effect-seam `confirmToRedeem` window and the
-    // `redeeming` window are §9.1's other two clocks, and both remain inert until the clock
-    // increment (the status doc's §9.1 row records it), so finalize's batch carries no
-    // `dueAt` and thereby clears the column.
+    // SPEC §12: presence sets the pending-clock column. This genesis append is the open
+    // ttl window's producer. The effect-seam `confirmToRedeem` window and the `redeeming`
+    // window are §9.1's other two clocks; both have their own producers as of the third
+    // step-3 increment (finalize's success batch; beginRedemption), and this seam now
+    // OBSERVES the confirmed window too — the C1 exclusivity branch below resolves a
+    // due-confirmed blocker en passant, the same expire-then-retry shape as the open
+    // window it already handled.
     ...(deadlineMs === null ? {} : { dueAt: new Date(deadlineMs).toISOString() }),
   };
 
@@ -158,25 +160,31 @@ export async function open(
   const blockerChain = await store.readChain(first.blockingRecordId);
   const blocker = replay(blockerChain);
 
-  if (blocker.state !== 'open') {
-    // A NON-open non-terminal blocker (an effect-seam `confirmed`/`redeeming` awaiting
-    // redemption) never expires here — record-exists directly, NO open-state CAS.
-    // `record-exists` NEVER carries a transitionRef.
+  if (blocker.state === 'redeeming') {
+    // §4's named exception, verbatim: "`open()`'s exclusivity check never auto-resolves
+    // a `redeeming` blocker, due or not — it refuses `record-exists`, leaving that edge
+    // to the redemption seam's own clock." No CAS, no edge, ever.
     return refused('record-exists');
   }
-
-  // The blocker shares (profileId, subjectRef) with our genesis payload (C1 keys on both),
-  // so its profile IS `resolved` — pass it for the expired transition's ttl + nonTerminal.
-  // resolveDueClock gates on the open window's deadline.
+  if (blocker.state !== 'open' && blocker.state !== 'confirmed') {
+    // Defensive: a terminal blocker cannot hold C1; a coherent store never names one.
+    return refused('record-exists');
+  }
+  // An `open` blocker rides the open window; a `confirmed` effect-seam blocker rides the
+  // confirmToRedeem window (third step-3 increment — the un-stranding §9.1 promises:
+  // "without it, a lost redemption token strands the record... indefinitely" is the
+  // redeemBound half; this is the confirmed half). Same expire-then-retry-ONCE shape
+  // either way; resolveDueClock picks the window from the replayed state.
   const ex = await resolveDueClock(store, blockerChain, resolved, now());
   if (!ex.due) {
-    // The blocker is open but its window has NOT elapsed — no CAS was attempted;
+    // The blocker's window (open or confirmed) has NOT elapsed — no CAS was attempted;
     // the live record still holds -> record-exists.
     return refused('record-exists');
   }
   if (!ex.result.appended) {
-    // A race flipped the blocker away from 'open' between our read and the expire CAS
-    // (`conflict:'state-mismatch'`/`'seq'`) -> record-exists, and NEVER re-loop.
+    // A race flipped the blocker away from its resolveDueClock-observed state between our
+    // read and the expire CAS (`conflict:'state-mismatch'`/`'seq'`) -> record-exists, and
+    // NEVER re-loop.
     return refused('record-exists');
   }
 
