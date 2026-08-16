@@ -22,14 +22,19 @@ unstarted step.
   is a construction error") — `validateFindingsFlow` (config.ts) enforces it in the same
   commit as the lift, alongside the settled-class rules. No runtime re-check of
   `ackMode`'s value: the TS union carries it, matching every prior lift.
-- **The marker set is EIGHT tokens**, enumerated by SPEC.md line at HEAD: 127 (§2's
-  profile-conditional `findings`/`acks` listing), 324 (§4's transition-table row), 522
-  (§8's conditional-table row — plain brackets, not bold), 550 (§9's operator-only
+- **The marker set is NINE tokens** — eight in SPEC.md, enumerated by line at HEAD: 127
+  (§2's profile-conditional `findings`/`acks` listing), 324 (§4's transition-table row),
+  522 (§8's conditional-table row — plain brackets, not bold), 550 (§9's operator-only
   parenthetical), 573 (§9's review-projection sentence), 591 (§9's ladder rung (5.7)),
-  638 (the profile-field table's `ackMode`/`requiredAcks` row), 745 (the §10.2 heading).
-  Each edit replaces the token `[DESIGNED]` with `[PROVEN]` and NOTHING else — the
-  commit's diff must show exactly these eight lines, verified byte-wise. `supersedes`'
-  `[SKETCHED]` tokens and `freshness`'s do not move.
+  638 (the profile-field table's `ackMode`/`requiredAcks` row), 745 (the §10.2 heading);
+  plus CONTROLS.md:44's findings-flow row, whose maturity cell is the bare word
+  `DESIGNED` → `PROVEN` (no brackets there). CONTROLS.md is downstream of SPEC and
+  conflicts resolve in the downstream document — a `DESIGNED` control row against a
+  `[PROVEN]` SPEC heading would be exactly such a conflict, so the row moves with the
+  set. Each edit replaces the token and NOTHING else — the commit's diff must show
+  exactly these nine lines across the two files, verified byte-wise. `supersedes`'
+  `[SKETCHED]` tokens and `freshness`'s do not move; the two marker-LEGEND definition
+  lines (SPEC.md:17, concept README.md:48) never move.
 - **Seam intake validates at argument depth** — the `validateConsultations` class: a
   malformed `finding`/`ack` (missing/empty `findingId`, `kind`, or `findingDigest`;
   a non-string `magnitude`; an unknown key) and a malformed `identity` (missing/empty
@@ -158,15 +163,17 @@ EXISTS — the branch stays, the tense moves); `refusal-codes.ts`'s two producer
 "the `acknowledge` seam (landing…)" phrasing. The record task's sweep greps
 `second step-7 increment` and finalizes every hit — hit-count == verdict-count.
 
-## 5. The marker move (`docs/concept/SPEC.md`)
+## 5. The marker move (`docs/concept/SPEC.md` + `docs/concept/CONTROLS.md`)
 
-Its own commit, after the atomic commit's gates are green: the eight enumerated tokens,
-`[DESIGNED]` → `[PROVEN]`, nothing else on any line. Verification is byte-wise:
-`git diff` for the commit must show exactly eight changed lines, each differing only in
-the token (the bolding — `**[DESIGNED]**` at 127/324/550/573/591/638/745, plain
-`[DESIGNED]` at 522 — is preserved around the swap). The standing never-edit rule on
-`docs/concept/` is LIFTED for exactly this commit and exactly these tokens, per the
-user's step-7 brainstorm ruling; it re-arms immediately after.
+Its own commit, after the atomic commit's gates are green: the nine enumerated tokens,
+`[DESIGNED]` → `[PROVEN]` (SPEC.md's eight) and `DESIGNED` → `PROVEN` (CONTROLS.md:44's
+bare-word cell), nothing else on any line. Verification is byte-wise: `git diff` for
+the commit must show exactly nine changed lines across the two files, each differing
+only in the token (the bolding — `**[DESIGNED]**` at 127/324/550/573/591/638/745, plain
+`[DESIGNED]` at 522, bare `DESIGNED` in CONTROLS.md's table cell — is preserved around
+the swap). The standing never-edit rule on `docs/concept/` is LIFTED for exactly this
+commit and exactly these tokens, per the user's step-7 brainstorm ruling; it re-arms
+immediately after.
 
 ## 6. Tests
 
@@ -187,7 +194,8 @@ user's step-7 brainstorm ruling; it re-arms immediately after.
   kind; a non-declaring profile untouched); non-required kinds never gate; first-trip in
   first-raise order (two uncovered findings ⇒ the FIRST's code); `terminalRefusals:
   ['ack-missing']` ends the leg (the default-`appendsOn` path's first real consumer);
-  the two adjacent-pair order tests.
+  the (5.5)→(5.7) adjacent-pair order test, with (5.7)→(6) taking the unreachability
+  note (the old (5.5)→(6) treatment, transferred).
 - **Construction pins**: both-or-neither throws both directions; the settled-class
   throws (empty array, duplicate, empty-string kind); `'facts'` in `requiredAcks` is
   LEGAL; a declaring profile constructs cleanly; the guard-sweep-total swap.
