@@ -11,6 +11,13 @@ import { ok, refused, unavailable } from '../src/outcome.js';
 import { appendsOn, REGISTRY, type RefusalCode } from '../src/refusal-codes.js';
 
 const ALL_REFUSAL_CODES = Object.keys(REGISTRY) as RefusalCode[];
+// The codes `refused()` can actually mint — everything except `availability`, which is
+// excluded from its parameter at compile time (SPEC §8: carried by the `unavailable`
+// status alone). Filtered once here so every loop below stays in sync with that exclusion.
+const REFUSABLE_CODES = ALL_REFUSAL_CODES.filter((code) => code !== 'availability') as Exclude<
+  RefusalCode,
+  'availability'
+>[];
 
 // Runtime-checks status==='refused' (a real assertion, not a type-only cast) and then
 // narrows so the branch-specific `code`/`class`/`transitionRef` fields compile.
@@ -40,9 +47,9 @@ test("refused('content-drift') derives class 'refusal'", () => {
   assert.equal(result.class, 'refusal');
 });
 
-test('class derivation is total: every RefusalCode maps to a class, and ONLY chain-compromise is compromise', () => {
-  assert.equal(ALL_REFUSAL_CODES.length, 16, 'REGISTRY must cover all sixteen RefusalCodes');
-  for (const code of ALL_REFUSAL_CODES) {
+test('class derivation is total: every RefusalCode maps to a class, ONLY chain-compromise is compromise, and ONLY availability is availability', () => {
+  assert.equal(ALL_REFUSAL_CODES.length, 18, 'REGISTRY must cover all eighteen RefusalCodes');
+  for (const code of REFUSABLE_CODES) {
     const result = refused(code);
     assertRefused(result);
     const expectedClass = code === 'chain-compromise' ? 'compromise' : 'refusal';
@@ -57,6 +64,11 @@ test('class derivation is total: every RefusalCode maps to a class, and ONLY cha
       `registry entry for ${code} should be '${expectedClass}'`,
     );
   }
+  assert.equal(
+    REGISTRY.availability,
+    'availability',
+    "REGISTRY must classify 'availability' as the third class, 'availability' — the only member",
+  );
 });
 
 test('refused() never lets the caller supply class directly — it is always looked up from code', () => {
@@ -84,17 +96,33 @@ test('refused() carries transitionRef when one is supplied (appended refusal)', 
   assert.equal(result.transitionRef, digest);
 });
 
-test('unavailable() carries code + authority, and is a distinct status from ok/refused', () => {
-  const result = unavailable('unredeemable-state', 'ext:payments');
+test('unavailable() carries the availability code + authority, and is a distinct status from ok/refused', () => {
+  const result = unavailable('ext:payments');
   assert.deepEqual(result, {
     status: 'unavailable',
-    code: 'unredeemable-state',
+    code: 'availability',
     authority: 'ext:payments',
   });
 });
 
-test('domain refusals are returned values: refused() never throws, for any RefusalCode', () => {
-  for (const code of ALL_REFUSAL_CODES) {
+test('refused() cannot mint the availability code — the class is carried by the unavailable status alone', () => {
+  // SPEC §8: the availability code "is carried by the `unavailable` outcome status,
+  // **never** a `refused` edge". The exclusion is COMPILE-TIME (the second step-5
+  // increment's ruling); the runtime half of this pin exercises the narrowed
+  // constructor instead.
+  // @ts-expect-error — 'availability' is excluded from refused()'s code parameter
+  const illegal = () => refused('availability');
+  void illegal;
+  const out = unavailable('svc:sanctions');
+  assert.deepEqual(out, {
+    status: 'unavailable',
+    code: 'availability',
+    authority: 'svc:sanctions',
+  });
+});
+
+test('domain refusals are returned values: refused() never throws, for any RefusalCode it can mint', () => {
+  for (const code of REFUSABLE_CODES) {
     assert.doesNotThrow(() => refused(code));
     assert.doesNotThrow(() => refused(code, 'sha256:' + 'b'.repeat(64)));
   }

@@ -523,11 +523,14 @@ export async function appendChainCompromise(
  * leg's `terminalRefusals` lists `code` (the `appendsOn` rule), else no append (the record stays
  * open). On an append: refuse WITH the appended edge's digest. On a failed append CAS (a race
  * out of `open` — not producible under this build's single-writer bound): refuse without a
- * transitionRef (best-effort; nothing was recorded).
+ * transitionRef (best-effort; nothing was recorded). `code` excludes `'availability'` — that
+ * class never rides a `refused` edge (SPEC §8), and every call site here passes a
+ * refusal/compromise-class literal; the second step-5 increment's narrowing of `refused()`
+ * made the exclusion compile-time, so this parameter follows it.
  */
 async function refuseMaybeAppend(
   store: Store,
-  code: RefusalCode,
+  code: Exclude<RefusalCode, 'availability'>,
   leg: LegSpec,
   chain: readonly Transition[],
   resolved: ResolvedProfile,
