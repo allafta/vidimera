@@ -52,13 +52,24 @@ parts:
   SoD gate itself: `finalize()`'s rung 3.5 reads that chained evidence — `sod.notActorOf`
   keyed by the record's own recorded references, principal-only comparison, and `proposer`
   as the may-not-decide-own-leg pin — both raising the sixteenth refusal code,
-  `sod-violation`. §10.1 is whole in this build; step 5 (required-consultation gating,
-  SPEC §11.1) is next.
+  `sod-violation`. §10.1 is whole in this build. Step 5 — required-consultation gating,
+  SPEC §11.1 — is **started, not exited**: the first of two increments landed §11.1's
+  unconditional half, "The attach form is always available." `finalize()` gains its first
+  options bag, `opts?: FinalizeOptions` (§9's documented five-argument signature,
+  `finalize(recordId, identity, content, facts, opts?)`, now real), a standalone intake
+  validator (`kernel/consultations.ts`) that throws at argument depth — before the chain
+  loads — on a malformed entry, a reserved kind, or a duplicate kind, and a variable-arity
+  success batch, `appendBatch([chain-verify, facts, …obtained consultations, confirmed])`,
+  each entry stamped with the library's own recording time, never a host-supplied one. No
+  guard lifts: `requiredConsultations`, `freshness`, and `eligibility` stay GOVERNED, an
+  unreachable marker validates and then records nothing, and the required-consultation
+  gate, the `consultation-failed` refusal, and the `availability` outcome class remain the
+  second increment's own work, which also exits step 5.
   **`docs/process/implementation-status.md` is the authoritative
   account** of what this build does and does not implement, section by section, with the
   gate outputs and the outstanding list — read it rather than trusting a count here,
-  which is a claim with a shelf life and no way to fail loudly. Four of the eight
-  build-order steps remain unstarted (steps 5–8), and the package is not consumable by a
+  which is a claim with a shelf life and no way to fail loudly. Three of the eight
+  build-order steps remain unstarted (steps 6–8), and the package is not consumable by a
   host today.
 
 ## The standalone contract

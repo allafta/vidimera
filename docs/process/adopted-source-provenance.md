@@ -514,6 +514,18 @@ arriving with its own future build step:
 - **Consultations, policy-drift, and eligibility gating** — `finalize()`'s `opts` parameter
   (consultations and policy inputs), the argument-intake validation, gates (4.5)/(5.5), and the
   `availability` outcome class (`kernel/finalize.ts`, `outcome.ts`, `refusal-codes.ts`).
+
+  **Update, present tense:** part of this has since landed, at build-order step 5's first
+  increment: `finalize()`'s `opts` parameter is real (`opts?: FinalizeOptions`), carrying its
+  own first key, `consultations`, and the argument-intake validation for that half
+  (`kernel/consultations.ts`'s `validateConsultations`) is built and tested — a malformed
+  entry, a reserved kind, or a duplicate kind throws at intake exactly as this bundle named.
+  What remains LATER-STEP: gates (4.5)/(5.5) themselves (no consultation or eligibility gate
+  exists — a supplied consultation records as evidence and never gates), the `availability`
+  outcome class, and the policy half of `opts` (`opts.policy` still throws unconditionally —
+  no profile can declare `policySource` to give its own argument-intake validation anything
+  to check). This bullet is left as R1/R2 stated it, since it is a dated audit record;
+  `docs/process/implementation-status.md` carries the current account.
 - **Structural riders** — the `kernel/context.ts` extraction (kills a kernel→create.ts type
   back-edge; type-only, zero behavior), a `mintToken` injectable seam, and a handful of
   index-export additions for types that do not exist here yet.

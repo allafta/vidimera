@@ -31,9 +31,17 @@ replay before a successor record is created and chains the verified
 evidence into the successor's `opened` snapshot. The second landed the SoD
 gate itself: a `finalize()` rung that reads that chained evidence and
 refuses a decision by an actor who already decided a named prior leg, or by
-a leg's declared proposer deciding their own leg. So step 5 —
-required-consultation gating — is next, and four of the eight build-order
-steps remain unstarted (steps 5–8), and the
+a leg's declared proposer deciding their own leg. Step 5 —
+required-consultation gating — is **started, not exited**: the first of two
+increments has landed SPEC §11.1's unconditional attach form — `finalize()`'s
+first options bag, an intake validator that throws on a malformed, reserved,
+or duplicate consultation kind, and a variable-arity success batch that
+records a host's supplied consultations as evidence, library-stamped and
+never host-timed — while the gate that would consume a *required*
+consultation, the `availability` outcome class, and the lift of
+`requiredConsultations` remain the second increment's own work, which also
+exits step 5. Three of the eight build-order
+steps remain unstarted (steps 6–8), and the
 package is **not consumable by a host today** — no build, no published
 artifact; that record states it in the same breath as the green gates. The
 maturity markers inside the concept set speak to a reference implementation
@@ -105,8 +113,23 @@ chaining the evidence for later audit. The second landed the gate itself:
 one names as off-limits, or when the current leg's declared proposer is
 the one deciding it — a comparison by principal alone, so the same human
 re-authenticated under a second allowed authority still refuses. Section
-10.1 is whole in this build. Step 5 — required-consultation gating — is
-next.
+10.1 is whole in this build.
+
+Step 5 — required-consultation gating — is **started, not exited**: the
+first of two increments has landed. It builds section 11.1's unconditional
+half, "the attach form is always available": `finalize()` gains its first
+options bag, `opts?: FinalizeOptions` (section 9's documented five-argument
+signature, `finalize(recordId, identity, content, facts, opts?)`, now real),
+a standalone intake validator (`kernel/consultations.ts`) that throws at
+argument depth — before the chain loads — on a malformed entry, a reserved
+kind, or a duplicate kind, and a variable-arity success batch,
+`appendBatch([chain-verify, facts, …obtained consultations, confirmed])`,
+each entry stamped with the library's own recording time, never a
+host-supplied one. No guard lifts: `requiredConsultations`, `freshness`, and
+`eligibility` stay GOVERNED, an unreachable marker validates and then
+records nothing, and the required-consultation gate, the
+`consultation-failed` refusal, and the `availability` outcome class remain
+the second increment's own work, which also exits step 5.
 
 ## License
 

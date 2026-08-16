@@ -1,8 +1,8 @@
 // @vidimera/record — consultations.test.ts (SPEC §11.1 "Consultations
 // (required-consultation gating)", the ATTACH-FORM half; §9's finalize signature): the
-// first step-5 increment's file. This file owns the intake-validator pins and, once the
-// surface is wired, the attach/recording pins; the gate's pins are the second step-5
-// increment's.
+// first step-5 increment's file. This file owns the intake-validator pins and, now that
+// the surface is wired, the attach/recording pins too; the gate's pins are the second
+// step-5 increment's.
 
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
