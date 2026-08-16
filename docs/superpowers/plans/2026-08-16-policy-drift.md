@@ -420,6 +420,7 @@ test('the depth pin: a tampered declaring-profile chain refuses chain-compromise
 `tamperNonLast` from `./helpers/profiles.js` — top-level imports, the file convention;
 no dynamic `await import`.)
 
+```ts
 test('the forward cross-instance corner: a live digest against an absent bound one refuses policy-drift, fail-closed', async () => {
   // §10.3: a record opened under a NON-declaring same-id instance, finalized under a
   // declaring one — "the gate treats a present live digest against an absent bound one
