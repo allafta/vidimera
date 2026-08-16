@@ -18,7 +18,9 @@ import { MemoryStore } from '../src/store/memory.js';
 import type { Transition } from '../src/types.js';
 import { buildChain } from './helpers/chain.js';
 import {
+  captureProfile,
   DEFAULT_CANONICALIZER_REF,
+  DEFAULT_SUBJECT_REF,
   facts,
   identity,
   makeConfig,
@@ -574,4 +576,192 @@ test('a three-leg profile: refs out of leg order refuse; in order they verify', 
     rec?.priorRecordRefs?.map((r) => r.legId),
     ['maker-decide', 'checker-decide'],
   );
+});
+
+// === the interplay and posture pins (second step-4 increment) ==================
+
+test('a sealed prior still verifies — §10.1: state, not status, is the check', async () => {
+  const store = new MemoryStore();
+  const handles = create(makeConfig([twoLegProfile()], { store }));
+  const { makerId, makerHead } = await makerConcluded(handles, store);
+  const sealed = await handles.operator.seal(makerId);
+  assert.equal(sealed.status, 'ok', 'fixture: a terminal maker seals');
+  if (sealed.status !== 'ok') return;
+  assert.equal(sealed.value.status, 'retired');
+
+  // The seal() append moved the chain head — the reference must claim the CURRENT head:
+  const chain = await store.readChain(makerId);
+  const last = chain.at(-1);
+  assert.ok(last !== undefined);
+  const staged = await handles.agent.stage(CONTENT, 'test.twoleg.v1', SUBJECT, 'checker-decide');
+  assert.equal(staged.status, 'ok');
+  if (staged.status !== 'ok') return;
+  const opened = await handles.operator.open(staged.value.stagedRef, {
+    priorRecordRefs: [{ recordId: makerId, chainHead: transitionDigest(last) }],
+  });
+  assert.equal(opened.status, 'ok', 'a sealed prior replays confirmed and verifies');
+
+  // And the PRE-seal head no longer verifies (head equality is against the recomputed
+  // current head) — the stale-head shape:
+  const staged2 = await handles.agent.stage(CONTENT, 'test.twoleg.v1', SUBJECT, 'checker-decide');
+  assert.equal(staged2.status, 'ok');
+  if (staged2.status !== 'ok') return;
+  const stale = await handles.operator.open(staged2.value.stagedRef, {
+    priorRecordRefs: [{ recordId: makerId, chainHead: makerHead }],
+  });
+  assert.equal(stale.status, 'refused');
+  if (stale.status === 'refused') assert.equal(stale.code, 'prior-leg-unverified');
+});
+
+test('the destroyed-prior stand-in: a reference into a store that lacks the chain refuses', async () => {
+  // No destroy seam exists in this build (§13 retention is the host's); the nearest
+  // constructible shape is a fresh store that never held the prior — named as the
+  // stand-in for §10.1's "a destroyed one does not".
+  const emptyStore = new MemoryStore();
+  const handles = create(makeConfig([twoLegProfile()], { store: emptyStore }));
+  const staged = await handles.agent.stage(CONTENT, 'test.twoleg.v1', SUBJECT, 'checker-decide');
+  assert.equal(staged.status, 'ok');
+  if (staged.status !== 'ok') return;
+  const out = await handles.operator.open(staged.value.stagedRef, {
+    priorRecordRefs: [{ recordId: 'rec-destroyed', chainHead: `sha256:${'d'.repeat(64)}` }],
+  });
+  assert.equal(out.status, 'refused');
+  if (out.status === 'refused') assert.equal(out.code, 'prior-leg-unverified');
+});
+
+test('a two-leg EFFECT-SEAM profile: maker confirmed is terminal, checker confirmed awaits redemption', async () => {
+  const store = new MemoryStore();
+  const effectTwoLeg: ConfirmProfile = {
+    ...twoLegProfile({ id: 'test.twoleg.effect.v1' }),
+    redeem: { confirmToRedeem: 3600, redeemBound: 86400 },
+  };
+  const handles = create(makeConfig([effectTwoLeg], { store }));
+  const { makerId, makerHead } = await makerConcluded(handles, store, 'test.twoleg.effect.v1');
+  // NON-final leg + effect seam: still terminal — the derivation keys on finalLeg:
+  assert.equal(await store.findNonTerminal('test.twoleg.effect.v1', SUBJECT), null);
+
+  const staged = await handles.agent.stage(
+    CONTENT,
+    'test.twoleg.effect.v1',
+    SUBJECT,
+    'checker-decide',
+  );
+  assert.equal(staged.status, 'ok');
+  if (staged.status !== 'ok') return;
+  const opened = await handles.operator.open(staged.value.stagedRef, {
+    priorRecordRefs: [{ recordId: makerId, chainHead: makerHead }],
+  });
+  assert.equal(opened.status, 'ok');
+  if (opened.status !== 'ok') return;
+  const done = await handles.operator.finalize(opened.value.recordId, identity(), CONTENT, facts());
+  assert.equal(done.status, 'ok');
+  // FINAL leg + effect seam: non-terminal, awaiting redemption — the hold is real:
+  assert.equal(
+    await store.findNonTerminal('test.twoleg.effect.v1', SUBJECT),
+    opened.value.recordId,
+  );
+  const redeemed = await handles.operator.redeem(opened.value.recordId, CONTENT);
+  assert.equal(redeemed.status, 'ok', 'the direct shape releases the final leg');
+});
+
+test('gate order: unknown-leg outranks prior-leg-unverified at open()', async () => {
+  // The open()-side unknown-leg producer is the staged-legId RE-check: stage under a
+  // config whose profile knows the leg, open under a second create() sharing the store
+  // whose same-id profile renamed its legs (the established two-instance shape).
+  const store = new MemoryStore();
+  const stagingSide = create(makeConfig([twoLegProfile()], { store }));
+  const staged = await stagingSide.agent.stage(
+    CONTENT,
+    'test.twoleg.v1',
+    SUBJECT,
+    'checker-decide',
+  );
+  assert.equal(staged.status, 'ok');
+  if (staged.status !== 'ok') return;
+
+  const renamed = twoLegProfile();
+  renamed.legs = [
+    { id: 'maker-decide', allowedAuthorities: ['session:test-app'] },
+    { id: 'checker-renamed', allowedAuthorities: ['session:test-app'] },
+  ];
+  const openingSide = create(makeConfig([renamed], { store }));
+  const out = await openingSide.operator.open(staged.value.stagedRef, {
+    priorRecordRefs: [{ recordId: 'rec-any', chainHead: `sha256:${'a'.repeat(64)}` }],
+  });
+  assert.equal(out.status, 'refused');
+  if (out.status !== 'refused') return;
+  assert.equal(out.code, 'unknown-leg', 'the staged-legId re-check precedes sequencing');
+});
+
+test('gate order: prior-leg-unverified outranks the C1 blocker path — and no clock edge lands on the blocker', async () => {
+  const clock = { t: Date.UTC(2026, 0, 1) };
+  const store = new MemoryStore();
+  const handles = createWithClock(
+    makeConfig([twoLegProfile()], { store }),
+    () => new Date(clock.t),
+  );
+  // A maker record left OPEN holds the pair; let its open window lapse:
+  const makerId = await openRecord(handles, CONTENT, 'test.twoleg.v1', SUBJECT, 'maker-decide');
+  clock.t += 400 * 3600_000;
+  const before = (await store.readChain(makerId)).length;
+
+  // A checker open with a BAD ref (the still-open maker cannot verify): sequencing
+  // refuses pre-record, so the genesis append never happens, the exclusivity conflict
+  // never fires, and the due-open blocker is NOT resolved en passant here.
+  const makerChain = await store.readChain(makerId);
+  const makerLast = makerChain.at(-1);
+  assert.ok(makerLast !== undefined);
+  const staged = await handles.agent.stage(CONTENT, 'test.twoleg.v1', SUBJECT, 'checker-decide');
+  assert.equal(staged.status, 'ok');
+  if (staged.status !== 'ok') return;
+  const out = await handles.operator.open(staged.value.stagedRef, {
+    priorRecordRefs: [{ recordId: makerId, chainHead: transitionDigest(makerLast) }],
+  });
+  assert.equal(out.status, 'refused');
+  if (out.status !== 'refused') return;
+  assert.equal(out.code, 'prior-leg-unverified');
+  assert.equal((await store.readChain(makerId)).length, before, 'no edge on the blocker');
+});
+
+test('verified references do not bypass C1: a live successor still blocks a second one', async () => {
+  const store = new MemoryStore();
+  const handles = create(makeConfig([twoLegProfile()], { store }));
+  const { makerId, makerHead } = await makerConcluded(handles, store);
+  const staged1 = await handles.agent.stage(CONTENT, 'test.twoleg.v1', SUBJECT, 'checker-decide');
+  assert.equal(staged1.status, 'ok');
+  if (staged1.status !== 'ok') return;
+  const first = await handles.operator.open(staged1.value.stagedRef, {
+    priorRecordRefs: [{ recordId: makerId, chainHead: makerHead }],
+  });
+  assert.equal(first.status, 'ok');
+
+  const staged2 = await handles.agent.stage(CONTENT, 'test.twoleg.v1', SUBJECT, 'checker-decide');
+  assert.equal(staged2.status, 'ok');
+  if (staged2.status !== 'ok') return;
+  const second = await handles.operator.open(staged2.value.stagedRef, {
+    priorRecordRefs: [{ recordId: makerId, chainHead: makerHead }],
+  });
+  assert.equal(second.status, 'refused');
+  if (second.status !== 'refused') return;
+  assert.equal(
+    second.code,
+    'record-exists',
+    'good refs verify but the live checker holds the pair',
+  );
+});
+
+test('single-leg chains stay byte-shaped: the opened payload key set gains nothing', async () => {
+  const store = new MemoryStore();
+  const handles = create(makeConfig([captureProfile()], { store }));
+  const recordId = await openRecord(handles, CONTENT, 'test.capture.v1', DEFAULT_SUBJECT_REF);
+  const chain = await store.readChain(recordId);
+  const genesis = chain[0];
+  assert.ok(genesis !== undefined);
+  assert.deepEqual(Object.keys(genesis.payload as object).sort(), [
+    'contentDigest',
+    'legId',
+    'profileDigest',
+    'profileId',
+    'subjectRef',
+  ]);
 });
