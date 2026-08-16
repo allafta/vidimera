@@ -334,7 +334,7 @@ test('unknown-leg: registry/type presence + class only in this file — the prod
 // is the finalize rung (landing later in the second step-4 increment), so this file
 // carries a registry-only assertion; production-path coverage lives in its own seam's suite.
 
-test('sod-violation: registry/type presence + class only in this file — the production-path assertion lives in finalize.test.ts (the second step-4 increment)', () => {
+test('sod-violation: registry/type presence + class only in this file — production-path coverage arrives with the gate itself, landing later in the second step-4 increment', () => {
   // `code: RefusalCode = 'sod-violation'` is itself a COMPILE-TIME union-membership check
   // (this file fails to type-check if 'sod-violation' is ever removed from the union).
   const code: RefusalCode = 'sod-violation';
