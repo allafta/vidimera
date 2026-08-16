@@ -535,3 +535,151 @@ test('gate order: (5) facts outranks (5.5) — invalid facts refuses consultatio
   if (out.status !== 'refused') return;
   assert.equal(out.code, 'consultation-missing');
 });
+
+// === the eligibility arm: the implicit-first kind (first step-6 increment) ===
+
+/** captureProfile with the leg's eligibility declared (and optional extras). */
+function eligibleProfile(extra?: Partial<LegSpec>): ConfirmProfile {
+  const p = captureProfile({ id: 'test.eligible.v1' });
+  const leg = p.legs[0];
+  if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
+  p.legs[0] = { ...leg, eligibility: 'hr.approver-check', ...extra };
+  return p;
+}
+const ELIGIBLE_SUBJECT = 'subject:elig-1';
+
+async function openEligible(store: MemoryStore, extra?: Partial<LegSpec>) {
+  const handles = create(makeConfig([eligibleProfile(extra)], { store }));
+  const recordId = await openRecord(handles, CONTENT, 'test.eligible.v1', ELIGIBLE_SUBJECT);
+  return { handles, recordId };
+}
+
+test('the trip mapping: an eligibility fail refuses ineligible, open by default, and a pass-verdict retry confirms', async () => {
+  // SPEC §10.4: "a **`fail` verdict refuses `ineligible`**"; open-by-default —
+  // eligibility is per-finalize, per actor, so a different eligible actor may decide.
+  const store = new MemoryStore();
+  const { handles, recordId } = await openEligible(store);
+  const out = await handles.operator.finalize(recordId, identity(), CONTENT, facts(), {
+    consultations: [obtained('eligibility', { verdict: 'fail' })],
+  });
+  assert.equal(out.status, 'refused');
+  if (out.status !== 'refused') return;
+  assert.equal(out.code, 'ineligible');
+  assert.equal(out.transitionRef, undefined, 'default path: no appended edge');
+  assert.equal((await store.readChain(recordId)).length, 1, 'the record stays open');
+
+  const retry = await handles.operator.finalize(
+    recordId,
+    identity({ principal: 'approver:2' }),
+    CONTENT,
+    facts(),
+    { consultations: [obtained('eligibility')] },
+  );
+  assert.equal(retry.status, 'ok');
+});
+
+test('the trip mapping stays generic off the fail arm: missing refuses consultation-missing; unreachable is the availability outcome', async () => {
+  // §10.4: "a *missing* input refuses `consultation-missing` (generic); an
+  // *unreachable* marker yields the availability outcome (generic)".
+  const storeA = new MemoryStore();
+  const a = await openEligible(storeA);
+  const missing = await a.handles.operator.finalize(a.recordId, identity(), CONTENT, facts());
+  assert.equal(missing.status, 'refused');
+  if (missing.status !== 'refused') return;
+  assert.equal(missing.code, 'consultation-missing');
+
+  const storeB = new MemoryStore();
+  const b = await openEligible(storeB);
+  const down = await b.handles.operator.finalize(b.recordId, identity(), CONTENT, facts(), {
+    consultations: [{ kind: 'eligibility', unreachable: true, authority: 'svc:hr' }],
+  });
+  assert.deepEqual(down, { status: 'unavailable', code: 'availability', authority: 'svc:hr' });
+  assert.equal((await storeB.readChain(b.recordId)).length, 1, 'nothing appended');
+});
+
+test('a pass verdict confirms and the eligibility consultation is chained evidence that the check ran', async () => {
+  const store = new MemoryStore();
+  const { handles, recordId } = await openEligible(store);
+  const done = await handles.operator.finalize(recordId, identity(), CONTENT, facts(), {
+    consultations: [obtained('eligibility')],
+  });
+  assert.equal(done.status, 'ok');
+  const rec = await handles.operator.getRecord(recordId);
+  const evidence = rec?.consultations.find((c) => c.kind === 'eligibility');
+  assert.ok(evidence !== undefined);
+  assert.equal(evidence.verdict, 'pass');
+});
+
+test('implicit and FIRST: eligibility trips before the declared kinds; satisfied, the gate proceeds in order', async () => {
+  // §10.4: "the effective kinds are the implicit `'eligibility'` followed by the
+  // declared `requiredConsultations` in order, so authority-to-decide is checked
+  // before the evidence checks".
+  const store = new MemoryStore();
+  const { handles, recordId } = await openEligible(store, {
+    requiredConsultations: ['risk-check'],
+  });
+  const bothFail = await handles.operator.finalize(recordId, identity(), CONTENT, facts(), {
+    consultations: [
+      obtained('eligibility', { verdict: 'fail' }),
+      obtained('risk-check', { verdict: 'fail' }),
+    ],
+  });
+  assert.equal(bothFail.status, 'refused');
+  if (bothFail.status !== 'refused') return;
+  assert.equal(bothFail.code, 'ineligible', 'the implicit kind is first');
+
+  const evidenceFails = await handles.operator.finalize(recordId, identity(), CONTENT, facts(), {
+    consultations: [obtained('eligibility'), obtained('risk-check', { verdict: 'fail' })],
+  });
+  assert.equal(evidenceFails.status, 'refused');
+  if (evidenceFails.status !== 'refused') return;
+  assert.equal(evidenceFails.code, 'consultation-failed', 'past the implicit kind, generic order');
+});
+
+test('terminalRefusals may end the leg on ineligible: the refused edge appends with payload { code }', async () => {
+  const store = new MemoryStore();
+  const { handles, recordId } = await openEligible(store, {
+    terminalRefusals: ['ineligible'],
+  });
+  const out = await handles.operator.finalize(recordId, identity(), CONTENT, facts(), {
+    consultations: [obtained('eligibility', { verdict: 'fail' })],
+  });
+  assert.equal(out.status, 'refused');
+  if (out.status !== 'refused') return;
+  assert.equal(out.code, 'ineligible');
+  assert.ok(out.transitionRef !== undefined);
+  const last = (await store.readChain(recordId)).at(-1);
+  assert.ok(last !== undefined);
+  assert.equal(last.kind, 'refused');
+  assert.deepEqual(Object.keys(last.payload as object), ['code']);
+  assert.equal(await store.findNonTerminal('test.eligible.v1', ELIGIBLE_SUBJECT), null);
+});
+
+test('the ordinary-kind fallback: a NON-declaring leg listing eligibility in requiredConsultations gets the generic codes', async () => {
+  // §10.4: "a leg that merely lists `'eligibility'` in its `requiredConsultations`
+  // gates it with the generic codes (`consultation-failed` on a `fail`, never
+  // `ineligible`)".
+  const store = new MemoryStore();
+  const p = captureProfile({ id: 'test.ordinary-elig.v1' });
+  const leg = p.legs[0];
+  if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
+  p.legs[0] = { ...leg, requiredConsultations: ['eligibility'] };
+  const handles = create(makeConfig([p], { store }));
+  const recordId = await openRecord(handles, CONTENT, 'test.ordinary-elig.v1', ELIGIBLE_SUBJECT);
+  const out = await handles.operator.finalize(recordId, identity(), CONTENT, facts(), {
+    consultations: [obtained('eligibility', { verdict: 'fail' })],
+  });
+  assert.equal(out.status, 'refused');
+  if (out.status !== 'refused') return;
+  assert.equal(out.code, 'consultation-failed');
+});
+
+test('a voluntary eligibility consultation on an undeclaring, unrequiring leg records as plain evidence', async () => {
+  const store = new MemoryStore();
+  const handles = create(makeConfig([captureProfile()], { store }));
+  const recordId = await openRecord(handles, CONTENT, 'test.capture.v1', ELIGIBLE_SUBJECT);
+  const done = await handles.operator.finalize(recordId, identity(), CONTENT, facts(), {
+    consultations: [obtained('eligibility', { verdict: 'fail' })],
+  });
+  assert.equal(done.status, 'ok', 'nothing requires it — evidence, never a gate');
+});

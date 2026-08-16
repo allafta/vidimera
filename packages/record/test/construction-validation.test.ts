@@ -291,14 +291,36 @@ test('GOVERNED: a leg declaring ackMode throws (ackMode)', () => {
   assertGoverned({ ...p, legs: [{ ...leg, ackMode: 'counterparty' }] }, 'ackMode');
 });
 
-test('GOVERNED: a leg declaring eligibility throws (eligibility)', () => {
+test('eligibility is accepted at construction — the gate arm is built', () => {
+  // INVERTED, at the first step-6 increment: the kernel increment pinned a GOVERNED
+  // throw here while no gate consumed the declaration. The implicit-first eligibility
+  // arm lands at finalize's required-consultation rung in the same commit as this
+  // lift, so the guard's stated trigger has fired.
   const p = captureProfile();
   const leg = p.legs[0];
-  if (leg === undefined)
-    throw new Error(
-      'construction-validation.test.ts: p.legs[0] missing — captureProfile() must have at least one leg',
-    );
-  assertGoverned({ ...p, legs: [{ ...leg, eligibility: 'employed' }] }, 'eligibility');
+  if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
+  assert.doesNotThrow(() =>
+    create(makeConfig([{ ...p, legs: [{ ...leg, eligibility: 'hr.approver-check' }] }])),
+  );
+});
+
+test('structural: an empty eligibility label and a double declaration each throw', () => {
+  // Empty: NOT the inertness trap (the gate keys on declaration presence, never the
+  // label) — the malformed-reference rule: an opaque reference that references nothing.
+  // Double: SPEC §10.4's own sentence — "Declaring `eligibility` **and** also listing
+  // `'eligibility'` in `requiredConsultations` is a construction error (declare it
+  // once)".
+  const p = captureProfile();
+  const leg = p.legs[0];
+  if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
+  assertStructural({ ...p, legs: [{ ...leg, eligibility: '' }] }, /empty/i);
+  assertStructural(
+    {
+      ...p,
+      legs: [{ ...leg, eligibility: 'hr.approver-check', requiredConsultations: ['eligibility'] }],
+    },
+    /declare it once/i,
+  );
 });
 
 test('GOVERNED: a profile declaring policySource throws (policySource)', () => {

@@ -129,14 +129,35 @@ function validateLeg(profileId: string, leg: LegSpec): void {
           '`at` itself, so an authority-timestamped build is what actually lifts it. Contract: §11.1 and §14.',
       ),
     );
-  if (leg.eligibility !== undefined)
-    throw new Error(
-      governedUnavailable(
-        'eligibility',
-        'eligibility gating is not enforced in this build. Contract: §10.4.',
-      ),
-    );
   assertNoStrayRedemptionKeys(profileId, 'leg', leg);
+}
+
+/**
+ * Structural `eligibility` validation (SPEC §10.4; first step-6 increment). Fail-closed
+ * by the same settled class as `validateSodShape`/`validateRequiredConsultations`: no
+ * declarable-but-inert configuration exists —
+ *  - a present-but-empty label is the malformed-reference rule, NOT the inertness trap:
+ *    unlike `proposer: ''`, the gate keys on the DECLARATION'S PRESENCE and never
+ *    compares the label itself, so an empty label is an opaque reference that names
+ *    nothing rather than a value that could merely never match;
+ *  - declaring `eligibility` AND ALSO listing `'eligibility'` in the same leg's
+ *    `requiredConsultations` is SPEC §10.4's own construction error — "declare it once".
+ */
+function validateEligibility(profile: ConfirmProfile, leg: LegSpec): void {
+  if (leg.eligibility === undefined) return;
+  if (leg.eligibility.length === 0) {
+    throw new Error(
+      `invalid profile '${profile.id}': leg '${leg.id}' declares an empty eligibility label — ` +
+        'an opaque reference that references nothing is malformed config (the label names ' +
+        'the host authority-to-decide check; the gate keys on the declaration, SPEC §10.4)',
+    );
+  }
+  if (leg.requiredConsultations?.includes('eligibility')) {
+    throw new Error(
+      `invalid profile '${profile.id}': leg '${leg.id}' declares eligibility AND lists ` +
+        `'eligibility' in requiredConsultations — SPEC §10.4: declare it once`,
+    );
+  }
 }
 
 /**
@@ -245,8 +266,9 @@ function validateRequiredConsultations(profile: ConfirmProfile, leg: LegSpec): v
  *     guard so a live profile throws GOVERNED(captureMode), never the reverify refusal;
  *  4. GOVERNED `policySource` (policy drift, SPEC §10.3);
  *  5. per-leg GOVERNED guards + stray-redemption-key check (inside `validateLeg`), then
- *     structural SoD shape validation (`validateSodShape`) and structural
- *     requiredConsultations validation (`validateRequiredConsultations`), both after;
+ *     structural SoD shape validation (`validateSodShape`), structural
+ *     requiredConsultations validation (`validateRequiredConsultations`), and structural
+ *     eligibility validation (`validateEligibility`), all three after;
  *  6. structural: stray redemption key on the profile itself;
  *  7. structural: `reverify` on a non-live profile — not built in this build (SPEC §9.2's
  *     live mode).
@@ -271,6 +293,13 @@ function validateRequiredConsultations(profile: ConfirmProfile, leg: LegSpec): v
  * (above) replaces it with this build's fail-closed structural posture (non-empty, pairwise
  * distinct, every kind a non-empty string, never a reserved kind — the same settled class
  * as `validateSodShape`'s). The governed count moves 7 → 6 with this lift.
+ * `eligibility` (SPEC §10.4) is accepted-at-construction as of the first step-6 increment:
+ * the implicit-first arm that reads the declaration lands at finalize's rung 5.5 in the
+ * same commit as this lift, so the GOVERNED throw is gone — `validateEligibility` (above)
+ * replaces it with the same settled fail-closed structural class (empty label rejected as
+ * the malformed-reference rule, not the inertness trap; double declaration rejected per
+ * SPEC §10.4's own "declare it once" sentence). The governed count moves 6 → 5 with this
+ * lift.
  * The sweep is TOTAL: a profile declaring any governed feature throws — the first one
  * reached wins, but none slips through. Canonicalizer resolution + duplicate-id detection
  * are `create.ts`'s (they need the registry / the whole profile list).
@@ -310,6 +339,7 @@ export function validateProfile(profile: ConfirmProfile): void {
     validateLeg(profile.id, leg);
     validateSodShape(profile, index, leg);
     validateRequiredConsultations(profile, leg);
+    validateEligibility(profile, leg);
   }
   assertNoStrayRedemptionKeys(profile.id, 'top-level profile', profile);
   // `reverify` on a non-live profile is refused — not built in this build (SPEC §9.2's

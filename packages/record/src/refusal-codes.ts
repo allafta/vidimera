@@ -47,8 +47,8 @@ export type RefusalCode =
   // "`refusal`-class, open-by-default so a different eligible actor may decide" — the
   // default appendsOn path (appends `open→refused` iff the leg's `terminalRefusals` lists
   // it, else stays open per §10.1) IS the spec-mandated behavior with zero new code —
-  // producer: finalize's eligibility arm of the required-consultation rung (kernel/finalize.ts),
-  // landing later in the first step-6 increment
+  // producer: finalize's eligibility arm of the required-consultation rung
+  // (kernel/finalize.ts), real as of the first step-6 increment
   | 'ineligible';
 // class map: chain-compromise → 'compromise'; availability → 'availability'; all others →
 // 'refusal'
