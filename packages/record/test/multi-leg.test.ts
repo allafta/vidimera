@@ -1010,3 +1010,112 @@ test('a found reference with no paired actor THROWS — the recorded paired-by-i
     /no paired actor/i,
   );
 });
+
+test('gate order: (3) identity outranks (3.5) sod — a disallowed authority refuses identity-authority-refused', async () => {
+  const store = new MemoryStore();
+  const handles = create(
+    makeConfig([gatedTwoLeg({ sod: { notActorOf: ['maker-decide'] } })], { store }),
+  );
+  const { makerId, makerHead } = await makerConcluded(handles, store);
+  const staged = await handles.agent.stage(CONTENT, 'test.twoleg.v1', SUBJECT, 'checker-decide');
+  assert.equal(staged.status, 'ok');
+  if (staged.status !== 'ok') return;
+  const opened = await handles.operator.open(staged.value.stagedRef, {
+    priorRecordRefs: [{ recordId: makerId, chainHead: makerHead }],
+  });
+  assert.equal(opened.status, 'ok');
+  if (opened.status !== 'ok') return;
+
+  // The maker's own principal AND a disallowed authority: rung (3) wins.
+  const out = await handles.operator.finalize(
+    opened.value.recordId,
+    identity({ authority: 'oidc:unlisted' }),
+    CONTENT,
+    facts(),
+  );
+  assert.equal(out.status, 'refused');
+  if (out.status !== 'refused') return;
+  assert.equal(out.code, 'identity-authority-refused');
+});
+
+test('gate order: (3.5) sod outranks (4) content-drift — the blocked actor with drifted content refuses sod-violation', async () => {
+  const store = new MemoryStore();
+  const handles = create(
+    makeConfig([gatedTwoLeg({ sod: { notActorOf: ['maker-decide'] } })], { store }),
+  );
+  const { makerId, makerHead } = await makerConcluded(handles, store);
+  const staged = await handles.agent.stage(CONTENT, 'test.twoleg.v1', SUBJECT, 'checker-decide');
+  assert.equal(staged.status, 'ok');
+  if (staged.status !== 'ok') return;
+  const opened = await handles.operator.open(staged.value.stagedRef, {
+    priorRecordRefs: [{ recordId: makerId, chainHead: makerHead }],
+  });
+  assert.equal(opened.status, 'ok');
+  if (opened.status !== 'ok') return;
+
+  const out = await handles.operator.finalize(
+    opened.value.recordId,
+    identity(),
+    { subject: 'week-1', total: 999 },
+    facts(),
+  );
+  assert.equal(out.status, 'refused');
+  if (out.status !== 'refused') return;
+  assert.equal(out.code, 'sod-violation');
+});
+
+test('a retried decision by the same actor on the SAME leg is not self-approval', async () => {
+  // SPEC §10.1: "A retried decision by the same actor on the same leg is not
+  // self-approval" — sod names only PRIOR legs, so approver:2's second attempt at the
+  // checker leg passes rung 3.5 both times; only the content changed.
+  const store = new MemoryStore();
+  const handles = create(
+    makeConfig([gatedTwoLeg({ sod: { notActorOf: ['maker-decide'] } })], { store }),
+  );
+  const { makerId, makerHead } = await makerConcluded(handles, store);
+  const staged = await handles.agent.stage(CONTENT, 'test.twoleg.v1', SUBJECT, 'checker-decide');
+  assert.equal(staged.status, 'ok');
+  if (staged.status !== 'ok') return;
+  const opened = await handles.operator.open(staged.value.stagedRef, {
+    priorRecordRefs: [{ recordId: makerId, chainHead: makerHead }],
+  });
+  assert.equal(opened.status, 'ok');
+  if (opened.status !== 'ok') return;
+
+  const drifted = await handles.operator.finalize(
+    opened.value.recordId,
+    identity({ principal: 'approver:2' }),
+    { subject: 'week-1', total: 999 },
+    facts(),
+  );
+  assert.equal(drifted.status, 'refused');
+  if (drifted.status !== 'refused') return;
+  assert.equal(drifted.code, 'content-drift', 'fixture: the first attempt drifts, default-open');
+
+  const retried = await handles.operator.finalize(
+    opened.value.recordId,
+    identity({ principal: 'approver:2' }),
+    CONTENT,
+    facts(),
+  );
+  assert.equal(retried.status, 'ok', 'the same actor retries their OWN leg and confirms');
+});
+
+test("a non-declaring multi-leg profile is untouched by the gate: the maker's actor decides the checker leg freely", async () => {
+  // The byte-and-behavior control: twoLegProfile declares neither sod nor proposer, so
+  // rung 3.5 is a no-op — the same actor deciding both legs was legal before the second
+  // step-4 increment and stays legal.
+  const store = new MemoryStore();
+  const handles = create(makeConfig([twoLegProfile()], { store }));
+  const { makerId, makerHead } = await makerConcluded(handles, store);
+  const staged = await handles.agent.stage(CONTENT, 'test.twoleg.v1', SUBJECT, 'checker-decide');
+  assert.equal(staged.status, 'ok');
+  if (staged.status !== 'ok') return;
+  const opened = await handles.operator.open(staged.value.stagedRef, {
+    priorRecordRefs: [{ recordId: makerId, chainHead: makerHead }],
+  });
+  assert.equal(opened.status, 'ok');
+  if (opened.status !== 'ok') return;
+  const done = await handles.operator.finalize(opened.value.recordId, identity(), CONTENT, facts());
+  assert.equal(done.status, 'ok');
+});
