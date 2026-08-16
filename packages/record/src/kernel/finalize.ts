@@ -499,7 +499,7 @@ async function refuseMaybeAppend(
  * fail closed against a malformed/absent arg supplied at runtime (a payload-carried or empty
  * id) — hence the defensive runtime shape check.
  */
-function isValidIdentity(identity: IdentityAssertion): boolean {
+export function isValidIdentity(identity: IdentityAssertion): boolean {
   const i = identity as unknown as { principal?: unknown; authority?: unknown } | null | undefined;
   return (
     i != null &&

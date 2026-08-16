@@ -11,7 +11,7 @@
 import type { Canonicalizer } from './canonical.js';
 import type { RefusalCode } from './refusal-codes.js';
 import type { Store } from './store/store.js';
-import type { Digest } from './types.js';
+import type { Digest, IdentityAssertion } from './types.js';
 
 export type { Canonicalizer };
 
@@ -299,4 +299,42 @@ export interface OpenOptions {
   priorRecordRefs?: PriorRecordRef[];
   // `policyDigest` (§10.3) and `supersedes` (§2) remain GOVERNED at the call seam
   // (kernel/open.ts's runtime guard) — their build steps have not arrived.
+}
+
+// --- finalize() options bag (SPEC §11.1's consultation input surface) -----------------
+
+/**
+ * An *obtained consultation* (SPEC §11.1): `{ kind, checker, payloadDigest, verdict }`,
+ * with an optional `proofRef`. Custody is digest-only — the host digests its own
+ * evidence payload; the library never sees it. There is deliberately no `at` field:
+ * recording time is library-stamped (§2.1), never host-supplied, so an unknown entry
+ * key (`at` included) throws at intake — "never accepted from the host" is enforced
+ * structurally, not by silently dropping the field.
+ */
+export interface ObtainedConsultation {
+  kind: string;
+  checker: IdentityAssertion;
+  payloadDigest: Digest;
+  verdict: 'pass' | 'fail';
+  proofRef?: string;
+}
+
+/**
+ * An *unreachable marker* (SPEC §11.1): `{ kind, unreachable: true, authority }`, whose
+ * `authority` names the party that was down. Like `ObtainedConsultation`, there is no
+ * `at` field — the library stamps recording time itself (§2.1).
+ */
+export interface UnreachableMarker {
+  kind: string;
+  unreachable: true;
+  authority: string;
+}
+
+/** SPEC §11.1's consultation input surface: each entry is either shape. */
+export type ConsultationInput = ObtainedConsultation | UnreachableMarker;
+
+export interface FinalizeOptions {
+  /** SPEC §11.1: the host's supplied consultations, attach-form. `policy` (§10.3)
+   * remains GOVERNED at the call seam — its build step has not arrived. */
+  consultations?: ConsultationInput[];
 }
