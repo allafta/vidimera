@@ -101,6 +101,26 @@ export function effectSeamProfile(overrides: ProfileOverrides = {}): ConfirmProf
 }
 
 /**
+ * A two-leg maker-checker profile (SPEC §10.1, first step-4 increment): ordered legs
+ * `maker-decide` then `checker-decide`, capture-mode, no redeem block. Multi-leg
+ * construction is accepted as of the first step-4 increment (the sequencing rung and the
+ * verify-by-replay reference check land with the lift); per-leg `sod`/`proposer` remain
+ * GOVERNED until the second step-4 increment.
+ */
+export function twoLegProfile(overrides: ProfileOverrides = {}): ConfirmProfile {
+  return {
+    id: overrides.id ?? 'test.twoleg.v1',
+    subject: { canonicalizerRef: overrides.canonicalizerRef ?? DEFAULT_CANONICALIZER_REF },
+    legs: [
+      { id: 'maker-decide', allowedAuthorities: ['session:test-app'] },
+      { id: 'checker-decide', allowedAuthorities: ['session:test-app'] },
+    ],
+    captureMode: 'staged',
+    expiry: resolveExpiry(overrides),
+  };
+}
+
+/**
  * Assembles a `Config` for `create()`: the given profiles, a fresh `MemoryStore` (unless
  * one is injected — e.g. the unreachability test injects an append-counting store), and a
  * canonicalizer registry that auto-registers `defaultCanonicalizer()` for every distinct
@@ -203,14 +223,17 @@ export function tamperAt(chain: Transition[], index: number): Transition[] {
  * `(profileId, subjectRef)` then opens the resulting draft, returning the fresh
  * `recordId`. THROWS if either step refuses (the finalize tests set up records they expect
  * to open cleanly — a refusal there is a fixture error, not the behavior under test).
+ * `legId?` is optional and passed straight to `stage()` — the finalize suites' single-leg
+ * call sites are untouched.
  */
 export async function openRecord(
   handles: { agent: AgentSurface; operator: OperatorSurface },
   content: unknown,
   profileId: string,
   subjectRef: string,
+  legId?: string,
 ): Promise<string> {
-  const staged = await handles.agent.stage(content, profileId, subjectRef);
+  const staged = await handles.agent.stage(content, profileId, subjectRef, legId);
   if (staged.status !== 'ok') {
     throw new Error(`openRecord: stage() refused unexpectedly: ${JSON.stringify(staged)}`);
   }

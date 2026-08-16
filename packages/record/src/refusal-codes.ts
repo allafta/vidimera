@@ -24,7 +24,7 @@ export type RefusalCode =
   // the fifteenth code (the first step-4 increment): SPEC §8's conditional table names it
   // "a pre-record `open()`-seam sequencing refusal that never appends" — producer worded
   // two-touch, same as `redemption-timeout` above: the verifier (`kernel/prior-legs.ts`)
-  // consumed by `open()`'s sequencing rung, landing later in the first step-4 increment
+  // consumed by `open()`'s sequencing rung, real as of the first step-4 increment
   | 'prior-leg-unverified';
 // class map: chain-compromise → 'compromise'; all others → 'refusal'
 // record-not-open: class 'refusal', terminal-record category — finalize() against a non-open, intact-chain
@@ -102,8 +102,7 @@ export interface AppendDecisionLeg {
  * lists it in the never-appends set; `prior-leg-unverified` never appends too —
  * pre-record, same reason as `record-exists`/`unknown-profile`/`unknown-leg` above: no
  * record exists to carry an edge. Its producer, the verifier (`kernel/prior-legs.ts`)
- * consumed by `open()`'s sequencing rung, lands later in the first step-4 increment; the
- * verifier itself lands here, unconsumed.
+ * consumed by `open()`'s sequencing rung, real as of the first step-4 increment.
  */
 const NEVER_APPENDS: ReadonlySet<RefusalCode> = new Set<RefusalCode>([
   'record-exists',

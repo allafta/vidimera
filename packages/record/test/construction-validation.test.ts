@@ -78,16 +78,65 @@ test("GOVERNED: captureMode:'live' throws (captureMode)", () => {
   assertGoverned({ ...captureProfile(), captureMode: 'live' }, 'captureMode');
 });
 
-test('GOVERNED: legs.length > 1 throws (legs)', () => {
+test('legs.length > 1 is accepted at construction — the sequencing that orders them is built', () => {
+  // INVERTED, at the first step-4 increment: the kernel increment pinned a GOVERNED
+  // throw here while nothing enforced §10.1's "Legs conclude in order". The sequencing
+  // rung and the verify-by-replay reference check land in the same commit as this lift,
+  // so the guard's stated trigger (multi-leg maker-checker sequencing, §10.1) has fired
+  // for the ordering half; per-leg `sod`/`proposer` remain GOVERNED until the second
+  // step-4 increment builds the gate that reads the evidence.
   const p = captureProfile();
   const leg = p.legs[0];
-  if (leg === undefined)
-    throw new Error(
-      'construction-validation.test.ts: p.legs[0] missing — captureProfile() must have at least one leg',
-    );
+  if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
+  assert.doesNotThrow(() =>
+    create(
+      makeConfig([
+        { ...p, legs: [leg, { id: 'second-leg', allowedAuthorities: ['session:test-app'] }] },
+      ]),
+    ),
+  );
+});
+
+test('structural: duplicate leg ids throw a structural error naming both positions', () => {
+  const p = captureProfile();
+  const leg = p.legs[0];
+  if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
+  assertStructural({ ...p, legs: [leg, { ...leg }] }, /duplicate leg id/i);
+});
+
+test('GOVERNED: a MULTI-LEG profile declaring sod still throws (sod) — the gate is the second step-4 increment', () => {
+  const p = captureProfile();
+  const leg = p.legs[0];
+  if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
   assertGoverned(
-    { ...p, legs: [leg, { id: 'second-leg', allowedAuthorities: ['session:test-app'] }] },
-    'legs',
+    {
+      ...p,
+      legs: [
+        leg,
+        {
+          id: 'second-leg',
+          allowedAuthorities: ['session:test-app'],
+          sod: { notActorOf: [leg.id] },
+        },
+      ],
+    },
+    'sod',
+  );
+});
+
+test('GOVERNED: a MULTI-LEG profile declaring proposer still throws (proposer)', () => {
+  const p = captureProfile();
+  const leg = p.legs[0];
+  if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
+  assertGoverned(
+    {
+      ...p,
+      legs: [
+        leg,
+        { id: 'second-leg', allowedAuthorities: ['session:test-app'], proposer: 'maker:1' },
+      ],
+    },
+    'proposer',
   );
 });
 
@@ -199,8 +248,8 @@ test('GOVERNED: a profile declaring TWO governed features still throws (guard sw
 
 // === structural rejections (a DIFFERENT error, not the GOVERNED string) ================
 
-test('structural: legs.length === 0 throws a structural "exactly one leg" error (NOT the GOVERNED string)', () => {
-  assertStructural({ ...captureProfile(), legs: [] }, /exactly one leg/i);
+test('structural: legs.length === 0 throws a structural "at least one leg" error (NOT the GOVERNED string)', () => {
+  assertStructural({ ...captureProfile(), legs: [] }, /at least one leg/i);
 });
 
 test('structural: a stray redemption key on the PROFILE (outside a redeem block) is refused', () => {

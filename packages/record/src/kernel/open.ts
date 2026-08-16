@@ -26,15 +26,18 @@ import type { Outcome } from '../outcome.js';
 import { ok, refused } from '../outcome.js';
 import { profileDigest } from '../profile-digest.js';
 import type { AppendMeta } from '../store/store.js';
-import type { Transition } from '../types.js';
+import type { IdentityAssertion, RecordedPriorLegRef, Transition } from '../types.js';
 import { expiryDeadlineMs, resolveDueClock } from './expiry.js';
+import { verifyPriorLegs } from './prior-legs.js';
 
 /**
  * Per-key GOVERNED message for an `open()` options key (config.ts's `OpenOptions`): the
  * `supersedes` case is the one this build step actually needs to guard (no profile-level
- * construction switch reaches it — see `OpenOptions`'s doc comment); `priorRecordRefs` and
- * `policyDigest` are named too, in case a caller passes them anyway, since neither has a
- * runtime check elsewhere either. Anything else falls back to a generic message.
+ * construction switch reaches it — see `OpenOptions`'s doc comment); `policyDigest` is
+ * named too, in case a caller passes it anyway, since it has no runtime check elsewhere
+ * either. `priorRecordRefs` is no longer guarded here — it is real as of the first step-4
+ * increment, verified by `verifyPriorLegs` (`kernel/prior-legs.ts`) at the sequencing rung
+ * below. Anything else falls back to a generic message.
  */
 function openOptionMessage(key: string): string {
   if (key === 'supersedes') {
@@ -43,19 +46,16 @@ function openOptionMessage(key: string): string {
       'recovery linkage to a terminal predecessor record is not implemented in this build. Contract: §2 and §9.',
     );
   }
-  if (key === 'priorRecordRefs') {
-    return governedUnavailable(
-      key,
-      'multi-leg prior-leg reference verification is not implemented in this build. Contract: §10.1.',
-    );
-  }
   if (key === 'policyDigest') {
     return governedUnavailable(
       key,
       'policy-drift notarization is not implemented in this build. Contract: §10.3.',
     );
   }
-  return governedUnavailable(key, 'open() accepts no options in this build. Contract: §9.');
+  return governedUnavailable(
+    key,
+    'open() accepts only priorRecordRefs in this build. Contract: §9.',
+  );
 }
 
 export async function open(
@@ -65,6 +65,7 @@ export async function open(
 ): Promise<Outcome<{ recordId: string }>> {
   if (opts !== undefined) {
     for (const key of Object.keys(opts)) {
+      if (key === 'priorRecordRefs') continue; // REAL as of the first step-4 increment
       throw new Error(openOptionMessage(key));
     }
   }
@@ -98,6 +99,22 @@ export async function open(
     return refused('unknown-leg');
   }
 
+  // --- §10.1 sequencing (first step-4 increment): verify prior-leg references BEFORE
+  // the record exists. "open() enforces the sequencing before it creates the successor
+  // record" — so a bad reference refuses `prior-leg-unverified` (pre-record, NO append)
+  // even when a C1 blocker also holds the pair, and the blocker path below is never
+  // reached with unverified references.
+  const priorCheck = await verifyPriorLegs(
+    store,
+    resolved,
+    legIndex,
+    staged.subjectRef,
+    opts?.priorRecordRefs,
+  );
+  if (!priorCheck.ok) {
+    return refused('prior-leg-unverified');
+  }
+
   // Build the genesis `opened` transition (SPEC §4's payload shapes / opened snapshot).
   const recordId = mintId();
   const openedPayload: {
@@ -106,6 +123,8 @@ export async function open(
     legId: string;
     subjectRef: string;
     contentDigest: string;
+    priorRecordRefs?: RecordedPriorLegRef[];
+    priorLegActors?: IdentityAssertion[];
   } = {
     profileId: staged.profileId,
     profileDigest: profileDigest(profile),
@@ -115,6 +134,13 @@ export async function open(
     // policyDigest: omitted — no policySource in this build (GOVERNED-throw-guarded;
     // SPEC §4's opened payload).
   };
+  if (priorCheck.verified !== null) {
+    // SPEC §4: the recorded three-field form and the library-derived actors, present
+    // together on a multi-leg successor; a first leg and every single-leg record omit
+    // both, keeping undeclaring chains byte-identical.
+    openedPayload.priorRecordRefs = priorCheck.verified.priorRecordRefs;
+    openedPayload.priorLegActors = priorCheck.verified.priorLegActors;
+  }
   const openedTransition: Transition = {
     recordId,
     seq: 1,

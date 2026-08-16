@@ -310,7 +310,7 @@ test('redemption-timeout: registry/type presence + class only in this file — p
 
 // === prior-leg-unverified (ONE production-path assertion here; registry/type-level only) ===
 
-test("prior-leg-unverified: registry/type presence + class only in this file — its verifier (kernel/prior-legs.ts) is consumed by open()'s sequencing rung, landing later in the first step-4 increment; production-path coverage arrives in multi-leg.test.ts once that rung lands", () => {
+test("prior-leg-unverified: registry/type presence + class only in this file — its verifier (kernel/prior-legs.ts) is consumed by open()'s sequencing rung; production-path coverage lives in multi-leg.test.ts (the first step-4 increment)", () => {
   // `code: RefusalCode = 'prior-leg-unverified'` is itself a COMPILE-TIME union-membership check
   // (this file fails to type-check if 'prior-leg-unverified' is ever removed from the union).
   const code: RefusalCode = 'prior-leg-unverified';
@@ -338,10 +338,10 @@ test('unknown-leg: registry/type presence + class only in this file — the prod
 // increment's clock-produced refusal) is the fourteenth; its production-path coverage lives
 // in clocks.test.ts, this increment's own file, not in this matrix. `prior-leg-unverified`
 // (the first step-4 increment's sequencing refusal) is the fifteenth; its verifier
-// (kernel/prior-legs.ts) is consumed by open()'s sequencing rung, landing later in the
-// first step-4 increment, so its production-path coverage arrives in multi-leg.test.ts
-// only then, not in this matrix.
-test("every REGISTRY RefusalCode is accounted for in this matrix (9 production-path-tested here + unknown-leg registry-only + unsealable-state production-path-tested in seal.test.ts + effect-mismatch and already-redeemed production-path-tested in redeem.test.ts + redemption-timeout registry-only (production path: clocks.test.ts, third step-3 increment) + prior-leg-unverified registry-only (production path: multi-leg.test.ts, once open()'s sequencing rung lands) = 15)", () => {
+// (kernel/prior-legs.ts) is consumed by open()'s sequencing rung, real as of the first
+// step-4 increment; its production-path coverage lives in multi-leg.test.ts, this
+// increment's own file, not in this matrix.
+test('every REGISTRY RefusalCode is accounted for in this matrix (9 production-path-tested here + unknown-leg registry-only + unsealable-state production-path-tested in seal.test.ts + effect-mismatch and already-redeemed production-path-tested in redeem.test.ts + redemption-timeout registry-only (production path: clocks.test.ts, third step-3 increment) + prior-leg-unverified registry-only (production path: multi-leg.test.ts, first step-4 increment) = 15)', () => {
   const allCodes = Object.keys(REGISTRY) as RefusalCode[];
   assert.equal(allCodes.length, 15);
 });

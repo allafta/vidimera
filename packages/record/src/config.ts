@@ -11,6 +11,7 @@
 import type { Canonicalizer } from './canonical.js';
 import type { RefusalCode } from './refusal-codes.js';
 import type { Store } from './store/store.js';
+import type { Digest } from './types.js';
 
 export type { Canonicalizer };
 
@@ -156,8 +157,8 @@ function validateLeg(profileId: string, leg: LegSpec): void {
 
 /**
  * Fail-CLOSED structural validation of a single profile. Order:
- *  1. structural: exactly one leg (internal legId derivation must be well-defined);
- *  2. GOVERNED `legs.length>1` (multi-leg SoD, SPEC §10.1);
+ *  1. structural: at least one leg (internal legId derivation must be well-defined);
+ *  2. structural: unique leg ids (SPEC §10.1 keys recorded evidence by legId);
  *  3. GOVERNED `captureMode:'live'` (live capture, SPEC §9.2) — checked BEFORE the reverify
  *     guard so a live profile throws GOVERNED(captureMode), never the reverify refusal;
  *  4. GOVERNED `policySource` (policy drift, SPEC §10.3);
@@ -165,6 +166,12 @@ function validateLeg(profileId: string, leg: LegSpec): void {
  *  6. structural: stray redemption key on the profile itself;
  *  7. structural: `reverify` on a non-live profile — not built in this build (SPEC §9.2's
  *     live mode).
+ * `legs.length>1` (multi-leg maker-checker sequencing, SPEC §10.1) is accepted at
+ * construction as of the first step-4 increment: `kernel/open.ts`'s sequencing rung
+ * verifies every prior-leg reference by replay before a successor's record is created, in
+ * the same commit as this lift, so the guard's stated trigger has fired for the ordering
+ * half. Per-leg `sod`/`proposer` (`validateLeg`, below) remain GOVERNED until the second
+ * step-4 increment builds the gate that reads the recorded evidence.
  * `redeemBound` (redeeming-window bound, SPEC §4 & §11.2) is accepted-at-construction as of
  * the third step-3 increment — the clock module now stamps the `bound` payload and `dueAt`,
  * AND the en-passant resolution that consumes `dueAt` is built at the redemption seams'
@@ -176,15 +183,18 @@ function validateLeg(profileId: string, leg: LegSpec): void {
  */
 export function validateProfile(profile: ConfirmProfile): void {
   if (profile.legs.length === 0) {
-    throw new Error(`invalid profile '${profile.id}': exactly one leg is required (found 0)`);
+    throw new Error(`invalid profile '${profile.id}': at least one leg is required (found 0)`);
   }
-  if (profile.legs.length > 1) {
-    throw new Error(
-      governedUnavailable(
-        'legs',
-        'multi-leg maker-checker sequencing is not enforced in this build; only single-leg profiles are supported. Contract: §10.1.',
-      ),
-    );
+  const seenLegIds = new Map<string, number>();
+  for (const [index, leg] of profile.legs.entries()) {
+    const first = seenLegIds.get(leg.id);
+    if (first !== undefined) {
+      throw new Error(
+        `invalid profile '${profile.id}': duplicate leg id '${leg.id}' at positions ${first} and ${index} — ` +
+          'SPEC §10.1 keys recorded evidence by legId, so leg ids must be unique',
+      );
+    }
+    seenLegIds.set(leg.id, index);
   }
   if (profile.captureMode === 'live') {
     throw new Error(
@@ -219,22 +229,22 @@ export function validateProfile(profile: ConfirmProfile): void {
 }
 
 // --- open() options bag (§9 `open(stagedRef, { priorRecordRefs?, policyDigest?,
-// supersedes? })`) — NOT construction, but the same GOVERNED shape ------------------
+// supersedes? })`) — NOT construction, but the same GOVERNED shape for the two fields
+// still unbuilt ------------------------------------------------------------------------
 
-/**
- * `open()`'s options bag. NONE of the three SPEC-documented keys are implemented at this
- * build step: `priorRecordRefs` lifts with multi-leg separation of duties (§10.1) and
- * `policyDigest` with policy-drift notarization (§10.3) — both already unreachable in
- * practice, because the profile-level switches that would make either meaningful
- * (`legs.length>1` / `policySource`) throw GOVERNED above, so no profile that could
- * legitimately need them can even be constructed. `supersedes` (recovery of a terminal
- * predecessor, §2) is the ONE draft-ahead field with NO profile-level switch, so nothing
- * stops a caller from passing it for any profile at all.
- *
- * Declared empty (`Record<string, never>`) so a typed caller sees the absence directly.
- * That alone is not a guard for a plain JavaScript caller, who can pass any key regardless
- * of what the type says and get it silently dropped — believing they got a recovery link
- * (or a leg-sequencing / policy binding) they never actually received. `kernel/open.ts`
- * sweeps every own key on the object it actually receives, at runtime, and throws.
- */
-export type OpenOptions = Record<string, never>;
+/** A host-supplied prior-leg reference (SPEC §10.1): the claim `open()` verifies by
+ * replay — never adopted unchecked. The recorded three-field form (types.ts's
+ * `RecordedPriorLegRef`) is what the verified snapshot carries. */
+export interface PriorRecordRef {
+  recordId: string;
+  chainHead: Digest;
+}
+
+export interface OpenOptions {
+  /** SPEC §9 / §10.1: one entry per prior leg, in leg order, on a successor leg's
+   * open(). A first leg supplies none. Verified by replay; any failure refuses
+   * `prior-leg-unverified` pre-record. */
+  priorRecordRefs?: PriorRecordRef[];
+  // `policyDigest` (§10.3) and `supersedes` (§2) remain GOVERNED at the call seam
+  // (kernel/open.ts's runtime guard) — their build steps have not arrived.
+}
