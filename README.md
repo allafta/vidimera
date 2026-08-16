@@ -224,8 +224,8 @@ digest-only findings view, present iff the record carries findings; and a
 new pure module carries the counting-ack predicate and the per-finding
 coverage derivation the second increment's finalize gate will consume.
 None of it is reachable from a host yet — no seam mints a finding or an
-acknowledgment — so this increment is exercised only over hand-built
-chains. The seams themselves, the finalize gate that reads coverage, and
+acknowledgment — so the first step-7 increment is exercised only over
+hand-built chains. The seams themselves, the finalize gate that reads coverage, and
 the construction-guard lift on `ackMode`/`requiredAcks` are the second
 increment's own work, still ahead.
 
