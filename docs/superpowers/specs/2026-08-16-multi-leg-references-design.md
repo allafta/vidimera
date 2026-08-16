@@ -83,6 +83,7 @@ export async function verifyPriorLegs(
   store: Store,
   resolved: ResolvedProfile,
   legIndex: number, // the successor's own leg index (0-based)
+  subjectRef: string, // the successor's subject, from the staged draft — condition 4
   refs: PriorRecordRef[] | undefined,
 ): Promise<{ ok: true; verified: VerifiedPriorLegs | null } | { ok: false }>;
 ```
