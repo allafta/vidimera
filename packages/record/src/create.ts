@@ -129,8 +129,8 @@ function makeKernel(ctx: KernelContext): Kernel {
       stageKernel(ctx, content, profileId, subjectRef, legId),
     open: (stagedRef, opts) => openKernel(ctx, stagedRef, opts),
     review: (recordId) => reviewKernel(ctx, recordId),
-    finalize: (recordId, identity, content, facts) =>
-      finalizeKernel(ctx, recordId, identity, content, facts),
+    finalize: (recordId, identity, content, facts, opts) =>
+      finalizeKernel(ctx, recordId, identity, content, facts, opts),
 
     // --- redeem(): kernel/redeem.ts — the DIRECT-shape redemption seam (SPEC §11.2) ---
     redeem: (recordId, content, tx) => redeemKernel(ctx, recordId, content, tx),

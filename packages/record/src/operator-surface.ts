@@ -23,7 +23,7 @@
 // `docs/process/implementation-status.md` and flagged to the pre-0.1 naming review.
 
 import type { ChainVerifyReport } from './chain/replay.js';
-import type { OpenOptions } from './config.js';
+import type { FinalizeOptions, OpenOptions } from './config.js';
 import type { Kernel } from './create.js';
 import type { Outcome } from './outcome.js';
 import type { DecisionRecord, Digest, IdentityAssertion, ReviewView, Transition } from './types.js';
@@ -36,6 +36,10 @@ export interface OperatorSurface {
     identity: IdentityAssertion,
     content: unknown,
     facts: { figures: unknown; checker: IdentityAssertion }, // checker = review-surface identity (≠ actor)
+    // SPEC §9: "finalize(recordId, identity, content, facts, opts?)" — `opts.consultations`
+    // is real as of the first step-5 increment (the attach form, SPEC §11.1); `opts.policy`
+    // (§10.3) stays GOVERNED at the call seam until its own build step.
+    opts?: FinalizeOptions,
   ): Promise<Outcome<{ recordId: string; state: 'confirmed'; transitionRef: Digest }>>;
   redeem(
     recordId: string,

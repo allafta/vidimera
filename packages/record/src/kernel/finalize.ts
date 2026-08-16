@@ -34,8 +34,10 @@
 // (5) Facts — missing/malformed `facts` (no figures / no checker) → `consultation-missing`.
 // (5.7) Ack coverage — RESERVED. No producer at this build step; arrives with findings and
 //       acknowledgments (SPEC §10.2).
-// (6) Success batch — ONE atomic `appendBatch` call carrying [chain-verify consultation,
-//     facts consultation, confirmed] under a single entry compare-and-swap (SPEC §12): a
+// (6) Success batch — ONE atomic, variable-arity `appendBatch` call carrying SPEC §9's shape,
+//     `[chain-verify, facts, …obtained consultations, confirmed]` (the first step-5
+//     increment's attach form — the host's supplied consultations, order preserved, land
+//     between facts and confirmed), under a single entry compare-and-swap (SPEC §12): a
 //     conflict applies NOTHING, so the partial-tail case this build once had to map is
 //     unreachable now rather than handled. The only shape reachable at this batch's entry CAS
 //     is `state-mismatch` — the record is not `open` — so it refuses `record-not-open`, which
@@ -53,7 +55,7 @@
 import { canonicalize, digest } from '../canonical.js';
 import { transitionDigest } from '../chain/encoding.js';
 import { replay, verifyChain } from '../chain/replay.js';
-import type { LegSpec } from '../config.js';
+import { type FinalizeOptions, governedUnavailable, type LegSpec } from '../config.js';
 import type { KernelContext, ResolvedProfile } from '../create.js';
 import { isFinalLeg, nonTerminal } from '../nonterminal.js';
 import type { Outcome } from '../outcome.js';
@@ -61,6 +63,7 @@ import { ok, refused } from '../outcome.js';
 import { appendsOn, type RefusalCode } from '../refusal-codes.js';
 import type { AppendMeta, Store } from '../store/store.js';
 import type { Consultation, Digest, IdentityAssertion, RecordState, Transition } from '../types.js';
+import { validateConsultations } from './consultations.js';
 import { deadlineIso, resolveDueClock } from './expiry.js';
 
 /** The finalize `facts` arg (SPEC §3's "Reviewed-surface (`facts`) binding"): the reviewed-surface figures + the review-surface checker. */
@@ -79,14 +82,40 @@ export const SYSTEM_CHECKER: IdentityAssertion = {
   authority: 'system:vidimera-record',
 };
 
+/** Per-key message for a finalize() options key this build does not accept. */
+function finalizeOptionMessage(key: string): string {
+  if (key === 'policy') {
+    return governedUnavailable(
+      key,
+      'the policy-drift gate is not implemented in this build; finalize() accepts no policy input. Contract: §10.3.',
+    );
+  }
+  return governedUnavailable(
+    key,
+    'finalize() accepts only consultations in this build. Contract: §9 and §11.1.',
+  );
+}
+
 export async function finalize(
   ctx: KernelContext,
   recordId: string,
   identity: IdentityAssertion,
   content: unknown,
   facts: Facts,
+  opts?: FinalizeOptions,
 ): Promise<Outcome<{ recordId: string; state: 'confirmed'; transitionRef: Digest }>> {
   const { store, profiles, now } = ctx;
+
+  // --- intake (SPEC §9: consultation shape "throws at argument intake, before anything
+  // is loaded") — BEFORE the chain load below, so a caller bug throws identically
+  // regardless of record state. ------------------------------------------------------
+  if (opts !== undefined) {
+    for (const key of Object.keys(opts)) {
+      if (key === 'consultations') continue; // REAL as of the first step-5 increment
+      throw new Error(finalizeOptionMessage(key));
+    }
+  }
+  const supplied = validateConsultations(opts?.consultations);
 
   // --- load the chain ------------------------------------------------------------------
   const chain = await store.readChain(recordId);
@@ -286,14 +315,43 @@ export async function finalize(
     payload: factsConsultation,
     prevHash: transitionDigest(cvTransition),
   };
-  // capture-only ⇒ terminal; effect-seam ⇒ non-terminal (awaits redemption).
+  // The host's obtained consultations (SPEC §11.1's attach form), supplied order
+  // preserved, chained after facts and before confirmed. `supplied.unreachable` markers
+  // are validated above but go UNUSED here — SPEC §11.1: "an unreachable marker for a
+  // non-required kind is inert", and no kind can be required while `requiredConsultations`
+  // stays GOVERNED (config.ts); the second step-5 increment's gate is the consumer.
+  const suppliedTransitions: Transition[] = [];
+  let suppliedPrevHash = transitionDigest(factsTransition);
+  for (const [i, entry] of supplied.obtained.entries()) {
+    const consultation: Consultation = {
+      kind: entry.kind,
+      checker: entry.checker,
+      at: nowIso,
+      payloadDigest: entry.payloadDigest,
+      verdict: entry.verdict,
+      ...(entry.proofRef !== undefined ? { proofRef: entry.proofRef } : {}),
+    };
+    const t: Transition = {
+      recordId,
+      seq: seqBase + 3 + i,
+      at: nowIso,
+      kind: 'consultation-recorded',
+      payload: consultation,
+      prevHash: suppliedPrevHash,
+    };
+    suppliedTransitions.push(t);
+    suppliedPrevHash = transitionDigest(t);
+  }
+  // capture-only ⇒ terminal; effect-seam ⇒ non-terminal (awaits redemption). When nothing
+  // is supplied, `suppliedPrevHash` is facts' digest and this seq is seqBase + 3 — today's
+  // shape exactly, so the no-consultations batch stays byte-identical.
   const confirmedTransition: Transition = {
     recordId,
-    seq: seqBase + 3,
+    seq: seqBase + 3 + suppliedTransitions.length,
     at: nowIso,
     kind: 'confirmed',
     payload: { actor: identity },
-    prevHash: transitionDigest(factsTransition),
+    prevHash: suppliedPrevHash,
   };
 
   // `meta` is the POST-batch record flag, applied once. The entry terminality flag is the
@@ -314,7 +372,7 @@ export async function finalize(
   };
   const res = await store.appendBatch(
     'open',
-    [cvTransition, factsTransition, confirmedTransition],
+    [cvTransition, factsTransition, ...suppliedTransitions, confirmedTransition],
     postBatch,
   );
   if (!res.appended) {
