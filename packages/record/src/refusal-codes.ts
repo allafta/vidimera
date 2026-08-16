@@ -49,7 +49,15 @@ export type RefusalCode =
   // it, else stays open per §10.1) IS the spec-mandated behavior with zero new code —
   // producer: finalize's eligibility arm of the required-consultation rung
   // (kernel/finalize.ts), real as of the first step-6 increment
-  | 'ineligible';
+  | 'ineligible'
+  // the twentieth code (the second step-6 increment): SPEC §8's conditional table names it
+  // "`refusal`-class, `terminalRefusals`-able — a policy-declaring profile SHOULD list it
+  // (disposal-and-re-open recovery)" — a bound-vs-reality mismatch with no in-place
+  // recovery, mirroring `content-drift`; the default appendsOn path (appends `open→refused`
+  // iff the leg's `terminalRefusals` lists it, else stays open per §10.1) IS the
+  // spec-mandated behavior with zero new code — producer: finalize's policy-drift rung,
+  // landing later in the second step-6 increment
+  | 'policy-drift';
 // class map: chain-compromise → 'compromise'; availability → 'availability'; all others →
 // 'refusal'
 // record-not-open: class 'refusal', terminal-record category — finalize() against a non-open, intact-chain
@@ -105,6 +113,7 @@ export const REGISTRY: Record<RefusalCode, RefusalClass> = {
   'consultation-failed': 'refusal',
   availability: 'availability',
   ineligible: 'refusal',
+  'policy-drift': 'refusal',
 };
 
 /**

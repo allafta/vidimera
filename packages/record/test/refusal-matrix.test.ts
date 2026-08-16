@@ -420,6 +420,28 @@ test("ineligible: registry/type presence + class + appendsOn shape only in this 
   assert.equal(appendsOn(code, { terminalRefusals: [code] }), true);
 });
 
+// === policy-drift (the second step-6 increment) ============================================
+// `policy-drift` (SPEC §8's conditional table: policy notarization, the second step-6
+// increment's code) is `refusal`-class, `terminalRefusals`-able — a policy-declaring
+// profile SHOULD list it (disposal-and-re-open recovery), mirroring `content-drift`'s own
+// shape. Its producer is finalize's policy-drift rung, landing later in the second step-6
+// increment; its production-path coverage will live in a policy-specific test file, so this
+// file carries a registry-only assertion, same as `consultation-failed`'s and `ineligible`'s
+// own.
+
+test("policy-drift: registry/type presence + class + appendsOn shape only in this file — its producer is finalize's policy-drift rung, real as of the second step-6 increment; production-path coverage lives in a dedicated test file", () => {
+  // `code: RefusalCode = 'policy-drift'` is itself a COMPILE-TIME union-membership check
+  // (this file fails to type-check if 'policy-drift' is ever removed from the union).
+  const code: RefusalCode = 'policy-drift';
+  assert.equal(REGISTRY[code], 'refusal');
+  assert.equal(
+    appendsOn(code, {}),
+    false,
+    'no terminalRefusals -> record stays open, no append (open-by-default for disposal-and-re-open recovery)',
+  );
+  assert.equal(appendsOn(code, { terminalRefusals: [code] }), true);
+});
+
 // === registry totality sanity (cross-check against outcome-model.test.ts's own total) ===
 
 // `unsealable-state` (seal()'s refusal, SPEC §8) is the eleventh code. Its own production-path
@@ -458,7 +480,7 @@ test("ineligible: registry/type presence + class + appendsOn shape only in this 
 // finalize's eligibility arm of the required-consultation rung, real as of the first step-6
 // increment; registry-only in this file (production-path coverage lives in
 // consultations.test.ts's trip-mapping tests).
-test('every REGISTRY RefusalCode is accounted for in this matrix (9 production-path-tested here + unknown-leg registry-only + unsealable-state production-path-tested in seal.test.ts + effect-mismatch and already-redeemed production-path-tested in redeem.test.ts + redemption-timeout registry-only (production path: clocks.test.ts, third step-3 increment) + prior-leg-unverified registry-only (production path: multi-leg.test.ts, first step-4 increment) + sod-violation registry-only (production path: multi-leg.test.ts, second step-4 increment) + consultation-failed registry-only (production path: consultations.test.ts, second step-5 increment) + availability registry-only (production path: consultations.test.ts, second step-5 increment) + ineligible registry-only (production path: consultations.test.ts, first step-6 increment) = 19)', () => {
+test('every REGISTRY RefusalCode is accounted for in this matrix (9 production-path-tested here + unknown-leg registry-only + unsealable-state production-path-tested in seal.test.ts + effect-mismatch and already-redeemed production-path-tested in redeem.test.ts + redemption-timeout registry-only (production path: clocks.test.ts, third step-3 increment) + prior-leg-unverified registry-only (production path: multi-leg.test.ts, first step-4 increment) + sod-violation registry-only (production path: multi-leg.test.ts, second step-4 increment) + consultation-failed registry-only (production path: consultations.test.ts, second step-5 increment) + availability registry-only (production path: consultations.test.ts, second step-5 increment) + ineligible registry-only (production path: consultations.test.ts, first step-6 increment) + policy-drift registry-only (production path: a dedicated test file, second step-6 increment) = 20)', () => {
   const allCodes = Object.keys(REGISTRY) as RefusalCode[];
-  assert.equal(allCodes.length, 19);
+  assert.equal(allCodes.length, 20);
 });
