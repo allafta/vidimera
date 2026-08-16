@@ -384,8 +384,7 @@ test('open() refuses prior-leg-unverified for every bad reference, and no record
   assert.equal(out.status, 'refused');
   if (out.status === 'refused') assert.equal(out.code, 'prior-leg-unverified');
 
-  // NO successor record was created by any of the refusals — the pair still has no
-  // non-terminal holder and no due entries beyond none:
+  // NO successor record was created by any of the refusals — the pair has no non-terminal holder:
   assert.equal(await store.findNonTerminal('test.twoleg.v1', SUBJECT), null);
 });
 

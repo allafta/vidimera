@@ -34,15 +34,14 @@ export function nonTerminal(state: RecordState, isFinalLeg: boolean, effectSeam:
 
 /**
  * `isFinalLeg` helper: shaped here as a plain 0-based-index vs.
- * leg-count comparison so it is forward-compatible with a future multi-leg profile
- * (`legs.length>1` is GOVERNED-throw-guarded at construction in this build, per
- * `config.ts`'s construction guards — SPEC §10.1) without
- * needing a signature change when that guard lifts: the final leg is simply the last
- * index in the profile's ordered `legs` array.
+ * leg-count comparison so it correctly identifies the final leg in a multi-leg profile.
+ * The GOVERNED `legs.length>1` guard lifted at the first step-4 increment, and
+ * multi-leg profiles now construct and exercise this function through the real seams.
+ * The final leg is simply the last index in the profile's ordered `legs` array,
+ * and this function determines it without needing edits when additional legs are in use.
  *
- * Single-leg in this build: with exactly one leg (`totalLegs===1`), the one
- * leg IS final — `isFinalLeg(0, 1) === true` — trivially, since `legIndex===0` is
- * always `totalLegs-1` when there is only one leg.
+ * With exactly one leg (`totalLegs===1`), the one leg IS final — `isFinalLeg(0, 1) === true` —
+ * trivially, since `legIndex===0` is always `totalLegs-1` when there is only one leg.
  */
 export function isFinalLeg(legIndex: number, totalLegs: number): boolean {
   return legIndex === totalLegs - 1;

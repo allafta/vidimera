@@ -122,7 +122,7 @@ Gate order, the new rung placed pre-record:
 2. staged-draft load (unknown stagedRef throws, unchanged);
 3. profile resolution fail-closed (`unknown-profile`, unchanged);
 4. staged-legId re-check (`unknown-leg`, unchanged) — this also fixes `legIndex`;
-5. **NEW: `verifyPriorLegs(store, resolved, legIndex, opts?.priorRecordRefs)`** —
+5. **NEW: `verifyPriorLegs(store, resolved, legIndex, staged.subjectRef, opts?.priorRecordRefs)`** —
    `{ ok: false }` ⇒ `refused('prior-leg-unverified')`, NO append, no record: §10.1
    enforces the sequencing "before it creates the successor record", so a bad reference
    refuses even when a C1 blocker also holds the pair;
