@@ -211,6 +211,50 @@ test('findingCoverage: not-required never gates; ack-missing vs ack-stale; cover
   assert.deepEqual(findingCoverage(undefined, 'any', ['variance']), []);
 });
 
+test('findingCoverage: ackMode undefined with a required kind fails closed — no ack ever counts', () => {
+  // A required kind with no declared `ackMode` is a half-declared state no profile this
+  // build can construct (ackMode/requiredAcks both still GOVERNED, config.ts) — reachable
+  // here only as a direct call, since findingCoverage is an exported pure function. It must
+  // fail CLOSED: the ack below would count under 'any' (current digest, no magnitude on
+  // either side), yet with no declared mode it still doesn't.
+  const wouldCountUnderAny: RecordedFinding = {
+    findingId: 'f-e',
+    kind: 'variance',
+    findingDigest: D1,
+    raiser: RAISER,
+    acks: [{ findingDigest: D1, acker: OTHER }],
+  };
+  const unacked: RecordedFinding = {
+    findingId: 'f-f',
+    kind: 'variance',
+    findingDigest: D1,
+    raiser: RAISER,
+    acks: [],
+  };
+  assert.deepEqual(
+    findingCoverage([wouldCountUnderAny, unacked], undefined, ['variance']).map((r) => r.coverage),
+    ['ack-stale', 'ack-missing'],
+  );
+});
+
+test('replay folds two acks onto one finding in chain order', () => {
+  const chain = buildChain('rec-fnd-7', [
+    openedStep(),
+    raise('f-1'),
+    ackStep('f-1', { acker: RAISER }),
+    ackStep('f-1', { acker: OTHER }),
+  ]);
+  const record = replay(chain);
+  assert.ok(record.findings !== undefined);
+  const f1 = record.findings[0];
+  assert.ok(f1 !== undefined);
+  assert.deepEqual(
+    f1.acks.map((a) => a.acker.principal),
+    [RAISER.principal, OTHER.principal],
+    'acks preserve chain order, first-appended first',
+  );
+});
+
 test('the own-namespace pin: a finding kind named facts is LEGAL — reserved consultation kinds do not apply', () => {
   // SPEC §10.2: "the reserved consultation kinds do not apply to them".
   const chain = buildChain('rec-fnd-5', [

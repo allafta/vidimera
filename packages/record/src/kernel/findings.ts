@@ -84,12 +84,19 @@ export interface FindingCoverageRow {
  *  - one or more acks recorded, none of which `ackCounts` ⇒ `'ack-stale'`;
  *  - at least one counting ack ⇒ `'covered'`.
  *
- * `ackMode` is read only when a finding's kind IS required — SPEC §10.2's own
+ * `ackMode` is consulted only when a finding's kind IS required. SPEC §10.2's own
  * both-or-neither construction rule (`ackMode` + `requiredAcks` "both-or-neither; either
- * alone is a construction error") means a profile that reaches this branch always declared
- * both; `ackMode` is typed optional here only because a caller (the review projection) may
- * be reading an UNRESOLVABLE leg, where both are undefined together and every finding
- * classifies `'not-required'` before `ackMode` would ever be consulted.
+ * alone is a construction error") is not yet ENFORCED at construction in this build — both
+ * fields still throw individually at profile construction (`config.ts`'s `validateLeg`), so
+ * no profile this build can construct ever declares one without the other, or either at all.
+ * `ackMode` is typed optional here for two reachable states, not one: a caller (the review
+ * projection) reading an UNRESOLVABLE leg, where `requiredAcks` is undefined too and every
+ * finding classifies `'not-required'` before `ackMode` would ever be consulted; and a direct
+ * call to this exported pure function — not gated by profile construction — supplying a
+ * required kind with no `ackMode`, the half-declared state the second step-7 increment's own
+ * construction rule (the settled `validateSodShape` class, once the GOVERNED throws above
+ * lift) will make unreachable for a real profile. See the fail-closed handling of that
+ * second state below.
  *
  * `findings === undefined` (a findings-free record) returns `[]` — there is nothing to
  * derive coverage over.
@@ -107,13 +114,19 @@ export function findingCoverage(
     if (finding.acks.length === 0) {
       return { finding, coverage: 'ack-missing' };
     }
-    // `requiredAcks?.includes(...)` being true means `requiredAcks` is declared, and
-    // SPEC §10.2's both-or-neither rule means `ackMode` is declared alongside it — so this
-    // branch is reached only when `ackMode` is genuinely present; the `?? 'any'` fallback
-    // below exists only to keep the type honest against `AckMode | undefined`, never to
-    // paper over a reachable undeclared-`ackMode` case.
-    const mode = ackMode ?? 'any';
-    const counts = finding.acks.some((ack) => ackCounts(finding, ack, mode));
+    if (ackMode === undefined) {
+      // The fail-closed reading of a half-declared state (see the function's own doc
+      // comment above): a required kind with no declared `ackMode` — reachable today only
+      // via a direct call, since no profile this build can construct declares one of
+      // `ackMode`/`requiredAcks` without the other. The second step-7 increment's own
+      // construction rule (the settled `validateSodShape` class) will make this
+      // unreachable for a real profile; until then, no ack counts under it — the house
+      // precedent an impossible state already sets elsewhere (finalize's paired-actor
+      // mismatch, redeem's garbled `tokenDigest`), never the fail-open `'any'` a permissive
+      // fallback would give it.
+      return { finding, coverage: 'ack-stale' };
+    }
+    const counts = finding.acks.some((ack) => ackCounts(finding, ack, ackMode));
     return { finding, coverage: counts ? 'covered' : 'ack-stale' };
   });
 }

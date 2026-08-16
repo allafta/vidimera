@@ -37,11 +37,13 @@ export interface Consultation {
 /**
  * A raised finding's payload (SPEC §2's Finding auxiliary structure, §10.2):
  * `{ findingId, kind, findingDigest, magnitude?, raiser, at }` minus `at` — the enclosing
- * `Transition.at` already carries recording time, the same convention every payload shape
- * in this build follows (`confirmed`'s `{actor}`, `refused`'s `{code}`). The seam that
- * mints this shape, `raiseFinding`, lands in the second step-7 increment — the first
- * landed only the READ half: the fold (`chain/replay.ts`), the counting predicate and the
- * coverage derivation (`kernel/findings.ts`), and the review projection.
+ * `Transition.at` already carries recording time, the convention this build's time-free
+ * delta payloads follow (`confirmed`'s `{actor}`, `refused`'s `{code}`); `Consultation`
+ * (above) is the one exception, carrying its own `at` inside the object rather than relying
+ * on the enclosing transition's. The seam that mints this shape, `raiseFinding`, lands in
+ * the second step-7 increment — the first landed only the READ half: the fold
+ * (`chain/replay.ts`), the counting predicate and the coverage derivation
+ * (`kernel/findings.ts`), and the review projection.
  */
 export interface FindingRaisedPayload {
   findingId: string;
