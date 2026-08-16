@@ -42,12 +42,20 @@ parts:
   `confirmed → expired` (the `confirmToRedeem` window) and `redeeming → redemption-failed`
   (the `redeemBound` window) — the fourteenth refusal code `redemption-timeout`, the
   `redeemBound` construction guard lifted, and `operator.listDue()`, the sweep's one read
-  surface; §11.2 is whole in this build.
+  surface; §11.2 is whole in this build. Step 4 — multi-leg separation of duties — is
+  **started**: the first of two increments landed `open()`'s SPEC §10.1 sequencing rung
+  (`kernel/prior-legs.ts`'s `verifyPriorLegs`), which verifies every prior-leg reference by
+  replay — the six conditions the section names — before a successor record is created, and
+  chains the verified evidence, the recorded `priorRecordRefs` plus library-derived
+  `priorLegActors`, into the successor's `opened` snapshot; the fifteenth refusal code,
+  `prior-leg-unverified`, is a pre-record never-append. The second increment — the SoD gate
+  itself (`sod.notActorOf`, `proposer`, the `sod-violation` code) — remains.
   **`docs/process/implementation-status.md` is the authoritative
   account** of what this build does and does not implement, section by section, with the
   gate outputs and the outstanding list — read it rather than trusting a count here,
-  which is a claim with a shelf life and no way to fail loudly. Five of the eight
-  build-order steps remain unstarted, and the package is not consumable by a host today.
+  which is a claim with a shelf life and no way to fail loudly. Four of the eight
+  build-order steps remain unstarted (steps 5–8), and the package is not consumable by a
+  host today.
 
 ## The standalone contract
 
@@ -138,7 +146,7 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   inversions have been authorized so far, both during the step-1 remediation, each argued
   in place at `packages/record/test/terminality.test.ts` and recorded in the exit record.
 - Feature guards from day one — an unimplemented capability throws at construction
-  (`config.ts` `validateProfile`; ten governed profile fields throw there). `redeem`
+  (`config.ts` `validateProfile`; nine governed profile fields throw there). `redeem`
   was originally the eleventh governed capability, throwing at the call seam instead
   (`kernel/redeem.ts`) rather than at construction; the first step-3 increment landed
   SPEC §11.2's direct shape, and the second landed the token shape —
@@ -147,7 +155,7 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   redeeming effect-seam record. **Nothing at the redemption seams remains governed as of
   the third step-3 increment**: `redeemBound`'s own construction guard (`config.ts`) —
   added at the second step-3 increment, briefly bringing the construction-guarded count to
-  eleven — lifted WITH its clock at the third, back down to today's ten. `beginRedemption`
+  eleven — lifted WITH its clock at the third, back down to ten. `beginRedemption`
   now mints SPEC §4's present-iff-declared `bound` byte into the `redeeming` payload (via
   `deadlineIso`), and `kernel/expiry.ts`'s `resolveDueClock` resolves the window that byte
   opens — together the guard's own stated trigger, so a declaring profile constructs cleanly;
@@ -164,6 +172,14 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   `docs/process/implementation-status.md` (an earlier framing of this remedy was itself
   wrong and was corrected in place, first in the now-retired deferral register row 9 and
   carried forward when that row retired; the `seal()`-as-release half was a second error,
-  found by the citation audit and corrected in the same place).
+  found by the citation audit and corrected in the same place). **The construction-guarded
+  count moves once more, at the first step-4 increment: ten down to today's nine.**
+  `legs.length>1` — SPEC §10.1's multi-leg maker-checker sequencing — was GOVERNED from the
+  kernel increment on; it lifts because `open()`'s new sequencing rung
+  (`kernel/prior-legs.ts`'s `verifyPriorLegs`, consumed before a successor record is
+  created) now verifies every prior-leg reference by replay, landing in the same commit as
+  the lift. Per-leg `sod.notActorOf` and `proposer` remain governed — the SoD gate that
+  would read the now-chained `priorLegActors` evidence is the second step-4 increment's own
+  work.
 - Byte-stability pins and adjacent-pair gate-order tests, from the kernel increment on.
 - The living deferral register: `docs/process/deferral-register.md`.

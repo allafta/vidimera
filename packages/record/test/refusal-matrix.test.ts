@@ -336,11 +336,11 @@ test('unknown-leg: registry/type presence + class only in this file — the prod
 // same reasoning: their own production-path coverage is redeem.test.ts's whole gate ladder,
 // so this sanity check's total simply grows. `redemption-timeout` (the third step-3
 // increment's clock-produced refusal) is the fourteenth; its production-path coverage lives
-// in clocks.test.ts, this increment's own file, not in this matrix. `prior-leg-unverified`
-// (the first step-4 increment's sequencing refusal) is the fifteenth; its verifier
-// (kernel/prior-legs.ts) is consumed by open()'s sequencing rung, real as of the first
-// step-4 increment; its production-path coverage lives in multi-leg.test.ts, this
-// increment's own file, not in this matrix.
+// in clocks.test.ts, the third step-3 increment's own file, not in this matrix.
+// `prior-leg-unverified` (the first step-4 increment's sequencing refusal) is the
+// fifteenth; its verifier (kernel/prior-legs.ts) is consumed by open()'s sequencing rung,
+// real as of the first step-4 increment; its production-path coverage lives in
+// multi-leg.test.ts, the first step-4 increment's own file, not in this matrix.
 test('every REGISTRY RefusalCode is accounted for in this matrix (9 production-path-tested here + unknown-leg registry-only + unsealable-state production-path-tested in seal.test.ts + effect-mismatch and already-redeemed production-path-tested in redeem.test.ts + redemption-timeout registry-only (production path: clocks.test.ts, third step-3 increment) + prior-leg-unverified registry-only (production path: multi-leg.test.ts, first step-4 increment) = 15)', () => {
   const allCodes = Object.keys(REGISTRY) as RefusalCode[];
   assert.equal(allCodes.length, 15);

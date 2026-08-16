@@ -99,7 +99,7 @@ export async function open(
     return refused('unknown-leg');
   }
 
-  // --- §10.1 sequencing (first step-4 increment): verify prior-leg references BEFORE
+  // --- SPEC §10.1 sequencing (first step-4 increment): verify prior-leg references BEFORE
   // the record exists. "open() enforces the sequencing before it creates the successor
   // record" — so a bad reference refuses `prior-leg-unverified` (pre-record, NO append)
   // even when a C1 blocker also holds the pair, and the blocker path below is never

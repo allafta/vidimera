@@ -101,7 +101,7 @@ export interface AppendDecisionLeg {
  * `redemption-failed` KIND (SPEC §4's table), never a `refused` transition — SPEC §8
  * lists it in the never-appends set; `prior-leg-unverified` never appends too —
  * pre-record, same reason as `record-exists`/`unknown-profile`/`unknown-leg` above: no
- * record exists to carry an edge. Its producer, the verifier (`kernel/prior-legs.ts`)
+ * record exists to carry an edge. Its producer, the verifier (`kernel/prior-legs.ts`), is
  * consumed by `open()`'s sequencing rung, real as of the first step-4 increment.
  */
 const NEVER_APPENDS: ReadonlySet<RefusalCode> = new Set<RefusalCode>([

@@ -24,8 +24,13 @@ token shape (`beginRedemption`/`completeRedemption`), and the clocks that
 resolve both of SPEC §4's remaining clock-driven edges
 (`confirmed → expired`, `redeeming → redemption-failed`), so a lost
 redemption token now resolves on its declared bound rather than stranding
-the record indefinitely. So five of the eight build-order steps remain
-unstarted (step 4, multi-leg separation of duties, is next), and the
+the record indefinitely. Step 4 — multi-leg separation of duties — has
+**started**: the first of two increments landed `open()`'s SPEC §10.1
+sequencing rung, which verifies every prior-leg reference by replay before
+a successor record is created and chains the verified evidence into the
+successor's `opened` snapshot; the second increment — the SoD gate itself —
+remains. So four of the eight build-order steps remain unstarted (steps
+5–8), and the
 package is **not consumable by a host today** — no build, no published
 artifact; that record states it in the same breath as the green gates. The
 maturity markers inside the concept set speak to a reference implementation
@@ -39,7 +44,7 @@ of the spec and move only when the behavior actually lands here.
 | `docs/process/` | Living process artifacts (implementation status, deferral register, adopted-source provenance) |
 | `docs/analysis/` | Point-in-time review documents (the step-1 whole-branch review) |
 | `docs/superpowers/` | Design and plan documents for the implementation work |
-| `packages/record` | `@vidimera/record` — the kernel whole: the capability-split factory, canonicalization and digests, hash-chained transitions; the store's two backings — in-memory and embedded-SQL (`store/sqlite.ts`) — held equivalent by the conformance suite, with the server-SQL backing still unbuilt; and step 3, exited: the direct-shape and token-shape redemption seams plus both redemption clocks (`redeem()`, `beginRedemption()`/`completeRedemption()`, `operator.listDue()`, SPEC §11.2). `docs/process/implementation-status.md` is the section-by-section account of what it does and does not build |
+| `packages/record` | `@vidimera/record` — the kernel whole: the capability-split factory, canonicalization and digests, hash-chained transitions; the store's two backings — in-memory and embedded-SQL (`store/sqlite.ts`) — held equivalent by the conformance suite, with the server-SQL backing still unbuilt; step 3, exited: the direct-shape and token-shape redemption seams plus both redemption clocks (`redeem()`, `beginRedemption()`/`completeRedemption()`, `operator.listDue()`, SPEC §11.2); and step 4, started: `open()`'s SPEC §10.1 sequencing rung, verifying every prior-leg reference by replay and chaining the evidence into a successor record's `opened` snapshot, with the SoD gate itself still to come. `docs/process/implementation-status.md` is the section-by-section account of what it does and does not build |
 | `scripts/` | Repo tooling (standalone-contract scan) |
 
 ## Development
@@ -81,7 +86,18 @@ redemption clocks: a generalized clock module resolving section 4's two
 remaining clock-driven edges (`confirmed → expired`,
 `redeeming → redemption-failed`), the `redemption-timeout` refusal code, and
 `operator.listDue()`, the operator's one read over records whose pending
-window has elapsed. Step 4 — multi-leg separation of duties — is next.
+window has elapsed.
+
+Step 4 — multi-leg separation of duties — has **started**. The first of two
+increments landed section 10.1's sequencing half: a successor leg's
+`open()` call carries one `{ recordId, chainHead }` reference per prior
+leg, and the library verifies every one by replaying the referenced
+chain — six conditions, failing closed to the new `prior-leg-unverified`
+refusal (a pre-record, never-append code) on any mismatch. On success the
+successor's `opened` snapshot carries the verified references in their
+recorded three-field form plus the library-derived `priorLegActors`,
+chaining the evidence for later audit. The second increment — the
+separation-of-duties gate itself, reading that evidence — is next.
 
 ## License
 
