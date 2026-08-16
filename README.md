@@ -143,7 +143,7 @@ guard lifted with the gate, in the same commit. Section 11.1 is whole in
 this build except its freshness tail, which stays out of scope
 deliberately: at this build's assurance level the library stamps every
 consultation's own recording time, so a freshness bound could never fire
-honestly. Eligibility gating remains section 6's own ground.
+honestly. Eligibility gating remains step 6's own ground.
 
 Step 6 — authority checks: eligibility and policy drift — is next.
 
