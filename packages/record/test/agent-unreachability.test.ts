@@ -30,6 +30,7 @@ const TRANSITIONING = [
   'seal',
   'replay',
   'verifyChain',
+  'listDue',
 ];
 
 function agentHandle() {

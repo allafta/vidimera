@@ -437,3 +437,29 @@ test('seal() on due-confirmed and due-redeeming records refuses unsealable-state
   if (sealB.status === 'refused') assert.equal(sealB.code, 'unsealable-state');
   assert.equal((await b.store.readChain(b.recordId)).length, beforeB);
 });
+
+test('the sweep, end to end: listDue names the lost-token record, redeem({}) resolves it, seal() retires it', async () => {
+  // §12's sweep: "the operator iterates `listDue(now)` and, per listed record, drives
+  // the ordinary mutating seam for that record's pending window" — no append authority
+  // of its own; then sweep-first-then-seal (§4, §5). The token is LOST in this scenario
+  // — the resolution needs no token and any content serves (the clock rung precedes
+  // correspondence).
+  const clock = { t: T0 };
+  const { handles, recordId } = await redeemingAt(clock); // token deliberately unused: lost
+  clock.t += (REDEEM_BOUND + 10) * 1000;
+
+  const due = await handles.operator.listDue();
+  assert.deepEqual(due, [recordId]);
+
+  const resolved = await handles.operator.redeem(recordId, {});
+  assert.equal(resolved.status, 'refused');
+  if (resolved.status !== 'refused') return;
+  assert.equal(resolved.code, 'redemption-timeout');
+
+  assert.deepEqual(await handles.operator.listDue(), [], 'resolution cleared the clock');
+
+  const sealed = await handles.operator.seal(recordId);
+  assert.equal(sealed.status, 'ok', 'sweep first, then seal — the record is terminal now');
+  if (sealed.status !== 'ok') return;
+  assert.equal(sealed.value.status, 'retired');
+});

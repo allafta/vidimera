@@ -107,6 +107,7 @@ export interface Kernel {
   seal: OperatorSurface['seal'];
   replay: OperatorSurface['replay'];
   verifyChain: OperatorSurface['verifyChain'];
+  listDue: OperatorSurface['listDue'];
 }
 
 /**
@@ -153,6 +154,7 @@ function makeKernel(ctx: KernelContext): Kernel {
     },
     readChain: (recordId) => store.readChain(recordId),
     chainHead: (recordId) => store.chainHead(recordId),
+    listDue: () => store.listDue(ctx.now()),
 
     // --- audit wrappers: REAL (readChain + the pure chain/replay.ts core) ---
     replay: async (recordId) => replayCore(await store.readChain(recordId)),

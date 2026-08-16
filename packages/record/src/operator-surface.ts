@@ -2,7 +2,7 @@
 // handle (SPEC §9's four-call split, now joined by `seal` and the token shape's
 // `beginRedemption`/`completeRedemption` — this handle carries `open`/`review`/`finalize`/
 // `redeem`/`beginRedemption`/`completeRedemption`/`seal`, plus the `replay`/`verifyChain`
-// `recordId` audit wrappers and the three reads). Like agent-surface.ts, this file's job
+// `recordId` audit wrappers and the four reads). Like agent-surface.ts, this file's job
 // is the CAPABILITY SPLIT — select the operator-reachable subset of the shared kernel
 // closures (assembled in `create.ts`) and FREEZE it. Every transitioning closure
 // delegates to a real `kernel/*.ts` behavior (`redeem` to `kernel/redeem.ts`, the
@@ -64,6 +64,10 @@ export interface OperatorSurface {
   getRecord(recordId: string): Promise<DecisionRecord | null>;
   readChain(recordId: string): Promise<Transition[]>;
   chainHead(recordId: string): Promise<Digest | null>;
+  listDue(): Promise<string[]>; // §12's sweep read: store.listDue at the injected clock.
+  // "Like every §12 surface its concrete signature is provisional pre-1.0; the contract
+  // is the behaviour above" — quoted because the sweep drives ordinary seams from this
+  // list and adds no append authority (§4 ships no scheduler and no public expire()).
 }
 
 /**
@@ -84,5 +88,6 @@ export function makeOperatorSurface(kernel: Kernel): OperatorSurface {
     getRecord: kernel.getRecord,
     readChain: kernel.readChain,
     chainHead: kernel.chainHead,
+    listDue: kernel.listDue,
   });
 }
