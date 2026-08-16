@@ -45,15 +45,22 @@ checks: eligibility + policy drift) becomes the next build-order step.
 
 ## 1. The outcome model (`outcome.ts`, `refusal-codes.ts`)
 
-- `Outcome<T>` gains the third variant:
+- `Outcome<T>`'s third variant ALREADY EXISTS draft-ahead (`{ status: 'unavailable';
+  code: RefusalCode; authority: string }`, with a zero-caller `unavailable(code,
+  authority)` constructor and a doc comment naming itself forward-compat with no
+  producer). This increment NARROWS it to §8's exact shape and wires its first producer:
 
 ```ts
 | { status: 'unavailable'; code: 'availability'; authority: string }
 ```
 
-  with a constructor `unavailable(authority: string)`. The shape is §8's, exactly: the
-  code is constant, the `authority` is the marker's named party; no `transitionRef` ever
-  (nothing appends), no `kind` field (§8 and §11.1 name only the authority).
+  with the constructor becoming `unavailable(authority: string)` — the code is CONSTANT
+  (§8: "The single code in this class is likewise named `availability`"), so it is no
+  longer a parameter; the zero-caller status makes the signature change breakage-free.
+  The `authority` is the marker's named party; no `transitionRef` ever (nothing
+  appends), no `kind` field (§8 and §11.1 name only the authority). The variant's
+  forward-compat doc comment updates: §11.1's producer is real as of the second step-5
+  increment; §10.3's policy gate remains the future second producer.
 - `refused(code: Exclude<RefusalCode, 'availability'>, transitionRef?)` — the exclusion
   ruling above. Existing callers are unaffected (none passes `availability`).
 - `RefusalClass` gains `'availability'`; `REGISTRY` maps `'availability':
