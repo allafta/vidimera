@@ -194,7 +194,8 @@ function validateSodShape(profile: ConfirmProfile, index: number, leg: LegSpec):
  *  3. GOVERNED `captureMode:'live'` (live capture, SPEC §9.2) — checked BEFORE the reverify
  *     guard so a live profile throws GOVERNED(captureMode), never the reverify refusal;
  *  4. GOVERNED `policySource` (policy drift, SPEC §10.3);
- *  5. per-leg GOVERNED guards + structural SoD shape + stray-redemption-key check;
+ *  5. per-leg GOVERNED guards + stray-redemption-key check (inside `validateLeg`), then
+ *     structural SoD shape validation (`validateSodShape`, after);
  *  6. structural: stray redemption key on the profile itself;
  *  7. structural: `reverify` on a non-live profile — not built in this build (SPEC §9.2's
  *     live mode).

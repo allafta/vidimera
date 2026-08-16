@@ -502,9 +502,12 @@ arriving with its own future build step:
 
   **Correction:** the `sealed`/status-retirement fold has since landed (commit `e53ec7e`,
   `chain/replay.ts`'s `replay()` folding a `sealed` transition and `types.ts`'s new
-  `DecisionRecord.status` field) — it is no longer part of this bundle's unbuilt set. The
-  other three items named above — `PriorRecordRef`/`RecordedPriorRef`, `open()`'s prior-leg
-  verification step, and the finalize SoD gate — remain unbuilt. This one item was also never
+  `DecisionRecord.status` field) — it is no longer part of this bundle's unbuilt set. That
+  left three items named above still unbuilt at the time this correction was first
+  written — `PriorRecordRef`/`RecordedPriorRef`, `open()`'s prior-leg verification step, and
+  the finalize SoD gate — all three since landed too, across build-order step 4's two
+  increments (`docs/process/implementation-status.md`'s §10.1 row carries the current
+  account), so nothing named in this bundle remains unbuilt. This one item was also never
   actually covered by this section's own "excluded because the profile fields that would
   switch it on all throw `GOVERNED` at construction" framing: `seal()` is gated by no profile
   field at all, unlike the other three, which really are gated by `legs.length > 1`.

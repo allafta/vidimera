@@ -101,11 +101,13 @@ export function effectSeamProfile(overrides: ProfileOverrides = {}): ConfirmProf
 }
 
 /**
- * A two-leg maker-checker profile (SPEC §10.1, first step-4 increment): ordered legs
- * `maker-decide` then `checker-decide`, capture-mode, no redeem block. Multi-leg
- * construction is accepted as of the first step-4 increment (the sequencing rung and the
- * verify-by-replay reference check land with the lift); per-leg `sod`/`proposer` remain
- * GOVERNED until the second step-4 increment.
+ * A two-leg maker-checker profile (SPEC §10.1): ordered legs `maker-decide` then
+ * `checker-decide`, capture-mode, no redeem block. Multi-leg construction is accepted as
+ * of the first step-4 increment (the sequencing rung and the verify-by-replay reference
+ * check land with the lift); per-leg `sod`/`proposer` construct real too, as of the second
+ * step-4 increment (the gate at finalize's rung 3.5 that reads the evidence). Neither is
+ * declared on this base builder's legs — `multi-leg.test.ts`'s own `gatedTwoLeg` wrapper
+ * extends the checker leg directly, per test, with `sod`/`proposer`/`terminalRefusals`.
  */
 export function twoLegProfile(overrides: ProfileOverrides = {}): ConfirmProfile {
   return {
