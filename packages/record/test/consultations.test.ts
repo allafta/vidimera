@@ -234,10 +234,12 @@ test('the attach happy path: obtained consultations record in order, library-sta
   assert.ok(view.value.consultations.some((c) => c.kind === 'llm-judge'));
 });
 
-test('an unreachable marker is inert in the first step-5 increment: validated, recorded nowhere, and finalize confirms', async () => {
-  // SPEC §11.1: "an unreachable marker for a non-required kind is inert" — and no kind
-  // can be required while requiredConsultations stays GOVERNED. The second step-5
-  // increment's gate is the marker's consumer.
+test('an unreachable marker is inert for a non-required kind: validated, recorded nowhere, and finalize confirms', async () => {
+  // SPEC §11.1: "an unreachable marker for a non-required kind is inert" — this leg
+  // (captureProfile()) declares no requiredConsultations, so the gate built at the
+  // second step-5 increment never sees this kind; the marker validates at intake and
+  // then simply has nothing to be consumed by. See "THE AVAILABILITY PIN" below for the
+  // gate's own required-kind, marker-present coverage.
   const store = new MemoryStore();
   const handles = create(makeConfig([captureProfile()], { store }));
   const recordId = await openRecord(handles, CONTENT, 'test.capture.v1', DEFAULT_SUBJECT_REF);

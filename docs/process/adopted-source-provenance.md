@@ -557,6 +557,18 @@ arriving with its own future build step:
   no profile can declare `policySource` to give its own argument-intake validation anything
   to check). This bullet is left as R1/R2 stated it, since it is a dated audit record;
   `docs/process/implementation-status.md` carries the current account.
+
+  **Correction, at the second step-5 increment:** the required-consultation half of gate
+  (5.5) and the `availability` outcome class have since landed too. `finalize()`'s rung 5.5
+  (SPEC §11.1) now refuses `consultation-missing`/`consultation-failed` on a required
+  kind's absence or `fail` verdict and produces the narrowed `unavailable` outcome
+  (`{ status: 'unavailable'; code: 'availability'; authority }`) on a required kind's
+  reported-unreachable marker, never appending; the `requiredConsultations` GOVERNED throw
+  lifted with the gate in the same commit. What remains LATER-STEP: gate (4.5) policy-drift
+  itself and its own second producer of the `availability` class (SPEC §10.3, no profile
+  can yet declare `policySource`), the eligibility half of gate (5.5) — §10.4's
+  implicit-first required kind — and the policy half of `opts` named above, unchanged.
+  `docs/process/implementation-status.md` carries the current account.
 - **Structural riders** — the `kernel/context.ts` extraction (kills a kernel→create.ts type
   back-edge; type-only, zero behavior), a `mintToken` injectable seam, and a handful of
   index-export additions for types that do not exist here yet.

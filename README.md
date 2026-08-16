@@ -32,15 +32,21 @@ evidence into the successor's `opened` snapshot. The second landed the SoD
 gate itself: a `finalize()` rung that reads that chained evidence and
 refuses a decision by an actor who already decided a named prior leg, or by
 a leg's declared proposer deciding their own leg. Step 5 —
-required-consultation gating — is **started, not exited**: the first of two
-increments has landed SPEC §11.1's unconditional attach form — `finalize()`'s
-first options bag, an intake validator that throws on a malformed, reserved,
-or duplicate consultation kind, and a variable-arity success batch that
-records a host's supplied consultations as evidence, library-stamped and
-never host-timed — while the gate that would consume a *required*
-consultation, the `availability` outcome class, and the lift of
-`requiredConsultations` remain the second increment's own work, which also
-exits step 5. Three of the eight build-order
+required-consultation gating — has **reached its exit**: both of its
+increments have landed. The first landed SPEC §11.1's unconditional attach
+form — `finalize()`'s first options bag, an intake validator that throws on a
+malformed, reserved, or duplicate consultation kind, and a variable-arity
+success batch that records a host's supplied consultations as evidence,
+library-stamped and never host-timed. The second landed the gate itself: a
+required kind's obtained `fail` verdict refuses, a required kind missing from
+what the host supplied refuses, and a required kind the host reports
+unreachable produces a dedicated `unavailable` outcome rather than a
+fabricated pass — never appending, so the record stays open for a bounded
+retry — with the construction guard on declaring `requiredConsultations`
+lifted alongside it. Consultation freshness gating stays out of scope
+deliberately (it could never fire honestly at this build's assurance level),
+and eligibility gating is step 6's own ground. Step 6 — authority checks:
+eligibility and policy drift — is next. Three of the eight build-order
 steps remain unstarted (steps 6–8), and the
 package is **not consumable by a host today** — no build, no published
 artifact; that record states it in the same breath as the green gates. The
@@ -115,21 +121,31 @@ the one deciding it — a comparison by principal alone, so the same human
 re-authenticated under a second allowed authority still refuses. Section
 10.1 is whole in this build.
 
-Step 5 — required-consultation gating — is **started, not exited**: the
-first of two increments has landed. It builds section 11.1's unconditional
-half, "the attach form is always available": `finalize()` gains its first
-options bag, `opts?: FinalizeOptions` (section 9's documented five-argument
-signature, `finalize(recordId, identity, content, facts, opts?)`, now real),
-a standalone intake validator (`kernel/consultations.ts`) that throws at
+Step 5 — required-consultation gating — has **exited**: both increments
+have landed. The first built section 11.1's unconditional half, "the attach
+form is always available": `finalize()` gains its first options bag,
+`opts?: FinalizeOptions` (section 9's documented five-argument signature,
+`finalize(recordId, identity, content, facts, opts?)`, now real), a
+standalone intake validator (`kernel/consultations.ts`) that throws at
 argument depth — before the chain loads — on a malformed entry, a reserved
 kind, or a duplicate kind, and a variable-arity success batch,
 `appendBatch([chain-verify, facts, …obtained consultations, confirmed])`,
 each entry stamped with the library's own recording time, never a
-host-supplied one. No guard lifts: `requiredConsultations`, `freshness`, and
-`eligibility` stay GOVERNED, an unreachable marker validates and then
-records nothing, and the required-consultation gate, the
-`consultation-failed` refusal, and the `availability` outcome class remain
-the second increment's own work, which also exits step 5.
+host-supplied one. The second built the gate: `finalize()`'s rung 5.5 reads
+a leg's declared `requiredConsultations` in declaration order — a missing
+required kind refuses `consultation-missing`, an obtained `fail` verdict
+refuses `consultation-failed`, and a required kind the host reports
+unreachable produces the `availability` outcome (its own outcome status,
+`unavailable`, carrying the marker's named authority) rather than a
+fabricated pass — never appending, so the record stays open and the seam
+re-arms for a bounded host retry. The `requiredConsultations` construction
+guard lifted with the gate, in the same commit. Section 11.1 is whole in
+this build except its freshness tail, which stays out of scope
+deliberately: at this build's assurance level the library stamps every
+consultation's own recording time, so a freshness bound could never fire
+honestly. Eligibility gating remains section 6's own ground.
+
+Step 6 — authority checks: eligibility and policy drift — is next.
 
 ## License
 
