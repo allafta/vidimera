@@ -25,7 +25,13 @@ export type RefusalCode =
   // "a pre-record `open()`-seam sequencing refusal that never appends" — producer worded
   // two-touch, same as `redemption-timeout` above: the verifier (`kernel/prior-legs.ts`)
   // consumed by `open()`'s sequencing rung, real as of the first step-4 increment
-  | 'prior-leg-unverified';
+  | 'prior-leg-unverified'
+  // the sixteenth code (the second step-4 increment): SPEC §8's conditional table names
+  // it "`refusal`-class, `terminalRefusals`-able"; the default appendsOn path (appends
+  // `open→refused` iff the leg's `terminalRefusals` lists it, else stays open per §10.1)
+  // IS the spec-mandated behavior with zero new code — producer worded two-touch, landing
+  // later in the second step-4 increment
+  | 'sod-violation';
 // class map: chain-compromise → 'compromise'; all others → 'refusal'
 // record-not-open: class 'refusal', terminal-record category — finalize() against a non-open, intact-chain
 //   record (double-finalize; an effect-seam confirmed record awaiting redemption; a refused record). NEVER
@@ -75,6 +81,7 @@ export const REGISTRY: Record<RefusalCode, RefusalClass> = {
   'already-redeemed': 'refusal',
   'redemption-timeout': 'refusal',
   'prior-leg-unverified': 'refusal',
+  'sod-violation': 'refusal',
 };
 
 /**
