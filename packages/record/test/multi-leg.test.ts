@@ -578,7 +578,7 @@ test('a three-leg profile: refs out of leg order refuse; in order they verify', 
   );
 });
 
-// === the interplay and posture pins (second step-4 increment) ==================
+// === the interplay and posture pins (first step-4 increment) ===================
 
 test('a sealed prior still verifies — §10.1: state, not status, is the check', async () => {
   const store = new MemoryStore();
