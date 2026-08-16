@@ -137,6 +137,12 @@ export async function finalize(
     if (due.due && due.result.appended) {
       return refused(due.window === 'confirmed' ? 'leg-expired' : 'record-not-open');
     }
+    // Lost the CAS to a racing writer: this refuses `record-not-open` even when the
+    // winner resolved a `confirmed` window to `expired` (re-invocation would say
+    // `leg-expired` there instead) — a deliberate divergence from the redemption
+    // family's loser-agrees-with-reinvocation discipline, tolerated because it is
+    // unreachable under this build's stated single-writer bound; the plain state
+    // verdict returned here is still true of the record regardless of which window raced.
     return refused('record-not-open');
   }
   if (record.state !== 'open') {

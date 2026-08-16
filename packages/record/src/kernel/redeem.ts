@@ -55,7 +55,7 @@ import type { Outcome } from '../outcome.js';
 import { ok, refused } from '../outcome.js';
 import type { AppendMeta, Store } from '../store/store.js';
 import type { DecisionRecord, Digest, Transition } from '../types.js';
-import { deadlineIso, resolveDueClock } from './expiry.js';
+import { deadlineIso, pendingWindow, resolveDueClock } from './expiry.js';
 import { appendChainCompromise } from './finalize.js';
 
 /**
@@ -78,6 +78,17 @@ async function residualRefusal(store: Store, recordId: string): Promise<Outcome<
     // fall through — result-first either way
   }
   return refused('unredeemable-state');
+}
+
+/**
+ * Due-ness for the enlisted guard in the clock rung, below — the same predicate
+ * `resolveDueClock` applies internally (a pending window whose deadline has passed),
+ * computed here with NO append, so an enlisted caller can refuse before ever reaching
+ * `resolveDueClock`'s own compare-and-swap.
+ */
+function dueNow(chain: readonly Transition[], resolved: ResolvedProfile, now: Date): boolean {
+  const win = pendingWindow(chain, resolved);
+  return win.window !== 'none' && win.deadlineMs < now.getTime();
 }
 
 /**
@@ -164,8 +175,27 @@ async function prologue(
   // refuses `redemption-timeout` (§11.2: the bound elapsed "with the outcome unknown...
   // with `redemption-timeout`"). A seam arriving AFTER a resolution finds the terminal
   // state at its own state gate and refuses `unredeemable-state` — nothing timed out at
-  // that call. A lost resolution CAS re-reads once (the family residual discipline).
+  // that call. A lost resolution CAS re-reads once (the family residual discipline). An
+  // ENLISTED caller reaching a due window is a further exception, guarded immediately
+  // below, before the resolver is ever called.
   if (record.state === 'confirmed' || record.state === 'redeeming') {
+    if (tx !== undefined && dueNow(chain, resolved, now())) {
+      // ENLISTED and due: mirrors the enlisted chain-verify branch above. The host
+      // already has ITS OWN transaction open on this connection (today only direct
+      // `redeem()` carries a `tx`), so `resolveDueClock`'s no-tx `store.appendTransition`
+      // would BEGIN a SECOND transaction on that same connection — the embedded backing
+      // throws ("cannot start a transaction within a transaction") rather than refusing.
+      // Worse, even setting that aside, enlisting the resolution edge in the host's
+      // transaction would let a host rollback erase an edge this refusal already
+      // reported. So an enlisted caller reaching a due window never calls
+      // `resolveDueClock` at all: it refuses `unredeemable-state` for BOTH windows,
+      // never `redemption-timeout` (reserved for the call that actually appends the
+      // resolution), with NO edge — the edge lands at the next un-enlisted seam or the
+      // sweep, per §4's lazy rule (this call is not the seam that observes).
+      // Loser-agrees-with-reinvocation still holds: re-invocation without `tx` resolves
+      // and reports the same terminal truth.
+      return { refusal: refused('unredeemable-state') };
+    }
     const due = await resolveDueClock(store, chain, resolved, now());
     if (due.due) {
       if (!due.result.appended) {
@@ -432,8 +462,10 @@ export async function completeRedemption(
     payload: { via: 'token', tokenDigest: persisted },
     prevHash: transitionDigest(last),
   };
-  // Terminal by the derivation — THE RELEASE via the token path; dueAt omitted clears
-  // nothing (none was ever written in this build) and is §12's omission rule regardless.
+  // Terminal by the derivation — THE RELEASE via the token path; dueAt omitted here IS
+  // the clearing (§12's omission rule): beginRedemption wrote a real dueAt for this
+  // window whenever redeemBound was declared, and this append's own omission clears it,
+  // exactly as expected of a terminal record with no successor window pending.
   const meta: AppendMeta = {
     nonTerminal: nonTerminal('redeemed', finalLeg, resolved.effectSeam),
   };

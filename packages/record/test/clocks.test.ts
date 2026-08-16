@@ -1,8 +1,7 @@
 // @vidimera/record — clocks.test.ts (SPEC §4 "Clock-driven edges are appended en
 // passant"; §9.1 "Redemption bounds"; §12 dueAt/listDue): the third step-3 increment's
-// windows. This file owns the clock module's derivation pins and, in later tasks of the
-// same increment, the producer/resolution/sweep pins. Deterministic throughout via
-// createWithClock — no test sleeps.
+// windows. This file owns the clock module's derivation, producer, resolution, and
+// sweep pins. Deterministic throughout via createWithClock — no test sleeps.
 
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
@@ -10,6 +9,7 @@ import { test } from 'vitest';
 import { createWithClock } from '../src/create.js';
 import { pendingWindow, resolveDueClock } from '../src/kernel/expiry.js';
 import { MemoryStore } from '../src/store/memory.js';
+import { SqliteStore } from '../src/store/sqlite.js';
 import { storeNext } from './helpers/chain.js';
 import {
   captureProfile,
@@ -190,6 +190,50 @@ test('an elapsed confirmed window at redeem(): expired edge appended, unredeemab
   assert.equal(last.kind, 'expired');
   assert.equal(await store.findNonTerminal('test.effect.v1', DEFAULT_SUBJECT_REF), null);
   assert.deepEqual(await store.listDue(new Date(clock.t + 1000 * 1000)), [], 'dueAt cleared');
+});
+
+test('ENLISTED: redeem(recordId, content, tx) against a due-confirmed record on SqliteStore refuses unredeemable-state with no edge, and an un-enlisted call still resolves it', async () => {
+  // The bug this pins (a final-review fix to the third step-3 increment): the clock
+  // rung's resolveDueClock call carries NO tx, but on SqliteStore the caller's tx IS the
+  // store's own connection with an open transaction — the no-tx append would BEGIN a
+  // second transaction on that connection and throw, turning a domain outcome into an
+  // adapter throw mid-host-transaction. Only direct redeem(recordId, content, tx) reaches
+  // the shared prologue enlisted (the token seams take no tx), so this is the one shape
+  // that can hit it.
+  const clock = { t: T0 };
+  const store = new SqliteStore(':memory:');
+  const handles = createWithClock(
+    makeConfig([effectSeamProfile()], { store }),
+    () => new Date(clock.t),
+  );
+  const recordId = await openRecord(handles, CONTENT, 'test.effect.v1', DEFAULT_SUBJECT_REF);
+  const done = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(done.status, 'ok', 'fixture: the record must confirm');
+  clock.t = T0 + (CONFIRM_BOUND + 10) * 1000; // past the confirmed window's bound
+
+  const before = await store.readChain(recordId);
+  store.database.exec('BEGIN IMMEDIATE');
+  const outcome = await handles.operator.redeem(recordId, CONTENT, store.database);
+  assert.equal(store.database.isTransaction, true, "the host's transaction is still open");
+  store.database.exec('COMMIT'); // nothing was appended — an empty commit either way
+
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'unredeemable-state', 'never redemption-timeout on an enlisted call');
+  assert.equal(outcome.transitionRef, undefined, 'no edge — the enlisted call appends nothing');
+  assert.deepEqual(await store.readChain(recordId), before, 'the chain is untouched');
+
+  // A subsequent UN-ENLISTED call still resolves the window and reports the same
+  // terminal truth (loser-agrees-with-reinvocation, extended to the enlisted refusal):
+  // the edge lands at the next call that is not enlisted, exactly as §4's lazy rule
+  // promises.
+  const resolved = await handles.operator.redeem(recordId, CONTENT);
+  assert.equal(resolved.status, 'refused');
+  if (resolved.status !== 'refused') return;
+  assert.equal(resolved.code, 'unredeemable-state');
+  const last = (await store.readChain(recordId)).at(-1);
+  assert.ok(last !== undefined);
+  assert.equal(last.kind, 'expired');
 });
 
 test('THE UNKNOWN-OUTCOME PIN: a CORRECT token after the redeemBound elapsed — redemption-timeout, edge redemption-failed, token dead', async () => {

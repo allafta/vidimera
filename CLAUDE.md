@@ -147,9 +147,10 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   redeeming effect-seam record. **Nothing at the redemption seams remains governed as of
   the third step-3 increment**: `redeemBound`'s own construction guard (`config.ts`) —
   added at the second step-3 increment, briefly bringing the construction-guarded count to
-  eleven — lifted WITH its clock at the third, back down to today's ten. `kernel/expiry.ts`'s
-  `resolveDueClock` now honors SPEC §4's present-iff-declared `bound`
-  byte, the guard's own stated trigger, so a declaring profile constructs cleanly;
+  eleven — lifted WITH its clock at the third, back down to today's ten. `beginRedemption`
+  now mints SPEC §4's present-iff-declared `bound` byte into the `redeeming` payload (via
+  `deadlineIso`), and `kernel/expiry.ts`'s `resolveDueClock` resolves the window that byte
+  opens — together the guard's own stated trigger, so a declaring profile constructs cleanly;
   `confirmToRedeem` was accepted-but-inert from the second increment and is now genuinely
   acted on by the same clock; and `redemption-timeout` has a real producer, the clock
   resolution shared by all three redemption seams' prologue. A confirmed
