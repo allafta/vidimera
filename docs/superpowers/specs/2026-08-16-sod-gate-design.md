@@ -27,6 +27,12 @@ next build-order step.
   than one leg." — the applicability sentence scopes the whole feature, so a single-leg
   profile declaring `proposer` is a structural construction error. The conservative
   reading: loosening later is compatible; tightening after hosts rely on it is a break.
+- **`proposer` must be non-empty.** Added at this increment's final review, after the gate
+  itself had already landed: an empty-string `proposer` constructed fine but could never
+  fire at the gate — finalize's rung 3 requires a non-empty `identity.principal`, so
+  `leg.proposer === identity.principal` is unsatisfiable for `''` — the same
+  declarable-but-inert trap the other two rulings above guard against. Structural
+  construction error, fail-closed by the same ruling.
 - **The guard lifts land WITH the gate, in one commit.** Deleting the GOVERNED
   `sod`/`proposer` throws before the rung exists would admit a declaring profile whose
   control is silently inert — the exact fail-open the first step-4 increment's atomic

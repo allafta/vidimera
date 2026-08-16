@@ -188,6 +188,28 @@ test('structural: proposer on a SINGLE-LEG profile throws — §10.1 is multi-le
   assertStructural({ ...p, legs: [{ ...leg, proposer: 'proposer:1' }] }, /more than one leg/i);
 });
 
+test('structural: proposer as an empty string throws — declarable-but-inert, found at the final review', () => {
+  // Found at the final review of the second step-4 increment: an empty-string `proposer`
+  // constructed fine but could never fire at the gate — finalize's rung 3 `isValidIdentity`
+  // requires a non-empty `principal`, so `leg.proposer === identity.principal` is
+  // unsatisfiable for `''` — exactly the declarable-but-inert trap `validateSodShape`'s own
+  // doc comment claims cannot exist. MULTI-leg so only the emptiness rule fires (a
+  // single-leg profile would also trip the "more than one leg" rule above).
+  const p = captureProfile();
+  const leg = p.legs[0];
+  if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
+  assertStructural(
+    {
+      ...p,
+      legs: [
+        { ...leg, proposer: '' },
+        { id: 'second-leg', allowedAuthorities: ['session:test-app'] },
+      ],
+    },
+    /empty/i,
+  );
+});
+
 test('structural: notActorOf rejects empty, own-leg, later-leg, unknown, and duplicate entries', () => {
   const p = captureProfile();
   const leg = p.legs[0];

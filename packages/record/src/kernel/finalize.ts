@@ -199,7 +199,15 @@ export async function finalize(
       if (priorActor === undefined) {
         // A found reference with no paired actor breaks the recorded paired-by-index
         // invariant (SPEC §4) — a garbled or foreign chain is a storage/config fault,
-        // not a domain outcome (SPEC §8's loud-throw posture).
+        // not a domain outcome (SPEC §8's loud-throw posture). The boundary, stated so
+        // nobody reads this throw as the universal garbled-evidence posture: a
+        // `priorLegActors` list that is merely SHORTER than `priorRecordRefs` — so a
+        // matched ref at this index has no paired entry — throws here (the paired-by-index
+        // invariant broke), whereas refs with actors ABSENT ENTIRELY never reach this line
+        // at all — replay's both-or-neither rule (`chain/replay.ts`) folds neither field
+        // when only one is present, so the lookup miss above (`refIndex === -1`) catches
+        // that case first and refuses `sod-violation` instead; both directions fail
+        // closed, just through different gates.
         throw new Error(
           `finalize: record '${recordId}' carries a prior-leg reference for '${namedLegId}' with no paired actor — a garbled or foreign chain is a storage/config fault (SPEC §8)`,
         );

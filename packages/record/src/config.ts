@@ -140,8 +140,9 @@ function validateLeg(profileId: string, leg: LegSpec): void {
 }
 
 /**
- * Structural SoD shape validation (SPEC §10.1; second step-4 increment). Fail-closed by
- * ruling: no declarable-but-inert configuration exists —
+ * Structural SoD shape validation (SPEC §10.1; second step-4 increment, with a fourth
+ * rule added at that increment's final review). Fail-closed by ruling: no
+ * declarable-but-inert configuration exists —
  *  - `sod.notActorOf` must be non-empty, pairwise distinct, and each entry must name a
  *    STRICTLY-EARLIER leg of this profile (an empty array, a later leg, the leg's own
  *    id, or an unknown id could never match the record's recorded references at the
@@ -150,6 +151,12 @@ function validateLeg(profileId: string, leg: LegSpec): void {
  *  - `proposer` requires a multi-leg profile: SPEC §10.1 opens "Applies when the
  *    profile declares more than one leg." and the applicability sentence scopes the
  *    whole feature — the conservative reading, loosenable later without a break.
+ *  - `proposer` must be non-empty: an empty string constructs fine but can never fire at
+ *    the gate — finalize's rung 3 `isValidIdentity` requires a non-empty `principal`, so
+ *    `leg.proposer === identity.principal` is unsatisfiable for `''` — the same
+ *    declarable-but-inert trap the other two rules above guard against. Found at the
+ *    final review of the second step-4 increment, after the gate itself had already
+ *    landed; added here rather than left as a residual gap.
  */
 function validateSodShape(profile: ConfirmProfile, index: number, leg: LegSpec): void {
   if (leg.sod !== undefined) {
@@ -179,6 +186,13 @@ function validateSodShape(profile: ConfirmProfile, index: number, leg: LegSpec):
       }
     }
   }
+  if (leg.proposer !== undefined && leg.proposer.length === 0) {
+    throw new Error(
+      `invalid profile '${profile.id}': leg '${leg.id}' declares proposer as an empty string — ` +
+        'an empty proposer could never match any finalizing principal (finalize requires a ' +
+        'non-empty identity.principal) — declarable-but-inert, fail-closed by ruling',
+    );
+  }
   if (leg.proposer !== undefined && profile.legs.length === 1) {
     throw new Error(
       `invalid profile '${profile.id}': leg '${leg.id}' declares proposer on a single-leg profile — ` +
@@ -207,7 +221,8 @@ function validateSodShape(profile: ConfirmProfile, index: number, leg: LegSpec):
  * increment: the gate that reads the recorded evidence lands at finalize's rung 3.5 in the
  * same commit as this lift, so the GOVERNED throws are gone — `validateSodShape` (above)
  * replaces them with this build's fail-closed structural posture (the spec is silent on
- * all three of its rules; none is a divergence, each a permitted tightening).
+ * all four of its rules — the fourth, proposer non-emptiness, found at that increment's
+ * final review; none is a divergence, each a permitted tightening).
  * `redeemBound` (redeeming-window bound, SPEC §4 & §11.2) is accepted-at-construction as of
  * the third step-3 increment — the clock module now stamps the `bound` payload and `dueAt`,
  * AND the en-passant resolution that consumes `dueAt` is built at the redemption seams'
