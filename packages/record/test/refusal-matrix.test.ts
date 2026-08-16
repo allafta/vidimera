@@ -489,14 +489,13 @@ test("policy-drift: registry/type presence + class + appendsOn shape only in thi
 // file (production-path coverage lives in policy-drift.test.ts, that increment's own
 // file, including both cross-instance corners and the decided open question).
 
-// === ack-missing and ack-stale (the first step-7 increment) ==================================
-// `ack-missing` and `ack-stale` (SPEC §8's conditional table: findings flow, §10.2) are both
-// `refusal`-class, `terminalRefusals`-able, open-by-default. The distinction: `ack-missing`
-// fires when no ack at all exists for a required-kind finding; `ack-stale` fires when acks are
-// present but none count (wrong digest, wrong magnitude, or wrong ackMode principal). Their
-// producer is finalize's ack-coverage rung, landing in the second step-7 increment; this file
-// carries a registry-only assertion, since production-path coverage will live in
-// findings.test.ts (the second step-7 increment's own file).
+// === ack-missing (the first step-7 increment) =============================================
+// `ack-missing` (SPEC §8's conditional table: findings flow, §10.2) is `refusal`-class,
+// `terminalRefusals`-able, open-by-default. It fires when no ack at all exists for a
+// required-kind finding. Its producer is finalize's ack-coverage rung, landing in the
+// second step-7 increment; this file carries a registry-only assertion, since
+// production-path coverage will live in findings.test.ts (the second step-7 increment's
+// own file).
 
 test("ack-missing: registry/type presence + class + appendsOn shape only in this file — its producer is finalize's ack-coverage rung, landing in the second step-7 increment; production-path coverage lives in findings.test.ts", () => {
   // `code: RefusalCode = 'ack-missing'` is itself a COMPILE-TIME union-membership check
@@ -510,6 +509,14 @@ test("ack-missing: registry/type presence + class + appendsOn shape only in this
   );
   assert.equal(appendsOn(code, { terminalRefusals: [code] }), true);
 });
+
+// === ack-stale (the first step-7 increment) ==============================================
+// `ack-stale` (SPEC §8's conditional table: findings flow, §10.2) is `refusal`-class,
+// `terminalRefusals`-able, open-by-default. It fires when acks are present but none count
+// (wrong digest, wrong magnitude, or wrong ackMode principal). Its producer is finalize's
+// ack-coverage rung, landing in the second step-7 increment; this file carries a
+// registry-only assertion, since production-path coverage will live in findings.test.ts
+// (the second step-7 increment's own file).
 
 test("ack-stale: registry/type presence + class + appendsOn shape only in this file — its producer is finalize's ack-coverage rung, landing in the second step-7 increment; production-path coverage lives in findings.test.ts", () => {
   // `code: RefusalCode = 'ack-stale'` is itself a COMPILE-TIME union-membership check
