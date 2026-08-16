@@ -30,8 +30,8 @@ export type RecordState =
   | 'redeeming'
   | 'redeemed'
   | 'redemption-failed'; // last three: effect-seam states (SPEC §2); 'redeemed' produced
-// since the first step-3 increment, 'redeeming' since the second; 'redemption-failed'
-// awaits the clock increment
+// since the first step-3 increment, 'redeeming' since the second, 'redemption-failed'
+// since the third (kernel/expiry.ts's clock resolution) — all three reachable now
 
 export type TransitionKind =
   | 'opened'
@@ -46,8 +46,8 @@ export type TransitionKind =
   | 'redeemed'
   | 'redemption-failed';
 // this build's kernel emits: opened, consultation-recorded, confirmed, refused, expired,
-// sealed, redeemed, redeeming — not yet redemption-failed (the clock increment) nor
-// finding-raised/acknowledged (§10.2)
+// sealed, redeemed, redeeming, redemption-failed (the third step-3 increment's clock
+// resolution) — not yet finding-raised/acknowledged (§10.2)
 
 export interface Transition {
   recordId: string;

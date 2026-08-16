@@ -18,15 +18,18 @@ Step 2 — the store, for real — has **exited, with a recorded deferral**: two
 of the three reference backings SPEC §12 names are built and held equivalent
 by the conformance suite and the byte-identity test, and the third — the
 server-SQL backing — is deferred to the deferral register, which carries the
-exit ruling. Step 3 — redemption (the effect seam) — is **under way**: two
-of its three increments have landed — SPEC §11.2's direct redemption shape,
-then its token shape (`beginRedemption`/`completeRedemption`); both
-redemption clocks remain. So five of the eight build-order steps
-remain unstarted, and the package is **not consumable by a host today** — no
-build, no published artifact; that record states it in the same breath as the
-green gates. The maturity markers inside the concept set speak to a reference
-implementation of the spec and move only when the behavior actually lands
-here.
+exit ruling. Step 3 — redemption (the effect seam) — has **exited**: all three
+of its increments have landed — SPEC §11.2's direct redemption shape, its
+token shape (`beginRedemption`/`completeRedemption`), and the clocks that
+resolve both of SPEC §4's remaining clock-driven edges
+(`confirmed → expired`, `redeeming → redemption-failed`), so a lost
+redemption token now resolves on its declared bound rather than stranding
+the record indefinitely. So five of the eight build-order steps remain
+unstarted (step 4, multi-leg separation of duties, is next), and the
+package is **not consumable by a host today** — no build, no published
+artifact; that record states it in the same breath as the green gates. The
+maturity markers inside the concept set speak to a reference implementation
+of the spec and move only when the behavior actually lands here.
 
 ## Layout
 
@@ -36,7 +39,7 @@ here.
 | `docs/process/` | Living process artifacts (implementation status, deferral register, adopted-source provenance) |
 | `docs/analysis/` | Point-in-time review documents (the step-1 whole-branch review) |
 | `docs/superpowers/` | Design and plan documents for the implementation work |
-| `packages/record` | `@vidimera/record` — the kernel whole: the capability-split factory, canonicalization and digests, hash-chained transitions; the store's two backings — in-memory and embedded-SQL (`store/sqlite.ts`) — held equivalent by the conformance suite, with the server-SQL backing still unbuilt; and step 3's two landed increments, the direct-shape and token-shape redemption seams (`redeem()`, `beginRedemption()`/`completeRedemption()`, SPEC §11.2). `docs/process/implementation-status.md` is the section-by-section account of what it does and does not build |
+| `packages/record` | `@vidimera/record` — the kernel whole: the capability-split factory, canonicalization and digests, hash-chained transitions; the store's two backings — in-memory and embedded-SQL (`store/sqlite.ts`) — held equivalent by the conformance suite, with the server-SQL backing still unbuilt; and step 3, exited: the direct-shape and token-shape redemption seams plus both redemption clocks (`redeem()`, `beginRedemption()`/`completeRedemption()`, `operator.listDue()`, SPEC §11.2). `docs/process/implementation-status.md` is the section-by-section account of what it does and does not build |
 | `scripts/` | Repo tooling (standalone-contract scan) |
 
 ## Development
@@ -66,15 +69,19 @@ held equivalent by the suite and the byte-identity test. The server-SQL
 adapter is deferred to the deferral register, which carries the ruling that
 exited the step without it.
 
-Step 3 — redemption (the effect seam) — is **started, not exited**: two of
-its three increments have landed. The first built section 11.2's direct
+Step 3 — redemption (the effect seam) — has **exited**: all three of
+its increments have landed. The first built section 11.2's direct
 shape, `redeem(recordId, content, tx?)` as a verify-first gate ladder ending
 in `confirmed → redeemed { via: 'direct' }`, enlisted through the caller's
 own transaction handle where supplied. The second built its token shape,
 `beginRedemption()`/`completeRedemption()`, a single-use token issued on
 `confirmed → redeeming` and presented on `redeeming → redeemed`, returned to
-the caller exactly once and never persisted. Both redemption clocks are the
-third increment, not yet built.
+the caller exactly once and never persisted. The third built both
+redemption clocks: a generalized clock module resolving section 4's two
+remaining clock-driven edges (`confirmed → expired`,
+`redeeming → redemption-failed`), the `redemption-timeout` refusal code, and
+`operator.listDue()`, the operator's one read over records whose pending
+window has elapsed. Step 4 — multi-leg separation of duties — is next.
 
 ## License
 

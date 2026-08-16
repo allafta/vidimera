@@ -3,8 +3,12 @@
 // `confirmed → redeeming { tokenDigest }` at beginRedemption() (the single-use token,
 // library-generated, returned exactly once, never persisted), and
 // `redeeming → redeemed { via: 'token', tokenDigest }` at completeRedemption() on
-// presenting that token. Both redemption clocks are the third step-3 increment; nothing
-// here constructs a bound, a dueAt, or a redemption-failed record.
+// presenting that token. Both redemption clocks landed at the third step-3 increment
+// (kernel/expiry.ts; exercised end-to-end in clocks.test.ts, not here): this file's
+// `effectSeamProfile()` declares `redeemBound`, so its beginRedemption pins DO carry a
+// `bound` payload key and a `dueAt`, but no test in this file advances the clock past
+// either bound or asserts a redemption-failed record — that is clocks.test.ts's own
+// ground, not this file's.
 //
 // ADJACENT-PAIR ORDER TESTS are derived per redeem.test.ts's discipline, per ladder, at
 // the bottom of this file — each ladder's derivation comment enumerates the jointly
@@ -521,8 +525,9 @@ test('a begun record with a lost token has NO exit in this build except completi
   // surface while the second step-3 increment's guard blocked every declaring profile.
   // Now that the clock is built, a profile that DOES declare `redeemBound`
   // (`effectSeamProfile()`) sets `dueAt` at begin (pinned in clocks.test.ts) and its
-  // strand closes on its own bound (a later step-3 producer lands the closing edge — not
-  // this file's pin). The strand shape survives ONLY for a host that declines §9.1's SHOULD and
+  // strand closes on its own bound — the third step-3 increment's own producer,
+  // kernel/expiry.ts's resolveDueClock, lands that closing edge (pinned end-to-end in
+  // clocks.test.ts, not this file). The strand shape survives ONLY for a host that declines §9.1's SHOULD and
   // declares no `redeemBound` at all — `noRedeemBoundProfile()` above. Its seal/direct/
   // finalize refusals and the sole-exit assertion keep their force unchanged under that
   // profile; the `listDue`-blind assertion stays true there too: no bound means no dueAt

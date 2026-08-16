@@ -166,9 +166,9 @@ export function replay(chain: readonly Transition[]): DecisionRecord {
       case 'redeeming': {
         // State-MOVING (SPEC §11.2's token shape, second step-3 increment):
         // `confirmed → redeeming` records the issued token's digest. Non-terminal (§2:
-        // decided, effect unresolved). The payload's `tokenDigest` (and, when the clock
-        // increment lands it, `bound`) is EVIDENCE — replay reads nothing from it; only
-        // `state` moves.
+        // decided, effect unresolved). The payload's `tokenDigest` (and, present-iff-declared
+        // since the third step-3 increment, `bound`) is EVIDENCE — replay reads nothing
+        // from either key; only `state` moves.
         record.state = 'redeeming';
         break;
       }

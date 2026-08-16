@@ -33,11 +33,16 @@ parts:
   cross-backing byte-identity test — two of §12's three reference backings, held
   equivalent by the suite and the byte-identity test; the server-SQL adapter is deferred
   to deferral register row 15, which carries the exit ruling. Step 3 — redemption (the
-  effect seam) — is **started, not exited**: two of three increments landed. The first
+  effect seam) — **exited**: three increments landed. The first
   landed SPEC §11.2's direct shape, `redeem(recordId, content, tx?)` as a verify-first
   ladder ending in `confirmed → redeemed { via: 'direct' }`. The second landed the token
   shape, `beginRedemption`/`completeRedemption`, ending in `confirmed → redeeming { tokenDigest }`
-  then `redeeming → redeemed { via: 'token', tokenDigest }`; both redemption clocks remain.
+  then `redeeming → redeemed { via: 'token', tokenDigest }`. The third landed the clocks:
+  one generalized module (`kernel/expiry.ts`) resolving both remaining SPEC §4 edges —
+  `confirmed → expired` (the `confirmToRedeem` window) and `redeeming → redemption-failed`
+  (the `redeemBound` window) — the fourteenth refusal code `redemption-timeout`, the
+  `redeemBound` construction guard lifted, and `operator.listDue()`, the sweep's one read
+  surface; §11.2 is whole in this build.
   **`docs/process/implementation-status.md` is the authoritative
   account** of what this build does and does not implement, section by section, with the
   gate outputs and the outstanding list — read it rather than trusting a count here,
@@ -139,10 +144,14 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   SPEC §11.2's direct shape, and the second landed the token shape —
   `beginRedemption`/`completeRedemption`, two NEW operator calls with no throwing-stub
   history to lift, unlike `redeem`'s own — so that throw is gone from every confirmed or
-  redeeming effect-seam record. What remains governed at that seam is the clocks alone:
-  `redeemBound` now throws at construction too (`config.ts`, among the eleven fields
-  above, since the second step-3 increment), `confirmToRedeem` stays accepted-but-inert,
-  and `redemption-timeout` has no producer until the clock increment. A confirmed
+  redeeming effect-seam record. **Nothing at the redemption seams remains governed as of
+  the third step-3 increment**: `redeemBound`'s own construction guard (`config.ts`, added
+  among the eleven fields above at the second step-3 increment) lifted WITH its clock —
+  `kernel/expiry.ts`'s `resolveDueClock` now honors SPEC §4's present-iff-declared `bound`
+  byte, the guard's own stated trigger, so a declaring profile constructs cleanly;
+  `confirmToRedeem` was accepted-but-inert from the second increment and is now genuinely
+  acted on by the same clock; and `redemption-timeout` has a real producer, the clock
+  resolution shared by all three redemption seams' prologue. A confirmed
   effect-seam record's held `(profile, subject)` pair is now
   released by that direct-shape redemption — the `confirmed → redeemed` edge lifts the
   Store's C1 exclusivity hold, where before neither a throw nor a refusal could. `seal()`

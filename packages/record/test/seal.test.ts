@@ -245,7 +245,7 @@ test('seal() on a DUE-but-open record refuses without expiring it en passant', a
   assert.deepEqual(
     await handles.operator.readChain(recordId),
     before,
-    'no `expired` edge — seal() must not call expireIfDue',
+    'no `expired` edge — seal() must not call resolveDueClock',
   );
 });
 

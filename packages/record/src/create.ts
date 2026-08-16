@@ -14,9 +14,10 @@
 // transaction when one is passed through; `unredeemable-state` on every profile/state with
 // no redeemable seam; `seal` delegates to `kernel/seal.ts`, the operator-only chain-retirement
 // seam that caps a verified derived-terminal record with a `sealed` transition and reports
-// `retired`. The reads (`getRecord`/`readChain`/`chainHead`) and the
+// `retired`. The reads (`getRecord`/`readChain`/`chainHead`/`listDue`) and the
 // `replay`/`verifyChain` `recordId` audit wrappers are REAL: direct Store delegation + the
-// pure `chain/replay.ts` core.
+// pure `chain/replay.ts` core. `listDue`, new at the third step-3 increment, is the
+// sweep's one read — `store.listDue(now())` under the injected clock, no append authority.
 
 import { randomBytes } from 'node:crypto';
 import { type AgentSurface, makeAgentSurface } from './agent-surface.js';

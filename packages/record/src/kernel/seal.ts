@@ -16,8 +16,9 @@
 // and can never be sealed." Against a sealed record C4 admits no edge, so that combination
 // surfaces result-first with no transitionRef.
 //
-// NO EN-PASSANT EXPIRY, deliberately. `open()` and `finalize()` both call `expireIfDue`; this
-// seam must not, and the omission is a stated rule rather than an oversight — SPEC §4:
+// NO EN-PASSANT EXPIRY, deliberately. `open()` and `finalize()` both call `resolveDueClock`
+// (`kernel/expiry.ts`); this seam must not, and the omission is a stated rule rather than an
+// oversight — SPEC §4:
 // "`seal()` never appends a clock edge en passant — a record whose bound has elapsed refuses
 // `unsealable-state`, and the operator sweeps first, then seals." In this build that also
 // falls out of gate (4): a due-but-open record is non-terminal.

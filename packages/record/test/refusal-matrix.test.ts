@@ -301,7 +301,7 @@ test('unredeemable-state: redeem() on a confirmed record -> refused/refusal, no 
 
 // === redemption-timeout (ONE production-path assertion here; registry/type-level only) ===
 
-test('redemption-timeout: registry/type presence + class only in this file — production-path coverage (the kernel producer from the clock) lands in the third step-3 increment', () => {
+test('redemption-timeout: registry/type presence + class only in this file — production-path coverage lives in clocks.test.ts (the third step-3 increment)', () => {
   // `code: RefusalCode = 'redemption-timeout'` is itself a COMPILE-TIME union-membership check
   // (this file fails to type-check if 'redemption-timeout' is ever removed from the union).
   const code: RefusalCode = 'redemption-timeout';
@@ -326,9 +326,9 @@ test('unknown-leg: registry/type presence + class only in this file — the prod
 // (redeem()'s two profile-conditional refusals, SPEC §11.2) are the twelfth and thirteenth —
 // same reasoning: their own production-path coverage is redeem.test.ts's whole gate ladder,
 // so this sanity check's total simply grows. `redemption-timeout` (the third step-3
-// increment's clock-produced refusal) is the fourteenth; its production-path coverage is
-// embedded in the second step-3 increment's redemption suite after the kernel producer lands.
-test('every REGISTRY RefusalCode is accounted for in this matrix (9 production-path-tested here + unknown-leg registry-only + unsealable-state production-path-tested in seal.test.ts + effect-mismatch and already-redeemed production-path-tested in redeem.test.ts + redemption-timeout registry-only (production path: the clock producer in the third step-3 increment) = 14)', () => {
+// increment's clock-produced refusal) is the fourteenth; its production-path coverage lives
+// in clocks.test.ts, this increment's own file, not in this matrix.
+test('every REGISTRY RefusalCode is accounted for in this matrix (9 production-path-tested here + unknown-leg registry-only + unsealable-state production-path-tested in seal.test.ts + effect-mismatch and already-redeemed production-path-tested in redeem.test.ts + redemption-timeout registry-only (production path: clocks.test.ts, third step-3 increment) = 14)', () => {
   const allCodes = Object.keys(REGISTRY) as RefusalCode[];
   assert.equal(allCodes.length, 14);
 });

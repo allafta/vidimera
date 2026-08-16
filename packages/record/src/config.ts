@@ -166,9 +166,10 @@ function validateLeg(profileId: string, leg: LegSpec): void {
  *  7. structural: `reverify` on a non-live profile — not built in this build (SPEC §9.2's
  *     live mode).
  * `redeemBound` (redeeming-window bound, SPEC §4 & §11.2) is accepted-at-construction as of
- * the third step-3 increment — the clock module now stamps the `bound` payload and `dueAt`
- * (the en-passant resolution that consumes `dueAt` at the seams lands later in the same
- * increment), so there is no longer a GOVERNED guard on it here.
+ * the third step-3 increment — the clock module now stamps the `bound` payload and `dueAt`,
+ * AND the en-passant resolution that consumes `dueAt` is built at the redemption seams'
+ * shared prologue (`kernel/redeem.ts`) and at `finalize()`/`open()`'s own clock rungs, so
+ * there is no longer a GOVERNED guard on it here.
  * The sweep is TOTAL: a profile declaring any governed feature throws — the first one
  * reached wins, but none slips through. Canonicalizer resolution + duplicate-id detection
  * are `create.ts`'s (they need the registry / the whole profile list).

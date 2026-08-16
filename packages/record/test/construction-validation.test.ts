@@ -174,8 +174,9 @@ test('redeem.redeemBound is accepted at construction — the clock that honors i
   // INVERTED, at the third step-3 increment: the second step-3 increment pinned a
   // GOVERNED throw here (its `redeeming` edges could not carry §4's declared `bound`
   // until the clock existed). The third step-3 increment lifts the guard as its own
-  // stated trigger names, landing the payload and `dueAt` here; the en-passant
-  // resolution that consumes `dueAt` at the seams follows later in the same increment.
+  // stated trigger names, landing the payload and `dueAt` here, AND the en-passant
+  // resolution that consumes `dueAt` at the seams (kernel/redeem.ts's shared prologue;
+  // finalize()'s and open()'s own clock rungs), all in the same increment.
   // Bound-value validation deliberately mirrors expiry.ttl's treatment (no novel posture).
   const declaring = {
     ...effectSeamProfile(),

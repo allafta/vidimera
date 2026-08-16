@@ -11,7 +11,8 @@
 //    it resolves the blocker's open window here, then retries its own genesis exactly once.
 //  - `finalize()`: its state/expiry gate resolves a due-open record's open window here,
 //    then reads the now-`expired` state → `leg-expired`.
-//  - Two redemption seams: resolve the confirmed and redeeming windows (later increments).
+//  - The three redemption seams' shared prologue (`kernel/redeem.ts`): resolves the
+//    confirmed and redeeming windows before each seam's own state gate runs.
 // The module decides due-ness AND performs the CAS append; the CALLER decides its own
 // verdict from the returned result. Keeping the CAS here (never an advisory pre-check)
 // means a race that flips the record's state surfaces as a non-appended result the caller

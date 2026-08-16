@@ -3,8 +3,9 @@
 // `confirmed → redeemed { via: 'direct' }`, enlisted in the host's transaction when one is
 // supplied, inside the adapter's own otherwise. The token shape (`redeeming`, tokenDigest,
 // presentation) is REAL as of the second step-3 increment — its issuance half
-// (`beginRedemption`) is covered in redeem-token.test.ts, not here; both redemption clocks
-// remain the third increment's, and nothing here constructs them either.
+// (`beginRedemption`) is covered in redeem-token.test.ts, not here. Both redemption clocks
+// are REAL as of the third step-3 increment (kernel/expiry.ts, exercised in clocks.test.ts);
+// this file's own fixtures stay clear of them, so nothing here constructs a due record.
 //
 // The ladder under test (kernel/redeem.ts):
 //   (1) chain-verify -> chain-compromise      — §5: verification first, at every
@@ -15,7 +16,9 @@
 //   (4) state gate -> already-redeemed on 'redeemed' (at-most-once, replay half);
 //       unredeemable-state on open/refused/expired (§11.2's preamble) AND on 'redeeming'
 //       (this direct ladder holds no token to consume — completeRedemption is that seam);
-//       redemption-failed remains a defensive arm with no producer until the clock increment
+//       redemption-failed has a real producer since the third step-3 increment (the clock
+//       rung in the shared prologue, kernel/redeem.ts) — a post-resolution arrival reaching
+//       this gate still refuses unredeemable-state, not dead code
 //   (5) correspondence -> effect-mismatch     — re-digest of the supplied content vs the
 //                                               bound contentDigest, same path as stage()
 //   (6) append redeemed { via: 'direct' }     — meta from the terminality derivation
