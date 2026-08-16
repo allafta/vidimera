@@ -2,7 +2,9 @@
 // `review(recordId)`). It reads the chain, folds it with the shared
 // `replay` core, and projects a `ReviewView` — metadata + `contentDigest` only, no content
 // body, consultations carried as they already are (each holds a `payloadDigest`, never a
-// raw payload). It appends NOTHING and changes no state.
+// raw payload), and the findings projection (SPEC §10.2, first step-7 increment):
+// digest-only per-finding rows with derived coverage, present iff the record has findings.
+// It appends NOTHING and changes no state.
 //
 // Nonexistent-record posture: a `recordId` that resolves to an empty chain
 // has NO fitting RefusalCode (`unknown-profile` names a profile, not a record; the
@@ -15,6 +17,7 @@ import type { KernelContext } from '../create.js';
 import type { Outcome } from '../outcome.js';
 import { ok } from '../outcome.js';
 import type { ReviewView } from '../types.js';
+import { findingCoverage } from './findings.js';
 
 export async function review(ctx: KernelContext, recordId: string): Promise<Outcome<ReviewView>> {
   const chain = await ctx.store.readChain(recordId);
@@ -39,6 +42,19 @@ export async function review(ctx: KernelContext, recordId: string): Promise<Outc
   // reason on a refused record.
   if (record.refusalCode !== undefined) {
     view.refusalCode = record.refusalCode;
+  }
+  if (record.findings !== undefined) {
+    const resolved = ctx.profiles.get(record.profileId);
+    const leg = resolved?.profile.legs.find((l) => l.id === record.legId);
+    view.findings = findingCoverage(record.findings, leg?.ackMode, leg?.requiredAcks).map(
+      ({ finding, coverage }) => ({
+        findingId: finding.findingId,
+        kind: finding.kind,
+        findingDigest: finding.findingDigest,
+        ...(finding.magnitude !== undefined ? { magnitude: finding.magnitude } : {}),
+        coverage,
+      }),
+    );
   }
   return ok(view);
 }

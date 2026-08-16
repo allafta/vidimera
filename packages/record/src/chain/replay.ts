@@ -10,9 +10,11 @@
 
 import type { RefusalCode } from '../refusal-codes.js';
 import type {
+  AcknowledgedPayload,
   Consultation,
   DecisionRecord,
   Digest,
+  FindingRaisedPayload,
   IdentityAssertion,
   RecordedPriorLegRef,
   Transition,
@@ -85,14 +87,27 @@ interface RefusedPayload {
  *    refusalCode move. The kind is handled, and its kernel producer (the clock resolution,
  *    `kernel/expiry.ts`'s `resolveDueClock`, consumed by `kernel/redeem.ts`'s shared
  *    prologue) is REAL as of the third step-3 increment.
- *  - Any other `TransitionKind` (`finding-raised`, `acknowledged`) is not yet emitted
- *    in this build — this kernel emits opened, consultation-recorded, confirmed, refused,
- *    expired, sealed, redeemed, redeeming (since the second step-3 increment's
- *    `beginRedemption`), and redemption-failed (since the third step-3 increment's clock
- *    resolution). `replay` THROWS on any other kind rather than silently ignoring it,
- *    matching the codebase's fail-closed posture (an unhandled kind reaching this fold is
- *    either a not-yet-wired future capability or chain corruption; both should be loud, not
- *    silently dropped state).
+ *  - `finding-raised` (SPEC §10.2, first step-7 increment; the Finding shape minus `at`)
+ *    upserts by `findingId`: a new id appends to `findings` in first-raise order; an
+ *    existing id is a content update, moving `findingDigest`/`magnitude`/`raiser` to the
+ *    new version's (an update without `magnitude` clears it). `kind` is immutable per
+ *    `findingId` — a re-raise changing it THROWS, the same storage/config-fault posture as
+ *    every other throw in this fold.
+ *  - `acknowledged` (SPEC §10.2, first step-7 increment; the Ack shape minus `at`) pushes a
+ *    recorded ack onto its named finding's `acks`, whether or not it will ever COUNT —
+ *    counting is `kernel/findings.ts`'s `ackCounts`, consulted at review and (from the
+ *    second step-7 increment) at finalize's coverage rung, never here (fidelity, not
+ *    validity). An ack naming an absent `findingId` THROWS.
+ *  - Any other `TransitionKind` is not yet emitted in this build — this kernel emits
+ *    opened, consultation-recorded, confirmed, refused, expired, sealed, redeemed,
+ *    redeeming (since the second step-3 increment's `beginRedemption`), and
+ *    redemption-failed (since the third step-3 increment's clock resolution).
+ *    `finding-raised`/`acknowledged` FOLD as of the first step-7 increment above, but no
+ *    seam mints either yet — their kernel producers (`raiseFinding`/`acknowledge`) land in
+ *    the second step-7 increment. `replay` THROWS on any genuinely unhandled kind rather
+ *    than silently ignoring it, matching the codebase's fail-closed posture (an unhandled
+ *    kind reaching this fold is either a not-yet-wired future capability or chain
+ *    corruption; both should be loud, not silently dropped state).
  *
  * Empty-chain choice: THROWS. Replaying a
  * record that doesn't exist (no `opened` transition to seed the required fields) is a
@@ -188,6 +203,66 @@ export function replay(chain: readonly Transition[]): DecisionRecord {
         // — "folds `refusalCode: redemption-timeout` on replay". `bound` is evidence.
         record.state = 'redemption-failed';
         record.refusalCode = 'redemption-timeout';
+        break;
+      }
+      case 'finding-raised': {
+        // SPEC §10.2 (first step-7 increment, the READ half): upsert by findingId —
+        // a new id appends in first-raise order; an existing id is a content update,
+        // moving findingDigest, magnitude (present-iff-present on the raise — an
+        // update without magnitude clears it), and raiser to the new version's. A
+        // re-raise changing `kind` cannot exist on an honest chain (the seam, landing
+        // in the second step-7 increment, throws on it) — meeting one here is a
+        // garbled or foreign chain, a storage/config fault (SPEC §8's loud-throw
+        // posture), never a fold.
+        const payload = transition.payload as FindingRaisedPayload;
+        record.findings ??= [];
+        const existing = record.findings.find((f) => f.findingId === payload.findingId);
+        if (existing === undefined) {
+          record.findings.push({
+            findingId: payload.findingId,
+            kind: payload.kind,
+            findingDigest: payload.findingDigest,
+            ...(payload.magnitude !== undefined ? { magnitude: payload.magnitude } : {}),
+            raiser: payload.raiser,
+            acks: [],
+          });
+        } else {
+          if (existing.kind !== payload.kind) {
+            throw new Error(
+              `replay: finding '${payload.findingId}' re-raised with kind '${payload.kind}' over '${existing.kind}' — ` +
+                'kind is immutable per findingId (SPEC §10.2); a garbled or foreign chain is a storage/config fault',
+            );
+          }
+          existing.findingDigest = payload.findingDigest;
+          if (payload.magnitude !== undefined) {
+            existing.magnitude = payload.magnitude;
+          } else {
+            delete existing.magnitude;
+          }
+          existing.raiser = payload.raiser;
+        }
+        break;
+      }
+      case 'acknowledged': {
+        // SPEC §10.2: an ack is recorded whether or not it will ever count — "recorded
+        // and visibly non-counting (fidelity, not validity)"; counting is
+        // kernel/findings.ts's ackCounts, consulted at review and (from the second
+        // step-7 increment) at finalize's coverage rung, never here. An ack naming an
+        // absent findingId cannot exist on an honest chain (the seam throws) — the
+        // same storage-fault posture as the kind-mutation throw above.
+        const payload = transition.payload as AcknowledgedPayload;
+        const target = record.findings?.find((f) => f.findingId === payload.findingId);
+        if (target === undefined) {
+          throw new Error(
+            `replay: acknowledgment names finding '${payload.findingId}' which the chain never raised — ` +
+              'a garbled or foreign chain is a storage/config fault (SPEC §8)',
+          );
+        }
+        target.acks.push({
+          findingDigest: payload.findingDigest,
+          ...(payload.magnitude !== undefined ? { magnitude: payload.magnitude } : {}),
+          acker: payload.acker,
+        });
         break;
       }
       default: {

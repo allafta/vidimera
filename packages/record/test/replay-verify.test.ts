@@ -10,7 +10,7 @@ import { test } from 'vitest';
 import { digest } from '../src/canonical.js';
 import { genesisPrevHash, transitionDigest } from '../src/chain/encoding.js';
 import { replay, verifyChain } from '../src/chain/replay.js';
-import type { Consultation, IdentityAssertion, Transition } from '../src/types.js';
+import type { Consultation, IdentityAssertion, Transition, TransitionKind } from '../src/types.js';
 import { buildChain, cloneChain, storeGenesis, storeNext } from './helpers/chain.js';
 
 // --- fixtures ----------------------------------------------------------------------
@@ -195,12 +195,20 @@ test('replay reports status active on a record that has never been sealed', () =
   assert.equal(replay(chain).status, 'active');
 });
 
-test('replay(): throws on a TransitionKind the kernel in this build never emits (e.g. "finding-raised")', () => {
+test('replay(): throws on a TransitionKind this build genuinely does not recognize', () => {
+  // `finding-raised`/`acknowledged` used to stand in here for "not yet emitted" — as of
+  // the first step-7 increment both FOLD (chain/replay.ts's own two arms), so this fixture
+  // moves to a kind outside the `TransitionKind` union entirely (double-cast, matching
+  // `chain/replay.ts`'s `default` arm's own genuinely-unhandled-kind posture) to keep
+  // testing the thing this test was always actually pinning: the fail-closed default arm.
   const chain = buildChain(RECORD_ID, [
     { kind: 'opened', payload: OPENED_PAYLOAD },
-    { kind: 'finding-raised', payload: { note: 'not a kind this build emits' } },
+    {
+      kind: 'not-a-real-kind' as unknown as TransitionKind,
+      payload: { note: 'not a kind this build recognizes at all' },
+    },
   ]);
-  assert.throws(() => replay(chain), /finding-raised/);
+  assert.throws(() => replay(chain), /unhandled TransitionKind/);
 });
 
 test('replay: a redeeming transition folds state to "redeeming" — tokenDigest is evidence, not state', () => {

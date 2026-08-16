@@ -34,6 +34,67 @@ export interface Consultation {
   proofRef?: string;
 }
 
+/**
+ * A raised finding's payload (SPEC §2's Finding auxiliary structure, §10.2):
+ * `{ findingId, kind, findingDigest, magnitude?, raiser, at }` minus `at` — the enclosing
+ * `Transition.at` already carries recording time, the same convention every payload shape
+ * in this build follows (`confirmed`'s `{actor}`, `refused`'s `{code}`). The seam that
+ * mints this shape, `raiseFinding`, lands in the second step-7 increment — the first
+ * landed only the READ half: the fold (`chain/replay.ts`), the counting predicate and the
+ * coverage derivation (`kernel/findings.ts`), and the review projection.
+ */
+export interface FindingRaisedPayload {
+  findingId: string;
+  kind: string;
+  findingDigest: Digest;
+  magnitude?: string;
+  raiser: IdentityAssertion;
+}
+
+/**
+ * An acknowledgment's payload (SPEC §2's Ack auxiliary structure, §10.2):
+ * `{ findingId, findingDigest, magnitude?, actor, at }` minus `at`, same convention as
+ * `FindingRaisedPayload` above. The identity field is named `acker` here, not the SPEC
+ * table's `actor` — `DecisionRecord.actor` already names the deciding human (this file's
+ * own record-model field), and reusing that label for the acknowledging identity would
+ * read as the same field twice under one name. The seam that mints this shape,
+ * `acknowledge`, lands in the second step-7 increment, alongside `raiseFinding`.
+ */
+export interface AcknowledgedPayload {
+  findingId: string;
+  findingDigest: Digest;
+  magnitude?: string;
+  acker: IdentityAssertion;
+}
+
+/**
+ * A recorded acknowledgment, folded onto its finding (SPEC §10.2): the digest/magnitude it
+ * names plus the identity that gave it. Recorded whether or not it counts — counting is
+ * `kernel/findings.ts`'s `ackCounts`'s job, never this fold's (fidelity, not validity).
+ */
+export interface RecordedAck {
+  findingDigest: Digest;
+  magnitude?: string;
+  acker: IdentityAssertion;
+}
+
+/**
+ * A raised finding folded to its CURRENT version (SPEC §10.2): a re-raise moves
+ * `findingDigest`/`magnitude`/`raiser` in place, keyed by `findingId`, first-raise order
+ * preserved — `kind` is immutable per `findingId` (a re-raise changing it is a fold-time
+ * throw, `chain/replay.ts`). `acks` accumulates every acknowledgment this finding has ever
+ * received, in chain order, including ones the current version no longer matches —
+ * `kernel/findings.ts`'s `ackCounts` decides which ones count; this fold never filters.
+ */
+export interface RecordedFinding {
+  findingId: string;
+  kind: string;
+  findingDigest: Digest;
+  magnitude?: string;
+  raiser: IdentityAssertion;
+  acks: RecordedAck[];
+}
+
 export type RecordState =
   | 'open'
   | 'confirmed'
@@ -86,6 +147,15 @@ export interface DecisionRecord {
   priorRecordRefs?: RecordedPriorLegRef[];
   priorLegActors?: IdentityAssertion[];
   actor?: IdentityAssertion;
+  /**
+   * SPEC §10.2's findings-flow evidence: present iff the chain carries at least one
+   * `finding-raised` transition — a non-declaring profile's chain never acquires one, so
+   * this field is genuinely absent (not present-but-empty) on it, matching SPEC §10.2's
+   * own "its chains are byte-identical to a pre-findings implementation" guarantee.
+   * `chain/replay.ts` folds it; no seam mints the transitions that populate it until the
+   * second step-7 increment.
+   */
+  findings?: RecordedFinding[];
   consultations: Consultation[];
   state: RecordState;
   /**
@@ -117,6 +187,18 @@ export interface ReviewView {
   // chain/replay.ts's `refused` fold). Absent (not present-but-undefined) on open/confirmed
   // records: an audit surface that hid the refusal reason on a refused record would be
   // under-informative.
+  /** SPEC §9's findings projection (§10.2), digest-only with per-finding coverage —
+   * present iff the record has findings. Coverage is derived under THIS instance's
+   * resolved leg; an unresolvable profile/leg classifies conservatively as
+   * `not-required` (review is a pure read that never fails on config drift — the gate
+   * at finalize is where an unconfigured profile refuses). */
+  findings?: {
+    findingId: string;
+    kind: string;
+    findingDigest: Digest;
+    magnitude?: string;
+    coverage: 'covered' | 'ack-missing' | 'ack-stale' | 'not-required';
+  }[];
 }
 
 /**
