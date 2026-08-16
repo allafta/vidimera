@@ -13,6 +13,18 @@ export interface IdentityAssertion {
 }
 // authority RECOMMENDED: "oidc:<issuer>" | "session:<app>" | "mtls:<service>" | "dev-stub"
 
+/**
+ * A prior leg's reference, in its recorded three-field form (SPEC §10.1: "the record's
+ * `opened` snapshot carries the verified references in their recorded three-field form
+ * `{ recordId, chainHead, legId }`"): the host supplies `recordId`/`chainHead` at
+ * `open()`, and the library adds the `legId` it verified the reference sits at.
+ */
+export interface RecordedPriorLegRef {
+  recordId: string;
+  chainHead: Digest;
+  legId: string; // library-added while verifying against the profile's leg order
+}
+
 export interface Consultation {
   kind: string;
   checker: IdentityAssertion;
@@ -65,6 +77,14 @@ export interface DecisionRecord {
   subjectRef: string;
   contentDigest: Digest;
   policyDigest?: Digest;
+  /**
+   * Multi-leg successor evidence (SPEC §4/§10.1): present together or not at all — a
+   * first leg and every single-leg record omit both. `priorRecordRefs` is the recorded
+   * three-field form of the host-supplied references this leg's `open()` verified;
+   * `priorLegActors` is library-derived from the replayed prior legs, never host-supplied.
+   */
+  priorRecordRefs?: RecordedPriorLegRef[];
+  priorLegActors?: IdentityAssertion[];
   actor?: IdentityAssertion;
   consultations: Consultation[];
   state: RecordState;

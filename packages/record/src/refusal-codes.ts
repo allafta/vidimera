@@ -20,7 +20,12 @@ export type RefusalCode =
   // all three redemption seams (the third step-3 increment)
   | 'effect-mismatch'
   | 'already-redeemed'
-  | 'redemption-timeout';
+  | 'redemption-timeout'
+  // the fifteenth code (the first step-4 increment): SPEC §8's conditional table names it
+  // "a pre-record `open()`-seam sequencing refusal that never appends" — producer worded
+  // two-touch, same as `redemption-timeout` above: the verifier (`kernel/prior-legs.ts`)
+  // consumed by `open()`'s sequencing rung, landing later in the first step-4 increment
+  | 'prior-leg-unverified';
 // class map: chain-compromise → 'compromise'; all others → 'refusal'
 // record-not-open: class 'refusal', terminal-record category — finalize() against a non-open, intact-chain
 //   record (double-finalize; an effect-seam confirmed record awaiting redemption; a refused record). NEVER
@@ -69,6 +74,7 @@ export const REGISTRY: Record<RefusalCode, RefusalClass> = {
   'effect-mismatch': 'refusal',
   'already-redeemed': 'refusal',
   'redemption-timeout': 'refusal',
+  'prior-leg-unverified': 'refusal',
 };
 
 /**
@@ -93,7 +99,11 @@ export interface AppendDecisionLeg {
  * (`kernel/expiry.ts`'s `resolveDueClock` consumed in `kernel/redeem.ts`'s shared
  * prologue), real as of the third step-3 increment, and its edge is the
  * `redemption-failed` KIND (SPEC §4's table), never a `refused` transition — SPEC §8
- * lists it in the never-appends set.
+ * lists it in the never-appends set; `prior-leg-unverified` never appends too —
+ * pre-record, same reason as `record-exists`/`unknown-profile`/`unknown-leg` above: no
+ * record exists to carry an edge. Its producer, the verifier (`kernel/prior-legs.ts`)
+ * consumed by `open()`'s sequencing rung, lands later in the first step-4 increment; the
+ * verifier itself lands here, unconsumed.
  */
 const NEVER_APPENDS: ReadonlySet<RefusalCode> = new Set<RefusalCode>([
   'record-exists',
@@ -105,6 +115,7 @@ const NEVER_APPENDS: ReadonlySet<RefusalCode> = new Set<RefusalCode>([
   'effect-mismatch',
   'already-redeemed',
   'redemption-timeout',
+  'prior-leg-unverified',
 ]);
 
 /**

@@ -14,6 +14,7 @@ import type {
   DecisionRecord,
   Digest,
   IdentityAssertion,
+  RecordedPriorLegRef,
   Transition,
 } from '../types.js';
 import { genesisPrevHash, transitionDigest } from './encoding.js';
@@ -32,6 +33,8 @@ interface OpenedPayload {
   subjectRef: string;
   contentDigest: Digest;
   policyDigest?: Digest;
+  priorRecordRefs?: RecordedPriorLegRef[];
+  priorLegActors?: IdentityAssertion[];
 }
 interface ConfirmedPayload {
   actor: IdentityAssertion;
@@ -119,6 +122,13 @@ export function replay(chain: readonly Transition[]): DecisionRecord {
   };
   if (opened.policyDigest !== undefined) {
     record.policyDigest = opened.policyDigest;
+  }
+  if (opened.priorRecordRefs !== undefined && opened.priorLegActors !== undefined) {
+    // SPEC §4: multi-leg successor evidence, present together or not at all; §10.1's
+    // "The reference, not the copy, is the evidence" — replay surfaces what the genesis
+    // recorded, it never re-verifies the referenced chains (that was open()'s job).
+    record.priorRecordRefs = opened.priorRecordRefs;
+    record.priorLegActors = opened.priorLegActors;
   }
 
   for (const transition of rest) {
