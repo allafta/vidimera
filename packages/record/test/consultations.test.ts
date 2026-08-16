@@ -224,7 +224,7 @@ test('the attach happy path: obtained consultations record in order, library-sta
   assert.ok(view.value.consultations.some((c) => c.kind === 'llm-judge'));
 });
 
-test('an unreachable marker is inert this increment: validated, recorded nowhere, and finalize confirms', async () => {
+test('an unreachable marker is inert in the first step-5 increment: validated, recorded nowhere, and finalize confirms', async () => {
   // SPEC §11.1: "an unreachable marker for a non-required kind is inert" — and no kind
   // can be required while requiredConsultations stays GOVERNED. The second step-5
   // increment's gate is the marker's consumer.

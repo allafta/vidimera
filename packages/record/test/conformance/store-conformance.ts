@@ -17,7 +17,7 @@ import { transitionDigest } from '../../src/chain/encoding.js';
 import type { Store } from '../../src/store/store.js';
 import type { Transition } from '../../src/types.js';
 import { storeGenesis, storeNext } from '../helpers/chain.js';
-import { APPROVER, openRecord, successBatch } from '../helpers/store-fixtures.js';
+import { APPROVER, fiveElementBatch, openRecord, successBatch } from '../helpers/store-fixtures.js';
 
 /**
  * Registers the conformance suite for one backing. `makeStore` must return a FRESH, empty
@@ -622,6 +622,43 @@ export function runStoreConformance(label: string, makeStore: () => Store): void
         chain.map((t) => t.seq),
         [1, 2, 3, 4],
         'seqs are contiguous from max+1',
+      );
+    });
+
+    test("appendBatch: a five-element batch (finalize's obtained-consultations shape, first step-5 increment) lands whole, entry-CAS-checked once, and readChain returns all five in order", async () => {
+      // successBatch's three shapes (chain-verify, facts, confirmed) plus two more
+      // consultation-recorded entries between facts and confirmed — SPEC §9's
+      // `[chain-verify, facts, …obtained consultations, confirmed]`. Nothing in this
+      // suite exercised appendBatch above arity 3 before this case.
+      const store = makeStore();
+      const genesis = await openRecord(store);
+      const batch = fiveElementBatch(genesis);
+
+      const res = await store.appendBatch('open', batch, { nonTerminal: false });
+      assert.equal(res.appended, true, 'the five-element batch must land as one atomic unit');
+      if (!res.appended) return;
+      assert.deepEqual(
+        res.transitionDigests,
+        batch.map((t) => transitionDigest(t)),
+        "the store returns each element's own digest, in order — all five",
+      );
+
+      const chain = await store.readChain(genesis.recordId);
+      assert.deepEqual(
+        chain.map((t) => t.kind),
+        [
+          'opened',
+          'consultation-recorded',
+          'consultation-recorded',
+          'consultation-recorded',
+          'consultation-recorded',
+          'confirmed',
+        ],
+      );
+      assert.deepEqual(
+        chain.map((t) => t.seq),
+        [1, 2, 3, 4, 5, 6],
+        'seqs are contiguous from max+1 across every batch element — the entry CAS checks once, not per element',
       );
     });
 

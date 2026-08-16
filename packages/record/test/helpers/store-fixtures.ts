@@ -46,3 +46,38 @@ export function successBatch(genesis: Transition): Transition[] {
   const confirmed = storeNext(facts, 'confirmed', { actor: APPROVER });
   return [cv, facts, confirmed];
 }
+
+/**
+ * The five-element shape finalize's rung (6) mints when the host supplies two obtained
+ * consultations (SPEC §9's `[chain-verify, facts, …obtained consultations, confirmed]`,
+ * first step-5 increment): `successBatch`'s `cv`/`facts` shapes, then two MORE
+ * `consultation-recorded` entries chained in between facts and `confirmed` — `confirmed`
+ * itself is re-chained after them (seq/prevHash shift), matching how finalize.ts's rung
+ * (6) shifts `confirmedTransition` when consultations are supplied. Exercises the
+ * conformance suite's `appendBatch` coverage at an arity `successBatch` alone (3) never
+ * reached.
+ */
+export function fiveElementBatch(genesis: Transition): Transition[] {
+  const [cv, facts] = successBatch(genesis);
+  if (cv === undefined || facts === undefined) {
+    throw new Error(
+      'fiveElementBatch: fixture invariant broke — successBatch yields at least two elements',
+    );
+  }
+  const riskCheck = storeNext(facts, 'consultation-recorded', {
+    kind: 'risk-check',
+    checker: APPROVER,
+    at: '2026-07-24T01:00:00.000Z',
+    payloadDigest: `sha256:${'3'.repeat(64)}`,
+    verdict: 'pass',
+  });
+  const llmJudge = storeNext(riskCheck, 'consultation-recorded', {
+    kind: 'llm-judge',
+    checker: APPROVER,
+    at: '2026-07-24T01:00:00.000Z',
+    payloadDigest: `sha256:${'4'.repeat(64)}`,
+    verdict: 'pass',
+  });
+  const confirmed = storeNext(llmJudge, 'confirmed', { actor: APPROVER });
+  return [cv, facts, riskCheck, llmJudge, confirmed];
+}
