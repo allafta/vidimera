@@ -518,7 +518,7 @@ test('completeRedemption: a garbled persisted tokenDigest THROWS naming the stor
   );
 });
 
-// === safe to ship, not yet safe to operate: the strand set ============================
+// === the no-redeemBound strand set: the risk a host accepts by declining §9.1's SHOULD ===
 
 test('a begun record with a lost token has NO exit in this build except completion with the token — a host that declines the redeemBound SHOULD', async () => {
   // REWORKED at the third step-3 increment: this pinned across the whole effect-seam

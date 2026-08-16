@@ -138,16 +138,17 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   inversions have been authorized so far, both during the step-1 remediation, each argued
   in place at `packages/record/test/terminality.test.ts` and recorded in the exit record.
 - Feature guards from day one — an unimplemented capability throws at construction
-  (`config.ts` `validateProfile`; eleven governed profile fields throw there). `redeem`
+  (`config.ts` `validateProfile`; ten governed profile fields throw there). `redeem`
   was originally the eleventh governed capability, throwing at the call seam instead
   (`kernel/redeem.ts`) rather than at construction; the first step-3 increment landed
   SPEC §11.2's direct shape, and the second landed the token shape —
   `beginRedemption`/`completeRedemption`, two NEW operator calls with no throwing-stub
   history to lift, unlike `redeem`'s own — so that throw is gone from every confirmed or
   redeeming effect-seam record. **Nothing at the redemption seams remains governed as of
-  the third step-3 increment**: `redeemBound`'s own construction guard (`config.ts`, added
-  among the eleven fields above at the second step-3 increment) lifted WITH its clock —
-  `kernel/expiry.ts`'s `resolveDueClock` now honors SPEC §4's present-iff-declared `bound`
+  the third step-3 increment**: `redeemBound`'s own construction guard (`config.ts`) —
+  added at the second step-3 increment, briefly bringing the construction-guarded count to
+  eleven — lifted WITH its clock at the third, back down to today's ten. `kernel/expiry.ts`'s
+  `resolveDueClock` now honors SPEC §4's present-iff-declared `bound`
   byte, the guard's own stated trigger, so a declaring profile constructs cleanly;
   `confirmToRedeem` was accepted-but-inert from the second increment and is now genuinely
   acted on by the same clock; and `redemption-timeout` has a real producer, the clock
