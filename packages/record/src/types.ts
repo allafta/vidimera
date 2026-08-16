@@ -54,11 +54,14 @@ export interface FindingRaisedPayload {
 /**
  * An acknowledgment's payload (SPEC §2's Ack auxiliary structure, §10.2):
  * `{ findingId, findingDigest, magnitude?, actor, at }` minus `at`, same convention as
- * `FindingRaisedPayload` above. The identity field is named `acker` here, not the SPEC
- * table's `actor` — `DecisionRecord.actor` already names the deciding human (this file's
- * own record-model field), and reusing that label for the acknowledging identity would
- * read as the same field twice under one name. The seam that mints this shape,
- * `acknowledge`, lands in the second step-7 increment, alongside `raiseFinding`.
+ * `FindingRaisedPayload` above. SPEC §2's own field name for the acknowledging identity is
+ * `actor`; this build names it `acker` instead — `DecisionRecord.actor` already names the
+ * deciding human (this file's own record-model field), and reusing that label for the
+ * acknowledging identity would read as the same field twice under one name. That is a
+ * divergence from SPEC §2's Ack structure, recorded rather than reconciled: it is tracked
+ * in `docs/process/implementation-status.md`, entered by the record task of the first
+ * step-7 increment. The seam that mints this shape, `acknowledge`, lands in the second
+ * step-7 increment, alongside `raiseFinding`.
  */
 export interface AcknowledgedPayload {
   findingId: string;
