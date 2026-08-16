@@ -100,22 +100,6 @@ function assertNoStrayRedemptionKeys(profileId: string, where: string, obj: obje
 
 /** Per-leg GOVERNED guards: every not-yet-enforceable leg control throws. */
 function validateLeg(profileId: string, leg: LegSpec): void {
-  // proposer gets its OWN throw: it is a per-leg SoD control that a
-  // single-leg profile would otherwise slip past the `legs.length>1` multi-leg guard.
-  if (leg.sod !== undefined)
-    throw new Error(
-      governedUnavailable(
-        'sod',
-        'per-leg separation-of-duties (`notActorOf`) is not enforced in this build. Contract: §10.1.',
-      ),
-    );
-  if (leg.proposer !== undefined)
-    throw new Error(
-      governedUnavailable(
-        'proposer',
-        'the per-leg proposer / separation-of-duties pin is not enforced in this build. Contract: §10.1.',
-      ),
-    );
   if (leg.ackMode !== undefined)
     throw new Error(
       governedUnavailable(
@@ -156,13 +140,61 @@ function validateLeg(profileId: string, leg: LegSpec): void {
 }
 
 /**
+ * Structural SoD shape validation (SPEC §10.1; second step-4 increment). Fail-closed by
+ * ruling: no declarable-but-inert configuration exists —
+ *  - `sod.notActorOf` must be non-empty, pairwise distinct, and each entry must name a
+ *    STRICTLY-EARLIER leg of this profile (an empty array, a later leg, the leg's own
+ *    id, or an unknown id could never match the record's recorded references at the
+ *    gate and would be silently inert — the fail-open trap). Consequence: a first leg
+ *    cannot declare `sod`.
+ *  - `proposer` requires a multi-leg profile: SPEC §10.1 opens "Applies when the
+ *    profile declares more than one leg." and the applicability sentence scopes the
+ *    whole feature — the conservative reading, loosenable later without a break.
+ */
+function validateSodShape(profile: ConfirmProfile, index: number, leg: LegSpec): void {
+  if (leg.sod !== undefined) {
+    const entries = leg.sod.notActorOf;
+    if (entries.length === 0) {
+      throw new Error(
+        `invalid profile '${profile.id}': leg '${leg.id}' declares sod.notActorOf as an empty array — ` +
+          'the control must name at least one leg (non-empty by the fail-closed ruling)',
+      );
+    }
+    const seen = new Set<string>();
+    for (const entry of entries) {
+      if (seen.has(entry)) {
+        throw new Error(
+          `invalid profile '${profile.id}': leg '${leg.id}' names '${entry}' twice in sod.notActorOf — ` +
+            'entries must be pairwise distinct (duplicate)',
+        );
+      }
+      seen.add(entry);
+      const earlierIndex = profile.legs.slice(0, index).findIndex((l) => l.id === entry);
+      if (earlierIndex === -1) {
+        throw new Error(
+          `invalid profile '${profile.id}': leg '${leg.id}' names '${entry}' in sod.notActorOf, ` +
+            'which is not a strictly-earlier leg of this profile — only prior legs have recorded ' +
+            'evidence for the gate to key (SPEC §10.1)',
+        );
+      }
+    }
+  }
+  if (leg.proposer !== undefined && profile.legs.length === 1) {
+    throw new Error(
+      `invalid profile '${profile.id}': leg '${leg.id}' declares proposer on a single-leg profile — ` +
+        'SPEC §10.1 applies when the profile declares more than one leg',
+    );
+  }
+}
+
+/**
  * Fail-CLOSED structural validation of a single profile. Order:
  *  1. structural: at least one leg (internal legId derivation must be well-defined);
  *  2. structural: unique leg ids (SPEC §10.1 keys recorded evidence by legId);
  *  3. GOVERNED `captureMode:'live'` (live capture, SPEC §9.2) — checked BEFORE the reverify
  *     guard so a live profile throws GOVERNED(captureMode), never the reverify refusal;
  *  4. GOVERNED `policySource` (policy drift, SPEC §10.3);
- *  5. per-leg GOVERNED guards + stray-redemption-key check;
+ *  5. per-leg GOVERNED guards + structural SoD shape + stray-redemption-key check;
  *  6. structural: stray redemption key on the profile itself;
  *  7. structural: `reverify` on a non-live profile — not built in this build (SPEC §9.2's
  *     live mode).
@@ -170,8 +202,11 @@ function validateLeg(profileId: string, leg: LegSpec): void {
  * construction as of the first step-4 increment: `kernel/open.ts`'s sequencing rung
  * verifies every prior-leg reference by replay before a successor's record is created, in
  * the same commit as this lift, so the guard's stated trigger has fired for the ordering
- * half. Per-leg `sod`/`proposer` (`validateLeg`, below) remain GOVERNED until the second
- * step-4 increment builds the gate that reads the recorded evidence.
+ * half. Per-leg `sod`/`proposer` (`validateLeg`, below) are REAL as of the second step-4
+ * increment: the gate that reads the recorded evidence lands at finalize's rung 3.5 in the
+ * same commit as this lift, so the GOVERNED throws are gone — `validateSodShape` (above)
+ * replaces them with this build's fail-closed structural posture (the spec is silent on
+ * all three of its rules; none is a divergence, each a permitted tightening).
  * `redeemBound` (redeeming-window bound, SPEC §4 & §11.2) is accepted-at-construction as of
  * the third step-3 increment — the clock module now stamps the `bound` payload and `dueAt`,
  * AND the en-passant resolution that consumes `dueAt` is built at the redemption seams'
@@ -212,8 +247,9 @@ export function validateProfile(profile: ConfirmProfile): void {
       ),
     );
   }
-  for (const leg of profile.legs) {
+  for (const [index, leg] of profile.legs.entries()) {
     validateLeg(profile.id, leg);
+    validateSodShape(profile, index, leg);
   }
   assertNoStrayRedemptionKeys(profile.id, 'top-level profile', profile);
   // `reverify` on a non-live profile is refused — not built in this build (SPEC §9.2's

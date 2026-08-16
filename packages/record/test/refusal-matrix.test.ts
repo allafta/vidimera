@@ -331,10 +331,11 @@ test('unknown-leg: registry/type presence + class only in this file — the prod
 // `sod-violation` (separation-of-duties refusal, SPEC §8's conditional table) is
 // `terminalRefusals`-able: appends `open→refused` iff listed in the leg's
 // `terminalRefusals`, default open (§10.1: a DIFFERENT approver may decide). Its producer
-// is the finalize rung (landing later in the second step-4 increment), so this file
-// carries a registry-only assertion; production-path coverage lives in its own seam's suite.
+// is finalize's rung 3.5 (kernel/finalize.ts), real as of the second step-4 increment, so
+// this file carries a registry-only assertion; production-path coverage lives in
+// multi-leg.test.ts, the second step-4 increment's own file.
 
-test('sod-violation: registry/type presence + class only in this file — production-path coverage arrives with the gate itself, landing later in the second step-4 increment', () => {
+test("sod-violation: registry/type presence + class only in this file — its producer is finalize's rung 3.5; production-path coverage lives in multi-leg.test.ts (the second step-4 increment)", () => {
   // `code: RefusalCode = 'sod-violation'` is itself a COMPILE-TIME union-membership check
   // (this file fails to type-check if 'sod-violation' is ever removed from the union).
   const code: RefusalCode = 'sod-violation';
@@ -355,7 +356,11 @@ test('sod-violation: registry/type presence + class only in this file — produc
 // fifteenth; its verifier (kernel/prior-legs.ts) is consumed by open()'s sequencing rung,
 // real as of the first step-4 increment; its production-path coverage lives in
 // multi-leg.test.ts, the first step-4 increment's own file, not in this matrix.
-test('every REGISTRY RefusalCode is accounted for in this matrix (9 production-path-tested here + unknown-leg registry-only + unsealable-state production-path-tested in seal.test.ts + effect-mismatch and already-redeemed production-path-tested in redeem.test.ts + redemption-timeout registry-only (production path: clocks.test.ts, third step-3 increment) + prior-leg-unverified registry-only (production path: multi-leg.test.ts, first step-4 increment) + sod-violation registry-only (production path: landing later in the second step-4 increment) = 16)', () => {
+// `sod-violation` (the second step-4 increment's gate refusal) is the sixteenth; its
+// producer is finalize's rung 3.5, real as of the second step-4 increment; its
+// production-path coverage lives in multi-leg.test.ts, the second step-4 increment's own
+// file, not in this matrix.
+test('every REGISTRY RefusalCode is accounted for in this matrix (9 production-path-tested here + unknown-leg registry-only + unsealable-state production-path-tested in seal.test.ts + effect-mismatch and already-redeemed production-path-tested in redeem.test.ts + redemption-timeout registry-only (production path: clocks.test.ts, third step-3 increment) + prior-leg-unverified registry-only (production path: multi-leg.test.ts, first step-4 increment) + sod-violation registry-only (production path: multi-leg.test.ts, second step-4 increment) = 16)', () => {
   const allCodes = Object.keys(REGISTRY) as RefusalCode[];
   assert.equal(allCodes.length, 16);
 });

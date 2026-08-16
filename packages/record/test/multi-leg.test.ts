@@ -1,7 +1,8 @@
 // @vidimera/record — multi-leg.test.ts (SPEC §10.1 "Maker-checker / separation of
-// duties", the sequencing-and-references half; §4's opened snapshot): the first step-4
-// increment's file. This file owns the verifier pins, the sequencing-rung pins, and the
-// interplay pins; the SoD gate's pins are the second step-4 increment's.
+// duties", both halves; §4's opened snapshot): the first step-4 increment's file, joined
+// by the second. This file owns the verifier pins, the sequencing-rung pins, the
+// interplay pins (first step-4 increment), and the SoD gate's pins at finalize's rung 3.5
+// (second step-4 increment) — both halves of §10.1 now.
 
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
@@ -9,7 +10,7 @@ import { test } from 'vitest';
 import type { AgentSurface } from '../src/agent-surface.js';
 import { transitionDigest } from '../src/chain/encoding.js';
 import { replay } from '../src/chain/replay.js';
-import type { ConfirmProfile } from '../src/config.js';
+import type { ConfirmProfile, LegSpec } from '../src/config.js';
 import type { ResolvedProfile } from '../src/create.js';
 import { create, createWithClock } from '../src/create.js';
 import { verifyPriorLegs } from '../src/kernel/prior-legs.js';
@@ -763,4 +764,249 @@ test('single-leg chains stay byte-shaped: the opened payload key set gains nothi
     'profileId',
     'subjectRef',
   ]);
+});
+
+// === the SoD gate: finalize's rung 3.5 (second step-4 increment) ===
+
+/** twoLegProfile with the checker leg extended (sod / proposer / terminalRefusals). */
+function gatedTwoLeg(checkerExtra: Partial<LegSpec>, id = 'test.twoleg.v1'): ConfirmProfile {
+  const p = twoLegProfile({ id });
+  const checker = p.legs[1];
+  if (checker === undefined) throw new Error('fixture: twoLegProfile has two legs');
+  p.legs[1] = { ...checker, ...checkerExtra };
+  return p;
+}
+
+test("sod.notActorOf: the maker's actor may not decide the checker leg; a different principal may", async () => {
+  const store = new MemoryStore();
+  const handles = create(
+    makeConfig([gatedTwoLeg({ sod: { notActorOf: ['maker-decide'] } })], { store }),
+  );
+  const { makerId, makerHead } = await makerConcluded(handles, store);
+  const staged = await handles.agent.stage(CONTENT, 'test.twoleg.v1', SUBJECT, 'checker-decide');
+  assert.equal(staged.status, 'ok');
+  if (staged.status !== 'ok') return;
+  const opened = await handles.operator.open(staged.value.stagedRef, {
+    priorRecordRefs: [{ recordId: makerId, chainHead: makerHead }],
+  });
+  assert.equal(opened.status, 'ok');
+  if (opened.status !== 'ok') return;
+  const checkerId = opened.value.recordId;
+  const before = (await store.readChain(checkerId)).length;
+
+  // makerConcluded finalized the maker leg with identity() — principal 'approver:1'.
+  const blocked = await handles.operator.finalize(checkerId, identity(), CONTENT, facts());
+  assert.equal(blocked.status, 'refused');
+  if (blocked.status !== 'refused') return;
+  assert.equal(blocked.code, 'sod-violation');
+  assert.equal(blocked.transitionRef, undefined, 'default path: no appended edge');
+  assert.equal((await store.readChain(checkerId)).length, before, 'the record stays open');
+
+  // The default-open recovery: a DIFFERENT principal decides — §10.1's "so a different
+  // approver may decide it".
+  const done = await handles.operator.finalize(
+    checkerId,
+    identity({ principal: 'approver:2' }),
+    CONTENT,
+    facts(),
+  );
+  assert.equal(done.status, 'ok');
+});
+
+test('comparison is by principal alone: the same principal under a second ALLOWED authority still refuses', async () => {
+  const store = new MemoryStore();
+  const handles = create(
+    makeConfig(
+      [
+        gatedTwoLeg({
+          sod: { notActorOf: ['maker-decide'] },
+          allowedAuthorities: ['session:test-app', 'mtls:second'],
+        }),
+      ],
+      { store },
+    ),
+  );
+  const { makerId, makerHead } = await makerConcluded(handles, store);
+  const staged = await handles.agent.stage(CONTENT, 'test.twoleg.v1', SUBJECT, 'checker-decide');
+  assert.equal(staged.status, 'ok');
+  if (staged.status !== 'ok') return;
+  const opened = await handles.operator.open(staged.value.stagedRef, {
+    priorRecordRefs: [{ recordId: makerId, chainHead: makerHead }],
+  });
+  assert.equal(opened.status, 'ok');
+  if (opened.status !== 'ok') return;
+
+  // Same principal as the maker's actor, re-authenticated under mtls: — the fail-closed
+  // direction (SPEC §10.1: pair-equality would let one human re-authenticate and pass).
+  const blocked = await handles.operator.finalize(
+    opened.value.recordId,
+    identity({ authority: 'mtls:second' }),
+    CONTENT,
+    facts(),
+  );
+  assert.equal(blocked.status, 'refused');
+  if (blocked.status !== 'refused') return;
+  assert.equal(blocked.code, 'sod-violation');
+});
+
+test('terminalRefusals may make sod-violation terminal: the refused edge appends with payload { code }', async () => {
+  const store = new MemoryStore();
+  const handles = create(
+    makeConfig(
+      [gatedTwoLeg({ sod: { notActorOf: ['maker-decide'] }, terminalRefusals: ['sod-violation'] })],
+      { store },
+    ),
+  );
+  const { makerId, makerHead } = await makerConcluded(handles, store);
+  const staged = await handles.agent.stage(CONTENT, 'test.twoleg.v1', SUBJECT, 'checker-decide');
+  assert.equal(staged.status, 'ok');
+  if (staged.status !== 'ok') return;
+  const opened = await handles.operator.open(staged.value.stagedRef, {
+    priorRecordRefs: [{ recordId: makerId, chainHead: makerHead }],
+  });
+  assert.equal(opened.status, 'ok');
+  if (opened.status !== 'ok') return;
+
+  const blocked = await handles.operator.finalize(
+    opened.value.recordId,
+    identity(),
+    CONTENT,
+    facts(),
+  );
+  assert.equal(blocked.status, 'refused');
+  if (blocked.status !== 'refused') return;
+  assert.equal(blocked.code, 'sod-violation');
+  assert.ok(blocked.transitionRef !== undefined, 'terminal path: the refused edge appended');
+
+  const chain = await store.readChain(opened.value.recordId);
+  const last = chain.at(-1);
+  assert.ok(last !== undefined);
+  assert.equal(last.kind, 'refused');
+  assert.deepEqual(Object.keys(last.payload as object), ['code']);
+  assert.equal((last.payload as { code: string }).code, 'sod-violation');
+  assert.equal(
+    await store.findNonTerminal('test.twoleg.v1', SUBJECT),
+    null,
+    'terminal — the pair releases',
+  );
+});
+
+test('proposer: the designated proposer may not decide their own leg; a colleague may', async () => {
+  const store = new MemoryStore();
+  const p = twoLegProfile({ id: 'test.twoleg.prop.v1' });
+  const maker = p.legs[0];
+  if (maker === undefined) throw new Error('fixture: twoLegProfile has two legs');
+  p.legs[0] = { ...maker, proposer: 'approver:1' };
+  const handles = create(makeConfig([p], { store }));
+
+  const makerId = await openRecord(
+    handles,
+    CONTENT,
+    'test.twoleg.prop.v1',
+    SUBJECT,
+    'maker-decide',
+  );
+  const blocked = await handles.operator.finalize(makerId, identity(), CONTENT, facts());
+  assert.equal(blocked.status, 'refused');
+  if (blocked.status !== 'refused') return;
+  assert.equal(blocked.code, 'sod-violation');
+
+  const done = await handles.operator.finalize(
+    makerId,
+    identity({ principal: 'approver:2' }),
+    CONTENT,
+    facts(),
+  );
+  assert.equal(done.status, 'ok');
+});
+
+test('the lookup miss refuses: a profile drifted between open() and finalize() cannot demonstrate distinctness', async () => {
+  const store = new MemoryStore();
+  const stagingSide = create(
+    makeConfig([gatedTwoLeg({ sod: { notActorOf: ['maker-decide'] } })], { store }),
+  );
+  const { makerId, makerHead } = await makerConcluded(stagingSide, store);
+  const staged = await stagingSide.agent.stage(
+    CONTENT,
+    'test.twoleg.v1',
+    SUBJECT,
+    'checker-decide',
+  );
+  assert.equal(staged.status, 'ok');
+  if (staged.status !== 'ok') return;
+  const opened = await stagingSide.operator.open(staged.value.stagedRef, {
+    priorRecordRefs: [{ recordId: makerId, chainHead: makerHead }],
+  });
+  assert.equal(opened.status, 'ok');
+  if (opened.status !== 'ok') return;
+
+  // A second instance whose same-id profile RENAMED the maker leg; the checker's sod
+  // names the NEW name — construction-valid (strictly-earlier), but the record's own
+  // recorded refs carry the OLD legId. Fail-closed: refuse, no append (default path).
+  const drifted = create(
+    makeConfig(
+      [
+        {
+          ...twoLegProfile(),
+          legs: [
+            { id: 'maker-renamed', allowedAuthorities: ['session:test-app'] },
+            {
+              id: 'checker-decide',
+              allowedAuthorities: ['session:test-app'],
+              sod: { notActorOf: ['maker-renamed'] },
+            },
+          ],
+        },
+      ],
+      { store },
+    ),
+  );
+  const before = (await store.readChain(opened.value.recordId)).length;
+  const blocked = await drifted.operator.finalize(
+    opened.value.recordId,
+    identity({ principal: 'approver:9' }),
+    CONTENT,
+    facts(),
+  );
+  assert.equal(blocked.status, 'refused');
+  if (blocked.status !== 'refused') return;
+  assert.equal(blocked.code, 'sod-violation');
+  assert.equal((await store.readChain(opened.value.recordId)).length, before, 'no append');
+});
+
+test('a found reference with no paired actor THROWS — the recorded paired-by-index invariant is a storage fault', async () => {
+  const store = new MemoryStore();
+  const handles = create(
+    makeConfig([gatedTwoLeg({ sod: { notActorOf: ['maker-decide'] } }, 'test.twoleg.v1')], {
+      store,
+    }),
+  );
+  // Hand-built checker record whose opened payload carries a ref but an EMPTY actors
+  // array — present (so replay folds both) but unpaired at the ref's index. `at` is
+  // stamped to the real "now": this file's other hand-built chains feed `verifyPriorLegs`
+  // directly, never `finalize()`, so buildChain's fixed default date never mattered for
+  // them — this fixture is the first to run the real gate ladder under the real clock,
+  // and it must survive rung (2)'s expiry gate to reach rung 3.5.
+  const chain = buildChain('rec-sod-garbled', [
+    {
+      kind: 'opened',
+      at: new Date().toISOString(),
+      payload: {
+        profileId: 'test.twoleg.v1',
+        profileDigest: `sha256:${'0'.repeat(64)}`,
+        legId: 'checker-decide',
+        subjectRef: 'subject:sod-garbled',
+        contentDigest: `sha256:${'1'.repeat(64)}`,
+        priorRecordRefs: [
+          { recordId: 'rec-gone', chainHead: `sha256:${'a'.repeat(64)}`, legId: 'maker-decide' },
+        ],
+        priorLegActors: [],
+      },
+    },
+  ]);
+  await seed(store, chain, true);
+  await assert.rejects(
+    handles.operator.finalize('rec-sod-garbled', identity(), CONTENT, facts()),
+    /no paired actor/i,
+  );
 });

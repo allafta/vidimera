@@ -83,8 +83,9 @@ test('legs.length > 1 is accepted at construction — the sequencing that orders
   // throw here while nothing enforced §10.1's "Legs conclude in order". The sequencing
   // rung and the verify-by-replay reference check land in the same commit as this lift,
   // so the guard's stated trigger (multi-leg maker-checker sequencing, §10.1) has fired
-  // for the ordering half; per-leg `sod`/`proposer` remain GOVERNED until the second
-  // step-4 increment builds the gate that reads the evidence.
+  // for the ordering half; per-leg `sod`/`proposer` were GOVERNED until the second step-4
+  // increment built the gate that reads the evidence (their own inversions sit further
+  // down this file).
   const p = captureProfile();
   const leg = p.legs[0];
   if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
@@ -104,62 +105,106 @@ test('structural: duplicate leg ids throw a structural error naming both positio
   assertStructural({ ...p, legs: [leg, { ...leg }] }, /duplicate leg id/i);
 });
 
-test('GOVERNED: a MULTI-LEG profile declaring sod still throws (sod) — the gate is the second step-4 increment', () => {
+test('a checker leg declaring sod.notActorOf naming the maker leg is accepted — the gate is built', () => {
+  // INVERTED, at the second step-4 increment: the kernel increment pinned a GOVERNED
+  // throw here, and the first step-4 increment re-pinned it on a multi-leg profile
+  // while the gate was still unbuilt. The gate lands at finalize's rung 3.5 in the same
+  // commit as this lift, so the guard's stated trigger has fired.
   const p = captureProfile();
   const leg = p.legs[0];
   if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
-  assertGoverned(
-    {
-      ...p,
-      legs: [
-        leg,
+  assert.doesNotThrow(() =>
+    create(
+      makeConfig([
         {
-          id: 'second-leg',
-          allowedAuthorities: ['session:test-app'],
-          sod: { notActorOf: [leg.id] },
+          ...p,
+          legs: [
+            leg,
+            {
+              id: 'second-leg',
+              allowedAuthorities: ['session:test-app'],
+              sod: { notActorOf: [leg.id] },
+            },
+          ],
         },
-      ],
-    },
-    'sod',
+      ]),
+    ),
   );
 });
 
-test('GOVERNED: a MULTI-LEG profile declaring proposer still throws (proposer)', () => {
+test('proposer on a multi-leg profile is accepted — any leg, including the first', () => {
+  // INVERTED, at the second step-4 increment (same argument as the sod inversion above).
+  // proposer needs no prior legs — SPEC §10.1: "the designated proposer may not decide
+  // their own leg" is self-contained — but the FEATURE is multi-leg-scoped (§10.1's
+  // applicability sentence), so the acceptance shape is a multi-leg profile.
   const p = captureProfile();
   const leg = p.legs[0];
   if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
-  assertGoverned(
-    {
-      ...p,
-      legs: [
-        leg,
-        { id: 'second-leg', allowedAuthorities: ['session:test-app'], proposer: 'maker:1' },
-      ],
-    },
-    'proposer',
+  assert.doesNotThrow(() =>
+    create(
+      makeConfig([
+        {
+          ...p,
+          legs: [
+            { ...leg, proposer: 'proposer:1' },
+            { id: 'second-leg', allowedAuthorities: ['session:test-app'] },
+          ],
+        },
+      ]),
+    ),
   );
 });
 
-test('GOVERNED: a leg declaring sod throws (sod)', () => {
+test('structural: sod on a FIRST leg (no earlier legs) throws — single-leg or multi-leg alike', () => {
+  // The single-leg shape was GOVERNED before the second step-4 increment; it is now
+  // STRUCTURAL, per the ruling: notActorOf entries must name strictly-earlier legs, and
+  // a first leg has none — no declarable-but-inert configuration exists.
   const p = captureProfile();
   const leg = p.legs[0];
-  if (leg === undefined)
-    throw new Error(
-      'construction-validation.test.ts: p.legs[0] missing — captureProfile() must have at least one leg',
-    );
-  assertGoverned({ ...p, legs: [{ ...leg, sod: { notActorOf: ['proposer'] } }] }, 'sod');
+  if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
+  assertStructural(
+    { ...p, legs: [{ ...leg, sod: { notActorOf: ['anything'] } }] },
+    /strictly-earlier/i,
+  );
+  assertStructural(
+    {
+      ...p,
+      legs: [
+        { ...leg, sod: { notActorOf: ['second-leg'] } },
+        { id: 'second-leg', allowedAuthorities: ['session:test-app'] },
+      ],
+    },
+    /strictly-earlier/i,
+  );
 });
 
-test('GOVERNED: a SINGLE-LEG profile declaring proposer throws (proposer)', () => {
-  // proposer is a per-leg SoD control that legs.length>1 would silently miss on a single
-  // leg, so it gets its own throw. The profile is otherwise valid single-leg.
+test('structural: proposer on a SINGLE-LEG profile throws — §10.1 is multi-leg-scoped', () => {
+  // GOVERNED before the second step-4 increment; now STRUCTURAL per the ruling: SPEC
+  // §10.1 opens "Applies when the profile declares more than one leg." and the
+  // conservative reading scopes proposer with the feature.
   const p = captureProfile();
   const leg = p.legs[0];
-  if (leg === undefined)
-    throw new Error(
-      'construction-validation.test.ts: p.legs[0] missing — captureProfile() must have at least one leg',
-    );
-  assertGoverned({ ...p, legs: [{ ...leg, proposer: 'someProposer' }] }, 'proposer');
+  if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
+  assertStructural({ ...p, legs: [{ ...leg, proposer: 'proposer:1' }] }, /more than one leg/i);
+});
+
+test('structural: notActorOf rejects empty, own-leg, later-leg, unknown, and duplicate entries', () => {
+  const p = captureProfile();
+  const leg = p.legs[0];
+  if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
+  const threeLegs = (checkerSod: { notActorOf: string[] }) => ({
+    ...p,
+    legs: [
+      leg,
+      { id: 'checker-decide', allowedAuthorities: ['session:test-app'], sod: checkerSod },
+      { id: 'signer-decide', allowedAuthorities: ['session:test-app'] },
+    ],
+  });
+  assertStructural(threeLegs({ notActorOf: [] }), /non-empty/i);
+  assertStructural(threeLegs({ notActorOf: ['checker-decide'] }), /strictly-earlier/i);
+  assertStructural(threeLegs({ notActorOf: ['signer-decide'] }), /strictly-earlier/i);
+  assertStructural(threeLegs({ notActorOf: ['no-such-leg'] }), /strictly-earlier/i);
+  assertStructural(threeLegs({ notActorOf: [leg.id, leg.id] }), /duplicate/i);
 });
 
 test('GOVERNED: a leg declaring requiredConsultations throws (requiredConsultations)', () => {

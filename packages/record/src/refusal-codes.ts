@@ -29,8 +29,8 @@ export type RefusalCode =
   // the sixteenth code (the second step-4 increment): SPEC §8's conditional table names
   // it "`refusal`-class, `terminalRefusals`-able"; the default appendsOn path (appends
   // `open→refused` iff the leg's `terminalRefusals` lists it, else stays open per §10.1)
-  // IS the spec-mandated behavior with zero new code — producer worded two-touch, landing
-  // later in the second step-4 increment
+  // IS the spec-mandated behavior with zero new code — producer: finalize's rung 3.5
+  // (kernel/finalize.ts), real as of the second step-4 increment
   | 'sod-violation';
 // class map: chain-compromise → 'compromise'; all others → 'refusal'
 // record-not-open: class 'refusal', terminal-record category — finalize() against a non-open, intact-chain

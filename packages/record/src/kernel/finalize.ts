@@ -3,13 +3,13 @@
 // and every refusal path wins over the ones after it:
 //
 //   load chain → (1) pre-seam chain-verify → (2) state/expiry gate → (3) identity (both
-//   branches) → (4) content-drift → (5) facts → (5.7) ack coverage [reserved] → (6) success
-//   append batch.
+//   branches) → (3.5) separation of duties → (4) content-drift → (5) facts → (5.7) ack
+//   coverage [reserved] → (6) success append batch.
 //
-// This build implements rungs (1)/(2)/(3)/(4)/(5)/(6) of the SPEC's full ladder; the
-// SPEC's (3.5) separation-of-duties, (4.5) policy-drift, and (5.5) consultations/eligibility
-// rungs are not built in this build (their profile fields throw GOVERNED at construction,
-// so no profile that would need them can exist).
+// This build implements rungs (1)/(2)/(3)/(3.5)/(4)/(5)/(6) of the SPEC's full ladder; the
+// SPEC's (4.5) policy-drift and (5.5) consultations/eligibility rungs are not built in this
+// build (their profile fields throw GOVERNED at construction, so no profile that would need
+// them can exist).
 //
 // (1) Chain-verify is FIRST after load. A DETECTED BREAK → refuse `chain-compromise` (class
 //     compromise, TERMINAL) and append ONE `refused` edge at head via NORMAL C2 (seq=max+1,
@@ -24,6 +24,11 @@
 // (3) Identity — both branches → `identity-authority-refused`: the arg missing/malformed (the
 //     library reads identity ONLY from the explicit arg — a payload-carried id is never
 //     trusted), or `identity.authority` not in the leg's `allowedAuthorities`.
+// (3.5) Separation of duties (SPEC §10.1; second step-4 increment) — `leg.sod.notActorOf`: the
+//     finalizing principal must not be the recorded actor of any named PRIOR leg, looked up in
+//     the record's own recorded `priorRecordRefs`/`priorLegActors`; `leg.proposer`: the
+//     finalizing principal must not equal the declared proposer. Either match → `sod-violation`
+//     (refusal-class, `terminalRefusals`-able, default open per §10.1).
 // (4) Content-drift — re-canonicalize the `content` arg through the profile's adopter
 //     canonicalizer + library JCS; mismatch vs the bound `contentDigest` → `content-drift`.
 // (5) Facts — missing/malformed `facts` (no figures / no checker) → `consultation-missing`.
@@ -42,7 +47,7 @@
 //     with nothing recorded — the throw sits inside DECISIONS.md #10's "nothing was recorded"
 //     exception rather than beside it.
 //
-// (3)/(4)/(5) are refusal-class: each appends `open→refused` (terminal) IFF the leg's
+// (3)/(3.5)/(4)/(5) are refusal-class: each appends `open→refused` (terminal) IFF the leg's
 // `terminalRefusals` lists it (the `appendsOn` rule), else no append and the record stays open.
 
 import { canonicalize, digest } from '../canonical.js';
@@ -175,6 +180,38 @@ export async function finalize(
       finalLeg,
       now,
     );
+  }
+
+  // --- (3.5) separation of duties (SPEC §10.1; second step-4 increment) ----------------
+  if (leg.sod !== undefined) {
+    for (const namedLegId of leg.sod.notActorOf) {
+      const refIndex = (record.priorRecordRefs ?? []).findIndex((ref) => ref.legId === namedLegId);
+      if (refIndex === -1) {
+        // Lookup miss — the record's own evidence carries no entry for the named leg
+        // (profile reconfigured between open() and finalize(); construction validates
+        // the static case). Fail-closed: distinctness cannot be demonstrated from the
+        // record's own chain, so refuse rather than skip — SPEC §10.1: the lookup keys
+        // the record's evidence precisely so a profile edit "cannot silently re-index
+        // an already-opened record's evidence".
+        return refuseMaybeAppend(store, 'sod-violation', leg, chain, resolved, finalLeg, now);
+      }
+      const priorActor = record.priorLegActors?.[refIndex];
+      if (priorActor === undefined) {
+        // A found reference with no paired actor breaks the recorded paired-by-index
+        // invariant (SPEC §4) — a garbled or foreign chain is a storage/config fault,
+        // not a domain outcome (SPEC §8's loud-throw posture).
+        throw new Error(
+          `finalize: record '${recordId}' carries a prior-leg reference for '${namedLegId}' with no paired actor — a garbled or foreign chain is a storage/config fault (SPEC §8)`,
+        );
+      }
+      if (priorActor.principal === identity.principal) {
+        return refuseMaybeAppend(store, 'sod-violation', leg, chain, resolved, finalLeg, now);
+      }
+    }
+  }
+  if (leg.proposer !== undefined && leg.proposer === identity.principal) {
+    // "the designated proposer may not decide their own leg" (SPEC §10.1).
+    return refuseMaybeAppend(store, 'sod-violation', leg, chain, resolved, finalLeg, now);
   }
 
   // --- (4) content-drift ----------------------------------------------------------------
