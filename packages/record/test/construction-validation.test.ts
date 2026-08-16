@@ -323,8 +323,19 @@ test('structural: an empty eligibility label and a double declaration each throw
   );
 });
 
-test('GOVERNED: a profile declaring policySource throws (policySource)', () => {
-  assertGoverned({ ...captureProfile(), policySource: 'opa://x' }, 'policySource');
+test('policySource is accepted at construction — the notarization contract is built end to end', () => {
+  // INVERTED, at the second step-6 increment (the EIGHTH self-authored inversion): the
+  // kernel increment pinned a GOVERNED throw here while nothing bound or compared a
+  // policy digest. The open() binding contract, the finalize presence contract, and
+  // rung (4.5) land in the same commit as this lift, so the guard's stated trigger has
+  // fired for the whole three-seam obligation.
+  const p = captureProfile();
+  assert.doesNotThrow(() => create(makeConfig([{ ...p, policySource: 'rules.v1' }])));
+});
+
+test('structural: an empty policySource label throws — the malformed-reference rule', () => {
+  const p = captureProfile();
+  assertStructural({ ...p, policySource: '' }, /empty/i);
 });
 
 test('redeem.redeemBound is accepted at construction — the clock that honors it is built', () => {

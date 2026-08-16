@@ -264,7 +264,9 @@ function validateRequiredConsultations(profile: ConfirmProfile, leg: LegSpec): v
  *  2. structural: unique leg ids (SPEC §10.1 keys recorded evidence by legId);
  *  3. GOVERNED `captureMode:'live'` (live capture, SPEC §9.2) — checked BEFORE the reverify
  *     guard so a live profile throws GOVERNED(captureMode), never the reverify refusal;
- *  4. GOVERNED `policySource` (policy drift, SPEC §10.3);
+ *  4. structural: an empty `policySource` label (policy drift, SPEC §10.3) — the
+ *     malformed-reference rule, the same settled class as `eligibility`'s own empty-label
+ *     check;
  *  5. per-leg GOVERNED guards + stray-redemption-key check (inside `validateLeg`), then
  *     structural SoD shape validation (`validateSodShape`), structural
  *     requiredConsultations validation (`validateRequiredConsultations`), and structural
@@ -300,6 +302,15 @@ function validateRequiredConsultations(profile: ConfirmProfile, leg: LegSpec): v
  * the malformed-reference rule, not the inertness trap; double declaration rejected per
  * SPEC §10.4's own "declare it once" sentence). The governed count moves 6 → 5 with this
  * lift.
+ * `policySource` (SPEC §10.3) is accepted-at-construction as of the second step-6
+ * increment (the EIGHTH self-authored inversion — argued in place at
+ * construction-validation.test.ts's own pin): `open()`'s binding contract, finalize's
+ * presence contract, and rung (4.5)'s comparison land in the SAME commit as this lift, so
+ * the guard's stated trigger has fired for the whole three-seam obligation — construction
+ * validity, open-time binding, and finalize-time gate are none of them reachable alone.
+ * The structural empty-label check above replaces the deleted GOVERNED throw with the same
+ * settled fail-closed class `eligibility`'s own empty-label rule uses. The governed count
+ * moves 5 → 4 with this lift.
  * The sweep is TOTAL: a profile declaring any governed feature throws — the first one
  * reached wins, but none slips through. Canonicalizer resolution + duplicate-id detection
  * are `create.ts`'s (they need the registry / the whole profile list).
@@ -327,12 +338,11 @@ export function validateProfile(profile: ConfirmProfile): void {
       ),
     );
   }
-  if (profile.policySource !== undefined) {
+  if (profile.policySource !== undefined && profile.policySource.length === 0) {
     throw new Error(
-      governedUnavailable(
-        'policySource',
-        'policy-drift notarization is not implemented in this build. Contract: §10.3.',
-      ),
+      `invalid profile '${profile.id}': declares an empty policySource label — ` +
+        'an opaque reference that references nothing is malformed config (the label names ' +
+        "the operator's policy authority; the gate keys on the declaration, SPEC §10.3)",
     );
   }
   for (const [index, leg] of profile.legs.entries()) {
@@ -355,8 +365,8 @@ export function validateProfile(profile: ConfirmProfile): void {
 }
 
 // --- open() options bag (§9 `open(stagedRef, { priorRecordRefs?, policyDigest?,
-// supersedes? })`) — NOT construction, but the same GOVERNED shape for the two fields
-// still unbuilt ------------------------------------------------------------------------
+// supersedes? })`) — NOT construction; `priorRecordRefs` and `policyDigest` are both
+// real, `supersedes` alone stays GOVERNED at the call seam ------------------------------
 
 /** A host-supplied prior-leg reference (SPEC §10.1): the claim `open()` verifies by
  * replay — never adopted unchecked. The recorded three-field form (types.ts's
@@ -371,8 +381,13 @@ export interface OpenOptions {
    * open(). A first leg supplies none. Verified by replay; any failure refuses
    * `prior-leg-unverified` pre-record. */
   priorRecordRefs?: PriorRecordRef[];
-  // `policyDigest` (§10.3) and `supersedes` (§2) remain GOVERNED at the call seam
-  // (kernel/open.ts's runtime guard) — their build steps have not arrived.
+  /** SPEC §10.3: the policy snapshot digest the OPERATOR attests at open() — bound into
+   * the genesis, present-iff-declared. Never routed through the agent-reachable
+   * stage(): "routing the drift baseline through the untrusted drafter would let a
+   * lying agent bind whatever digest it anticipates the live source will hold". */
+  policyDigest?: Digest;
+  // `supersedes` (§2's recovery linkage) remains GOVERNED at the call seam — its build
+  // step has not arrived.
 }
 
 // --- finalize() options bag (SPEC §11.1's consultation input surface) -----------------
@@ -407,8 +422,18 @@ export interface UnreachableMarker {
 /** SPEC §11.1's consultation input surface: each entry is either shape. */
 export type ConsultationInput = ObtainedConsultation | UnreachableMarker;
 
+/** SPEC §10.3's finalize-time policy attestation: the live-source digest the operator
+ * read — `{ digest }` — or an attestation that the source was down — `{ unreachable,
+ * authority }`. Shape validated at intake (`kernel/consultations.ts`'s
+ * `validatePolicyInput`); presence validated at profile resolution
+ * (`kernel/finalize.ts`'s presence contract). */
+export type PolicyInput = { digest: Digest } | { unreachable: true; authority: string };
+
 export interface FinalizeOptions {
-  /** SPEC §11.1: the host's supplied consultations, attach-form. `policy` (§10.3)
-   * remains GOVERNED at the call seam — its build step has not arrived. */
+  /** SPEC §11.1: the host's supplied consultations, attach-form. */
   consultations?: ConsultationInput[];
+  /** SPEC §10.3: the operator's live-policy attestation, real as of the second step-6
+   * increment — required on a policy-declaring profile, forbidden on a non-declaring
+   * one (the presence contract; `kernel/finalize.ts`). */
+  policy?: PolicyInput;
 }

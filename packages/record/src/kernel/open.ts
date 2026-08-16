@@ -33,10 +33,10 @@ import { verifyPriorLegs } from './prior-legs.js';
 /**
  * Per-key GOVERNED message for an `open()` options key (config.ts's `OpenOptions`): the
  * `supersedes` case is the one this build step actually needs to guard (no profile-level
- * construction switch reaches it — see `OpenOptions`'s doc comment); `policyDigest` is
- * named too, in case a caller passes it anyway, since it has no runtime check elsewhere
- * either. `priorRecordRefs` is no longer guarded here — it is real as of the first step-4
- * increment, verified by `verifyPriorLegs` (`kernel/prior-legs.ts`) at the sequencing rung
+ * construction switch reaches it — see `OpenOptions`'s doc comment). `priorRecordRefs` is
+ * no longer guarded here — it is real as of the first step-4 increment, verified by
+ * `verifyPriorLegs` (`kernel/prior-legs.ts`) at the sequencing rung below; `policyDigest`
+ * is likewise real as of the second step-6 increment, checked by the binding contract
  * below. Anything else falls back to a generic message.
  */
 function openOptionMessage(key: string): string {
@@ -46,15 +46,9 @@ function openOptionMessage(key: string): string {
       'recovery linkage to a terminal predecessor record is not implemented in this build. Contract: §2 and §9.',
     );
   }
-  if (key === 'policyDigest') {
-    return governedUnavailable(
-      key,
-      'policy-drift notarization is not implemented in this build. Contract: §10.3.',
-    );
-  }
   return governedUnavailable(
     key,
-    'open() accepts only priorRecordRefs in this build. Contract: §9.',
+    'open() accepts only priorRecordRefs and policyDigest in this build. Contract: §9.',
   );
 }
 
@@ -66,6 +60,7 @@ export async function open(
   if (opts !== undefined) {
     for (const key of Object.keys(opts)) {
       if (key === 'priorRecordRefs') continue; // REAL as of the first step-4 increment
+      if (key === 'policyDigest') continue; // REAL as of the second step-6 increment
       throw new Error(openOptionMessage(key));
     }
   }
@@ -86,6 +81,24 @@ export async function open(
     return refused('unknown-profile');
   }
   const { profile, effectSeam } = resolved;
+
+  // --- §10.3: the policy binding contract (second step-6 increment) --------------------
+  // Fail-closed BOTH directions and loud — a caller/config error, never a refusal: the
+  // operator is the only party who may attest the drift baseline, and an unbound
+  // declaring record (or a bound non-declaring one) is a host contract violation.
+  if (resolved.profile.policySource !== undefined) {
+    if (opts?.policyDigest === undefined || opts.policyDigest.length === 0) {
+      throw new Error(
+        `open: profile '${staged.profileId}' declares policySource but no policyDigest was supplied — ` +
+          'the operator binds the drift baseline at open(), fail-closed and loud (SPEC §10.3)',
+      );
+    }
+  } else if (opts?.policyDigest !== undefined) {
+    throw new Error(
+      `open: profile '${staged.profileId}' declares no policySource but a policyDigest was supplied — ` +
+        'binding a drift baseline on a non-declaring profile is a caller error (SPEC §10.3)',
+    );
+  }
 
   // The staged draft's legId must still name a leg of the profile it resolves under here
   // (SPEC §8's SECOND `unknown-leg` producer — the FIRST is `stage()`'s own caller-named-
@@ -123,6 +136,7 @@ export async function open(
     legId: string;
     subjectRef: string;
     contentDigest: string;
+    policyDigest?: string;
     priorRecordRefs?: RecordedPriorLegRef[];
     priorLegActors?: IdentityAssertion[];
   } = {
@@ -131,9 +145,10 @@ export async function open(
     legId: staged.legId,
     subjectRef: staged.subjectRef,
     contentDigest: staged.contentDigest,
-    // policyDigest: omitted — no policySource in this build (GOVERNED-throw-guarded;
-    // SPEC §4's opened payload).
   };
+  if (resolved.profile.policySource !== undefined && opts?.policyDigest !== undefined) {
+    openedPayload.policyDigest = opts.policyDigest;
+  }
   if (priorCheck.verified !== null) {
     // SPEC §4: the recorded three-field form and the library-derived actors, present
     // together on a multi-leg successor; a first leg and every single-leg record omit

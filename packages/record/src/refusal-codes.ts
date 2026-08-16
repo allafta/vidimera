@@ -39,9 +39,9 @@ export type RefusalCode =
   | 'consultation-failed'
   // the eighteenth code (the second step-5 increment): SPEC §8 names it the availability
   // class's single code, "never appends"; carried by the `unavailable` outcome status, never
-  // a `refused` edge. Producers worded two-touch: §11.1's required-consultation gate
+  // a `refused` edge. Two producers, both real: §11.1's required-consultation gate
   // (finalize's rung 5.5) is real as of the second step-5 increment; §10.3's policy gate
-  // remains a later build step's second producer (future)
+  // (finalize's rung 4.5) is real as of the second step-6 increment
   | 'availability'
   // the nineteenth code (the first step-6 increment): SPEC §8's conditional table names it
   // "`refusal`-class, open-by-default so a different eligible actor may decide" — the
@@ -55,8 +55,8 @@ export type RefusalCode =
   // (disposal-and-re-open recovery)" — a bound-vs-reality mismatch with no in-place
   // recovery, mirroring `content-drift`; the default appendsOn path (appends `open→refused`
   // iff the leg's `terminalRefusals` lists it, else stays open per §10.1) IS the
-  // spec-mandated behavior with zero new code — producer: finalize's policy-drift rung,
-  // landing later in the second step-6 increment
+  // spec-mandated behavior with zero new code — producer: finalize's rung (4.5), real as
+  // of the second step-6 increment
   | 'policy-drift';
 // class map: chain-compromise → 'compromise'; availability → 'availability'; all others →
 // 'refusal'

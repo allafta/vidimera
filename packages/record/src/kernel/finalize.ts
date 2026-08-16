@@ -3,14 +3,16 @@
 // and every refusal path wins over the ones after it:
 //
 //   load chain → (1) pre-seam chain-verify → (2) state/expiry gate → (3) identity (both
-//   branches) → (3.5) separation of duties → (4) content-drift → (5) facts → (5.5)
-//   required consultations → (5.7) ack coverage [reserved] → (6) success append batch.
+//   branches) → (3.5) separation of duties → (4) content-drift → (4.5) policy drift →
+//   (5) facts → (5.5) required consultations → (5.7) ack coverage [reserved] →
+//   (6) success append batch.
 //
-// This build implements rungs (1)/(2)/(3)/(3.5)/(4)/(5)/(5.5)/(6) of the SPEC's full ladder;
-// the SPEC's (4.5) policy-drift rung is not built in this build (`policySource` throws
-// GOVERNED at construction, so no profile that would need it can exist). Rung (5.5) is now
-// built for BOTH halves: the required-consultation half (SPEC §11.1, second step-5 increment)
-// and the eligibility half (SPEC §10.4, first step-6 increment) — a declaring leg's implicit
+// This build implements rungs (1)/(2)/(3)/(3.5)/(4)/(4.5)/(5)/(5.5)/(6) of the SPEC's full
+// ladder — the SPEC's (4.5) policy-drift rung is real as of the second step-6 increment
+// (`policySource` is accepted at construction; the presence contract and this rung close the
+// remaining two obligations, all three landing in that same commit). Rung (5.5) is built for
+// BOTH halves: the required-consultation half (SPEC §11.1, second step-5 increment) and the
+// eligibility half (SPEC §10.4, first step-6 increment) — a declaring leg's implicit
 // `'eligibility'` kind is prepended ahead of the declared `requiredConsultations`, so
 // authority-to-decide is checked before the evidence checks.
 //
@@ -34,6 +36,15 @@
 //     (refusal-class, `terminalRefusals`-able, default open per §10.1).
 // (4) Content-drift — re-canonicalize the `content` arg through the profile's adopter
 //     canonicalizer + library JCS; mismatch vs the bound `contentDigest` → `content-drift`.
+// (4.5) Policy drift (SPEC §10.3; second step-6 increment) — a policy-declaring profile's
+//       live `opts.policy.digest` compared against the record's bound `policyDigest`:
+//       mismatch → `policy-drift` (refusal-class, `terminalRefusals`-able, default open —
+//       recovery is disposal + re-open, not retry); an `{ unreachable, authority }`
+//       attestation → the `unavailable` outcome (this class's SECOND producer, after
+//       (5.5)'s own); a bound `policyDigest` under a same-id NON-declaring instance is
+//       ALSO `policy-drift` — THE DECIDED OPEN QUESTION (§10.3 names it; this build
+//       fail-closes it, the recommendation on record) — a bound digest with nothing live
+//       to compare is mismatch-shaped, not a skip.
 // (5) Facts — missing/malformed `facts` (no figures / no checker) → `consultation-missing`.
 // (5.5) Required consultations (SPEC §11.1; second step-5 increment) plus eligibility (SPEC
 //       §10.4; first step-6 increment) — for each kind the EFFECTIVE list names, IN ORDER: a
@@ -64,12 +75,12 @@
 //     with nothing recorded — the throw sits inside DECISIONS.md #10's "nothing was recorded"
 //     exception rather than beside it.
 //
-// (3)/(3.5)/(4)/(5)/(5.5) are refusal-class ON THEIR
-// consultation-missing/consultation-failed/ineligible ARMS: each appends `open→refused`
-// (terminal) IFF the leg's `terminalRefusals` lists it (the `appendsOn` rule), else no append
-// and the record stays open. (5.5)'s availability arm is a DIFFERENT outcome status entirely
-// (`unavailable`, never `refused`) and never appends, `terminalRefusals` notwithstanding
-// (SPEC §8).
+// (3)/(3.5)/(4)/(4.5)/(5)/(5.5) are refusal-class ON THEIR
+// consultation-missing/consultation-failed/ineligible/policy-drift ARMS: each appends
+// `open→refused` (terminal) IFF the leg's `terminalRefusals` lists it (the `appendsOn` rule),
+// else no append and the record stays open. (4.5)'s and (5.5)'s availability arms are a
+// DIFFERENT outcome status entirely (`unavailable`, never `refused`) and never append,
+// `terminalRefusals` notwithstanding (SPEC §8).
 
 import { canonicalize, digest } from '../canonical.js';
 import { transitionDigest } from '../chain/encoding.js';
@@ -82,7 +93,7 @@ import { ok, refused, unavailable } from '../outcome.js';
 import { appendsOn, type RefusalCode } from '../refusal-codes.js';
 import type { AppendMeta, Store } from '../store/store.js';
 import type { Consultation, Digest, IdentityAssertion, RecordState, Transition } from '../types.js';
-import { validateConsultations } from './consultations.js';
+import { validateConsultations, validatePolicyInput } from './consultations.js';
 import { deadlineIso, resolveDueClock } from './expiry.js';
 
 /** The finalize `facts` arg (SPEC §3's "Reviewed-surface (`facts`) binding"): the reviewed-surface figures + the review-surface checker. */
@@ -108,15 +119,9 @@ export const SYSTEM_CHECKER: IdentityAssertion = {
 
 /** Per-key message for a finalize() options key this build does not accept. */
 function finalizeOptionMessage(key: string): string {
-  if (key === 'policy') {
-    return governedUnavailable(
-      key,
-      'the policy-drift gate is not implemented in this build; finalize() accepts no policy input. Contract: §10.3.',
-    );
-  }
   return governedUnavailable(
     key,
-    'finalize() accepts only consultations in this build. Contract: §9 and §11.1.',
+    'finalize() accepts only consultations and policy in this build. Contract: §9, §11.1, and §10.3.',
   );
 }
 
@@ -136,10 +141,12 @@ export async function finalize(
   if (opts !== undefined) {
     for (const key of Object.keys(opts)) {
       if (key === 'consultations') continue; // REAL as of the first step-5 increment
+      if (key === 'policy') continue; // REAL as of the second step-6 increment
       throw new Error(finalizeOptionMessage(key));
     }
   }
   const supplied = validateConsultations(opts?.consultations);
+  validatePolicyInput(opts?.policy);
 
   // --- load the chain ------------------------------------------------------------------
   const chain = await store.readChain(recordId);
@@ -178,6 +185,27 @@ export async function finalize(
     );
   }
   const finalLeg = isFinalLeg(legIndex, resolved.profile.legs.length);
+
+  // --- §10.3: the policy presence contract (second step-6 increment) -------------------
+  // "On a policy-declaring profile, finalize throws when `opts.policy` is absent, and
+  // on a non-declaring profile it throws when `opts.policy` is present" — deliberately
+  // asymmetric with a missing required consultation (§10.3 argues it: policy is a
+  // single mandatory environment fact with an explicit unreachable escape hatch, so its
+  // absence is a host contract violation, not omitted evidence — and keeping absence
+  // out of `policy-drift` leaves that code purely "the digests differ").
+  if (resolved.profile.policySource !== undefined) {
+    if (opts?.policy === undefined) {
+      throw new Error(
+        `finalize: profile '${record.profileId}' declares policySource but no opts.policy was supplied — ` +
+          'the operator attests the live source (or its unreachability) at every finalize (SPEC §10.3)',
+      );
+    }
+  } else if (opts?.policy !== undefined) {
+    throw new Error(
+      `finalize: profile '${record.profileId}' declares no policySource but opts.policy was supplied — ` +
+        'a caller error (SPEC §10.3)',
+    );
+  }
 
   // --- (2) state/expiry gate (intact chain, before any append) -------------------------
   if (record.state === 'expired') {
@@ -279,6 +307,40 @@ export async function finalize(
   const recomputed = digest(canonicalize(resolved.canonicalizer(content)));
   if (recomputed !== record.contentDigest) {
     return refuseMaybeAppend(store, 'content-drift', leg, chain, resolved, finalLeg, now);
+  }
+
+  // --- (4.5) policy drift (SPEC §10.3; second step-6 increment) ------------------------
+  if (record.policyDigest !== undefined && resolved.profile.policySource === undefined) {
+    // THE DECIDED OPEN QUESTION (§10.3 names it; the recommendation on record is
+    // fail-close, and this build takes it): a record opened under a DECLARING profile,
+    // finalized under a same-id non-declaring instance, does NOT skip the gate — a
+    // bound digest with nothing live to compare is mismatch-shaped, the same
+    // fail-closed reading §10.3 itself gives the forward corner. The config flip is a
+    // version-discipline violation either way; profileDigest makes it auditable. Cost,
+    // accepted: a host retiring a policy source re-opens old records.
+    return refuseMaybeAppend(store, 'policy-drift', leg, chain, resolved, finalLeg, now);
+  }
+  if (resolved.profile.policySource !== undefined) {
+    const policy = opts?.policy;
+    if (policy === undefined) {
+      throw new Error(
+        'finalize: unreachable — the §10.3 presence contract above admits no absent policy on a declaring profile',
+      );
+    }
+    if ('unreachable' in policy) {
+      // §10.3: an { unreachable, authority } marker yields the availability outcome —
+      // "bounded retry, never fail-open, never approval". The SECOND producer of the
+      // unavailable status (§11.1's consultation gate was the first).
+      return unavailable(policy.authority);
+    }
+    if (policy.digest !== record.policyDigest) {
+      // Mismatch — including §10.3's fail-closed forward corner: a present live digest
+      // against an ABSENT bound one (a record opened under a non-declaring same-id
+      // instance) "as a mismatch", policy-drift, since the record is coherent evidence
+      // of a real prior decision. Recovery is disposal + re-open, not retry (§10.3) — a
+      // declaring profile SHOULD list policy-drift in terminalRefusals.
+      return refuseMaybeAppend(store, 'policy-drift', leg, chain, resolved, finalLeg, now);
+    }
   }
 
   // --- (5) facts ------------------------------------------------------------------------

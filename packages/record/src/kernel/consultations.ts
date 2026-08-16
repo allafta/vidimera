@@ -15,6 +15,7 @@
 import {
   type ConsultationInput,
   type ObtainedConsultation,
+  type PolicyInput,
   RESERVED_CONSULTATION_KINDS,
   type UnreachableMarker,
 } from '../config.js';
@@ -152,4 +153,74 @@ export function validateConsultations(
     });
   }
   return { obtained, unreachable };
+}
+
+const POLICY_DIGEST_KEYS: ReadonlySet<string> = new Set(['digest']);
+const POLICY_UNREACHABLE_KEYS: ReadonlySet<string> = new Set(['unreachable', 'authority']);
+
+/**
+ * SPEC §10.3's finalize-time policy INTAKE validator (the second step-6 increment),
+ * beside `validateConsultations` above: a PRESENT `opts.policy` must be exactly one of
+ * the two shapes — `{ digest }` with a non-empty string, or `{ unreachable: true,
+ * authority }` with a non-empty authority; unknown keys, both-shapes, neither-shape, and
+ * empty strings all THROW as caller errors, at argument intake, before the chain loads —
+ * whether `opts.policy` MAY be present is `kernel/finalize.ts`'s resolution-time presence
+ * contract; whether a present one is WELL-FORMED is this function's job alone.
+ * `policy === undefined` is not itself malformed here — an absent policy on a
+ * non-declaring profile is legal, and an absent one on a declaring profile is the
+ * presence contract's throw, not this shape check's.
+ */
+export function validatePolicyInput(policy: PolicyInput | undefined): void {
+  if (policy === undefined) return;
+  if (typeof policy !== 'object' || policy === null || Array.isArray(policy)) {
+    throw new Error(
+      'finalize: opts.policy is not a plain object (arrays and primitives are malformed) — a caller error (SPEC §10.3)',
+    );
+  }
+  const record = policy as unknown as Record<string, unknown>;
+  const hasDigest = Object.hasOwn(record, 'digest');
+  const hasUnreachable = Object.hasOwn(record, 'unreachable');
+  if (hasDigest && hasUnreachable) {
+    throw new Error(
+      'finalize: opts.policy carries both digest and unreachable — the two policy shapes are mutually exclusive (SPEC §10.3)',
+    );
+  }
+  if (hasDigest) {
+    for (const key of Object.keys(record)) {
+      if (!POLICY_DIGEST_KEYS.has(key)) {
+        throw new Error(
+          `finalize: opts.policy (digest shape) carries the unknown key '${key}' — the shape is exact (SPEC §10.3)`,
+        );
+      }
+    }
+    if (!isNonEmptyString(record.digest)) {
+      throw new Error(
+        'finalize: opts.policy.digest is missing or empty — a caller error (SPEC §10.3)',
+      );
+    }
+    return;
+  }
+  if (hasUnreachable) {
+    for (const key of Object.keys(record)) {
+      if (!POLICY_UNREACHABLE_KEYS.has(key)) {
+        throw new Error(
+          `finalize: opts.policy (unreachable shape) carries the unknown key '${key}' — the shape is exact (SPEC §10.3)`,
+        );
+      }
+    }
+    if (record.unreachable !== true) {
+      throw new Error(
+        `finalize: opts.policy has unreachable: ${String(record.unreachable)} — the marker declares unreachable: true or is not a marker (SPEC §10.3)`,
+      );
+    }
+    if (!isNonEmptyString(record.authority)) {
+      throw new Error(
+        'finalize: opts.policy (unreachable marker) has a missing or empty authority — the marker names the party that was down (SPEC §10.3)',
+      );
+    }
+    return;
+  }
+  throw new Error(
+    'finalize: opts.policy matches neither policy shape ({ digest } or { unreachable, authority }) — a caller error (SPEC §10.3)',
+  );
 }

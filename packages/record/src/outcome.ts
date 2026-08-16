@@ -18,11 +18,12 @@ import type { Digest } from './types.js';
 // compromise with NO edge" test is a passing demonstration of it; record-exists /
 // unknown-profile / unknown-leg / pre-record /
 // terminal-record (incl. record-not-open) never; a refusal-class code only when
-// appended per `appendsOn`). `unavailable` has one producer as of the second step-5
-// increment — SPEC §8's `availability` class's single code, produced by finalize's rung
-// (5.5) (SPEC §11.1) when a required consultation's authority is reported unreachable;
-// NEVER appends. §10.3's policy gate remains a later build step's second producer
-// (future).
+// appended per `appendsOn`). `unavailable` has TWO producers, both real: SPEC §8's
+// `availability` class's single code is produced by finalize's rung (5.5) (SPEC §11.1)
+// when a required consultation's authority is reported unreachable, real as of the second
+// step-5 increment, and by finalize's rung (4.5) (SPEC §10.3) when the live policy
+// source is reported unreachable, real as of the second step-6 increment. NEVER appends,
+// either producer.
 export type Outcome<T> =
   | { status: 'ok'; value: T }
   | {
