@@ -125,9 +125,9 @@ acknowledgments, prior-leg evidence, consultation results) only in process memor
 **Profile-conditional fields** (present only when the profile switches the feature on):
 `priorRecordRefs` and `priorLegActors`, carried on a multi-leg successor record (§10.1)
 **[PROVEN]**; `findings` and `acks` (a findings flow, §10.2) **[PROVEN]**; and `supersedes`
-(recovery of a terminal predecessor, below) **[SKETCHED]**.
+**[PROVEN]**.
 
-**Recovery (`supersedes`) [SKETCHED].** `supersedes` names the terminal predecessor record (a
+**Recovery (`supersedes`) [PROVEN].** `supersedes` names the terminal predecessor record (a
 `refused` or `expired` record, or an earlier superseded attempt) that a fresh record recovers
 from. The reference is **verified by replay** at the recovering record's `open()` — the host
 supplies `{ recordId, chainHead }`, the library replays the predecessor's chain, requires it
@@ -315,7 +315,7 @@ except `opened`, which snapshots the record's immutable header.
 
 | `kind` | Payload | Form |
 |---|---|---|
-| `opened` | `{ profileId, profileDigest, legId, subjectRef, contentDigest, policyDigest?, priorRecordRefs?, priorLegActors?, supersedes? }` (`supersedes?` **[SKETCHED]**, §2) | snapshot |
+| `opened` | `{ profileId, profileDigest, legId, subjectRef, contentDigest, policyDigest?, priorRecordRefs?, priorLegActors?, supersedes? }` (`supersedes?` **[PROVEN]**, §2) | snapshot |
 | `consultation-recorded` | the Consultation object (§2), including the always-present `facts` binding | delta |
 | `confirmed` | `{ actor }` — the deciding IdentityAssertion (§6) | delta |
 | `refused` | `{ code }` — a §8 registry code; class derivable from the registry | delta |
@@ -561,7 +561,7 @@ and the sweep — §12).
   Creates the record from the staged binding and appends the `opened` transition (§4). A
   **successor** leg supplies `priorRecordRefs`, one entry per prior leg in order, each
   verified by replay (§10.1); a **first** leg supplies none. A recovery record supplies
-  `supersedes` — the verified terminal-predecessor reference (**[SKETCHED]**, §2). A policy-declaring profile (§10.3) binds
+  `supersedes` — the verified terminal-predecessor reference (**[PROVEN]**, §2). A policy-declaring profile (§10.3) binds
   `policyDigest` here — operator-only, fail-closed and loud both directions
   (declaring-without and non-declaring-with both throw). It enforces **exclusivity**: if a
   non-terminal record already exists for the `(profile, subject)`, `open` refuses

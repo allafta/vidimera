@@ -47,12 +47,17 @@ The reference decision is taken (verify-by-replay, terminal-predecessor-required
 in the recovering record's genesis — `SPEC.md` §2). Still open:
 
 - The refusal shape when the named predecessor is **not** terminal (a dedicated code vs the
-  prior-leg-unverified pattern; never-append pre-record either way).
+  prior-leg-unverified pattern; never-append pre-record either way). **Decided (this build):**
+  the dedicated code `supersedes-unverified` — never-append, pre-record; the
+  `prior-leg-unverified` pattern at its own name.
 - The exclusivity interaction: whether a recovering `open()` and the predecessor's
-  terminality are checked under one store constraint or sequentially.
+  terminality are checked under one store constraint or sequentially. **Decided (this build):**
+  sequential — verify-then-open under the ordinary exclusivity constraint alone; terminality
+  is one-way, so the verified predecessor cannot be raced back to non-terminal.
 - Whether a superseded-by back-reference is recorded on the predecessor (it is sealed-or-
   terminal; its chain may not admit appends — likely answer: no, the forward link is the
-  evidence).
+  evidence). **Decided (this build):** no — the forward link is the evidence; the
+  predecessor's chain stays untouched.
 
 ## 4. Consultation freshness — semantics at AL2
 
