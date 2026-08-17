@@ -36,6 +36,14 @@ row 17's tail shrinks to AL2 signing + the self-test tier.
   decision dies terminally, and the just-built recovery flow (`supersedes`) re-opens
   it under a fresh read — pinned by a composition test. Complete's TOKEN comparison
   keeps `effect-mismatch` on every profile: a wrong token is not state drift.
+- **The enlisted branch (the direct shape's `tx?`) refuses result-first WITHOUT
+  appending** — the family's settled discipline (its chain-verify and clock rungs
+  both): an appended drift edge inside the host's transaction would roll back WITH
+  the aborted effect and vanish, so an enlisted `redeem(…, tx)` meeting drift on a
+  reverify profile returns `refused('content-drift')` with no edge and no
+  `transitionRef`; a subsequent unenlisted invocation lands the terminal edge (the
+  loser-agrees-with-reinvocation shape). Pinned RED-first on the SQLite backing
+  (the lesson-9 precedent).
 - **One increment.**
 - **The sealed-set edit is tokens + OQ §7 tails + ONE clause**: the live-mode
   `SKETCHED` tokens move to `PROVEN` — SPEC:488's inline `[SKETCHED]` (plain brackets,
