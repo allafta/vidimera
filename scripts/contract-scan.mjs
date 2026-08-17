@@ -75,9 +75,12 @@ const openQuestionPattern = /\bOQ\d*-\d/i;
 // inside a numeric literal (9.999999999999999e20) reading as one; requiring both a
 // letter and a digit stops all-digit literals and all-letter words. A bare SHA in a
 // comment points into a git history, and the scan cannot tell whose — so none belong in
-// code, and a provenance claim is deleted rather than repointed.
+// code, and a provenance claim is deleted rather than repointed. Two EXACT exclusions,
+// `ed25519` and `ed448`: the Ed-curve algorithm names are public identifiers that are
+// hex-shaped by coincidence — the AL2 mint increment's tests pass them to node:crypto —
+// and are excluded exactly (the trailing guard on each keeps `ed25519abc` still a hit).
 const commitRefPattern =
-  /(?<![\w.])(?=[0-9a-f]{7,40}(?![\w.]))(?=[0-9a-f]*[a-f])(?=[0-9a-f]*\d)[0-9a-f]{7,40}(?![\w.])/;
+  /(?<![\w.])(?!ed25519(?![\w.]))(?!ed448(?![\w.]))(?=[0-9a-f]{7,40}(?![\w.]))(?=[0-9a-f]*[a-f])(?=[0-9a-f]*\d)[0-9a-f]{7,40}(?![\w.])/;
 
 // The increment vocabulary, with or without a number. The left guard keeps the ordinary
 // `.slice()` method call legal.

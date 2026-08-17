@@ -46,7 +46,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
+import { transitionDigest } from '../src/chain/encoding.js';
 import { create } from '../src/create.js';
+import { MemorySignatureStore } from '../src/signing/memory.js';
+import type { Signer } from '../src/signing/store.js';
 import { MemoryStore } from '../src/store/memory.js';
 import { SqliteStore } from '../src/store/sqlite.js';
 import {
@@ -148,6 +151,46 @@ test('ENLISTMENT: a host ROLLBACK erases the redeemed edge, and a known-rollback
   const retry = await handles.operator.redeem(recordId, CONTENT);
   assert.equal(retry.status, 'ok', 'the known-rollback retry is legitimate and succeeds');
   assert.equal((await handles.operator.getRecord(recordId))?.state, 'redeemed');
+});
+
+test('ENLISTED SIGNING: a signing effect-seam profile signs the enlisted redeem() edge, and the tx semantics of the neighboring enlisted tests are unchanged', async () => {
+  // The AL2 mint increment's one sqlite pin (signing.test.ts's own suite pins the layer
+  // in isolation; this test pins it riding an enlisted redeem()): the neighboring
+  // ENLISTMENT test's plumbing, plus `signing: true` on the profile and a
+  // `config.signing` block. `signing/decorate.ts`'s sidecar write is deliberately OUTSIDE
+  // the host's transaction, so the redeemed edge's signature lands regardless of the tx's
+  // own fate — this test pins the ordinary commit path, proving the tx semantics the
+  // ENLISTMENT test above establishes are unchanged by signing riding along.
+  const sqlite = new SqliteStore(':memory:');
+  const signatures = new MemorySignatureStore();
+  const signer: Signer = async (bytes) => ({ keyRef: 'key-1', signature: `stub:${bytes.length}` });
+  const profile = { ...effectSeamProfile(), signing: true as const };
+  const handles = create({
+    ...makeConfig([profile], { store: sqlite }),
+    signing: { signer, verifiers: {}, signatures },
+  });
+  const recordId = await openRecord(handles, CONTENT, 'test.effect.v1', DEFAULT_SUBJECT_REF);
+  const done = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(done.status, 'ok', 'fixture: the record must confirm');
+
+  sqlite.database.exec('BEGIN IMMEDIATE');
+  const enlisted = await handles.operator.redeem(recordId, CONTENT, sqlite.database);
+  assert.equal(enlisted.status, 'ok', 'the enlisted redemption reports success inside the txn');
+  sqlite.database.exec('COMMIT');
+
+  const after = await handles.operator.getRecord(recordId);
+  assert.equal(
+    after?.state,
+    'redeemed',
+    'the commit landed, same as the neighboring ENLISTMENT test',
+  );
+
+  const chain = await handles.operator.readChain(recordId);
+  const last = chain.at(-1);
+  assert.ok(last !== undefined && last.kind === 'redeemed');
+  const entries = await signatures.listByRecord(recordId);
+  const entry = entries.find((e) => e.transitionDigest === transitionDigest(last));
+  assert.ok(entry !== undefined, 'the redeemed edge itself got a sidecar entry');
 });
 
 test('ENLISTED CHAIN-COMPROMISE: a tampered chain over an enlisted redeem() refuses chain-compromise with no edge, and the host transaction stays open and usable', async () => {

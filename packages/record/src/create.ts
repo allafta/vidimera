@@ -47,7 +47,10 @@ import {
 import { review as reviewKernel } from './kernel/review.js';
 import { seal as sealKernel } from './kernel/seal.js';
 import { stage as stageKernel } from './kernel/stage.js';
+import { verifySignatures as verifySignaturesKernel } from './kernel/verify-signatures.js';
 import { makeOperatorSurface, type OperatorSurface } from './operator-surface.js';
+import { withSigning } from './signing/decorate.js';
+import type { SigningConfig } from './signing/store.js';
 import type { Store } from './store/store.js';
 
 /**
@@ -87,6 +90,13 @@ export interface ResolvedProfile {
  * overridden ONLY by `createWithClock` so a cross-backing byte-identity test can drive a
  * FIXED token (the token's digest, `tokenDigest`, sits inside the `redeeming`
  * transition's digest, the same reproducibility argument `mintId` makes for `recordId`).
+ *
+ * `signing` is SPEC §14's AL2 upgrade block (the AL2 mint increment) — present iff
+ * `config.signing` was supplied. Unlike `store` above, `ctx.store` here is ALREADY the
+ * signing-decorated wrapper when signing is configured (`createWithClock`'s own wrap,
+ * below): `ctx.signing` is carried separately only because `kernel/verify-signatures.ts`
+ * needs the raw `signer`/`verifiers`/`signatures` block directly, not the store
+ * decorator built from it.
  */
 export interface KernelContext {
   store: Store;
@@ -94,6 +104,7 @@ export interface KernelContext {
   now: () => Date;
   mintId: () => string;
   tokenSource: () => string;
+  signing?: SigningConfig;
 }
 
 /**
@@ -118,6 +129,7 @@ export interface Kernel {
   replay: OperatorSurface['replay'];
   verifyChain: OperatorSurface['verifyChain'];
   listDue: OperatorSurface['listDue'];
+  verifySignatures: OperatorSurface['verifySignatures'];
 }
 
 /**
@@ -177,6 +189,11 @@ function makeKernel(ctx: KernelContext): Kernel {
     // --- audit wrappers: REAL (readChain + the pure chain/replay.ts core) ---
     replay: async (recordId) => replayCore(await store.readChain(recordId)),
     verifyChain: async (recordId) => verifyChainCore(await store.readChain(recordId)),
+
+    // --- verifySignatures(): kernel/verify-signatures.ts — SPEC §14's AL2 mint
+    // increment's one audit surface, a pure chain-driven read wired the same way every
+    // other operator read is ---
+    verifySignatures: (recordId) => verifySignaturesKernel(ctx, recordId),
   };
 }
 
@@ -228,9 +245,43 @@ export function createWithClock(
       canonicalizer,
       effectSeam: profileDeclaresEffectSeam(profile),
     });
+    // SPEC §14's AL2 upgrade (the AL2 mint increment): a signing-declaring profile
+    // demands a capability the instance cannot supply without `config.signing` — a
+    // loud construction error, never a silent AL1 downgrade. The reverse (a prepared
+    // instance: `config.signing` present with no declaring profile) is legal and
+    // checked nowhere — the same unused-canonicalizer-registry-entry class already
+    // tolerated above.
+    if (profile.signing === true && config.signing === undefined) {
+      throw new Error(
+        `create: profile '${profile.id}' declares signing but the instance supplies no ` +
+          'config.signing (signer, verifiers, signatures) — SPEC §14: signing is an ' +
+          'operator-enabled hook, and a declaring profile without the hook is a loud ' +
+          'construction error, never a silent AL1 downgrade',
+      );
+    }
   }
 
-  const kernel = makeKernel({ store: config.store, profiles, now, mintId, tokenSource });
+  // The signing-decorated wrap (SPEC §14's AL2 mint increment): iff the instance
+  // declares `config.signing`, every kernel closure below captures the WRAPPED store —
+  // `signing/decorate.ts`'s `withSigning` — so every append path signs by
+  // construction and no seam below ever has to know. `isSigningProfile` closes over
+  // the just-built `profiles` registry (never a raw profile list) so it reflects the
+  // SAME resolved profiles every other kernel closure reads.
+  const isSigningProfile = (profileId: string): boolean =>
+    profiles.get(profileId)?.profile.signing === true;
+  const store =
+    config.signing === undefined
+      ? config.store
+      : withSigning(config.signing, config.store, isSigningProfile);
+
+  const kernel = makeKernel({
+    store,
+    profiles,
+    now,
+    mintId,
+    tokenSource,
+    signing: config.signing,
+  });
   return {
     agent: makeAgentSurface(kernel),
     operator: makeOperatorSurface(kernel),

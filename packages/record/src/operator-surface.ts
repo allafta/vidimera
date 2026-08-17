@@ -19,7 +19,9 @@
 // mid-lifecycle seams — the only appends between `opened` and the decision; `seal` to
 // `kernel/seal.ts`, the operator-only chain-retirement seam — a verified derived-terminal
 // record is capped with a `sealed` transition, `unsealable-state` otherwise); the reads +
-// replay/verifyChain wrappers are already real.
+// replay/verifyChain wrappers are already real. `verifySignatures` (SPEC §14, the AL2
+// mint increment) joins those wrappers as a fourth pure read: `kernel/verify-signatures.ts`,
+// chain-driven, never a gate — reporting only, the AL2 enforcement increment's own work.
 //
 // The seam family now has a token half alongside the direct one — SPEC §11.2 names one
 // verb, `redeem()`; the three call names here (`redeem`/`beginRedemption`/
@@ -30,6 +32,7 @@ import type { ChainVerifyReport } from './chain/replay.js';
 import type { FinalizeOptions, OpenOptions } from './config.js';
 import type { Kernel } from './create.js';
 import type { AckInput, FindingInput } from './kernel/findings-seams.js';
+import type { SignatureReport } from './kernel/verify-signatures.js';
 import type { Outcome } from './outcome.js';
 import type { DecisionRecord, Digest, IdentityAssertion, ReviewView, Transition } from './types.js';
 
@@ -87,6 +90,12 @@ export interface OperatorSurface {
   // "Like every §12 surface its concrete signature is provisional pre-1.0; the contract
   // is the behaviour above" — quoted because the sweep drives ordinary seams from this
   // list and adds no append authority (§4 ships no scheduler and no public expire()).
+  /** SPEC §14's AL2 upgrade — the AL2 mint increment's one audit surface: a pure
+   * chain-driven read beside `replay`/`verifyChain`, reporting per-transition
+   * sign/verify status. Never refuses, appends, or throws on verification failure —
+   * fail-closed REPORTING, not a gate (enforcement is the AL2 enforcement increment's
+   * own work). Throws only on the caller-error/unknown-record class every read takes. */
+  verifySignatures(recordId: string): Promise<SignatureReport>;
 }
 
 /**
@@ -110,5 +119,6 @@ export function makeOperatorSurface(kernel: Kernel): OperatorSurface {
     readChain: kernel.readChain,
     chainHead: kernel.chainHead,
     listDue: kernel.listDue,
+    verifySignatures: kernel.verifySignatures,
   });
 }

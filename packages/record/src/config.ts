@@ -10,6 +10,7 @@
 
 import type { Canonicalizer } from './canonical.js';
 import type { RefusalCode } from './refusal-codes.js';
+import type { SigningConfig } from './signing/store.js';
 import type { Store } from './store/store.js';
 import type { Digest, IdentityAssertion, SupersedesRef } from './types.js';
 
@@ -38,13 +39,28 @@ export interface ConfirmProfile {
   expiry: { ttl: number } | 'none';
   policySource?: string; // SPEC §10.3
   redeem?: { confirmToRedeem?: number; redeemBound?: number; reverify?: boolean }; // presence ⇒ effect seam
+  /** SPEC §14's AL2 upgrade, per-profile enablement, record-homogeneous from genesis
+   * (the AL2 brainstorm ruling) — the AL2 mint increment (first of three): the
+   * declaration alone mints a detached signature over every transition this profile's
+   * records ever append (`signing/decorate.ts`); nothing consults it yet (the AL2
+   * enforcement increment's own work). The literal `true` (never `boolean`) closes the
+   * `signing: false` inertness at the type level — there is no declarable-but-inert
+   * `false` to construct against, matching the settled fail-closed class this file's
+   * other structural guards use. */
+  signing?: true;
 }
 
 export interface Config {
   profiles: ConfirmProfile[];
   store: Store;
   canonicalizers: Record<string, Canonicalizer>; // keyed by canonicalizerRef
-  // signer?: Signer — not built in this build; the AL2 signing upgrade (SPEC §14)
+  /** SPEC §14's AL2 upgrade — the operator-supplied signer/verifier/sidecar block. The
+   * AL2 mint increment's own addition: present iff the operator enables signing on this
+   * instance. A `signing:true` profile with this absent is a construction error
+   * (create.ts); this present with NO declaring profile is legal — a prepared
+   * instance, the same unused-canonicalizer-registry-entry class already tolerated
+   * above. */
+  signing?: SigningConfig;
 }
 
 // --- the effect-seam predicate (SPEC §9.1 "The effect-seam predicate") ----------------
