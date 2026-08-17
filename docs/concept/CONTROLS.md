@@ -45,7 +45,7 @@ are **out of scope by design**: the operator is the records' sole consumer (`CON
 | Live capture + `reverify` | `captureMode: 'live'` | Decide-what-exists; independent re-derivation gated as a required consultation; redemption-time re-verify | PROVEN | No pre-decision immutability — catches change at the decision |
 | Recovery (`supersedes`) | profile-conditional field; the verified reference supplied at the recovering record's `open()` | Verify-by-replay link from a fresh record to a terminal predecessor | PROVEN | Recovery linkage evidence; open flow details enumerated (`OPEN-QUESTIONS.md` §3) |
 | Consultation freshness | `freshness` (per leg) | Staleness gate over consultation age | SKETCHED (AL2-dependent) | Unfireable at AL1 (recording-time stamps); meaningful only with authority timestamps |
-| AL2 detached signing | operator enablement (granularity open — `OPEN-QUESTIONS.md` §1) | Signatures over canonical transitions + consultations | SKETCHED | Closes the recompute + head-edit residuals **when the key is outside the insider boundary** |
+| AL2 detached signing | operator enablement (granularity decided on record — `OPEN-QUESTIONS.md` §1) | Signatures over canonical transitions + consultations | PROVEN | Closes the recompute + head-edit residuals **when the key is outside the insider boundary** |
 
 The AL2 row sits in GOVERNED by the tier test (a host-declared feature), not by profile
 declaration — its switch is operator enablement, with the granularity

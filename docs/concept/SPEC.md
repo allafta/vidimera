@@ -1224,14 +1224,14 @@ honesty**.
   hash-chained transitions, tamper-*evident* against non-recomputing tampering — bounded per
   §0/§5 to transitions that are not the current chain head. This is what every deployment
   gets, and it is never described as cryptographic.
-- **AL2 — Signed (an operator-enabled upgrade) [SKETCHED].** Detached signatures over
+- **AL2 — Signed (an operator-enabled upgrade) [PROVEN].** Detached signatures over
   canonical transitions and consultations. An operator enables it when insiders — a database
   administrator who could recompute the chain — are outside the trust boundary; it closes the
   recompute residual and the genesis-head blind windows (§13A, §10.1, §10.3), because a
   rebuilt or head-edited chain fails signature verification without trusting storage. Signing
   ships as an optional hook; key distribution and rotation are host-declared; enablement
-  granularity and the missing-signature posture are named open decisions
-  (`OPEN-QUESTIONS.md`). AL1 stays the default.
+  granularity and the missing-signature posture are decided on record
+  (`OPEN-QUESTIONS.md` §1). AL1 stays the default.
 - **AL3 — Anchored (documented upgrade only) [SKETCHED].** External anchoring of chain heads
   in an independent append-only log — anchored history verifiable against a log the operator
   does not solely control, for key-holding insiders and long-horizon disputes. Documented so

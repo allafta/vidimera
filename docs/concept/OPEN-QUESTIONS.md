@@ -14,15 +14,24 @@ consultations; closes the recompute residual and both genesis-head blind windows
 enablement design is deliberately reserved for a dedicated decision:
 
 - **Granularity** — enabled per deployment, per profile, or per record? What happens at a
-  boundary (a profile flipping signing on with unsigned history behind it)?
+  boundary (a profile flipping signing on with unsigned history behind it)? **Decided (this
+  build):** per profile, record-homogeneous — a record opened under a signing profile is
+  signed whole from its genesis; a profile flipping the field is the version-discipline
+  violation §2's convention names.
 - **Missing-signature posture** — when verification encounters an unsigned transition in a
   signing-enabled scope: fail-closed refusal, degraded-trust reporting, or
-  enablement-boundary-aware acceptance?
+  enablement-boundary-aware acceptance? **Decided (this build):** fail-closed into each
+  site's existing code — `chain-compromise` at the seams, the claim refusals
+  (`prior-leg-unverified`, `supersedes-unverified`) at the cross-record verifications.
 - **Key custody** — distribution and rotation are host-declared, but the verification story
-  across a rotation needs a design (key ids in the record? external key history?).
+  across a rotation needs a design (key ids in the record? external key history?). **Decided
+  (this build):** an opaque `keyRef` beside each detached signature, resolved against a
+  host-supplied verifier registry; an unresolvable `keyRef` fails closed; the library never
+  holds keys.
 - **Authority timestamps** — AL2 admits authority-supplied times inside digested payloads,
   which is what makes freshness gating meaningful (§4 below); which consultation kinds carry
-  them, and how they are attested, is part of this design.
+  them, and how they are attested, is part of this design. **Still open:** the AL2 freshness
+  increment's own design — see §4 below.
 
 Motivating context, recorded: two AL1 blind windows (separation-of-duties genesis evidence;
 policy-binding genesis) both name AL2 as their closure, and insider/database-administrator
@@ -85,7 +94,7 @@ decision of record.
 
 ## 7. Live capture — residual decisions
 
-The mode is sketched (independent re-derivation gated as a required consultation;
+The mode was sketched (independent re-derivation gated as a required consultation;
 `confirmToRedeem`-or-`reverify` at the effect seam). Residual: the `reverify` redemption
 surface's exact argument shape, and whether a live profile's staging step (there is no inert
 draft) changes the staged-reference contract or bypasses it. **Decided (this build):** the
