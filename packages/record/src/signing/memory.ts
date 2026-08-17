@@ -31,4 +31,16 @@ export class MemorySignatureStore implements SignatureStore {
     }
     return out;
   }
+
+  /**
+   * Test/host convenience, NOT part of the `SignatureStore` contract: removes the entry
+   * keyed at `transitionDigest`, if any. `put`'s upsert-by-digest semantics give no other
+   * way to make an association disappear — re-`put`ting an entry under a DIFFERENT digest
+   * adds a second Map entry, it does not vacate the first key — so the AL2 enforcement
+   * increment's own tests use this directly to construct a genuinely MISSING-entry
+   * fixture, distinct from a tampered-but-present one.
+   */
+  delete(transitionDigest: string): void {
+    this.entries.delete(transitionDigest);
+  }
 }

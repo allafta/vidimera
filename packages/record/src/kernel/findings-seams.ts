@@ -7,7 +7,8 @@
 //
 // The shared ladder (the several-seams-one-prologue shape kernel/redeem.ts set):
 //   (0) argument intake THROWS (the validateConsultations class) before the chain loads
-//   (1) chain-verify FIRST            -> chain-compromise (appendChainCompromise)
+//   (1) chain-verify FIRST            -> chain-compromise (appendChainCompromise); the AL2
+//         enforcement increment folds the signature layer into this same arm
 //   (2) profile/leg resolution        -> unknown-profile; a persisted legId miss THROWS
 //   (2.5) declaring check             -> THROW: SPEC §10.2, "both seams throw on a
 //         record whose resolved leg declares no findings flow — so a non-declaring
@@ -39,6 +40,7 @@ import type {
 } from '../types.js';
 import { expiryDeadlineMs, resolveDueClock } from './expiry.js';
 import { appendChainCompromise, isValidIdentity } from './finalize.js';
+import { signatureLayerHolds } from './verify-signatures.js';
 
 /** SPEC §10.2's `finding` argument: `{ findingId, kind, findingDigest, magnitude? }`. */
 export interface FindingInput {
@@ -144,8 +146,9 @@ async function loadOpenDeclaringRecord(
         'resolves to no chain is a caller error, not a domain refusal (SPEC §8)',
     );
   }
-  // (1) chain-verify, FIRST.
-  if (!verifyChain(chain).intact) {
+  // (1) chain-verify, FIRST. The AL2 enforcement increment folds the signature layer
+  // into this same arm.
+  if (!verifyChain(chain).intact || !(await signatureLayerHolds(ctx, chain))) {
     return { ok: false, out: (await appendChainCompromise(store, chain, now)) as SeamResult };
   }
   const record = replay(chain);

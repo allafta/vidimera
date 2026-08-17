@@ -5,7 +5,10 @@
 // know. SIGN BEFORE APPEND: a crash or lost CAS after the sidecar write leaves an
 // ORPHAN entry — harmless, verification is chain-driven — while the reverse order
 // could leave a LANDED transition unsigned on a signing record, which the AL2
-// enforcement increment's fail-closed posture would condemn; the order is pinned.
+// enforcement increment's fail-closed posture DOES condemn (that increment has now
+// landed: `kernel/verify-signatures.ts`'s `signatureLayerHolds` treats a missing entry
+// as `false`, folded into `chain-compromise` at every verification site); the order
+// is pinned.
 // The sidecar write is deliberately NOT part of any host transaction an enlisted
 // seam passes through (`tx` delegates untouched): an aborted effect's orphan
 // signature is the same harmless class.

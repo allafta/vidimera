@@ -6,7 +6,8 @@
 //
 // The gate ladder, and why:
 //   (1) chain-verify      -> chain-compromise    — §5: "Every operator-side mutating seam
-//                            verifies the chain before acting"
+//                            verifies the chain before acting"; the AL2 enforcement
+//                            increment folds the signature layer into this same arm
 //   (2) resolve profile   -> unknown-profile     — defensive; fail-closed
 //   (3) effect seam?      -> unredeemable-state  — §11.2: "on-iff-effects"
 //   (4) state gate        -> already-redeemed on 'redeemed' (at-most-once, replay half);
@@ -68,6 +69,7 @@ import type { AppendMeta, Store } from '../store/store.js';
 import type { DecisionRecord, Digest, Transition } from '../types.js';
 import { deadlineIso, pendingWindow, resolveDueClock } from './expiry.js';
 import { appendChainCompromise } from './finalize.js';
+import { signatureLayerHolds } from './verify-signatures.js';
 
 /**
  * The family-wide CAS-residual refusal (second step-3 increment; an authorized behavior
@@ -160,7 +162,9 @@ function dueNow(chain: readonly Transition[], resolved: ResolvedProfile, now: Da
  * (direct redeem, beginRedemption, completeRedemption), byte-identical across them:
  *   load chain      -> THROW on unknown recordId (a caller error, SPEC §8)
  *   (1) chain-verify -> chain-compromise — §5: "Every operator-side mutating seam
- *       verifies the chain before acting". ENLISTED callers (tx !== undefined — today
+ *       verifies the chain before acting". The AL2 enforcement increment folds the
+ *       signature layer into this same arm — inherited by the ENLISTED branch, not
+ *       re-decided. ENLISTED callers (tx !== undefined — today
  *       only direct redeem carries tx) refuse result-first with NO edge: see the comment
  *       in place below. Un-enlisted callers append the edge via appendChainCompromise.
  *   (2) resolve profile -> unknown-profile (fail-closed); persisted legId absent -> THROW
@@ -194,7 +198,11 @@ async function prologue(
         'that resolves to no chain is a caller error, not a domain refusal (SPEC §8)',
     );
   }
-  if (!verifyChain(chain).intact) {
+  // AL1 intactness first; the AL2 enforcement increment folds the signature layer into
+  // this same arm — inherited by the enlisted branch below, not re-decided: a
+  // signature-broken chain refuses `chain-compromise` result-first over an enlisted
+  // caller exactly as a hash-broken one does.
+  if (!verifyChain(chain).intact || !(await signatureLayerHolds(ctx, chain))) {
     if (tx !== undefined) {
       // ENLISTED: the host already has ITS OWN transaction open on this connection, and
       // appendChainCompromise's no-tx fallback would BEGIN a SECOND transaction on that

@@ -21,7 +21,10 @@
 // record is capped with a `sealed` transition, `unsealable-state` otherwise); the reads +
 // replay/verifyChain wrappers are already real. `verifySignatures` (SPEC §14, the AL2
 // mint increment) joins those wrappers as a fourth pure read: `kernel/verify-signatures.ts`,
-// chain-driven, never a gate — reporting only, the AL2 enforcement increment's own work.
+// chain-driven, never a gate — reporting only, permanently: the AL2 enforcement increment
+// (second of three, now landed) folds the signature layer into chain-compromise at the
+// SIX verification sites instead (`signatureLayerHolds`, sharing this read's own
+// correlation core), never by having this read itself gate.
 //
 // The seam family now has a token half alongside the direct one — SPEC §11.2 names one
 // verb, `redeem()`; the three call names here (`redeem`/`beginRedemption`/
@@ -93,8 +96,10 @@ export interface OperatorSurface {
   /** SPEC §14's AL2 upgrade — the AL2 mint increment's one audit surface: a pure
    * chain-driven read beside `replay`/`verifyChain`, reporting per-transition
    * sign/verify status. Never refuses, appends, or throws on verification failure —
-   * fail-closed REPORTING, not a gate (enforcement is the AL2 enforcement increment's
-   * own work). Throws only on the caller-error/unknown-record class every read takes. */
+   * fail-closed REPORTING, not a gate: the AL2 enforcement increment (second of three,
+   * now landed) folds the layer into chain-compromise at the seams via its own
+   * `signatureLayerHolds`, never by this read gating. Throws only on the
+   * caller-error/unknown-record class every read takes. */
   verifySignatures(recordId: string): Promise<SignatureReport>;
 }
 

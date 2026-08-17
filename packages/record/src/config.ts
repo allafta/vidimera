@@ -42,8 +42,10 @@ export interface ConfirmProfile {
   /** SPEC §14's AL2 upgrade, per-profile enablement, record-homogeneous from genesis
    * (the AL2 brainstorm ruling) — the AL2 mint increment (first of three): the
    * declaration alone mints a detached signature over every transition this profile's
-   * records ever append (`signing/decorate.ts`); nothing consults it yet (the AL2
-   * enforcement increment's own work). The literal `true` (never `boolean`) closes the
+   * records ever append (`signing/decorate.ts`). The AL2 enforcement increment (second
+   * of three, now landed) is what CONSULTS it: every chain-verify site folds
+   * `kernel/verify-signatures.ts`'s `signatureLayerHolds` into its own existing failure
+   * arm on a declaring profile. The literal `true` (never `boolean`) closes the
    * `signing: false` inertness at the type level for a TS caller — and, as of this
    * review's guard, at runtime too: `validateProfile` (below) throws on any declared
    * value other than `true`, so a non-TS caller cannot construct a silently-inert

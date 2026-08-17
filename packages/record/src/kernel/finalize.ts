@@ -26,6 +26,10 @@
 //     fact folds into the single `refused` edge); the payload is `{code}`-only (AL1-honest —
 //     `verifyChain` still reports only the original tamper). Because chain-verify precedes the
 //     state gate, a tampered non-open record refuses `chain-compromise`, not `record-not-open`.
+//     The AL2 enforcement increment folds the signature layer into this same arm
+//     (`kernel/verify-signatures.ts`'s `signatureLayerHolds`, consulted only once AL1
+//     intactness itself holds): a signing record whose layer does not hold refuses
+//     `chain-compromise` exactly as a hash-broken chain does.
 // (2) State/expiry gate (intact chain, before any append): a due-open record → en-passant
 //     `resolveDueClock` CAS-append `expired` → `leg-expired`; already-`expired` → `leg-expired`;
 //     `state !== 'open'` (confirmed/refused) → `record-not-open` (no append, no transitionRef).
@@ -104,6 +108,7 @@ import type { Consultation, Digest, IdentityAssertion, RecordState, Transition }
 import { validateConsultations, validatePolicyInput } from './consultations.js';
 import { deadlineIso, resolveDueClock } from './expiry.js';
 import { findingCoverage } from './findings.js';
+import { signatureLayerHolds } from './verify-signatures.js';
 
 /** The finalize `facts` arg (SPEC §3's "Reviewed-surface (`facts`) binding"): the reviewed-surface figures + the review-surface checker. */
 type Facts = { figures: unknown; checker: IdentityAssertion };
@@ -171,8 +176,11 @@ export async function finalize(
   }
 
   // --- (1) pre-seam chain-verify (FIRST after load) ------------------------------------
+  // AL1 intactness first; the AL2 enforcement increment folds the signature layer into
+  // this same arm — a signing record whose layer does not hold refuses chain-compromise
+  // identically to a hash-broken chain, both via the shared append below.
   const report = verifyChain(chain);
-  if (!report.intact) {
+  if (!report.intact || !(await signatureLayerHolds(ctx, chain))) {
     return appendChainCompromise(store, chain, now);
   }
 

@@ -14,7 +14,8 @@
 // (1) IS FIRST and outranks everything, including an already-sealed record — SPEC §5:
 // "Verification is first: a record whose chain fails verification refuses `chain-compromise`
 // and can never be sealed." Against a sealed record C4 admits no edge, so that combination
-// surfaces result-first with no transitionRef.
+// surfaces result-first with no transitionRef. The AL2 enforcement increment folds the
+// signature layer into this same arm (`kernel/verify-signatures.ts`'s `signatureLayerHolds`).
 //
 // NO EN-PASSANT EXPIRY, deliberately. `open()` and `finalize()` both call `resolveDueClock`
 // (`kernel/expiry.ts`); this seam must not, and the omission is a stated rule rather than an
@@ -32,6 +33,7 @@ import { ok, refused } from '../outcome.js';
 import type { AppendMeta } from '../store/store.js';
 import type { Digest, Transition } from '../types.js';
 import { appendChainCompromise } from './finalize.js';
+import { signatureLayerHolds } from './verify-signatures.js';
 
 export async function seal(
   ctx: KernelContext,
@@ -48,7 +50,9 @@ export async function seal(
   }
 
   // --- (1) chain-verify, FIRST ---------------------------------------------------------
-  if (!verifyChain(chain).intact) {
+  // AL1 intactness first; the AL2 enforcement increment folds the signature layer into
+  // this same arm.
+  if (!verifyChain(chain).intact || !(await signatureLayerHolds(ctx, chain))) {
     return appendChainCompromise(store, chain, now);
   }
 

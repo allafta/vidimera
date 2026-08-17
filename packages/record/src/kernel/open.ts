@@ -119,7 +119,7 @@ export async function open(
   // even when a C1 blocker also holds the pair, and the blocker path below is never
   // reached with unverified references.
   const priorCheck = await verifyPriorLegs(
-    store,
+    ctx,
     resolved,
     legIndex,
     staged.subjectRef,
@@ -138,7 +138,7 @@ export async function open(
   // terminality is one-way, so the verified predecessor cannot be raced back.
   let supersedesCheck: SupersedesCheck | null = null;
   if (opts?.supersedes !== undefined) {
-    supersedesCheck = await verifySupersedes(store, profiles, opts.supersedes, staged.subjectRef);
+    supersedesCheck = await verifySupersedes(ctx, opts.supersedes, staged.subjectRef);
     if (!supersedesCheck.ok) {
       return refused('supersedes-unverified');
     }

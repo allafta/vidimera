@@ -44,12 +44,13 @@
 // Total order-pair tests in this file: 3.
 
 import assert from 'node:assert/strict';
+import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';
 import { test } from 'vitest';
 
 import { transitionDigest } from '../src/chain/encoding.js';
 import { create } from '../src/create.js';
 import { MemorySignatureStore } from '../src/signing/memory.js';
-import type { Signer } from '../src/signing/store.js';
+import type { Signer, Verifier } from '../src/signing/store.js';
 import { MemoryStore } from '../src/store/memory.js';
 import { SqliteStore } from '../src/store/sqlite.js';
 import {
@@ -160,14 +161,19 @@ test('ENLISTED SIGNING: a signing effect-seam profile signs the enlisted redeem(
   // `config.signing` block. `signing/decorate.ts`'s sidecar write is deliberately OUTSIDE
   // the host's transaction, so the redeemed edge's signature lands regardless of the tx's
   // own fate — this test pins the ordinary commit path, proving the tx semantics the
-  // ENLISTMENT test above establishes are unchanged by signing riding along.
+  // ENLISTMENT test above establishes are unchanged by signing riding along. The
+  // verifier below matches the stub signer's own scheme — the AL2 enforcement increment
+  // now consults it at every chain-verify site (this fixture predates that increment,
+  // when `verifiers: {}` was inert; it must resolve now, or every finalize/redeem call
+  // below would itself refuse chain-compromise on its own genesis).
   const sqlite = new SqliteStore(':memory:');
   const signatures = new MemorySignatureStore();
   const signer: Signer = async (bytes) => ({ keyRef: 'key-1', signature: `stub:${bytes.length}` });
+  const verifier: Verifier = async (bytes, signature) => signature === `stub:${bytes.length}`;
   const profile = { ...effectSeamProfile(), signing: true as const };
   const handles = create({
     ...makeConfig([profile], { store: sqlite }),
-    signing: { signer, verifiers: {}, signatures },
+    signing: { signer, verifiers: { 'key-1': verifier }, signatures },
   });
   const recordId = await openRecord(handles, CONTENT, 'test.effect.v1', DEFAULT_SUBJECT_REF);
   const done = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
@@ -191,6 +197,52 @@ test('ENLISTED SIGNING: a signing effect-seam profile signs the enlisted redeem(
   const entries = await signatures.listByRecord(recordId);
   const entry = entries.find((e) => e.transitionDigest === transitionDigest(last));
   assert.ok(entry !== undefined, 'the redeemed edge itself got a sidecar entry');
+});
+
+test('ENLISTED SIGNATURE-BROKEN (the AL2 enforcement increment): a signature-broken signing effect-seam record refuses chain-compromise result-first over an enlisted redeem(), no edge appended', async () => {
+  // The rung-1 enlisted discipline (kernel/redeem.ts's shared `prologue`) INHERITS the
+  // AL2 enforcement increment's signature layer into the SAME arm the neighboring
+  // ENLISTED CHAIN-COMPROMISE test's hash-broken chain takes below: an enlisted caller
+  // never routes through appendChainCompromise's own append at all, so a signature break
+  // refuses result-first too — the arm is inherited, not re-decided for signing.
+  const sqlite = new SqliteStore(':memory:');
+  const signatures = new MemorySignatureStore();
+  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+  const signer: Signer = async (bytes) => ({
+    keyRef: 'key-1',
+    signature: edSign(null, bytes, privateKey).toString('base64'),
+  });
+  const verifier: Verifier = async (bytes, signature) =>
+    edVerify(null, bytes, publicKey, Buffer.from(signature, 'base64'));
+  const profile = { ...effectSeamProfile(), signing: true as const };
+  const handles = create({
+    ...makeConfig([profile], { store: sqlite }),
+    signing: { signer, verifiers: { 'key-1': verifier }, signatures },
+  });
+  const recordId = await openRecord(handles, CONTENT, 'test.effect.v1', DEFAULT_SUBJECT_REF);
+  const done = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(done.status, 'ok', 'fixture: the record must confirm');
+
+  const entries = await signatures.listByRecord(recordId);
+  const victim = entries[0];
+  assert.ok(victim !== undefined, 'fixture: the record has sidecar entries');
+  await signatures.put({ ...victim, signature: `AAAA${victim.signature.slice(4)}` });
+
+  const before = await sqlite.readChain(recordId);
+  sqlite.database.exec('BEGIN IMMEDIATE');
+  const outcome = await handles.operator.redeem(recordId, CONTENT, sqlite.database);
+  assert.equal(sqlite.database.isTransaction, true, "the host's transaction is still open");
+  sqlite.database.exec('ROLLBACK'); // must not throw — the connection is clean and usable
+
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'chain-compromise');
+  assert.equal(outcome.transitionRef, undefined, 'no edge — the append was never attempted');
+  assert.deepEqual(
+    await sqlite.readChain(recordId),
+    before,
+    'the chain length is unchanged — no edge appended',
+  );
 });
 
 test('ENLISTED CHAIN-COMPROMISE: a tampered chain over an enlisted redeem() refuses chain-compromise with no edge, and the host transaction stays open and usable', async () => {

@@ -12,13 +12,18 @@
 //  - the same-subject/any-profile tightening: the predecessor decided THIS subject;
 //    a revised-profile re-open (SPEC §10.3's "disposal-and-re-open recovery") stays
 //    possible.
+//
+// The AL2 enforcement increment folds the signature layer into this same
+// verify-by-replay discipline: a signature-broken predecessor refuses
+// `supersedes-unverified` exactly as a hash-broken or wrong-head one does —
+// `signatureLayerHolds` is consulted immediately after AL1 intactness, never before it.
 
 import { transitionDigest } from '../chain/encoding.js';
 import { replay, verifyChain } from '../chain/replay.js';
-import type { ResolvedProfile } from '../create.js';
+import type { KernelContext } from '../create.js';
 import { isFinalLeg, nonTerminal } from '../nonterminal.js';
-import type { Store } from '../store/store.js';
 import type { SupersedesRef } from '../types.js';
+import { signatureLayerHolds } from './verify-signatures.js';
 
 export type SupersedesCheck = { ok: true; verified: SupersedesRef } | { ok: false };
 
@@ -57,14 +62,16 @@ export function validateSupersedesShape(value: unknown): asserts value is Supers
  * Every failure is one refusal, `supersedes-unverified`, mapped by the caller.
  */
 export async function verifySupersedes(
-  store: Store,
-  profiles: Map<string, ResolvedProfile>,
+  ctx: KernelContext,
   ref: SupersedesRef,
   subjectRef: string,
 ): Promise<SupersedesCheck> {
+  const { store, profiles } = ctx;
   const chain = await store.readChain(ref.recordId);
   if (chain.length === 0) return { ok: false }; // an absent claim cannot be replayed
   if (!verifyChain(chain).intact) return { ok: false };
+  // The AL2 enforcement increment folds the signature layer into this same arm.
+  if (!(await signatureLayerHolds(ctx, chain))) return { ok: false };
   const last = chain.at(-1);
   if (last === undefined) return { ok: false };
   if (transitionDigest(last) !== ref.chainHead) return { ok: false };

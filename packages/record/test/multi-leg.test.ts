@@ -11,11 +11,12 @@ import type { AgentSurface } from '../src/agent-surface.js';
 import { transitionDigest } from '../src/chain/encoding.js';
 import { replay } from '../src/chain/replay.js';
 import type { ConfirmProfile, LegSpec } from '../src/config.js';
-import type { ResolvedProfile } from '../src/create.js';
+import type { KernelContext, ResolvedProfile } from '../src/create.js';
 import { create, createWithClock } from '../src/create.js';
 import { verifyPriorLegs } from '../src/kernel/prior-legs.js';
 import type { OperatorSurface } from '../src/operator-surface.js';
 import { MemoryStore } from '../src/store/memory.js';
+import type { Store } from '../src/store/store.js';
 import type { Transition } from '../src/types.js';
 import { buildChain } from './helpers/chain.js';
 import {
@@ -51,6 +52,23 @@ function twoLegShape(id = 'test.twoleg.v1'): ConfirmProfile {
 }
 function resolvedOf(profile: ConfirmProfile): ResolvedProfile {
   return { profile, canonicalizer: (c: unknown) => c, effectSeam: false };
+}
+
+/** A minimal KernelContext over a bare `store`, for `verifyPriorLegs` unit tests below
+ * that exercise it directly rather than through `create()` (the AL2 enforcement
+ * increment widened its signature to accept `ctx` — `signatureLayerHolds` needs
+ * `ctx.profiles`/`ctx.signing`). None of these fixtures declare `signing: true`, and the
+ * empty `profiles` map here makes `signatureLayerHolds` read the layer as not applying
+ * regardless (an unregistered profileId is the id-resolution posture), so behavior is
+ * unchanged from before this widening. */
+function ctxOf(store: Store): KernelContext {
+  return {
+    store,
+    profiles: new Map(),
+    now: () => new Date(),
+    mintId: () => 'unused',
+    tokenSource: () => 'unused',
+  };
 }
 
 /** Seeds a store with a correctly-linked chain, one honest append at a time. */
@@ -96,18 +114,18 @@ function makerConfirmedChain(
 test('verifyPriorLegs: a first leg with no refs verifies to null; with any ref it fails', async () => {
   const store = new MemoryStore();
   const resolved = resolvedOf(twoLegShape());
-  assert.deepEqual(await verifyPriorLegs(store, resolved, 0, SUBJECT, undefined), {
+  assert.deepEqual(await verifyPriorLegs(ctxOf(store), resolved, 0, SUBJECT, undefined), {
     ok: true,
     verified: null,
   });
-  assert.deepEqual(await verifyPriorLegs(store, resolved, 0, SUBJECT, []), {
+  assert.deepEqual(await verifyPriorLegs(ctxOf(store), resolved, 0, SUBJECT, []), {
     ok: true,
     verified: null,
   });
   // §10.1: "supplying any is itself a sequencing error that refuses `prior-leg-unverified`"
   // — the caller maps { ok: false } to that code.
   const any = [{ recordId: 'r-x', chainHead: `sha256:${'a'.repeat(64)}` }];
-  assert.deepEqual(await verifyPriorLegs(store, resolved, 0, SUBJECT, any), { ok: false });
+  assert.deepEqual(await verifyPriorLegs(ctxOf(store), resolved, 0, SUBJECT, any), { ok: false });
 });
 
 test('verifyPriorLegs: the happy reference — three-field ref recorded, actor derived, paired by index', async () => {
@@ -118,7 +136,7 @@ test('verifyPriorLegs: the happy reference — three-field ref recorded, actor d
   assert.ok(last !== undefined);
   const head = transitionDigest(last);
 
-  const res = await verifyPriorLegs(store, resolvedOf(twoLegShape()), 1, SUBJECT, [
+  const res = await verifyPriorLegs(ctxOf(store), resolvedOf(twoLegShape()), 1, SUBJECT, [
     { recordId: 'rec-ml-1', chainHead: head },
   ]);
   assert.equal(res.ok, true);
@@ -143,30 +161,34 @@ test('verifyPriorLegs: every verification condition fails closed to { ok: false 
 
   // unknown recordId — host DATA, refused, never a caller-error throw:
   assert.deepEqual(
-    await verifyPriorLegs(store, resolved, 1, SUBJECT, [{ recordId: 'rec-none', chainHead: head }]),
+    await verifyPriorLegs(ctxOf(store), resolved, 1, SUBJECT, [
+      { recordId: 'rec-none', chainHead: head },
+    ]),
     { ok: false },
   );
   // head mismatch (a wrong claimed head):
   assert.deepEqual(
-    await verifyPriorLegs(store, resolved, 1, SUBJECT, [
+    await verifyPriorLegs(ctxOf(store), resolved, 1, SUBJECT, [
       { recordId: 'rec-ml-2', chainHead: `sha256:${'f'.repeat(64)}` },
     ]),
     { ok: false },
   );
   // wrong subject:
   assert.deepEqual(
-    await verifyPriorLegs(store, resolved, 1, 'subject:other', [
+    await verifyPriorLegs(ctxOf(store), resolved, 1, 'subject:other', [
       { recordId: 'rec-ml-2', chainHead: head },
     ]),
     { ok: false },
   );
   // count mismatch — too few for a third leg, too many for a second:
   assert.deepEqual(
-    await verifyPriorLegs(store, resolved, 2, SUBJECT, [{ recordId: 'rec-ml-2', chainHead: head }]),
+    await verifyPriorLegs(ctxOf(store), resolved, 2, SUBJECT, [
+      { recordId: 'rec-ml-2', chainHead: head },
+    ]),
     { ok: false },
   );
   assert.deepEqual(
-    await verifyPriorLegs(store, resolved, 1, SUBJECT, [
+    await verifyPriorLegs(ctxOf(store), resolved, 1, SUBJECT, [
       { recordId: 'rec-ml-2', chainHead: head },
       { recordId: 'rec-ml-2', chainHead: head },
     ]),
@@ -192,7 +214,7 @@ test('verifyPriorLegs: a still-open prior fails; a tampered prior chain fails', 
   const openHead = openOnly.at(-1);
   assert.ok(openHead !== undefined);
   assert.deepEqual(
-    await verifyPriorLegs(store, resolvedOf(twoLegShape()), 1, SUBJECT, [
+    await verifyPriorLegs(ctxOf(store), resolvedOf(twoLegShape()), 1, SUBJECT, [
       { recordId: 'rec-ml-3', chainHead: transitionDigest(openHead) },
     ]),
     { ok: false },
@@ -210,7 +232,7 @@ test('verifyPriorLegs: a still-open prior fails; a tampered prior chain fails', 
   const honestLast = honest.at(-1);
   assert.ok(honestLast !== undefined);
   assert.deepEqual(
-    await verifyPriorLegs(tampering, resolvedOf(twoLegShape()), 1, SUBJECT, [
+    await verifyPriorLegs(ctxOf(tampering), resolvedOf(twoLegShape()), 1, SUBJECT, [
       { recordId: 'rec-ml-4', chainHead: transitionDigest(honestLast) },
     ]),
     { ok: false },
@@ -224,7 +246,7 @@ test('verifyPriorLegs: an intact, confirmed prior with no derivable actor THROWS
   const last = chain.at(-1);
   assert.ok(last !== undefined);
   await assert.rejects(
-    verifyPriorLegs(store, resolvedOf(twoLegShape()), 1, SUBJECT, [
+    verifyPriorLegs(ctxOf(store), resolvedOf(twoLegShape()), 1, SUBJECT, [
       { recordId: 'rec-ml-5', chainHead: transitionDigest(last) },
     ]),
     /no actor/i,

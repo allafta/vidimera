@@ -1,9 +1,11 @@
 // @vidimera/record — signing/store.ts: the AL2 mint increment's own types (SPEC §14
-// "AL2 — Signed" — the first of three signing increments; enforcement and its marker
-// move next, freshness after). Detached-signature evidence lives BESIDE the chain,
-// never inside a transition's own bytes — nothing here enforces anything: this
-// increment lands the shape and the mint point only. Folding a signing record's bad
-// layer into chain-compromise at the seams is the AL2 enforcement increment's own work.
+// "AL2 — Signed" — the first of three signing increments; freshness is the third, still
+// future). Detached-signature evidence lives BESIDE the chain, never inside a
+// transition's own bytes — this file lands the shape and the mint point only, and on
+// its own still enforces nothing. Folding a signing record's bad layer into
+// chain-compromise at the seams is the AL2 enforcement increment's own work, landed
+// (second of three) at `kernel/verify-signatures.ts`'s `signatureLayerHolds`, consulted
+// by every chain-verify site over these same types.
 
 import type { Digest } from '../types.js';
 

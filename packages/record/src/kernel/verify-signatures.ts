@@ -1,20 +1,27 @@
-// @vidimera/record — kernel/verify-signatures.ts: the AL2 mint increment's one audit
-// surface (SPEC §14). A pure chain-driven read: it reports, it never refuses,
-// appends, or throws on verification failure — fail-closed REPORTING (unresolvable
-// keyRef, failed or throwing verifier, missing entry all read `verified: false`).
-// Enforcement — folding a signing record's bad layer into chain-compromise at the
-// seams — is the AL2 enforcement increment's own work.
+// @vidimera/record — kernel/verify-signatures.ts: SPEC §14's AL2 surface, now home to
+// BOTH signing increments' work. `verifySignatures` (the AL2 mint increment) is a pure
+// chain-driven read: it reports, it never refuses, appends, or throws on verification
+// failure — fail-closed REPORTING (unresolvable keyRef, failed or throwing verifier,
+// missing entry all read `verified: false`). `signatureLayerHolds` (the AL2 enforcement
+// increment, second of three) is the one gate primitive built on the SAME correlation
+// core (`layerVerdicts` below, factored so neither consumer re-derives it): every
+// verification site that already checks AL1 intactness (`verifyChain(chain).intact`)
+// now widens that same check to also consult this layer on a signing record, folding a
+// bad layer into each site's OWN existing failure arm — this file adds no new refusal
+// code and appends nothing itself. The read stays a read: `verifySignatures` never
+// gates, whatever `signatureLayerHolds` reports elsewhere for the same chain.
 //
 // Chain-driven, deliberately: an orphan sidecar entry (no matching chain transition)
-// is invisible to the report by CONSTRUCTION, not by a filter — the loop below walks
+// is invisible to BOTH consumers by CONSTRUCTION, not by a filter — the loop below walks
 // the chain and looks each transition's digest UP in the sidecar, never the reverse.
 // On an instance with no `config.signing` the surface still answers, trivially: every
-// transition reports `signed: false, verified: false` — a report is a read, never a
-// capability gate.
+// transition reports `signed: false, verified: false`, and `signatureLayerHolds` returns
+// `true` for the same reason `verifySignatures.signingDeclared` reads false — a
+// non-signing record's layer has nothing to hold it to.
 
 import { encodeTransition, transitionDigest } from '../chain/encoding.js';
 import type { KernelContext } from '../create.js';
-import type { Digest } from '../types.js';
+import type { Digest, Transition } from '../types.js';
 
 export interface SignatureReport {
   recordId: string;
@@ -28,25 +35,32 @@ export interface SignatureReport {
   }[];
 }
 
-export async function verifySignatures(
+/**
+ * The one correlation core both `verifySignatures` and `signatureLayerHolds` share:
+ * walks `chain` (never the sidecar) and, for each transition, resolves whether it
+ * carries a sidecar entry, whether that entry's `keyRef` resolves in `ctx.signing`'s
+ * registry, and whether the resolved verifier accepts the canonical bytes — a throwing
+ * verifier folds to `verified: false`, fail-closed, never a throw out of this module.
+ * `signingDeclared` reads the GENESIS transition's own `profileId`, resolved against
+ * THIS instance's profile registry — the id-resolution posture named at the two
+ * call sites below: an instance that cannot resolve the genesis profile treats the
+ * chain as non-signing rather than guessing.
+ */
+async function layerVerdicts(
   ctx: KernelContext,
-  recordId: string,
-): Promise<SignatureReport> {
-  const chain = await ctx.store.readChain(recordId);
-  if (chain.length === 0) {
-    throw new Error(
-      `verifySignatures: unknown recordId '${recordId}' — no such record; a recordId that ` +
-        'resolves to no chain is a caller error, not a domain refusal (SPEC §8)',
-    );
-  }
+  chain: readonly Transition[],
+): Promise<{ signingDeclared: boolean; transitions: SignatureReport['transitions'] }> {
   const genesis = chain[0];
   const profileId =
     genesis === undefined ? undefined : (genesis.payload as { profileId?: unknown }).profileId;
   const signingDeclared =
     typeof profileId === 'string' && ctx.profiles.get(profileId)?.profile.signing === true;
 
+  const recordId = genesis?.recordId;
   const entries =
-    ctx.signing === undefined ? [] : await ctx.signing.signatures.listByRecord(recordId);
+    ctx.signing === undefined || recordId === undefined
+      ? []
+      : await ctx.signing.signatures.listByRecord(recordId);
   const byDigest = new Map(entries.map((e) => [e.transitionDigest, e]));
 
   const transitions: SignatureReport['transitions'] = [];
@@ -74,5 +88,39 @@ export async function verifySignatures(
       verified,
     });
   }
+  return { signingDeclared, transitions };
+}
+
+export async function verifySignatures(
+  ctx: KernelContext,
+  recordId: string,
+): Promise<SignatureReport> {
+  const chain = await ctx.store.readChain(recordId);
+  if (chain.length === 0) {
+    throw new Error(
+      `verifySignatures: unknown recordId '${recordId}' — no such record; a recordId that ` +
+        'resolves to no chain is a caller error, not a domain refusal (SPEC §8)',
+    );
+  }
+  const { signingDeclared, transitions } = await layerVerdicts(ctx, chain);
   return { recordId, signingDeclared, transitions };
+}
+
+/**
+ * The AL2 enforcement increment's one gate primitive: does the signature layer HOLD for
+ * this chain? `true` when the layer does not apply — the genesis profile is non-signing
+ * or unresolvable in THIS instance (the id-resolution posture the build takes
+ * everywhere) — or when EVERY transition carries a sidecar entry whose keyRef resolves
+ * and whose verifier passes over the canonical bytes. `false` on any miss, unresolvable
+ * keyRef, failing or THROWING verifier — fail closed. AL1 intactness is the CALLER's
+ * first check; this layer runs only on intact chains. The rehoming residual is named in
+ * the status doc: the obligation keys on the genesis's own profileId claim.
+ */
+export async function signatureLayerHolds(
+  ctx: KernelContext,
+  chain: readonly Transition[],
+): Promise<boolean> {
+  const { signingDeclared, transitions } = await layerVerdicts(ctx, chain);
+  if (!signingDeclared) return true; // the layer does not apply — nothing to hold it to
+  return transitions.every((t) => t.verified);
 }

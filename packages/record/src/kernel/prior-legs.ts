@@ -13,13 +13,16 @@
 // AL1 honesty note (SPEC §10.1): the priorLegActors this module derives live in the
 // successor's genesis payload, which IS the chain head until the successor's own next
 // append — over exactly that window the §0/§5 head-bound applies, and detached signing
-// (SPEC §14) is the named upgrade that closes it.
+// (SPEC §14) is the named upgrade that closes it. The AL2 enforcement increment folds
+// the signature layer into this same six-condition arm (a seventh, in effect): a
+// signature-broken prior leg is unverified exactly as a hash-broken or foreign one is —
+// `signatureLayerHolds` is consulted immediately after AL1 intactness, never before it.
 
 import { transitionDigest } from '../chain/encoding.js';
 import { replay, verifyChain } from '../chain/replay.js';
-import type { ResolvedProfile } from '../create.js';
-import type { Store } from '../store/store.js';
+import type { KernelContext, ResolvedProfile } from '../create.js';
 import type { IdentityAssertion, RecordedPriorLegRef } from '../types.js';
+import { signatureLayerHolds } from './verify-signatures.js';
 
 export interface VerifiedPriorLegs {
   priorRecordRefs: RecordedPriorLegRef[];
@@ -33,12 +36,13 @@ export type PriorLegsResult =
 // transitionRef)
 
 export async function verifyPriorLegs(
-  store: Store,
+  ctx: KernelContext,
   resolved: ResolvedProfile,
   legIndex: number,
   subjectRef: string,
   refs: { recordId: string; chainHead: string }[] | undefined,
 ): Promise<PriorLegsResult> {
+  const { store } = ctx;
   if (legIndex === 0) {
     // A first leg carries no references; §10.1: "supplying any is itself a sequencing
     // error that refuses `prior-leg-unverified`".
@@ -59,6 +63,8 @@ export async function verifyPriorLegs(
     if (chain.length === 0) return { ok: false }; // unknown recordId — and the
     // destroyed-prior posture: a chain that no longer exists cannot be replayed (§10.1)
     if (!verifyChain(chain).intact) return { ok: false };
+    // The AL2 enforcement increment folds the signature layer into this same arm.
+    if (!(await signatureLayerHolds(ctx, chain))) return { ok: false };
     const last = chain.at(-1);
     if (last === undefined) return { ok: false };
     // "its recomputed head must equal the supplied `chainHead`" — the host's claim is

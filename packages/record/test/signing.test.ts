@@ -1,13 +1,17 @@
 // @vidimera/record — signing.test.ts (SPEC §14 "AL2 — Signed", the AL2 mint
 // increment, first of three): the detached-signature LAYER — per-profile declaration,
 // sign-before-append via the create()-level Store decorator, the chain-driven
-// verifySignatures read. NOTHING enforces yet: no seam consults signatures (the AL2
-// enforcement increment's own work), and AL1's guarantees hold throughout — the
-// signed chain's BYTES are identical to an unsigned one's except the declared
-// control's own genesis profileDigest and its hash-chain derivations (prevHash; the
-// chain-verify consultation's payloadDigest) — no signature material anywhere,
-// pinned below. The tests sign with real Ed25519 via node:crypto; the library itself
-// does no crypto — the signer/verifier are host hooks.
+// verifySignatures read. This file pins the MINT layer in ISOLATION only: every
+// fixture below either signs and verifies correctly throughout, or only ever calls the
+// pure `open()`/`verifySignatures()` reads that no chain-verify site consults — so none
+// of it exercises the AL2 enforcement increment's own work (second of three, now
+// landed: every seam's chain-verify now folds `kernel/verify-signatures.ts`'s
+// `signatureLayerHolds` into its existing failure arm — see signing-enforce.test.ts).
+// AL1's guarantees hold throughout — the signed chain's BYTES are identical to an
+// unsigned one's except the declared control's own genesis profileDigest and its
+// hash-chain derivations (prevHash; the chain-verify consultation's payloadDigest) —
+// no signature material anywhere, pinned below. The tests sign with real Ed25519 via
+// node:crypto; the library itself does no crypto — the signer/verifier are host hooks.
 
 import assert from 'node:assert/strict';
 import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';
@@ -112,8 +116,12 @@ test('byte-identity, stated precisely: the chains differ ONLY in the genesis pro
       ? {
           ...makeConfig([profile], { store }),
           signing: {
+            // The AL2 enforcement increment now consults this registry at finalize's
+            // chain-verify rung (below) — `verifiers: {}` was inert before that
+            // increment; the shared `ed25519Verifier` (module scope, same keypair
+            // `makeSigner()` signs with) is what this fixture always meant to check.
             signer: makeSigner().signer,
-            verifiers: {},
+            verifiers: { 'key-1': ed25519Verifier },
             signatures: new MemorySignatureStore(),
           },
         }
