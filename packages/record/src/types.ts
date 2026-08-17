@@ -41,6 +41,17 @@ export interface Consultation {
   payloadDigest: Digest;
   verdict: 'pass' | 'fail';
   proofRef?: string;
+  /** SPEC §14's AL2 admission — "authority timestamps carried inside the digested
+   * payload": the checker-claimed OBSERVATION time, distinct from the library-stamped
+   * recording time `at` (which never changes). Present iff the host supplied it —
+   * legal only on a signing profile (the presence contract at finalize), so the
+   * recorded claim is digest- AND signature-covered. The library gates on the
+   * recorded claim (rung 5.5's freshness arm, the AL2 freshness increment); it never
+   * verifies the observation happened then — genuineness is proofRef and the
+   * operator-assurance probes. §2's Consultation table lists the AL1 shape; this
+   * field lands under §14's own admission, an anticipated AL2 extension rather than
+   * a recorded divergence. */
+  observedAt?: string;
 }
 
 /**

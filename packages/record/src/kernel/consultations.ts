@@ -32,6 +32,7 @@ const OBTAINED_KEYS: ReadonlySet<string> = new Set([
   'payloadDigest',
   'verdict',
   'proofRef',
+  'observedAt',
 ]);
 const MARKER_KEYS: ReadonlySet<string> = new Set(['kind', 'unreachable', 'authority']);
 
@@ -107,10 +108,15 @@ export function validateConsultations(
       continue;
     }
 
-    // The obtained shape: { kind, checker, payloadDigest, verdict, proofRef? } and
-    // nothing else — NO at field, deliberately: SPEC §11.1's "A consultation's `at` is
-    // never accepted from the host" is enforced by this exact-shape rule, so a supplied
-    // recording time is an unknown-key throw, never a silently dropped field.
+    // The obtained shape: { kind, checker, payloadDigest, verdict, proofRef?, observedAt? }
+    // and nothing else — NO at field, deliberately: SPEC §11.1's "A consultation's `at`
+    // is never accepted from the host" is enforced by this exact-shape rule, so a
+    // supplied recording time is an unknown-key throw, never a silently dropped field.
+    // `observedAt` (the AL2 freshness increment) is the one exception to "the library
+    // stamps every timestamp itself" — SPEC §14's admission — checked structurally
+    // below (parseable RFC 3339) at this argument-depth intake; WHETHER a signing
+    // profile may accept a present one is `kernel/finalize.ts`'s presence contract, a
+    // different depth entirely, not this validator's concern.
     for (const key of Object.keys(record)) {
       if (!OBTAINED_KEYS.has(key)) {
         throw new Error(
@@ -144,12 +150,21 @@ export function validateConsultations(
         `finalize: consultations[${index}] (obtained '${kind}') has a non-string proofRef — a caller error (SPEC §11.1)`,
       );
     }
+    if (record.observedAt !== undefined) {
+      if (typeof record.observedAt !== 'string' || Number.isNaN(Date.parse(record.observedAt))) {
+        throw new Error(
+          `finalize: consultations[${index}] (obtained '${kind}') has an unparseable observedAt — ` +
+            'the authority-claimed observation time is an RFC 3339 timestamp (SPEC §14, §11.1)',
+        );
+      }
+    }
     obtained.push({
       kind,
       checker: record.checker as ObtainedConsultation['checker'],
       payloadDigest: record.payloadDigest,
       verdict: record.verdict,
       ...(record.proofRef !== undefined ? { proofRef: record.proofRef } : {}),
+      ...(record.observedAt !== undefined ? { observedAt: record.observedAt } : {}),
     });
   }
   return { obtained, unreachable };

@@ -1,23 +1,32 @@
 // @vidimera/record — construction-validation.test.ts (SPEC §9.1 "Construction is loud"):
-// `create()` is fail-CLOSED
-// at construction. Every not-yet-enforceable GOVERNED declaration THROWS a message whose
-// HEAD is byte-preserved —
+// `create()` is fail-CLOSED at construction. Every profile-construction field this
+// build once guarded with a GOVERNED throw —
 //   "GOVERNED feature not available in this build (<field>)"
-// — with per-guard prose (what is unavailable, which SPEC section lifts it) appended after
-// it (guards lift feature-by-feature as later build steps add enforcement). Structural
-// rejections throw a DIFFERENT (non-GOVERNED) error: zero legs (exactly one required),
-// a stray redemption key placed outside a `redeem` block, `reverify` on a non-live
-// profile, an unresolved `canonicalizerRef`, and a duplicate profile id. `open()`'s
-// `supersedes` options key was the one GOVERNED guard living outside this file's
-// construction-time scope (`kernel/open.ts`, reusing this same `governedUnavailable`
-// helper); it lifted at the step-8 recovery increment — recovery.test.ts's own intake
-// test now pins the guard's absence (a well-formed `supersedes` refuses or succeeds on
-// its merits) alongside the generic unknown-key GOVERNED throw that remains.
+// — lifted feature-by-feature as build steps added enforcement, `freshness` (the AL2
+// freshness increment) being the LAST: the governed count reached ZERO with that lift,
+// so this file no longer has any live GOVERNED-throw pin of its own (the dead
+// `assertGoverned`/`GOVERNED` helpers this file once carried are gone with it — the
+// nine "is accepted at construction" tests below, plus freshness's own, are this
+// file's own record of the era, each argued in place as a self-authored inversion).
+// Structural rejections still throw a DIFFERENT (non-GOVERNED) error: zero legs
+// (exactly one required), a stray redemption key placed outside a `redeem` block,
+// `reverify` on a non-live profile, an unresolved `canonicalizerRef`, a duplicate
+// profile id, and every settled-class field validator below. `open()`'s `supersedes`
+// options key was the one GOVERNED guard living outside this file's construction-time
+// scope (`kernel/open.ts`, reusing the same `governedUnavailable` helper); it lifted
+// at the step-8 recovery increment — recovery.test.ts's own intake test pins the
+// guard's absence (a well-formed `supersedes` refuses or succeeds on its merits)
+// alongside the generic unknown-key GOVERNED throw that SURVIVES this file's own
+// sweep (`kernel/finalize.ts`'s `finalizeOptionMessage` and `kernel/open.ts`'s own —
+// neither is a per-field feature guard; both reject a caller-supplied key this build
+// never documents at all).
 
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import type { ConfirmProfile, LegSpec } from '../src/config.js';
 import { create } from '../src/create.js';
+import { MemorySignatureStore } from '../src/signing/memory.js';
+import type { Signer, Verifier } from '../src/signing/store.js';
 import {
   captureProfile,
   defaultCanonicalizer,
@@ -25,6 +34,21 @@ import {
   liveProfile,
   makeConfig,
 } from './helpers/profiles.js';
+
+/** A minimal signing config for construction-only tests (the AL2 freshness increment's
+ * own need: `validateFreshness` requires `signing: true` on a declaring profile before
+ * it will even look at the keys/values, and `create()` separately requires
+ * `config.signing` present whenever a profile declares `signing: true`). `create()`
+ * checks only PRESENCE at construction — it never invokes the hooks — so a stub
+ * suffices here; the signing.test.ts Ed25519 pattern is for tests that actually
+ * sign/verify, not this file's construction-only pins. */
+function stubSigningConfig() {
+  return {
+    signer: (async () => ({ keyRef: 'key-1', signature: 'stub' })) as Signer,
+    verifiers: {} as Record<string, Verifier>,
+    signatures: new MemorySignatureStore(),
+  };
+}
 
 /** A single-leg config with `extra` merged onto the leg — the `validateFindingsFlow`
  * tests' own builder (this file's other settled-class tests each hand-roll `{ ...p,
@@ -42,28 +66,6 @@ function cfgWithLeg(extra: Partial<LegSpec>) {
  * live-capture increment; no equivalent existed here before it). */
 function cfg(profile: ConfirmProfile) {
   return makeConfig([profile]);
-}
-
-// The byte-preserved HEAD of every GOVERNED message — up to and including the field's
-// closing parenthesis. `config.ts`'s `governedUnavailable(field, contract)` appends
-// per-guard prose after this head; the head itself never changes, so this constant (and
-// the startsWith check below) is the ONLY assertion in this file that pins exact text.
-const GOVERNED = (field: string) => `GOVERNED feature not available in this build (${field})`;
-
-/** Assert `create` throws the GOVERNED message for `field` (byte-preserved head, any tail). */
-function assertGoverned(profile: ConfirmProfile, field: string): void {
-  assert.throws(
-    () => create(makeConfig([profile])),
-    (err: unknown) => {
-      assert.ok(err instanceof Error);
-      assert.ok(
-        err.message.startsWith(GOVERNED(field)),
-        `expected the GOVERNED message to start with the byte-preserved head for field '${field}', got: ${err.message}`,
-      );
-      return true;
-    },
-    `create() must throw GOVERNED for field '${field}'`,
-  );
 }
 
 /** Assert `create` throws a STRUCTURAL error (NOT the GOVERNED string) matching `re`. */
@@ -315,14 +317,101 @@ test('structural: requiredConsultations rejects empty, duplicate, empty-string, 
   assertStructural(withReq(['chain-verify']), /reserved/i);
 });
 
-test('GOVERNED: a leg declaring freshness throws (freshness)', () => {
+test('freshness is accepted at construction — the gate arm is built (the guard era ends)', () => {
+  // INVERTED, at the AL2 freshness increment (the TENTH self-authored inversion, after
+  // the nine recorded above): the kernel increment pinned a GOVERNED throw here while no
+  // gate consumed the declaration and no clock could stamp an authority-supplied
+  // observation time. The freshness arm lands at finalize's rung 5.5 in the same commit
+  // as this lift, so the guard's stated trigger (an authority-timestamped build, SPEC
+  // §11.1/§14) has fired — this is the LAST governed lift; the governed count moves
+  // 1 → 0.
   const p = captureProfile();
   const leg = p.legs[0];
   if (leg === undefined)
     throw new Error(
       'construction-validation.test.ts: p.legs[0] missing — captureProfile() must have at least one leg',
     );
-  assertGoverned({ ...p, legs: [{ ...leg, freshness: { facts: 3600 } }] }, 'freshness');
+  assert.doesNotThrow(() =>
+    create({
+      ...makeConfig([
+        {
+          ...p,
+          signing: true,
+          legs: [
+            { ...leg, requiredConsultations: ['risk-check'], freshness: { 'risk-check': 3600 } },
+          ],
+        },
+      ]),
+      signing: stubSigningConfig(),
+    }),
+  );
+});
+
+test("structural: freshness settled class — signing required, keys ⊆ the leg's required set, eligibility only where declared, positive integer seconds, non-empty record", () => {
+  // The settled fail-closed class (the notActorOf/proposer/requiredConsultations
+  // rulings): no declarable-but-inert configuration exists.
+  const p = captureProfile();
+  const leg = p.legs[0];
+  if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
+  const withFreshness = (extra: Partial<LegSpec>): ConfirmProfile => ({
+    ...p,
+    signing: true,
+    legs: [{ ...leg, requiredConsultations: ['risk-check'], ...extra }],
+  });
+  /** Like `assertStructural`, but attaches a signing config — every case here declares
+   * `signing: true` (freshness needs it to get past its OWN signing check before the
+   * rule under test even runs), so `create()`'s separate config.signing obligation must
+   * be satisfied too, or every case would throw THAT error instead of the one tested. */
+  function assertSignedStructural(profile: ConfirmProfile, re: RegExp): void {
+    assert.throws(
+      () => create({ ...makeConfig([profile]), signing: stubSigningConfig() }),
+      (err: unknown) => {
+        assert.ok(err instanceof Error);
+        assert.doesNotMatch(
+          err.message,
+          /GOVERNED feature not available/,
+          'a structural error must NOT be the GOVERNED string',
+        );
+        assert.match(err.message, re);
+        return true;
+      },
+    );
+  }
+
+  // Without profile signing: throws (the AL2 dependency made structural) — plain
+  // assertStructural suffices here since profile.signing isn't true, so create()'s own
+  // separate config.signing obligation never triggers.
+  assertStructural(
+    {
+      ...p,
+      legs: [{ ...leg, requiredConsultations: ['risk-check'], freshness: { 'risk-check': 3600 } }],
+    },
+    /signing/i,
+  );
+  // A key not in the leg's required set: throws.
+  assertSignedStructural(
+    withFreshness({ freshness: { 'other-check': 3600 } }),
+    /not a.*required kind/i,
+  );
+  // 'eligibility' as a key: legal iff the leg declares eligibility.
+  assert.doesNotThrow(() =>
+    create({
+      ...makeConfig([
+        withFreshness({ eligibility: 'hr.approver-check', freshness: { eligibility: 3600 } }),
+      ]),
+      signing: stubSigningConfig(),
+    }),
+  );
+  assertSignedStructural(
+    withFreshness({ freshness: { eligibility: 3600 } }),
+    /not a.*required kind/i,
+  );
+  // Zero/negative/fractional seconds: throw.
+  assertSignedStructural(withFreshness({ freshness: { 'risk-check': 0 } }), /positive integer/i);
+  assertSignedStructural(withFreshness({ freshness: { 'risk-check': -1 } }), /positive integer/i);
+  assertSignedStructural(withFreshness({ freshness: { 'risk-check': 1.5 } }), /positive integer/i);
+  // An empty freshness record: throws.
+  assertSignedStructural(withFreshness({ freshness: {} }), /empty/i);
 });
 
 // === validateFindingsFlow: SPEC §10.2's both-or-neither + the settled class (second
@@ -424,25 +513,51 @@ test('redeem.redeemBound is accepted at construction — the clock that honors i
   assert.doesNotThrow(() => create(makeConfig([declaring])));
 });
 
-// === the guard sweep is TOTAL ========================================================
+// === the guard sweep is TOTAL — TERMINAL form (the AL2 freshness increment) ==========
 
-test('GOVERNED: a profile declaring the one remaining governed feature still throws (guard sweep — LAST reshape, live-capture increment)', () => {
-  // Was a TWO-governed-features sweep (captureMode:'live' AND a leg declaring
-  // freshness) through the second step-7 increment, proving the sweep is total — the
-  // first guard reached wins, never slips through. The live-capture increment lifts
-  // `captureMode:'live'` (`validateLiveCapture` replaces the GOVERNED throw), so only
-  // ONE field remains reachable here: the per-leg `freshness` — it stays GOVERNED
-  // (consultation freshness gating, SPEC §11.1 and §14, not yet built). The governed
-  // count moves 2 → 1 at the live-capture increment; this test narrows from two
-  // declared governed features to one with it.
-  const p = captureProfile();
-  const leg = p.legs[0];
-  if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
-  const oneGoverned: ConfirmProfile = {
-    ...p,
-    legs: [{ ...leg, freshness: { facts: 3600 } }],
+test('a FULLY-LOADED two-leg profile declaring every once-governed field constructs cleanly (guard sweep — TERMINAL form, the AL2 freshness increment)', () => {
+  // TERMINAL reshape. This test's history: it PROVED the sweep was total by showing a
+  // profile declaring the still-governed feature(s) threw — captureMode:'live' AND
+  // freshness together (through the second step-7 increment), then freshness alone
+  // (the live-capture increment). The governed count is now ZERO (the AL2 freshness
+  // increment's own last lift), so there is nothing left for that shape to prove — the
+  // sweep's own pin inverts to the opposite claim: a profile loading EVERY field the
+  // kernel increment ever gated constructs cleanly, in ONE profile, under a full
+  // signing config. The guard era that increment opened has now fully closed — each
+  // field lifted behind its own behavior, each in the same commit as that behavior.
+  // NO per-field `governedUnavailable` caller remains anywhere in this sweep: the
+  // generic unknown-option-key throws that DO still call it — `kernel/finalize.ts`'s
+  // `finalizeOptionMessage` and `kernel/open.ts`'s own — are not feature guards (they
+  // reject a caller-supplied key this build never documents at all, not a declared
+  // field this build merely hasn't wired up yet); `config.ts`'s own `validateProfile`
+  // header names both survivors precisely.
+  const base = captureProfile();
+  const leg1: LegSpec = {
+    id: 'leg-1',
+    allowedAuthorities: ['session:test-app'],
+    requiredConsultations: ['leg1-check'], // live capture: every leg needs one
   };
-  assertGoverned(oneGoverned, 'freshness');
+  const leg2: LegSpec = {
+    id: 'leg-2',
+    allowedAuthorities: ['session:test-app'],
+    requiredConsultations: ['leg2-check'],
+    eligibility: 'hr.approver-check', // NOT double-declared in requiredConsultations
+    sod: { notActorOf: ['leg-1'] }, // names a strictly-earlier leg
+    proposer: 'proposer:1', // multi-leg-only, satisfied by leg-1's presence
+    ackMode: 'any',
+    requiredAcks: ['variance'],
+    freshness: { eligibility: 3600 }, // keys ⊆ (requiredConsultations ∪ eligibility)
+  };
+  const fullyLoaded: ConfirmProfile = {
+    id: 'test.fullyloaded.v1',
+    subject: base.subject,
+    legs: [leg1, leg2],
+    captureMode: 'live',
+    expiry: { ttl: 3600 },
+    signing: true,
+    redeem: { reverify: true }, // live capture's redemption tail
+  };
+  assert.doesNotThrow(() => create({ ...makeConfig([fullyLoaded]), signing: stubSigningConfig() }));
 });
 
 // === structural rejections (a DIFFERENT error, not the GOVERNED string) ================

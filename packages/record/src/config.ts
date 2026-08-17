@@ -129,16 +129,11 @@ function assertNoStrayRedemptionKeys(profileId: string, where: string, obj: obje
   }
 }
 
-/** Per-leg GOVERNED guards: every not-yet-enforceable leg control throws. */
+/** Per-leg GOVERNED guards: every not-yet-enforceable leg control throws. NONE remain as
+ * of the AL2 freshness increment — `freshness` was the last (`validateFreshness`, below,
+ * replaces it with this build's own fail-closed structural posture). This function is
+ * kept as the stray-redemption-key check's own per-leg call site. */
 function validateLeg(profileId: string, leg: LegSpec): void {
-  if (leg.freshness !== undefined)
-    throw new Error(
-      governedUnavailable(
-        'freshness',
-        'consultation freshness gating cannot be enforced in this build — the library stamps ' +
-          '`at` itself, so an authority-timestamped build is what actually lifts it. Contract: §11.1 and §14.',
-      ),
-    );
   assertNoStrayRedemptionKeys(profileId, 'leg', leg);
 }
 
@@ -167,6 +162,49 @@ function validateEligibility(profile: ConfirmProfile, leg: LegSpec): void {
       `invalid profile '${profile.id}': leg '${leg.id}' declares eligibility AND lists ` +
         `'eligibility' in requiredConsultations — SPEC §10.4: declare it once`,
     );
+  }
+}
+
+/**
+ * SPEC §11.1's freshness bounds (the AL2 freshness increment — the LAST governed
+ * lift; the guard era the kernel increment opened ends here). AL2-dependent made
+ * structural: only a signing profile may declare freshness ("meaningful only for
+ * consultation kinds that carry such an authority-supplied time" — and the claim is
+ * only tamper-evident under the signature layer). Keys must be bounded-able: each a
+ * required kind of the same leg (or the implicit 'eligibility' where declared) — the
+ * subset rule also excludes the reserved kinds by construction, since they can never
+ * be required. Values are positive integer seconds (the ttl convention).
+ */
+function validateFreshness(profile: ConfirmProfile, leg: LegSpec): void {
+  if (leg.freshness === undefined) return;
+  if (profile.signing !== true) {
+    throw new Error(
+      `invalid profile '${profile.id}': leg '${leg.id}' declares freshness without profile signing — ` +
+        'freshness gates a recorded observation claim, tamper-evident only under the AL2 signature layer (SPEC §11.1, §14)',
+    );
+  }
+  const entries = Object.entries(leg.freshness);
+  if (entries.length === 0) {
+    throw new Error(
+      `invalid profile '${profile.id}': leg '${leg.id}' declares an empty freshness record — ` +
+        'the control must bound at least one kind (non-empty by the fail-closed ruling)',
+    );
+  }
+  const boundable = new Set(leg.requiredConsultations ?? []);
+  if (leg.eligibility !== undefined) boundable.add('eligibility');
+  for (const [kind, seconds] of entries) {
+    if (typeof kind !== 'string' || kind.length === 0 || !boundable.has(kind)) {
+      throw new Error(
+        `invalid profile '${profile.id}': leg '${leg.id}' bounds freshness of '${kind}', which is not a ` +
+          'required kind of this leg — a bound on a never-gated kind is declarable-but-inert (the fail-closed ruling)',
+      );
+    }
+    if (!Number.isInteger(seconds) || seconds <= 0) {
+      throw new Error(
+        `invalid profile '${profile.id}': leg '${leg.id}' bounds '${kind}' at ${String(seconds)} — ` +
+          'a freshness bound is a positive integer of seconds (the ttl convention)',
+      );
+    }
   }
 }
 
@@ -352,11 +390,12 @@ function validateFindingsFlow(profile: ConfirmProfile, leg: LegSpec): void {
  *  4. structural: an empty `policySource` label (policy drift, SPEC §10.3) — the
  *     malformed-reference rule, the same settled class as `eligibility`'s own empty-label
  *     check;
- *  5. per-leg GOVERNED guards + stray-redemption-key check (inside `validateLeg`), then
- *     structural SoD shape validation (`validateSodShape`), structural
- *     requiredConsultations validation (`validateRequiredConsultations`), structural
- *     eligibility validation (`validateEligibility`), and structural findings-flow
- *     validation (`validateFindingsFlow`), all four after;
+ *  5. the stray-redemption-key check (inside `validateLeg` — no per-leg GOVERNED guard
+ *     remains there, see below), then structural SoD shape validation
+ *     (`validateSodShape`), structural requiredConsultations validation
+ *     (`validateRequiredConsultations`), structural eligibility validation
+ *     (`validateEligibility`), structural freshness validation (`validateFreshness`),
+ *     and structural findings-flow validation (`validateFindingsFlow`), all five after;
  *  6. structural: stray redemption key on the profile itself;
  *  7. structural: `reverify` on a non-live profile — live capture's own control,
  *     misdeclared onto a staged profile (SPEC §9.2's live mode).
@@ -418,8 +457,25 @@ function validateFindingsFlow(profile: ConfirmProfile, leg: LegSpec): void {
  * correspondence mismatch to `content-drift` (appended terminal, releasing the hold)
  * instead of `effect-mismatch` (never-append) — before this commit `reverify` was
  * structurally refused outright regardless of `captureMode` (the tail rule, rung 7 above),
- * so a live profile could never construct at all. One field remains governed today: the
- * per-leg `freshness`. The governed count moves 2 → 1 with this lift.
+ * so a live profile could never construct at all. One field remained governed after this
+ * lift: the per-leg `freshness`. The governed count moved 2 → 1 with this lift.
+ * `freshness` (SPEC §11.1/§14) is accepted-at-construction as of the AL2 freshness
+ * increment — the LAST governed lift, a TENTH self-authored inversion (argued in place
+ * at construction-validation.test.ts's own pin, after the nine recorded above): the
+ * freshness arm that reads the declaration lands at finalize's rung 5.5, in the SAME
+ * commit as this lift, so the guard's stated trigger (an authority-timestamped build)
+ * has fired. `validateFreshness` (above) replaces the GOVERNED throw with this build's
+ * own fail-closed structural posture — the AL2 dependency made structural (a declaring
+ * profile must set `signing: true`), keys a subset of the leg's required kinds (plus the
+ * implicit `'eligibility'`), values positive integer seconds. The governed count moves
+ * 1 → 0 with this lift: the feature-guards-from-day-one era the kernel increment opened
+ * closes here — every guard that era installed has now lifted behind its own behavior,
+ * each in the same commit as that behavior. `governedUnavailable` (above) SURVIVES this
+ * lift: it is not itself a per-field guard, and it still serves the generic
+ * unknown-option-key throws that are NOT feature guards — `finalize()`'s own
+ * `finalizeOptionMessage` (this file's caller in `kernel/finalize.ts`) and
+ * `kernel/open.ts`'s generic unknown-open-option-key message, neither of which names a
+ * single not-yet-enforceable field the way every guard swept by this sequence did.
  * The sweep is TOTAL: a profile declaring any governed feature throws — the first one
  * reached wins, but none slips through. Canonicalizer resolution + duplicate-id detection
  * are `create.ts`'s (they need the registry / the whole profile list).
@@ -459,6 +515,7 @@ export function validateProfile(profile: ConfirmProfile): void {
     validateSodShape(profile, index, leg);
     validateRequiredConsultations(profile, leg);
     validateEligibility(profile, leg);
+    validateFreshness(profile, leg);
     validateFindingsFlow(profile, leg);
   }
   assertNoStrayRedemptionKeys(profile.id, 'top-level profile', profile);
@@ -525,6 +582,11 @@ export interface ObtainedConsultation {
   payloadDigest: Digest;
   verdict: 'pass' | 'fail';
   proofRef?: string;
+  /** SPEC §14's AL2 admission (the AL2 freshness increment): the checker-claimed
+   * observation time, present-iff-supplied. Structural well-formedness (RFC 3339
+   * parseable) is `kernel/consultations.ts`'s intake job; WHETHER a present one is
+   * legal at all is `kernel/finalize.ts`'s presence contract (signing-gated). */
+  observedAt?: string;
 }
 
 /**

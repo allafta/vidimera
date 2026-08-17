@@ -533,11 +533,19 @@ test("supersedes-unverified: registry/type presence + class only in this file �
 // rung, real as of the second step-7 increment; registry-only in this file
 // (production-path coverage lives in findings.test.ts, that increment's own file).
 // `supersedes-unverified` (SPEC §2's recovery relation, the step-8 recovery increment)
-// is the twenty-third and last code; it is `refusal`-class and pre-record, NEVER_APPENDS
+// is the twenty-third code; it is `refusal`-class and pre-record, NEVER_APPENDS
 // for the same reason `prior-leg-unverified` is — its producer is open()'s recovery rung
 // (kernel/open.ts), consuming kernel/supersedes.ts's `verifySupersedes`, real as of the
 // step-8 recovery increment, this same commit; registry-only in this file
 // (production-path coverage lives in recovery.test.ts, this increment's own file).
+// `consultation-stale` (SPEC §11.1/§14's freshness gate, the AL2 freshness increment) is
+// the twenty-fourth and LAST code — the guard era the kernel increment opened ends with
+// this lift. It is `refusal`-class, `terminalRefusals`-able, open-by-default for re-run,
+// the `consultation-failed` family's own register; SPEC §8's row names it precisely: "can
+// only fire with authority timestamps". Its producer is finalize's rung 5.5 freshness arm
+// (kernel/finalize.ts), real as of the AL2 freshness increment, this same commit;
+// production-path coverage lives in freshness.test.ts, that increment's own file, so this
+// file carries a registry-only assertion, mirroring `ack-missing`'s/`ack-stale`'s own.
 
 // === ack-missing (the first step-7 increment) =============================================
 // `ack-missing` (SPEC §8's conditional table: findings flow, §10.2) is `refusal`-class,
@@ -581,7 +589,29 @@ test("ack-stale: registry/type presence + class + appendsOn shape only in this f
   assert.equal(appendsOn(code, { terminalRefusals: [code] }), true);
 });
 
-test('every REGISTRY RefusalCode is accounted for in this matrix (9 production-path-tested here + unknown-leg registry-only + unsealable-state production-path-tested in seal.test.ts + effect-mismatch and already-redeemed production-path-tested in redeem.test.ts + redemption-timeout registry-only (production path: clocks.test.ts, third step-3 increment) + prior-leg-unverified registry-only (production path: multi-leg.test.ts, first step-4 increment) + sod-violation registry-only (production path: multi-leg.test.ts, second step-4 increment) + consultation-failed registry-only (production path: consultations.test.ts, second step-5 increment) + availability registry-only (production path: consultations.test.ts and policy-drift.test.ts, second step-5 and second step-6 increments) + ineligible registry-only (production path: consultations.test.ts, first step-6 increment) + policy-drift registry-only (production path: policy-drift.test.ts, second step-6 increment) + ack-missing registry-only (production path: findings.test.ts, second step-7 increment) + ack-stale registry-only (production path: findings.test.ts, second step-7 increment) + supersedes-unverified registry-only (production path: recovery.test.ts, the step-8 recovery increment) = 23)', () => {
+// === consultation-stale (the AL2 freshness increment) ====================================
+// `consultation-stale` (SPEC §8's conditional table: consultation freshness, §11.1/§14)
+// is `refusal`-class, `terminalRefusals`-able, open-by-default for re-run — the same
+// default-open shape as `consultation-failed`'s own, its family. Its producer is
+// finalize's rung 5.5 freshness arm, real as of the AL2 freshness increment; this file
+// carries a registry-only assertion, since production-path coverage lives in
+// freshness.test.ts (that increment's own file).
+
+test("consultation-stale: registry/type presence + class + appendsOn shape only in this file — its producer is finalize's rung 5.5 freshness arm, real as of the AL2 freshness increment; production-path coverage lives in freshness.test.ts", () => {
+  // `code: RefusalCode = 'consultation-stale'` is itself a COMPILE-TIME union-membership
+  // check (this file fails to type-check if 'consultation-stale' is ever removed from the
+  // union).
+  const code: RefusalCode = 'consultation-stale';
+  assert.equal(REGISTRY[code], 'refusal');
+  assert.equal(
+    appendsOn(code, {}),
+    false,
+    'no terminalRefusals -> record stays open, no append (open-by-default for re-run)',
+  );
+  assert.equal(appendsOn(code, { terminalRefusals: [code] }), true);
+});
+
+test('every REGISTRY RefusalCode is accounted for in this matrix (9 production-path-tested here + unknown-leg registry-only + unsealable-state production-path-tested in seal.test.ts + effect-mismatch and already-redeemed production-path-tested in redeem.test.ts + redemption-timeout registry-only (production path: clocks.test.ts, third step-3 increment) + prior-leg-unverified registry-only (production path: multi-leg.test.ts, first step-4 increment) + sod-violation registry-only (production path: multi-leg.test.ts, second step-4 increment) + consultation-failed registry-only (production path: consultations.test.ts, second step-5 increment) + availability registry-only (production path: consultations.test.ts and policy-drift.test.ts, second step-5 and second step-6 increments) + ineligible registry-only (production path: consultations.test.ts, first step-6 increment) + policy-drift registry-only (production path: policy-drift.test.ts, second step-6 increment) + ack-missing registry-only (production path: findings.test.ts, second step-7 increment) + ack-stale registry-only (production path: findings.test.ts, second step-7 increment) + supersedes-unverified registry-only (production path: recovery.test.ts, the step-8 recovery increment) + consultation-stale registry-only (production path: freshness.test.ts, the AL2 freshness increment) = 24)', () => {
   const allCodes = Object.keys(REGISTRY) as RefusalCode[];
-  assert.equal(allCodes.length, 23);
+  assert.equal(allCodes.length, 24);
 });

@@ -73,7 +73,15 @@ export type RefusalCode =
   // `kernel/supersedes.ts`'s `verifySupersedes`, real as of the step-8 recovery
   // increment — this same commit, so there is no two-touch here unlike
   // `redemption-timeout`'s/`prior-leg-unverified`'s own two-touch wording above.
-  | 'supersedes-unverified';
+  | 'supersedes-unverified'
+  // the twenty-fourth and LAST code of this build (the AL2 freshness increment): SPEC
+  // §11.1/§14's consultation freshness gate — a bounded required kind whose obtained
+  // `observedAt` claim is missing, unparseable, in the future, or older than the leg's
+  // declared bound. `refusal`-class, `terminalRefusals`-able, open-by-default for
+  // re-run (the `consultation-failed` family's own register — SPEC §8's row: "can only
+  // fire with authority timestamps"). Producer: finalize's rung 5.5 freshness arm
+  // (kernel/finalize.ts), real as of the AL2 freshness increment — this same commit.
+  | 'consultation-stale';
 // class map: chain-compromise → 'compromise'; availability → 'availability'; all others →
 // 'refusal'
 // record-not-open: class 'refusal', terminal-record category — finalize() against a non-open, intact-chain
@@ -133,6 +141,7 @@ export const REGISTRY: Record<RefusalCode, RefusalClass> = {
   'ack-missing': 'refusal',
   'ack-stale': 'refusal',
   'supersedes-unverified': 'refusal',
+  'consultation-stale': 'refusal',
 };
 
 /**

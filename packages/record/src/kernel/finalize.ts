@@ -11,13 +11,16 @@
 // full ladder — the SPEC's (4.5) policy-drift rung is real as of the second step-6 increment
 // (`policySource` is accepted at construction; the presence contract and this rung close the
 // remaining two obligations, all three landing in that same commit). Rung (5.5) is built for
-// BOTH halves: the required-consultation half (SPEC §11.1, second step-5 increment) and the
+// THREE parts now: the required-consultation half (SPEC §11.1, second step-5 increment), the
 // eligibility half (SPEC §10.4, first step-6 increment) — a declaring leg's implicit
 // `'eligibility'` kind is prepended ahead of the declared `requiredConsultations`, so
-// authority-to-decide is checked before the evidence checks. Rung (5.7), ack coverage (SPEC
-// §10.2), is real as of the second step-7 increment — the same commit that lands the two
-// operator-only seams (`kernel/findings-seams.ts`'s `raiseFinding`/`acknowledge`) that mint
-// the transitions this rung's own coverage derivation reads.
+// authority-to-decide is checked before the evidence checks — and the freshness arm (SPEC
+// §11.1/§14, the AL2 freshness increment), which runs after a required kind's verdict passes
+// and refuses `consultation-stale` on a missing, future, or out-of-bound `observedAt` claim.
+// Rung (5.7), ack coverage (SPEC §10.2), is real as of the second step-7 increment — the same
+// commit that lands the two operator-only seams (`kernel/findings-seams.ts`'s
+// `raiseFinding`/`acknowledge`) that mint the transitions this rung's own coverage derivation
+// reads.
 //
 // (1) Chain-verify is FIRST after load. A DETECTED BREAK → refuse `chain-compromise` (class
 //     compromise, TERMINAL) and append ONE `refused` edge at head via NORMAL C2 (seq=max+1,
@@ -63,8 +66,11 @@
 //       after facts' own); an obtained `fail` verdict → `consultation-failed` — EXCEPT the
 //       implicit `'eligibility'` kind under a declaring leg, whose `fail` verdict refuses
 //       `ineligible` instead (SPEC §10.4's trip mapping; a NON-declaring leg that merely lists
-//       `'eligibility'` in `requiredConsultations` keeps the generic code). The first kind
-//       that trips decides the outcome — order, not severity across kinds.
+//       `'eligibility'` in `requiredConsultations` keeps the generic code); a `pass` verdict on
+//       a kind the leg's `freshness` bounds (SPEC §11.1/§14; the AL2 freshness increment) then
+//       demands an evaluable, sane, in-bound `observedAt` claim — missing, future, or
+//       out-of-bound → `consultation-stale`. The first kind that trips decides the outcome —
+//       order, not severity across kinds.
 // (5.7) Ack coverage (SPEC §10.2; second step-7 increment) — the library replays the
 //       record's own findings and acks (no new finalize inputs) and, for each finding whose
 //       `kind` appears in the leg's `requiredAcks`, in first-raise order, first trip refuses:
@@ -88,8 +94,9 @@
 //     exception rather than beside it.
 //
 // (3)/(3.5)/(4)/(4.5)/(5)/(5.5)/(5.7) are refusal-class ON THEIR
-// consultation-missing/consultation-failed/ineligible/policy-drift/ack-missing/ack-stale ARMS:
-// each appends `open→refused` (terminal) IFF the leg's `terminalRefusals` lists it (the
+// consultation-missing/consultation-failed/ineligible/consultation-stale/policy-drift/
+// ack-missing/ack-stale ARMS: each appends `open→refused` (terminal) IFF the leg's
+// `terminalRefusals` lists it (the
 // `appendsOn` rule), else no append and the record stays open. (4.5)'s and (5.5)'s
 // availability arms are a DIFFERENT outcome status entirely (`unavailable`, never `refused`)
 // and never append, `terminalRefusals` notwithstanding (SPEC §8).
@@ -222,6 +229,22 @@ export async function finalize(
       `finalize: profile '${record.profileId}' declares no policySource but opts.policy was supplied — ` +
         'a caller error (SPEC §10.3)',
     );
+  }
+
+  // --- SPEC §11.1/§14 (the AL2 freshness increment): the observedAt presence contract --
+  // an authority-claimed observation time is admitted ONLY where the signature layer
+  // covers it — a non-signing profile supplying observedAt is AL1's clock-trust posture
+  // violated, a caller error that throws (the opts.policy presence-contract precedent,
+  // same depth and ordering: chain-compromise and unknown-profile outrank it).
+  if (resolved.profile.signing !== true) {
+    const carrier = supplied.obtained.find((entry) => entry.observedAt !== undefined);
+    if (carrier !== undefined) {
+      throw new Error(
+        `finalize: consultations '${carrier.kind}' carries observedAt but profile '${record.profileId}' ` +
+          'does not declare signing — AL1 does not accept a caller-supplied observation time ' +
+          '(clock trust, SPEC §11.1; the AL2 admission is §14)',
+      );
+    }
   }
 
   // --- (2) state/expiry gate (intact chain, before any append) -------------------------
@@ -424,6 +447,34 @@ export async function finalize(
       // verdict 'pass': this required kind is satisfied; it records in the success
       // batch with every other obtained consultation (the first step-5 increment's
       // recording is unchanged — the gate adds no recording of its own).
+
+      // SPEC §11.1's freshness gate (the AL2 freshness increment): a bounded required
+      // kind demands an evaluable, sane, in-bound observation claim — missing, future,
+      // or out-of-bound refuses `consultation-stale`, fail-closed, open-by-default
+      // for re-run with a fresh consultation (the family's own register). The gate
+      // reads the RECORDED claim; §11.1's recording-time sentence stands untouched.
+      const bound = leg.freshness?.[requiredKind];
+      if (bound !== undefined) {
+        const claimed = obtained.observedAt;
+        const nowMs = now().getTime();
+        const observedMs = claimed === undefined ? Number.NaN : Date.parse(claimed);
+        if (
+          claimed === undefined ||
+          Number.isNaN(observedMs) ||
+          observedMs > nowMs ||
+          nowMs - observedMs > bound * 1000
+        ) {
+          return refuseMaybeAppend(
+            store,
+            'consultation-stale',
+            leg,
+            chain,
+            resolved,
+            finalLeg,
+            now,
+          );
+        }
+      }
     }
   }
 
@@ -505,6 +556,7 @@ export async function finalize(
       payloadDigest: entry.payloadDigest,
       verdict: entry.verdict,
       ...(entry.proofRef !== undefined ? { proofRef: entry.proofRef } : {}),
+      ...(entry.observedAt !== undefined ? { observedAt: entry.observedAt } : {}),
     };
     const t: Transition = {
       recordId,
