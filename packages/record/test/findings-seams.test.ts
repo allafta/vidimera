@@ -290,7 +290,7 @@ test('the dueAt re-supply pin: a raised-on record still lists as due at its open
   const due = await handles.operator.listDue();
   assert.ok(
     due.includes(recordId),
-    'SPEC §12: "present sets the record\'s pending-clock column, absent clears it" — the ' +
+    `SPEC §12: "present sets the record's pending-clock column, absent clears it" — the ` +
       'seam re-supplied dueAt, so the sweep still sees the open window',
   );
 });
