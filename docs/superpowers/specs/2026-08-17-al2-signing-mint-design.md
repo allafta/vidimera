@@ -180,9 +180,14 @@ where posture lives.
   including the batch's entries and an en-passant clock edge (drive one lapse) — each
   entry keyed by the transition's real `transitionDigest`, carrying the signer's
   `keyRef`; a NON-signing profile in the same instance mints NOTHING.
-- **Byte-identity**: the same flow under the same profile ± `signing: true` produces
-  IDENTICAL chain bytes (transition-by-transition deepEqual) — the sidecar is the
-  only difference; the frozen byte-stability pins keep passing untouched.
+- **Byte-identity, stated precisely**: `signing: true` is a DECLARED control, so the
+  genesis `profileDigest` differs between a declaring and a non-declaring profile —
+  exactly as every declared control differs, and nothing more: the pin proves the two
+  flows' chains are identical in EVERY byte except the genesis `profileDigest` field,
+  and that no signature material appears in any transition of either chain. The
+  detached principle is about signatures never entering chain bytes, not about the
+  declaration being invisible to `profileDigest`. The frozen byte-stability pins
+  (non-declaring profiles) keep passing untouched.
 - **Sign-before-append / orphans**: a signer that records call order proves signing
   precedes the append; a hand-inserted orphan sidecar entry (a digest no chain
   carries) never appears in `verifySignatures`' report.
