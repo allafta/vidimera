@@ -17,6 +17,7 @@ import type {
   FindingRaisedPayload,
   IdentityAssertion,
   RecordedPriorLegRef,
+  SupersedesRef,
   Transition,
 } from '../types.js';
 import { genesisPrevHash, transitionDigest } from './encoding.js';
@@ -37,6 +38,7 @@ interface OpenedPayload {
   policyDigest?: Digest;
   priorRecordRefs?: RecordedPriorLegRef[];
   priorLegActors?: IdentityAssertion[];
+  supersedes?: SupersedesRef;
 }
 interface ConfirmedPayload {
   actor: IdentityAssertion;
@@ -54,11 +56,12 @@ interface RefusedPayload {
  *
  * Folding rules (SPEC §4's payload table):
  *  - `opened` (`{profileId, profileDigest, legId, subjectRef, contentDigest,
- *    policyDigest?}`) seeds `id` (from `transition.recordId`, NOT a payload field —
- *    the payload has no self-identifying id), `profileId`, `legId`, `subjectRef`,
- *    `contentDigest`, `policyDigest`, and initializes `consultations: []`,
- *    `state: 'open'`. MUST be the first transition — there is no other source for
- *    these required `DecisionRecord` fields.
+ *    policyDigest?, priorRecordRefs?, priorLegActors?, supersedes?}`) seeds `id` (from
+ *    `transition.recordId`, NOT a payload field — the payload has no self-identifying
+ *    id), `profileId`, `legId`, `subjectRef`, `contentDigest`, `policyDigest`,
+ *    `supersedes` (real as of the step-8 recovery increment), and initializes
+ *    `consultations: []`, `state: 'open'`. MUST be the first transition — there is no
+ *    other source for these required `DecisionRecord` fields.
  *  - `consultation-recorded` payload is itself a `Consultation` — pushed onto
  *    `consultations` in chain order (SPEC §5's chain-verify / §3's facts
  *    consultations accumulate this way).
@@ -137,6 +140,13 @@ export function replay(chain: readonly Transition[]): DecisionRecord {
   };
   if (opened.policyDigest !== undefined) {
     record.policyDigest = opened.policyDigest;
+  }
+  if (opened.supersedes !== undefined) {
+    // SPEC §2: the verified terminal-predecessor reference, folded verbatim from the
+    // genesis snapshot — replay surfaces what open() recorded, it never re-verifies the
+    // referenced chain (that was open()'s job, the same "the reference, not the copy, is
+    // the evidence" posture §10.1's priorRecordRefs fold follows just below).
+    record.supersedes = opened.supersedes;
   }
   if (opened.priorRecordRefs !== undefined && opened.priorLegActors !== undefined) {
     // SPEC §4: multi-leg successor evidence, present together or not at all; §10.1's

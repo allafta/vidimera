@@ -25,6 +25,15 @@ export interface RecordedPriorLegRef {
   legId: string; // library-added while verifying against the profile's leg order
 }
 
+/** SPEC §2's recovery claim and its recorded form — the SAME two-field shape on both
+ * sides of the seam: open() verifies the host's claim by replay and binds it verbatim
+ * (the library adds nothing, unlike RecordedPriorLegRef's library-added legId). Real
+ * as of the step-8 recovery increment. */
+export interface SupersedesRef {
+  recordId: string;
+  chainHead: Digest;
+}
+
 export interface Consultation {
   kind: string;
   checker: IdentityAssertion;
@@ -153,6 +162,11 @@ export interface DecisionRecord {
    */
   priorRecordRefs?: RecordedPriorLegRef[];
   priorLegActors?: IdentityAssertion[];
+  /** SPEC §2 recovery: the verified terminal-predecessor reference, folded from the
+   * genesis snapshot — present iff the record was opened as a recovery. Deliberately
+   * NOT projected into ReviewView (the priorRecordRefs precedent: linkage evidence
+   * rides getRecord/replay, never the review projection). */
+  supersedes?: SupersedesRef;
   actor?: IdentityAssertion;
   /**
    * SPEC §10.2's findings-flow evidence: present iff the chain carries at least one

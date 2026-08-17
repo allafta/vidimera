@@ -65,7 +65,15 @@ export type RefusalCode =
   // digest, wrong magnitude, or violating ackMode). Producer: finalize's rung (5.7), the
   // ack-coverage rung, real as of the second step-7 increment
   | 'ack-missing'
-  | 'ack-stale';
+  | 'ack-stale'
+  // the twenty-third code (the step-8 recovery increment): SPEC §2's recovery relation
+  // (`supersedes`) — a pre-record `open()`-seam verification refusal that never appends,
+  // the same reason as `prior-leg-unverified` above: no record exists yet to carry an
+  // edge. Producer: open()'s recovery rung (kernel/open.ts), consuming
+  // `kernel/supersedes.ts`'s `verifySupersedes`, real as of the step-8 recovery
+  // increment — this same commit, so there is no two-touch here unlike
+  // `redemption-timeout`'s/`prior-leg-unverified`'s own two-touch wording above.
+  | 'supersedes-unverified';
 // class map: chain-compromise → 'compromise'; availability → 'availability'; all others →
 // 'refusal'
 // record-not-open: class 'refusal', terminal-record category — finalize() against a non-open, intact-chain
@@ -124,6 +132,7 @@ export const REGISTRY: Record<RefusalCode, RefusalClass> = {
   'policy-drift': 'refusal',
   'ack-missing': 'refusal',
   'ack-stale': 'refusal',
+  'supersedes-unverified': 'refusal',
 };
 
 /**
@@ -152,6 +161,9 @@ export interface AppendDecisionLeg {
  * pre-record, same reason as `record-exists`/`unknown-profile`/`unknown-leg` above: no
  * record exists to carry an edge. Its producer, the verifier (`kernel/prior-legs.ts`), is
  * consumed by `open()`'s sequencing rung, real as of the first step-4 increment.
+ * `supersedes-unverified` never appends for the same pre-record reason — its producer,
+ * `kernel/supersedes.ts`'s `verifySupersedes`, is consumed by `open()`'s recovery rung,
+ * real as of the step-8 recovery increment (this same commit).
  */
 const NEVER_APPENDS: ReadonlySet<RefusalCode> = new Set<RefusalCode>([
   'record-exists',
@@ -164,6 +176,7 @@ const NEVER_APPENDS: ReadonlySet<RefusalCode> = new Set<RefusalCode>([
   'already-redeemed',
   'redemption-timeout',
   'prior-leg-unverified',
+  'supersedes-unverified',
 ]);
 
 /**

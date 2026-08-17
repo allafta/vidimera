@@ -7,9 +7,12 @@
 // it (guards lift feature-by-feature as later build steps add enforcement). Structural
 // rejections throw a DIFFERENT (non-GOVERNED) error: zero legs (exactly one required),
 // a stray redemption key placed outside a `redeem` block, `reverify` on a non-live
-// profile, an unresolved `canonicalizerRef`, and a duplicate profile id. The final
-// section below covers `open()`'s `supersedes` options guard — not construction-time, but
-// the same GOVERNED shape and the same `governedUnavailable` helper.
+// profile, an unresolved `canonicalizerRef`, and a duplicate profile id. `open()`'s
+// `supersedes` options key was the one GOVERNED guard living outside this file's
+// construction-time scope (`kernel/open.ts`, reusing this same `governedUnavailable`
+// helper); it lifted at the step-8 recovery increment — recovery.test.ts's own intake
+// test now pins the guard's absence (a well-formed `supersedes` refuses or succeeds on
+// its merits) alongside the generic unknown-key GOVERNED throw that remains.
 
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
@@ -17,7 +20,6 @@ import type { ConfirmProfile, LegSpec } from '../src/config.js';
 import { create } from '../src/create.js';
 import {
   captureProfile,
-  DEFAULT_SUBJECT_REF,
   defaultCanonicalizer,
   effectSeamProfile,
   makeConfig,
@@ -431,37 +433,4 @@ test('structural: a duplicate profile id is rejected (fail-fast)', () => {
   const a = captureProfile({ id: 'dup.v1' });
   const b = effectSeamProfile({ id: 'dup.v1' });
   assert.throws(() => create(makeConfig([a, b])), /duplicate profile id .*dup\.v1/i);
-});
-
-// === open(): the `supersedes` options guard (GOVERNED, not construction-time) =========
-//
-// `supersedes` is the one draft-ahead `open()` option with no profile-level construction
-// switch (recovery of a terminal predecessor, §2) — none of the guards above can reach it,
-// since they only ever see a PROFILE, never an `open()` call's options bag. The guard lives
-// in `kernel/open.ts` instead, reusing the SAME `governedUnavailable(field, contract)`
-// helper. Proven via an `as`-cast past `OpenOptions`'s empty (`Record<string, never>`) type
-// — this exercises the RUNTIME sweep a plain JavaScript caller (ignoring the type) would
-// hit, not merely what the compiler would reject.
-
-test("open(): passing an unexpected options key ('supersedes') throws GOVERNED, byte-preserved head", async () => {
-  const { agent, operator } = create(makeConfig([captureProfile()]));
-  const staged = await agent.stage({ any: 'content' }, 'test.capture.v1', DEFAULT_SUBJECT_REF);
-  assert.equal(staged.status, 'ok');
-  if (staged.status !== 'ok') return;
-
-  const badOpts = {
-    supersedes: { recordId: 'rec-prior', chainHead: 'sha256:deadbeef' },
-  } as unknown as Parameters<typeof operator.open>[1];
-
-  await assert.rejects(
-    () => operator.open(staged.value.stagedRef, badOpts),
-    (err: unknown) => {
-      assert.ok(err instanceof Error);
-      assert.ok(
-        err.message.startsWith(GOVERNED('supersedes')),
-        `expected the GOVERNED message to start with the byte-preserved head for field 'supersedes', got: ${err.message}`,
-      );
-      return true;
-    },
-  );
 });

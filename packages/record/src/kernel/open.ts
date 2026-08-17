@@ -26,43 +26,44 @@ import type { Outcome } from '../outcome.js';
 import { ok, refused } from '../outcome.js';
 import { profileDigest } from '../profile-digest.js';
 import type { AppendMeta } from '../store/store.js';
-import type { IdentityAssertion, RecordedPriorLegRef, Transition } from '../types.js';
+import type {
+  IdentityAssertion,
+  RecordedPriorLegRef,
+  SupersedesRef,
+  Transition,
+} from '../types.js';
 import { expiryDeadlineMs, resolveDueClock } from './expiry.js';
 import { verifyPriorLegs } from './prior-legs.js';
-
-/**
- * Per-key GOVERNED message for an `open()` options key (config.ts's `OpenOptions`): the
- * `supersedes` case is the one this build step actually needs to guard (no profile-level
- * construction switch reaches it — see `OpenOptions`'s doc comment). `priorRecordRefs` is
- * no longer guarded here — it is real as of the first step-4 increment, verified by
- * `verifyPriorLegs` (`kernel/prior-legs.ts`) at the sequencing rung below; `policyDigest`
- * is likewise real as of the second step-6 increment, checked by the binding contract
- * below. Anything else falls back to a generic message.
- */
-function openOptionMessage(key: string): string {
-  if (key === 'supersedes') {
-    return governedUnavailable(
-      key,
-      'recovery linkage to a terminal predecessor record is not implemented in this build. Contract: §2 and §9.',
-    );
-  }
-  return governedUnavailable(
-    key,
-    'open() accepts only priorRecordRefs and policyDigest in this build. Contract: §9.',
-  );
-}
+import { type SupersedesCheck, validateSupersedesShape, verifySupersedes } from './supersedes.js';
 
 export async function open(
   ctx: KernelContext,
   stagedRef: string,
   opts?: OpenOptions,
 ): Promise<Outcome<{ recordId: string }>> {
+  // Every documented `open()` options key is real as of the step-8 recovery increment
+  // (`priorRecordRefs` since the first step-4 increment, `policyDigest` since the
+  // second step-6 increment, `supersedes` since this commit); anything else is a
+  // genuinely unknown key and throws GOVERNED (config.ts's `governedUnavailable`) — a
+  // caller/config error, never a domain refusal.
   if (opts !== undefined) {
     for (const key of Object.keys(opts)) {
       if (key === 'priorRecordRefs') continue; // REAL as of the first step-4 increment
       if (key === 'policyDigest') continue; // REAL as of the second step-6 increment
-      throw new Error(openOptionMessage(key));
+      if (key === 'supersedes') continue; // REAL as of the step-8 recovery increment
+      throw new Error(
+        governedUnavailable(
+          key,
+          'open() accepts only priorRecordRefs, policyDigest, and supersedes in this build. Contract: §9.',
+        ),
+      );
     }
+  }
+  // Argument-depth shape validation for a present supersedes claim
+  // (kernel/supersedes.ts's validateSupersedesShape): a malformed claim throws here,
+  // BEFORE any chain loads.
+  if (opts?.supersedes !== undefined) {
+    validateSupersedesShape(opts.supersedes);
   }
 
   const { store, profiles, now, mintId } = ctx;
@@ -128,6 +129,21 @@ export async function open(
     return refused('prior-leg-unverified');
   }
 
+  // --- SPEC §2 recovery (the step-8 recovery increment): verify the supersedes claim
+  // BEFORE the record exists — the same pre-record posture as the sequencing rung
+  // above, and deliberately AFTER it: where both fail jointly, the prior-leg refusal
+  // wins (pinned). Verification is a pure read of the predecessor (no en-passant
+  // clock edge; SPEC §4's sweeps-first posture at seal is the precedent), and the
+  // genesis append below rides the ordinary exclusivity constraint unchanged —
+  // terminality is one-way, so the verified predecessor cannot be raced back.
+  let supersedesCheck: SupersedesCheck | null = null;
+  if (opts?.supersedes !== undefined) {
+    supersedesCheck = await verifySupersedes(store, profiles, opts.supersedes, staged.subjectRef);
+    if (!supersedesCheck.ok) {
+      return refused('supersedes-unverified');
+    }
+  }
+
   // Build the genesis `opened` transition (SPEC §4's payload shapes / opened snapshot).
   const recordId = mintId();
   const openedPayload: {
@@ -139,6 +155,7 @@ export async function open(
     policyDigest?: string;
     priorRecordRefs?: RecordedPriorLegRef[];
     priorLegActors?: IdentityAssertion[];
+    supersedes?: SupersedesRef;
   } = {
     profileId: staged.profileId,
     profileDigest: profileDigest(profile),
@@ -155,6 +172,11 @@ export async function open(
     // both, keeping undeclaring chains byte-identical.
     openedPayload.priorRecordRefs = priorCheck.verified.priorRecordRefs;
     openedPayload.priorLegActors = priorCheck.verified.priorLegActors;
+  }
+  if (supersedesCheck?.ok) {
+    // SPEC §2: the verified reference, recorded in the recovering record's genesis
+    // snapshot — present-iff-supplied, so a non-recovery open() stays byte-identical.
+    openedPayload.supersedes = supersedesCheck.verified;
   }
   const openedTransition: Transition = {
     recordId,

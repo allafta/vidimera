@@ -443,6 +443,35 @@ test("policy-drift: registry/type presence + class + appendsOn shape only in thi
   assert.equal(appendsOn(code, { terminalRefusals: [code] }), true);
 });
 
+// === supersedes-unverified ===============================================================
+// `supersedes-unverified` (SPEC §2's recovery relation, the step-8 recovery increment) is
+// `refusal`-class and pre-record — no record exists yet to carry an edge, the same
+// NEVER_APPENDS reason `prior-leg-unverified` sits in above. Its producer is real as of the
+// step-8 recovery increment: open()'s recovery rung (kernel/open.ts), consuming
+// kernel/supersedes.ts's `verifySupersedes` — this same commit. Per-condition depth (six
+// verification failures, terminality-by-state, the two ordering pins against
+// prior-leg-unverified and record-exists) lives in recovery.test.ts, this increment's own
+// file, so this file carries a registry-only assertion, mirroring `prior-leg-unverified`'s
+// own above.
+
+test("supersedes-unverified: registry/type presence + class only in this file — its verifier (kernel/supersedes.ts) is consumed by open()'s recovery rung, real as of the step-8 recovery increment; production-path coverage lives in recovery.test.ts", () => {
+  // `code: RefusalCode = 'supersedes-unverified'` is itself a COMPILE-TIME
+  // union-membership check (this file fails to type-check if 'supersedes-unverified' is
+  // ever removed from the union).
+  const code: RefusalCode = 'supersedes-unverified';
+  assert.equal(REGISTRY[code], 'refusal');
+  assert.equal(
+    appendsOn(code, {}),
+    false,
+    'pre-record — never appends, regardless of leg config (NEVER_APPENDS)',
+  );
+  assert.equal(
+    appendsOn(code, { terminalRefusals: [code] }),
+    false,
+    'never appends even when a leg lists it as terminal (NEVER_APPENDS overrides terminalRefusals)',
+  );
+});
+
 // === registry totality sanity (cross-check against outcome-model.test.ts's own total) ===
 
 // `unsealable-state` (seal()'s refusal, SPEC §8) is the eleventh code. Its own production-path
@@ -483,11 +512,22 @@ test("policy-drift: registry/type presence + class + appendsOn shape only in thi
 // increment; registry-only in this file (production-path coverage lives in
 // consultations.test.ts's trip-mapping tests).
 // `policy-drift` (the second step-6 increment's policy-notarization refusal, SPEC §8) is
-// the twentieth and last code; it is `refusal`-class and `terminalRefusals`-able,
+// the twentieth code; it is `refusal`-class and `terminalRefusals`-able,
 // open-by-default for the disposal-and-re-open recovery §10.3 names. Its producer is
 // finalize's rung (4.5), real as of the second step-6 increment; registry-only in this
 // file (production-path coverage lives in policy-drift.test.ts, that increment's own
 // file, including both cross-instance corners and the decided open question).
+// `ack-missing`/`ack-stale` (the first step-7 increment's findings-flow refusals, SPEC
+// §8) are the twenty-first and twenty-second codes, both `refusal`-class and
+// `terminalRefusals`-able, open-by-default; their producer is finalize's ack-coverage
+// rung, real as of the second step-7 increment; registry-only in this file
+// (production-path coverage lives in findings.test.ts, that increment's own file).
+// `supersedes-unverified` (SPEC §2's recovery relation, the step-8 recovery increment)
+// is the twenty-third and last code; it is `refusal`-class and pre-record, NEVER_APPENDS
+// for the same reason `prior-leg-unverified` is — its producer is open()'s recovery rung
+// (kernel/open.ts), consuming kernel/supersedes.ts's `verifySupersedes`, real as of the
+// step-8 recovery increment, this same commit; registry-only in this file
+// (production-path coverage lives in recovery.test.ts, this increment's own file).
 
 // === ack-missing (the first step-7 increment) =============================================
 // `ack-missing` (SPEC §8's conditional table: findings flow, §10.2) is `refusal`-class,
@@ -531,7 +571,7 @@ test("ack-stale: registry/type presence + class + appendsOn shape only in this f
   assert.equal(appendsOn(code, { terminalRefusals: [code] }), true);
 });
 
-test('every REGISTRY RefusalCode is accounted for in this matrix (9 production-path-tested here + unknown-leg registry-only + unsealable-state production-path-tested in seal.test.ts + effect-mismatch and already-redeemed production-path-tested in redeem.test.ts + redemption-timeout registry-only (production path: clocks.test.ts, third step-3 increment) + prior-leg-unverified registry-only (production path: multi-leg.test.ts, first step-4 increment) + sod-violation registry-only (production path: multi-leg.test.ts, second step-4 increment) + consultation-failed registry-only (production path: consultations.test.ts, second step-5 increment) + availability registry-only (production path: consultations.test.ts and policy-drift.test.ts, second step-5 and second step-6 increments) + ineligible registry-only (production path: consultations.test.ts, first step-6 increment) + policy-drift registry-only (production path: policy-drift.test.ts, second step-6 increment) + ack-missing registry-only (production path: findings.test.ts, second step-7 increment) + ack-stale registry-only (production path: findings.test.ts, second step-7 increment) = 22)', () => {
+test('every REGISTRY RefusalCode is accounted for in this matrix (9 production-path-tested here + unknown-leg registry-only + unsealable-state production-path-tested in seal.test.ts + effect-mismatch and already-redeemed production-path-tested in redeem.test.ts + redemption-timeout registry-only (production path: clocks.test.ts, third step-3 increment) + prior-leg-unverified registry-only (production path: multi-leg.test.ts, first step-4 increment) + sod-violation registry-only (production path: multi-leg.test.ts, second step-4 increment) + consultation-failed registry-only (production path: consultations.test.ts, second step-5 increment) + availability registry-only (production path: consultations.test.ts and policy-drift.test.ts, second step-5 and second step-6 increments) + ineligible registry-only (production path: consultations.test.ts, first step-6 increment) + policy-drift registry-only (production path: policy-drift.test.ts, second step-6 increment) + ack-missing registry-only (production path: findings.test.ts, second step-7 increment) + ack-stale registry-only (production path: findings.test.ts, second step-7 increment) + supersedes-unverified registry-only (production path: recovery.test.ts, the step-8 recovery increment) = 23)', () => {
   const allCodes = Object.keys(REGISTRY) as RefusalCode[];
-  assert.equal(allCodes.length, 22);
+  assert.equal(allCodes.length, 23);
 });

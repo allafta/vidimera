@@ -11,7 +11,7 @@
 import type { Canonicalizer } from './canonical.js';
 import type { RefusalCode } from './refusal-codes.js';
 import type { Store } from './store/store.js';
-import type { Digest, IdentityAssertion } from './types.js';
+import type { Digest, IdentityAssertion, SupersedesRef } from './types.js';
 
 export type { Canonicalizer };
 
@@ -71,7 +71,9 @@ export function profileDeclaresEffectSeam(profile: ConfirmProfile): boolean {
  * (<field>)` — is byte-preserved (pinned by construction-validation.test.ts); the
  * caller-supplied `contract` is the appended tail: what is unavailable, and the SPEC
  * section(s) that lift it. Arity-2 because it serves two consumers: the per-field
- * construction guards below and `kernel/open.ts`'s `supersedes` options guard.
+ * construction guards below and `kernel/open.ts`'s generic unknown-option-key message
+ * (every DOCUMENTED `open()` key — `priorRecordRefs`/`policyDigest`/`supersedes` — is
+ * real as of the step-8 recovery increment, so no per-key GOVERNED arm remains there).
  */
 export function governedUnavailable(field: string, contract: string): string {
   return `GOVERNED feature not available in this build (${field}) — ${contract}`;
@@ -406,8 +408,8 @@ export function validateProfile(profile: ConfirmProfile): void {
 }
 
 // --- open() options bag (§9 `open(stagedRef, { priorRecordRefs?, policyDigest?,
-// supersedes? })`) — NOT construction; `priorRecordRefs` and `policyDigest` are both
-// real, `supersedes` alone stays GOVERNED at the call seam ------------------------------
+// supersedes? })`) — NOT construction; all three documented open() keys are real,
+// `supersedes` as of the step-8 recovery increment ---------------------------------------
 
 /** A host-supplied prior-leg reference (SPEC §10.1): the claim `open()` verifies by
  * replay — never adopted unchecked. The recorded three-field form (types.ts's
@@ -427,8 +429,13 @@ export interface OpenOptions {
    * stage(): "routing the drift baseline through the untrusted drafter would let a
    * lying agent bind whatever digest it anticipates the live source will hold". */
   policyDigest?: Digest;
-  // `supersedes` (§2's recovery linkage) remains GOVERNED at the call seam — its build
-  // step has not arrived.
+  /** SPEC §2: the recovery claim on a fresh record that recovers a terminal
+   * predecessor — the host's `{ recordId, chainHead }`, verified by replay at open()
+   * (`kernel/supersedes.ts`'s `verifySupersedes`) before it is ever bound. Same-subject
+   * required; any profile allowed (a revised-profile re-open stays possible). Real as
+   * of the step-8 recovery increment; any failure refuses `supersedes-unverified`
+   * pre-record. */
+  supersedes?: SupersedesRef;
 }
 
 // --- finalize() options bag (SPEC §11.1's consultation input surface) -----------------
