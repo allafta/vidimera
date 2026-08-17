@@ -43,8 +43,10 @@ what the host supplied refuses, and a required kind the host reports
 unreachable produces a dedicated `unavailable` outcome rather than a
 fabricated pass — never appending, so the record stays open for a bounded
 retry — with the construction guard on declaring `requiredConsultations`
-lifted alongside it. Consultation freshness gating stays out of scope
-deliberately (it could never fire honestly at this build's assurance level).
+lifted alongside it. Consultation freshness gating stayed out of scope at
+that point, deliberately (it could never fire honestly at AL1) — since built
+whole at step 8's own AL2 freshness increment (see below), the last
+governed field in this build lifting with it.
 Step 6 — authority checks: eligibility and policy drift — has **exited**:
 both of its increments have landed. The first landed eligibility gating,
 SPEC §10.4 whole — declaring a per-leg `eligibility` reference makes
@@ -93,7 +95,7 @@ build. The second increment then executed the marker move: SPEC §10.2's own
 nine draft-ahead tokens, across the concept set's normative document and
 its controls table, moved from designed to proven — the first such move
 in this repository. Step 8 — recovery, live capture, AL2 signing, the
-self-test tier — has **started**, with two of its four tail items now
+self-test tier — has **started**, with three of its four tail items now
 landed. The first, SPEC §2's recovery
 linkage, has landed. `open()` accepts a host-supplied `supersedes` claim —
 `{ recordId, chainHead }` naming a terminal predecessor — verifies it by
@@ -115,10 +117,10 @@ redemption-time content mismatch now refuses `content-drift` with an
 appended terminal edge that releases the exclusivity hold, instead of the
 never-appended `effect-mismatch` every other profile keeps —
 `content-drift`'s second producer. The construction-guarded count moves to
-one with this lift (the per-leg `freshness` alone remains, deliberately
-unfireable at this build's assurance level). **The third tail item has since
-progressed through its own second of three increments: AL2 detached
-signing — the mint, then the enforcement.** A profile may declare
+one with this lift (the per-leg `freshness` alone remained at that point,
+deliberately unfireable at AL1 — since built whole below). **The third tail
+item has since landed all three of its own increments: AL2 detached
+signing — the mint, the enforcement, then freshness. AL2 is whole.** A profile may declare
 `signing: true`, and an instance may supply a signer hook, a verifier
 registry, and a detached sidecar store; a declaring profile without that
 instance support throws loud at construction. The mint point is a
@@ -139,19 +141,36 @@ reads and neither ever gates — only the seams enforce. With this landing,
 SPEC §14's AL2 maturity marker has moved to `[PROVEN]`, and
 OPEN-QUESTIONS.md §1's granularity, missing-signature-posture, and
 key-custody questions are decided on record; its authority-timestamps
-question stays open, gating AL2's own third increment. A named residual
-stands beside the guarantee: a whole-chain recompute that rehomes a
-record's genesis onto a *registered non-signing* profile produces a
-hash-intact chain the layer does not apply to, since the obligation is
-keyed by the genesis's own profile claim — the audit read still reports
-the truth (`signingDeclared: false`) on that rehomed chain. The
-construction-guarded count is unaffected by either increment — signing
-arrived with its own behavior in the commit that declared it, and
-enforcement is new behavior at existing seams, never a construction throw
-waiting on a later increment to lift it. Step 8
-records **started**, not exited: the remaining tail — AL2's own third
-increment (`freshness` gating) and the self-test tier — is deferred to
-the deferral register, each item gated on its own open-question enablement
+question stayed open at that point, gating AL2's own third increment. A
+named residual stands beside the guarantee: a whole-chain recompute that
+rehomes a record's genesis onto a *registered non-signing* profile
+produces a hash-intact chain the layer does not apply to, since the
+obligation is keyed by the genesis's own profile claim — the audit read
+still reports the truth (`signingDeclared: false`) on that rehomed chain.
+The construction-guarded count was unaffected by either the mint or the
+enforcement increment — signing arrived with its own behavior in the
+commit that declared it, and enforcement is new behavior at existing
+seams, never a construction throw waiting on a later increment to lift
+it. **The third and last AL2 increment, freshness, has since landed
+too.** `Consultation` gains `observedAt?: string` (an admitted SPEC §14
+extension, not a divergence); a signing profile's `finalize()` admits a
+recorded, signature-covered `observedAt` claim on an obtained
+consultation, gated by a presence contract at the same depth as the
+policy-drift precedent; and a new gate rung refuses the twenty-fourth and
+last refusal code, `consultation-stale`, on a bounded required kind's
+missing, unparseable, future, or out-of-bound claim. The `freshness`
+construction guard — the last governed field in this build — lifted with
+the gate, in the same commit: the construction-guarded count reaches
+**zero**, closing the feature-guards-from-day-one era this repository
+opened at the kernel increment. OPEN-QUESTIONS.md §1's authority-timestamps
+question and §4's own freshness-semantics questions are now decided on
+record too. The library never verifies the observation happened at
+`observedAt` — it gates on the recorded, signature-covered claim;
+genuineness stays the checker's `proofRef` and the operator-assurance
+tier. Step 8
+records **started**, not exited: the remaining tail — the self-test tier
+alone — is deferred to
+the deferral register, gated on its own open-question enablement
 design. The
 package is **not consumable by a host today** — no build, no published
 artifact; that record states it in the same breath as the green gates. The
@@ -245,10 +264,10 @@ unreachable produces the `availability` outcome (its own outcome status,
 fabricated pass — never appending, so the record stays open and the seam
 re-arms for a bounded host retry. The `requiredConsultations` construction
 guard lifted with the gate, in the same commit. Section 11.1 is whole in
-this build except its freshness tail, which stays out of scope
-deliberately: at this build's assurance level the library stamps every
-consultation's own recording time, so a freshness bound could never fire
-honestly.
+this build except its freshness tail at that point, which stayed out of
+scope deliberately: at AL1 the library stamps every consultation's own
+recording time, so a freshness bound could never fire honestly — since
+built whole at step 8's own AL2 freshness increment, below.
 
 Step 6 — authority checks: eligibility and policy drift — has **exited**:
 both increments have landed. The first landed eligibility gating.
