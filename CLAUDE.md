@@ -169,34 +169,52 @@ parts:
   instead. The library never verifies the re-derivation's path-independence: the
   consultation gates its presence and verdict, and genuineness stays the
   operator-assurance tier's live-path-distinctness probe (CONTROLS §4).
-  **The third tail item has since begun, not landed whole: AL2 detached signing (SPEC
-  §14), its own first of three increments — the mint.** `ConfirmProfile.signing?: true`
-  and `Config.signing?: { signer, verifiers, signatures }` (`config.ts`) — a declaring
-  profile without `config.signing` throws loud at `create()`; a prepared instance
-  carrying the block with no declaring profile is legal. The mint point is one
-  `create()`-level Store decorator (`signing/decorate.ts`'s `withSigning`, delegating all
-  eight `Store` methods explicitly by name — a class-instance spread would drop prototype
-  methods): it signs every transition of a signing record BEFORE delegating the append
-  (`encodeTransition` bytes; `chain/encoding.ts` untouched), writing to a detached
-  sidecar (`signing/store.ts`'s `SignatureStore`; `signing/memory.ts`'s reference
-  `MemorySignatureStore`) keyed by the transition's own digest — an orphan entry from a
-  lost CAS after a sign is harmless BY DESIGN, since verification
-  (`operator.verifySignatures`, `kernel/verify-signatures.ts`) is chain-driven, never
-  sidecar-driven; the reverse order would risk a landed unsigned transition, which the
-  enforcement increment's fail-closed posture would then condemn. `verifySignatures` is
-  a pure read — fail-closed REPORTING (an unresolvable `keyRef` or a failing verifier
-  reports `verified: false`), never a refusal, an append, or a throw on a verification
-  failure itself. ZERO seam edits, ZERO frozen-surface edits: every append path is
-  covered by construction because the decorator sits below every kernel closure. AL1
-  stays UNTOUCHED — no seam consults a signature yet, so nothing enforces, and the SPEC
-  §14 marker does not move; that is the enforcement increment's own work next, along with
-  `OPEN-QUESTIONS.md` §1's remaining tails. The governed count stays UNCHANGED at 1
-  (`freshness` alone): `signing` arrived WITH its own behavior in the commit that
-  declared it — the `reverify`-arrival class above, never a construction throw standing
-  in for missing behavior. Step 8 records **Started**, not Exited: the remaining tail —
-  AL2's own enforcement and freshness increments, and the self-test tier — is deferred to
-  deferral register row 17, each gated on its own OPEN-QUESTIONS enablement design rather
-  than bundled into one increment.
+  **The third tail item has since progressed to its own second of three increments: AL2
+  detached signing (SPEC §14) — the mint, then the enforcement.** The mint landed
+  `ConfirmProfile.signing?: true` and `Config.signing?: { signer, verifiers, signatures }`
+  (`config.ts`) — a declaring profile without `config.signing` throws loud at `create()`;
+  a prepared instance carrying the block with no declaring profile is legal. The mint
+  point is one `create()`-level Store decorator (`signing/decorate.ts`'s `withSigning`,
+  delegating all eight `Store` methods explicitly by name — a class-instance spread would
+  drop prototype methods): it signs every transition of a signing record BEFORE
+  delegating the append (`encodeTransition` bytes; `chain/encoding.ts` untouched),
+  writing to a detached sidecar (`signing/store.ts`'s `SignatureStore`; `signing/memory.ts`'s
+  reference `MemorySignatureStore`) keyed by the transition's own digest — an orphan
+  entry from a lost CAS after a sign is harmless BY DESIGN, since verification is
+  chain-driven, never sidecar-driven. **The enforcement — landed at the second
+  increment — makes the layer load-bearing**: one shared async helper,
+  `kernel/verify-signatures.ts`'s `signatureLayerHolds(ctx, chain)`, factored onto the
+  SAME correlation core `operator.verifySignatures` already used; it returns `true`
+  where the layer does not apply (a non-signing or unresolvable genesis profile) and
+  otherwise requires EVERY transition to carry a sidecar entry whose `keyRef` resolves
+  and whose verifier passes. ALL SIX verification sites now consult it, right after
+  AL1's own cheap `verifyChain` intactness check: `finalize`, `seal`, the redemption
+  family's shared prologue (serving `redeem`/`beginRedemption`/`completeRedemption` —
+  the enlisted direct shape's result-first no-append refusal INHERITED, not
+  re-decided), and the findings family's shared prologue (`raiseFinding`/`acknowledge`)
+  all fold a bad layer into `chain-compromise`, the SAME arm a hash break already
+  took — the compromise edge itself, appended onto a signing record, is signed by
+  construction; `verifyPriorLegs` and `verifySupersedes` fold a bad layer into their
+  own existing codes, `prior-leg-unverified`/`supersedes-unverified`. No new refusal
+  code, no new outcome class. **The two audit reads stay separate and neither ever
+  gates**: `operator.verifyChain` remains the AL1 report, `operator.verifySignatures`
+  the AL2 report — graduated honesty; the seams enforce. **The sanctioned sealed
+  bundle executed with this increment's exit**: SPEC §14's AL2 bullet and CONTROLS.md's
+  own AL2 cell moved `[SKETCHED]`/`SKETCHED` → `[PROVEN]`/`PROVEN`; OPEN-QUESTIONS.md
+  §1's granularity, missing-signature-posture and key-custody tails are **Decided (this
+  build)**, its authority-timestamps tail **explicitly still open** — the AL2 freshness
+  increment's own ground. **The rehoming residual is named, not closed**: a whole-chain
+  recompute rehoming the genesis onto a registered non-signing profile produces a
+  hash-intact chain the layer does not apply to, since the obligation keys on the
+  genesis's own `profileId` claim; `verifySignatures` reports the truth either way
+  (`signingDeclared: false` on the rehomed claim). The governed count stays UNCHANGED
+  at 1 (`freshness` alone): `signing` arrived WITH its own behavior in the commit that
+  declared it — the `reverify`-arrival class above — and the enforcement increment adds
+  new behavior at existing seams, never a construction throw. Step 8 records
+  **Started**, not Exited: the remaining tail — AL2's own THIRD increment (`freshness`
+  gating, gated on `OPEN-QUESTIONS.md` §4's own brainstorm) and the self-test tier
+  (`OPEN-QUESTIONS.md` §5) — is deferred to deferral register row 17, each gated on its
+  own OPEN-QUESTIONS enablement design rather than bundled into one increment.
   **`docs/process/implementation-status.md` is the authoritative
   account** of what this build does and does not implement, section by section, with the
   gate outputs and the outstanding list — read it rather than trusting a count here,

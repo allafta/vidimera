@@ -117,22 +117,40 @@ never-appended `effect-mismatch` every other profile keeps —
 `content-drift`'s second producer. The construction-guarded count moves to
 one with this lift (the per-leg `freshness` alone remains, deliberately
 unfireable at this build's assurance level). **The third tail item has since
-begun, not landed whole: AL2 detached signing, the first of its own three
-increments — the mint.** A profile may now declare `signing: true`, and an
-instance may supply a signer hook, a verifier registry, and a detached
-sidecar store; a declaring profile without that instance support throws
-loud at construction. Nothing is enforced by this landing: a `create()`-level
-store decorator signs every transition of a signing record before it is
-appended — sign-before-append, so a lost write leaves only a harmless
-orphan signature, never an unsigned landed one — and one new operator read,
-`verifySignatures`, reports per-transition sign/verify status without ever
-refusing, appending, or gating on what it finds. AL1 semantics are
-untouched, no maturity marker moves, and the construction-guarded count
-above is unaffected — signing arrived with its own behavior in the same
-commit as its declaration, never as a construction throw waiting on a
-later increment to lift it. Step 8
-records **started**, not exited: the remaining tail — AL2's own
-enforcement and freshness increments, and the self-test tier — is deferred to
+progressed through its own second of three increments: AL2 detached
+signing — the mint, then the enforcement.** A profile may declare
+`signing: true`, and an instance may supply a signer hook, a verifier
+registry, and a detached sidecar store; a declaring profile without that
+instance support throws loud at construction. The mint point is a
+`create()`-level store decorator that signs every transition of a signing
+record before it is appended — sign-before-append, so a lost write leaves
+only a harmless orphan signature, never an unsigned landed one — and one
+operator read, `verifySignatures`, reports per-transition sign/verify
+status without ever refusing, appending, or gating on what it finds.
+**The enforcement makes the layer load-bearing**: one shared helper
+consulted at all six verification sites — `finalize`, `seal`, the
+redemption family, the findings family, and the two cross-record checks
+(`verifyPriorLegs`, `verifySupersedes`) — folds a bad signature layer into
+each site's own existing failure code (`chain-compromise` at the four
+seams, `prior-leg-unverified`/`supersedes-unverified` at the two
+cross-record claims), right after each site's existing AL1
+chain-intactness check. `verifyChain` and `verifySignatures` stay separate
+reads and neither ever gates — only the seams enforce. With this landing,
+SPEC §14's AL2 maturity marker has moved to `[PROVEN]`, and
+OPEN-QUESTIONS.md §1's granularity, missing-signature-posture, and
+key-custody questions are decided on record; its authority-timestamps
+question stays open, gating AL2's own third increment. A named residual
+stands beside the guarantee: a whole-chain recompute that rehomes a
+record's genesis onto a *registered non-signing* profile produces a
+hash-intact chain the layer does not apply to, since the obligation is
+keyed by the genesis's own profile claim — the audit read still reports
+the truth (`signingDeclared: false`) on that rehomed chain. The
+construction-guarded count is unaffected by either increment — signing
+arrived with its own behavior in the commit that declared it, and
+enforcement is new behavior at existing seams, never a construction throw
+waiting on a later increment to lift it. Step 8
+records **started**, not exited: the remaining tail — AL2's own third
+increment (`freshness` gating) and the self-test tier — is deferred to
 the deferral register, each item gated on its own open-question enablement
 design. The
 package is **not consumable by a host today** — no build, no published
