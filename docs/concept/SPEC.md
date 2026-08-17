@@ -124,7 +124,7 @@ acknowledgments, prior-leg evidence, consultation results) only in process memor
 
 **Profile-conditional fields** (present only when the profile switches the feature on):
 `priorRecordRefs` and `priorLegActors`, carried on a multi-leg successor record (§10.1)
-**[PROVEN]**; `findings` and `acks` (a findings flow, §10.2) **[DESIGNED]**; and `supersedes`
+**[PROVEN]**; `findings` and `acks` (a findings flow, §10.2) **[PROVEN]**; and `supersedes`
 (recovery of a terminal predecessor, below) **[SKETCHED]**.
 
 **Recovery (`supersedes`) [SKETCHED].** `supersedes` names the terminal predecessor record (a
@@ -321,7 +321,7 @@ except `opened`, which snapshots the record's immutable header.
 | `refused` | `{ code }` — a §8 registry code; class derivable from the registry | delta |
 | `expired` | `{ bound }` — the elapsed deadline timestamp; the transitioned-from state, not the payload, distinguishes the `expiry` clause from `confirmToRedeem` | delta |
 | `sealed` | `{ chainHead }` — end-of-life metadata (§5) | delta |
-| `finding-raised` / `acknowledged` | the Finding / Ack object (profile-conditional, §10.2) **[DESIGNED]** | delta |
+| `finding-raised` / `acknowledged` | the Finding / Ack object (profile-conditional, §10.2) **[PROVEN]** | delta |
 | `redeeming` | `{ tokenDigest, bound? }` — digest of the single-use redemption token (the raw token is never persisted, §11.2); `bound` present only when declared (effect-seam profiles only) | delta |
 | `redeemed` | `{ via: 'direct' }` or `{ via: 'token', tokenDigest }` — the completed redemption and how it was closed (effect-seam profiles only, §11.2) | delta |
 | `redemption-failed` | `{ bound }` — the elapsed redemption bound; folds `refusalCode: redemption-timeout` on replay (effect-seam profiles only, §11.2) | delta |
@@ -519,7 +519,7 @@ defined with their sections:
 |---|---|---|
 | `sod-violation` | multi-leg separation of duties (§10.1); `refusal`-class, `terminalRefusals`-able | [PROVEN] |
 | `prior-leg-unverified` | multi-leg (§10.1); a pre-record `open()`-seam sequencing refusal that never appends | [PROVEN] |
-| `ack-missing` / `ack-stale` | findings flow (§10.2); `refusal`-class, `terminalRefusals`-able, open-by-default | [DESIGNED] |
+| `ack-missing` / `ack-stale` | findings flow (§10.2); `refusal`-class, `terminalRefusals`-able, open-by-default | [PROVEN] |
 | `policy-drift` | policy notarization (§10.3); `refusal`-class, `terminalRefusals`-able — a policy-declaring profile SHOULD list it (disposal-and-re-open recovery) | [PROVEN] |
 | `ineligible` | eligibility gating (§10.4); `refusal`-class, open-by-default so a different eligible actor may decide | [PROVEN] |
 | `consultation-failed` | required consultations (§11.1); `refusal`-class, open-by-default for re-run | [PROVEN] |
@@ -547,7 +547,7 @@ by a revision of this document. Host extensions are prefixed `x-`.
 
 The seams are the library's public API. A decision flows through **four calls, split across
 two surfaces**: `stage()` is **agent-reachable**; `open()`, `review()`, and `finalize()` are
-**operator-only** (as are `seal()`, `redeem()`, the findings seams of §10.2 **[DESIGNED]**,
+**operator-only** (as are `seal()`, `redeem()`, the findings seams of §10.2 **[PROVEN]**,
 and the sweep — §12).
 
 - **`stage(content, profileId, subjectRef, legId?)`** — **agent-reachable.** Binds an inert
@@ -570,7 +570,7 @@ and the sweep — §12).
   **digest** (a `ReviewView`) — never the content body; rendering the content stays the
   host's, recomputed from content it holds (§3). It is a pure read; it changes no state. On a
   findings-flow profile the view includes the digest-only findings projection with per-finding
-  coverage (§10.2) **[DESIGNED]**.
+  coverage (§10.2) **[PROVEN]**.
 - **`finalize(recordId, identity, content, facts, opts?)`** — **operator-only.** Transitions
   an already opened record `open → confirmed` under a **transport-established identity** (§6).
   Content binding is re-checked here: finalize re-canonicalizes and re-digests the supplied
@@ -588,7 +588,7 @@ and the sweep — §12).
 over the ones after it: **(1)** pre-seam chain-verify → **(2)** state/expiry (en-passant
 expire if due) → **(3)** identity → **(3.5)** separation of duties → **(4)** content-drift →
 **(4.5)** policy-drift → **(5)** facts → **(5.5)** consultations/eligibility → **(5.7)** ack
-coverage **[DESIGNED]** → **(6)** the success batch: one atomic, variable-arity
+coverage **[PROVEN]** → **(6)** the success batch: one atomic, variable-arity
 `appendBatch([chain-verify, facts, …obtained consultations, confirmed])` — all-or-nothing, so
 a conflict never leaves a partial tail. Two validation *throws* sit deliberately ahead of the
 ladder, at different depths. Consultation shape throws at **argument intake**, before
@@ -635,7 +635,7 @@ a one-line applicability note, not through a separate tier system.
 | `policySource` | Per-profile opaque label naming the operator's policy authority; declaring it binds a `policyDigest` at `open()` and gates finalize on drift (`policy-drift`). Never fetched or evaluated by the library (§10.3) |
 | `redeem` | Effect-seam configuration: the redemption bounds (`confirmToRedeem`, `redeemBound`). Its presence declares an **effect seam** (§11.2) |
 | `sod.notActorOf`, `proposer` | Per-leg separation-of-duties controls (§10.1) |
-| `ackMode`, `requiredAcks` | Per-leg findings-flow controls (§10.2) **[DESIGNED]** — declared both-or-neither |
+| `ackMode`, `requiredAcks` | Per-leg findings-flow controls (§10.2) **[PROVEN]** — declared both-or-neither |
 | `eligibility` | Per-leg opaque authority-to-decide reference; declaring it makes an implicit-first required `eligibility` consultation whose `fail` verdict gates finalize (`ineligible`) (§10.4) |
 | `allowedAuthorities` | Per-leg identity authorities that may vouch for a leg's actor (§6) |
 | `terminalRefusals` | Per-leg list of refusal codes the profile marks **terminal** for that leg — a matching `refusal`-classed code (§8) ends the leg instead of leaving the record `open` for retry |
@@ -742,7 +742,7 @@ evidence is in-record and chained, this survives host restarts and store restore
 of duties evidences **distinct principals, not independent judgment** — two colluding humans
 satisfy it, and collusion and coercion are out of scope (§13A).
 
-### 10.2 Findings & acknowledgments **[DESIGNED]**
+### 10.2 Findings & acknowledgments **[PROVEN]**
 
 *Applies when the profile declares a findings flow — a leg declaring the `ackMode` +
 `requiredAcks` pair (both-or-neither; either alone is a construction error).* Findings raised
