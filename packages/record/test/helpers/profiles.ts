@@ -43,6 +43,13 @@ interface ProfileOverrides {
   legId?: string;
   allowedAuthorities?: string[];
   terminalRefusals?: RefusalCode[];
+  /** SPEC §11.1: the leg's required-consultation kinds — `liveProfile`'s own override
+   * point (the live-capture increment); every other builder's legs leave this
+   * undefined, unchanged from before this increment. */
+  requiredConsultations?: string[];
+  /** SPEC §9.1's `redeem` block — `liveProfile`'s own override point (the live-capture
+   * increment), honored before its own `{ reverify: true }` default. */
+  redeem?: ConfirmProfile['redeem'];
 }
 
 function resolveExpiry(o: ProfileOverrides): { ttl: number } | 'none' {
@@ -57,6 +64,7 @@ function buildLeg(o: ProfileOverrides): LegSpec {
     allowedAuthorities: o.allowedAuthorities ?? ['session:test-app'],
   };
   if (o.terminalRefusals !== undefined) leg.terminalRefusals = o.terminalRefusals;
+  if (o.requiredConsultations !== undefined) leg.requiredConsultations = o.requiredConsultations;
   return leg;
 }
 
@@ -97,6 +105,24 @@ export function effectSeamProfile(overrides: ProfileOverrides = {}): ConfirmProf
     // finalize now stamps a real `dueAt` from it, and a one-second fixture bound would
     // race every real-clock test between finalize and the next seam call.
     redeem: { confirmToRedeem: 3600, redeemBound: 86400 },
+  };
+}
+
+/**
+ * SPEC §9.2's live mode (the live-capture increment): decide-what-exists. Declares the
+ * mode's two construction obligations — a per-leg required consultation (the host-named
+ * independent re-derivation kind) and the redemption tail (`reverify` by default here;
+ * override `redeem` for the `confirmToRedeem`-only shape).
+ */
+export function liveProfile(overrides: ProfileOverrides = {}): ConfirmProfile {
+  const leg = buildLeg(overrides);
+  return {
+    id: overrides.id ?? 'test.live.v1',
+    subject: { canonicalizerRef: overrides.canonicalizerRef ?? DEFAULT_CANONICALIZER_REF },
+    legs: [{ ...leg, requiredConsultations: leg.requiredConsultations ?? ['rederive'] }],
+    captureMode: 'live',
+    expiry: resolveExpiry(overrides),
+    redeem: overrides.redeem ?? { reverify: true },
   };
 }
 

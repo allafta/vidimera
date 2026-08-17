@@ -22,6 +22,7 @@ import {
   captureProfile,
   defaultCanonicalizer,
   effectSeamProfile,
+  liveProfile,
   makeConfig,
 } from './helpers/profiles.js';
 
@@ -34,6 +35,13 @@ function cfgWithLeg(extra: Partial<LegSpec>) {
   const leg = p.legs[0];
   if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
   return makeConfig([{ ...p, legs: [{ ...leg, ...extra }] }]);
+}
+
+/** A single-profile `Config` — `validateLiveCapture`'s own tests' shorthand for the
+ * `makeConfig([profile])` pattern this file otherwise repeats inline (added for the
+ * live-capture increment; no equivalent existed here before it). */
+function cfg(profile: ConfirmProfile) {
+  return makeConfig([profile]);
 }
 
 // The byte-preserved HEAD of every GOVERNED message — up to and including the field's
@@ -87,8 +95,41 @@ test('create(): a single-leg effect-seam (redeem-block) profile constructs witho
 
 // === GOVERNED throws — one per not-yet-enforceable field ==============================
 
-test("GOVERNED: captureMode:'live' throws (captureMode)", () => {
-  assertGoverned({ ...captureProfile(), captureMode: 'live' }, 'captureMode');
+test("captureMode:'live' is accepted at construction — the mode's own obligations are gated (the live-capture increment)", () => {
+  // INVERTED, at the live-capture increment: the kernel increment pinned a GOVERNED
+  // throw here while nothing built the mode's own obligations. `validateLiveCapture`
+  // (config.ts) now enforces them structurally — a declared required consultation per
+  // leg and a declared redemption tail — and `kernel/redeem.ts`'s
+  // `refuseCorrespondenceMismatch` gives a declared `reverify` a real seam to act at, so
+  // the guard's stated trigger (SPEC §9.2) has fired.
+  assert.doesNotThrow(() => create(cfg(liveProfile())));
+});
+
+// === validateLiveCapture: SPEC §9.2's live mode (the live-capture increment) ===
+
+test('live capture: every leg requires a consultation, and the redemption tail is declared', () => {
+  const missingConsultations = liveProfile();
+  missingConsultations.legs[0] = {
+    ...(missingConsultations.legs[0] as LegSpec),
+    requiredConsultations: undefined,
+  };
+  assert.throws(() => create(cfg(missingConsultations)), /requiredConsultations|re-derivation/i);
+
+  const noRedeem = liveProfile();
+  noRedeem.redeem = undefined;
+  assert.throws(() => create(cfg(noRedeem)), /redeem|confirmToRedeem|reverify/i);
+
+  const emptyRedeem = liveProfile();
+  emptyRedeem.redeem = {};
+  assert.throws(() => create(cfg(emptyRedeem)), /confirmToRedeem|reverify/i);
+
+  assert.doesNotThrow(() => create(cfg(liveProfile())));
+  const ageOnly = liveProfile();
+  ageOnly.redeem = { confirmToRedeem: 3600 };
+  assert.doesNotThrow(() => create(cfg(ageOnly)));
+  const both = liveProfile();
+  both.redeem = { confirmToRedeem: 3600, reverify: true };
+  assert.doesNotThrow(() => create(cfg(both)));
 });
 
 test('legs.length > 1 is accepted at construction — the sequencing that orders them is built', () => {
@@ -374,27 +415,23 @@ test('redeem.redeemBound is accepted at construction — the clock that honors i
 
 // === the guard sweep is TOTAL ========================================================
 
-test('GOVERNED: a profile declaring TWO governed features still throws (guard sweep is total)', () => {
-  // captureMode:'live' AND a leg declaring freshness — must throw (on the first guard
-  // reached), never slip through. We only assert it throws GOVERNED for one of them, not
-  // which one. `policySource` no longer belongs in this pair — the second step-6
-  // increment lifted it; `ackMode` no longer belongs in it either — the second step-7
-  // increment lifted it alongside `requiredAcks` (`validateFindingsFlow` replaces the
-  // guard). Two fields remain governed: the whole-profile `captureMode:'live'` and the
-  // per-leg `freshness` — `freshness` stays GOVERNED (consultation freshness gating,
-  // SPEC §11.1 and §14, not yet built) and keeps both alternatives real.
+test('GOVERNED: a profile declaring the one remaining governed feature still throws (guard sweep — LAST reshape, live-capture increment)', () => {
+  // Was a TWO-governed-features sweep (captureMode:'live' AND a leg declaring
+  // freshness) through the second step-7 increment, proving the sweep is total — the
+  // first guard reached wins, never slips through. The live-capture increment lifts
+  // `captureMode:'live'` (`validateLiveCapture` replaces the GOVERNED throw), so only
+  // ONE field remains reachable here: the per-leg `freshness` — it stays GOVERNED
+  // (consultation freshness gating, SPEC §11.1 and §14, not yet built). The governed
+  // count moves 2 → 1 at the live-capture increment; this test narrows from two
+  // declared governed features to one with it.
   const p = captureProfile();
   const leg = p.legs[0];
   if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
-  const twoGoverned: ConfirmProfile = {
+  const oneGoverned: ConfirmProfile = {
     ...p,
-    captureMode: 'live',
     legs: [{ ...leg, freshness: { facts: 3600 } }],
   };
-  assert.throws(
-    () => create(makeConfig([twoGoverned])),
-    /GOVERNED feature not available in this build \((captureMode|freshness)\)/,
-  );
+  assertGoverned(oneGoverned, 'freshness');
 });
 
 // === structural rejections (a DIFFERENT error, not the GOVERNED string) ================
@@ -416,7 +453,12 @@ test('structural: a stray redemption key on a LEG (outside a redeem block) is re
   assertStructural(strayed, /redemption key .*redeemBound/i);
 });
 
-test('structural: reverify:true on a non-live (staged) profile is refused (live capture is not implemented in this build)', () => {
+test("structural: reverify:true on a non-live (staged) profile is refused — reverify is live capture's own control", () => {
+  // Rewritten at the live-capture increment: `reverify` is no longer refused because
+  // live capture "is not implemented in this build" — it IS, as of this increment.
+  // It is refused here because `reverify` is live mode's OWN control (SPEC §9.2);
+  // declaring it on a staged profile is a misdeclaration, not an unimplemented-feature
+  // gap.
   const p = effectSeamProfile();
   const withReverify: ConfirmProfile = { ...p, redeem: { ...p.redeem, reverify: true } };
   assertStructural(withReverify, /reverify/i);

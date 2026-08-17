@@ -48,6 +48,16 @@ const PROFILE_ID = 'test.capture.v1';
 const CONTENT = { subject: 'week-1', total: 40 };
 
 // === content-drift =======================================================================
+// `content-drift` gained a SECOND producer at the live-capture increment (SPEC §9.2): a
+// `reverify`-declaring profile's redemption-time CONTENT correspondence mismatch
+// (`kernel/redeem.ts`'s `refuseCorrespondenceMismatch`) maps to this same code —
+// "registered as that code's second producer, §8". The two producers differ
+// structurally in a way this file's own production-path test below does NOT exercise:
+// finalize's rung (4) append decision consults the leg's `terminalRefusals`
+// (`appendsOn`, the ordinary refusal-class rule), while the redemption-time producer does
+// NOT — its append is unconditional and always terminal, `terminalRefusals` never
+// consulted (the OQ §7 decision on that seam's own append semantics). That producer's own
+// coverage lives in live-capture.test.ts, that increment's own file, not here.
 
 test('content-drift: finalize() with drifted content -> refused/refusal, no transitionRef (default leg)', async () => {
   const handles = create(makeConfig([captureProfile()]));

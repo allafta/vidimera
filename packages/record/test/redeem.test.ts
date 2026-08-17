@@ -55,6 +55,7 @@ import {
   effectSeamProfile,
   facts,
   identity,
+  liveProfile,
   makeConfig,
   openRecord,
   tamperNonLast,
@@ -174,6 +175,45 @@ test('ENLISTED CHAIN-COMPROMISE: a tampered chain over an enlisted redeem() refu
   assert.equal(sqlite.database.isTransaction, true, "the host's transaction is still open");
   sqlite.database.exec('ROLLBACK'); // must not throw — the connection is clean and usable
   assert.equal(sqlite.database.isTransaction, false, 'the rollback landed cleanly');
+});
+
+test('enlisted reverify drift refuses result-first WITHOUT appending (the family discipline at the reverify arm)', async () => {
+  // The reverify arm's own enlisted corner (the live-capture increment, SPEC §9.2): a
+  // reverify-declaring profile's drift refusal is result-first with NO append when the
+  // caller's own transaction is already open — an edge inside the host's transaction
+  // would roll back with the aborted effect (kernel/redeem.ts's
+  // refuseCorrespondenceMismatch). Same tx plumbing as ENLISTED CHAIN-COMPROMISE above.
+  const sqlite = new SqliteStore(':memory:');
+  const handles = create(makeConfig([liveProfile()], { store: sqlite }));
+  const recordId = await openRecord(handles, CONTENT, 'test.live.v1', DEFAULT_SUBJECT_REF);
+  const done = await handles.operator.finalize(recordId, identity(), CONTENT, facts(), {
+    consultations: [
+      {
+        kind: 'rederive',
+        checker: { principal: 'svc:rederive', authority: 'mtls:rederive' },
+        payloadDigest: `sha256:${'d'.repeat(64)}`,
+        verdict: 'pass',
+      },
+    ],
+  });
+  assert.equal(done.status, 'ok', 'fixture: the live record must confirm');
+  const before = await sqlite.readChain(recordId);
+
+  sqlite.database.exec('BEGIN IMMEDIATE');
+  const outcome = await handles.operator.redeem(
+    recordId,
+    { subject: 'week-1', total: 43 },
+    sqlite.database,
+  );
+  assert.equal(sqlite.database.isTransaction, true, "the host's transaction is still open");
+  sqlite.database.exec('ROLLBACK'); // must not throw — the connection is clean and usable
+
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'content-drift');
+  assert.equal(outcome.transitionRef, undefined, 'no edge — the append was never attempted');
+
+  assert.deepEqual(await sqlite.readChain(recordId), before, 'the chain is untouched');
 });
 
 // === at-most-once, replay half =========================================================

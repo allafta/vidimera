@@ -11,7 +11,10 @@
 //   (3) effect seam?      -> unredeemable-state  — §11.2: "on-iff-effects"
 //   (4) state gate        -> already-redeemed on 'redeemed' (at-most-once, replay half);
 //                            unredeemable-state otherwise-not-confirmed
-//   (5) correspondence    -> effect-mismatch     — re-digest vs the bound contentDigest
+//   (5) correspondence    -> effect-mismatch     — re-digest vs the bound contentDigest;
+//                            content-drift instead, appended terminal, on a
+//                            reverify-declaring profile (SPEC §9.2, the live-capture
+//                            increment: `refuseCorrespondenceMismatch` below)
 //   (6) append redeemed   -> ok; a non-append residual is a racing writer -> the
 //                            family-wide CAS-residual re-read (`residualRefusal` below)
 //
@@ -45,6 +48,14 @@
 // redeeming window before any seam-specific state gate runs; `redemption-failed` now has
 // that rung as its spec-granted producer (§11.2), no longer a defensive dead-until-clock
 // arm.
+//
+// THE LIVE-CAPTURE INCREMENT (SPEC §9.2): a `reverify`-declaring profile's redemption-time
+// CONTENT correspondence check maps a mismatch to `content-drift` instead of
+// `effect-mismatch` — appended terminal, releasing the (profile, subject) hold, via
+// `refuseCorrespondenceMismatch` below, shared by all three seams' CONTENT comparisons.
+// The TOKEN comparison at completeRedemption is never routed through it — a wrong token
+// is not state drift. Every non-reverify profile's behavior is byte-identical to before
+// this increment.
 
 import { canonicalize, digest } from '../canonical.js';
 import { transitionDigest } from '../chain/encoding.js';
@@ -78,6 +89,59 @@ async function residualRefusal(store: Store, recordId: string): Promise<Outcome<
     // fall through — result-first either way
   }
   return refused('unredeemable-state');
+}
+
+/**
+ * The correspondence-mismatch mapping (SPEC §9.2, the live-capture increment): a
+ * reverify-declaring profile treats a CONTENT-digest mismatch as state drift —
+ * `content-drift` ("registered as that code's second producer, §8"), appended terminal
+ * from the seam's current state, releasing the (profile, subject) hold; the appended edge
+ * rides the ORDINARY non-terminal path (a live profile's confirmed awaits redemption — the
+ * effect-seam predicate). Every other profile keeps §11.2's `effect-mismatch`,
+ * never-append. `terminalRefusals` is finalize's machinery and is NOT consulted here — the
+ * redemption-time drift append is unconditional (the OQ §7 decision). ENLISTED (tx
+ * supplied), the drift refusal is result-first with NO append: an edge inside the host's
+ * transaction would roll back with the aborted effect — the family's settled enlisted
+ * discipline (its chain-verify and clock rungs both). The token comparison at
+ * completeRedemption is never routed here: a wrong token is not state drift.
+ */
+async function refuseCorrespondenceMismatch(
+  store: Store,
+  chain: readonly Transition[],
+  resolved: ResolvedProfile,
+  target: 'confirmed' | 'redeeming',
+  finalLeg: boolean,
+  now: () => Date,
+  tx?: unknown,
+): Promise<Outcome<never>> {
+  if (resolved.profile.redeem?.reverify !== true) {
+    return refused('effect-mismatch');
+  }
+  if (tx !== undefined) {
+    return refused('content-drift');
+  }
+  const last = chain.at(-1);
+  if (last === undefined) {
+    throw new Error('redeem: empty chain — the caller length checks hold');
+  }
+  const edge: Transition = {
+    recordId: last.recordId,
+    seq: chain.length + 1,
+    at: now().toISOString(),
+    kind: 'refused',
+    payload: { code: 'content-drift' },
+    prevHash: transitionDigest(last),
+  };
+  // Terminal by the derivation; dueAt omitted clears the pending clock (SPEC §12).
+  const meta: AppendMeta = {
+    nonTerminal: nonTerminal('refused', finalLeg, resolved.effectSeam),
+  };
+  const res = await store.appendTransition(target, edge, meta);
+  if (!res.appended) {
+    // A racing writer moved the state — the family-wide CAS-residual discipline.
+    return residualRefusal(store, last.recordId);
+  }
+  return refused('content-drift', res.transitionDigest);
 }
 
 /**
@@ -241,10 +305,12 @@ export async function redeem(
   // --- (5) effect-content correspondence -----------------------------------------------
   // The same recompute path stage() bound and finalize rung (4) checks:
   // adopter canonicalizer -> library JCS -> digest, against the bound contentDigest.
-  // §11.2: refuse "any mismatch with `effect-mismatch`".
+  // §11.2: refuse "any mismatch with `effect-mismatch`" — on a non-reverify profile. A
+  // reverify-declaring profile (SPEC §9.2, the live-capture increment) maps the mismatch
+  // to `content-drift` instead, appended terminal (`refuseCorrespondenceMismatch` below).
   const recomputed = digest(canonicalize(resolved.canonicalizer(content)));
   if (recomputed !== record.contentDigest) {
-    return refused('effect-mismatch');
+    return refuseCorrespondenceMismatch(store, chain, resolved, 'confirmed', finalLeg, now, tx);
   }
 
   // --- (6) append `confirmed → redeemed` -----------------------------------------------
@@ -326,9 +392,11 @@ export async function beginRedemption(
   }
 
   // --- (5) effect-content correspondence (this build's addition — doc comment above) ----
+  // Same mapping as the direct shape's rung (5): `content-drift` on a reverify-declaring
+  // profile (SPEC §9.2, the live-capture increment), `effect-mismatch` otherwise.
   const recomputed = digest(canonicalize(resolved.canonicalizer(content)));
   if (recomputed !== record.contentDigest) {
-    return refused('effect-mismatch');
+    return refuseCorrespondenceMismatch(store, chain, resolved, 'confirmed', finalLeg, now);
   }
 
   // --- (6) issue, then append `confirmed → redeeming` -----------------------------------
@@ -371,9 +439,14 @@ export async function beginRedemption(
  * increment): `redeeming → redeemed { via: 'token', tokenDigest }` on presenting the
  * issued token. At-most-once's replay half is the state gate (`already-redeemed`,
  * checked BEFORE correspondence — outranks mismatch reporting); the correspondence rung
- * checks the token (digest of the presented token vs the chain-recorded tokenDigest)
- * then the content, both refusing `effect-mismatch` — one code by §11.2's own sentence,
- * so the internal order is unobservable and recorded here rather than pinned. The
+ * checks the token first (digest of the presented token vs the chain-recorded
+ * tokenDigest), always refusing `effect-mismatch` on a miss — a wrong token is never
+ * state drift, whatever the profile declares. THEN the content: through the second
+ * step-3 increment both comparisons shared one code by §11.2's own sentence, so the
+ * internal order was unobservable; the live-capture increment (SPEC §9.2) splits them —
+ * a reverify-declaring profile's content mismatch now maps to `content-drift` instead
+ * (`refuseCorrespondenceMismatch`, appended terminal from `redeeming`), while every
+ * other profile keeps `effect-mismatch`, byte-identical to before this increment. The
  * executor's own deduplication, keyed on the token, remains the separated host's MUST
  * (§11.2's Honest bound) — this seam is defense-in-depth beside it, never a substitute.
  * NO tx, deliberately — same argument as beginRedemption's doc comment.
@@ -446,7 +519,7 @@ export async function completeRedemption(
   }
   const recomputed = digest(canonicalize(resolved.canonicalizer(content)));
   if (recomputed !== record.contentDigest) {
-    return refused('effect-mismatch');
+    return refuseCorrespondenceMismatch(store, chain, resolved, 'redeeming', finalLeg, now);
   }
 
   // --- (6) append `redeeming → redeemed { via: 'token', tokenDigest }` ------------------

@@ -51,11 +51,13 @@ export interface Config {
 
 /**
  * `profile-declares-effect-seam := (profile.redeem present) OR (profile.captureMode ===
- * 'live')` (SPEC §9.1). Written completely even though in this build a `captureMode:'live'`
- * profile is GOVERNED-throw-rejected at construction, so the only reachable effect-seam
- * trigger post-validation is a `redeem` block — the disjunct is kept whole (matching
- * `nonterminal.ts`'s "full formula, not the narrowed reachable subset" posture) so the
- * predicate does not need a signature change when the `captureMode:'live'` guard lifts.
+ * 'live')` (SPEC §9.1). Both disjuncts are reachable as of the live-capture increment:
+ * `validateLiveCapture` (below) requires every constructing live profile to declare a
+ * redemption tail (`confirmToRedeem`, `reverify`, or both), so a live profile always
+ * satisfies the `redeem`-present disjunct too — the `captureMode === 'live'` disjunct
+ * stays in the formula anyway (matching `nonterminal.ts`'s "full formula, not the
+ * narrowed reachable subset" posture: SPEC §9.1's own predicate, not this build's own
+ * narrowed corner of it).
  */
 export function profileDeclaresEffectSeam(profile: ConfirmProfile): boolean {
   return profile.redeem !== undefined || profile.captureMode === 'live';
@@ -144,6 +146,35 @@ function validateEligibility(profile: ConfirmProfile, leg: LegSpec): void {
     throw new Error(
       `invalid profile '${profile.id}': leg '${leg.id}' declares eligibility AND lists ` +
         `'eligibility' in requiredConsultations — SPEC §10.4: declare it once`,
+    );
+  }
+}
+
+/**
+ * SPEC §9.2's live-mode construction rules (the live-capture increment — the
+ * captureMode:'live' lift). "The obligation is gated, not merely stated: the
+ * re-derivation is declared as a `requiredConsultations` kind under §11.1" — so every
+ * leg of a live profile must DECLARE required consultations (which declared kind is
+ * the independent re-derivation is the host's semantics; that its access path is
+ * genuinely independent is not library-checkable — that proof is the
+ * operator-assurance tier's live-path-distinctness probe, CONTROLS §4). And the
+ * redemption tail: "A live profile either declares `confirmToRedeem` as a maximum age"
+ * or declares `reverify` — at least one; both is legal.
+ */
+function validateLiveCapture(profile: ConfirmProfile): void {
+  if (profile.captureMode !== 'live') return;
+  for (const leg of profile.legs) {
+    if (leg.requiredConsultations === undefined) {
+      throw new Error(
+        `invalid profile '${profile.id}': captureMode 'live' requires leg '${leg.id}' to declare ` +
+          'requiredConsultations — the decide-time independent re-derivation is gated, not merely stated (SPEC §9.2)',
+      );
+    }
+  }
+  if (profile.redeem?.confirmToRedeem === undefined && profile.redeem?.reverify !== true) {
+    throw new Error(
+      `invalid profile '${profile.id}': captureMode 'live' requires the redemption tail — ` +
+        'declare redeem.confirmToRedeem as a maximum age, redeem.reverify, or both (SPEC §9.2)',
     );
   }
 }
@@ -294,8 +325,10 @@ function validateFindingsFlow(profile: ConfirmProfile, leg: LegSpec): void {
  * Fail-CLOSED structural validation of a single profile. Order:
  *  1. structural: at least one leg (internal legId derivation must be well-defined);
  *  2. structural: unique leg ids (SPEC §10.1 keys recorded evidence by legId);
- *  3. GOVERNED `captureMode:'live'` (live capture, SPEC §9.2) — checked BEFORE the reverify
- *     guard so a live profile throws GOVERNED(captureMode), never the reverify refusal;
+ *  3. structural: `captureMode:'live'` construction rules (`validateLiveCapture`, SPEC
+ *     §9.2, live as of the live-capture increment) — checked at this same position,
+ *     still ahead of the reverify guard below (rung 7), whose own condition now reads
+ *     `captureMode` directly rather than relying on this rung to have thrown first;
  *  4. structural: an empty `policySource` label (policy drift, SPEC §10.3) — the
  *     malformed-reference rule, the same settled class as `eligibility`'s own empty-label
  *     check;
@@ -305,8 +338,8 @@ function validateFindingsFlow(profile: ConfirmProfile, leg: LegSpec): void {
  *     eligibility validation (`validateEligibility`), and structural findings-flow
  *     validation (`validateFindingsFlow`), all four after;
  *  6. structural: stray redemption key on the profile itself;
- *  7. structural: `reverify` on a non-live profile — not built in this build (SPEC §9.2's
- *     live mode).
+ *  7. structural: `reverify` on a non-live profile — live capture's own control,
+ *     misdeclared onto a staged profile (SPEC §9.2's live mode).
  * `legs.length>1` (multi-leg maker-checker sequencing, SPEC §10.1) is accepted at
  * construction as of the first step-4 increment: `kernel/open.ts`'s sequencing rung
  * verifies every prior-leg reference by replay before a successor's record is created, in
@@ -353,6 +386,19 @@ function validateFindingsFlow(profile: ConfirmProfile, leg: LegSpec): void {
  * are their own namespace, SPEC §10.2). Two per-leg/profile fields remain governed today:
  * the whole-profile `captureMode:'live'` and the per-leg `freshness`. The governed count
  * moves 4 → 2 with this lift (both fields of the pair lift together, in one commit).
+ * `captureMode:'live'` (SPEC §9.2's live mode) is accepted-at-construction as of the
+ * live-capture increment: `validateLiveCapture` (above) replaces the GOVERNED throw with
+ * this build's own fail-closed structural posture — a live profile must declare a
+ * required consultation on every leg (the decide-time independent re-derivation rides
+ * finalize's ALREADY-BUILT rung 5.5, no new gate needed there) and a redemption tail
+ * (`confirmToRedeem`, `reverify`, or both). What lands in the SAME commit as this lift is
+ * the piece that was actually missing: `kernel/redeem.ts`'s `refuseCorrespondenceMismatch`,
+ * which reads `redeem.reverify` at all three redemption seams and maps a CONTENT
+ * correspondence mismatch to `content-drift` (appended terminal, releasing the hold)
+ * instead of `effect-mismatch` (never-append) — before this commit `reverify` was
+ * structurally refused outright regardless of `captureMode` (the tail rule, rung 7 above),
+ * so a live profile could never construct at all. One field remains governed today: the
+ * per-leg `freshness`. The governed count moves 2 → 1 with this lift.
  * The sweep is TOTAL: a profile declaring any governed feature throws — the first one
  * reached wins, but none slips through. Canonicalizer resolution + duplicate-id detection
  * are `create.ts`'s (they need the registry / the whole profile list).
@@ -372,14 +418,7 @@ export function validateProfile(profile: ConfirmProfile): void {
     }
     seenLegIds.set(leg.id, index);
   }
-  if (profile.captureMode === 'live') {
-    throw new Error(
-      governedUnavailable(
-        'captureMode',
-        'live capture is not implemented in this build; only staged capture is supported. Contract: §9.2.',
-      ),
-    );
-  }
+  validateLiveCapture(profile);
   if (profile.policySource !== undefined && profile.policySource.length === 0) {
     throw new Error(
       `invalid profile '${profile.id}': declares an empty policySource label — ` +
@@ -395,14 +434,18 @@ export function validateProfile(profile: ConfirmProfile): void {
     validateFindingsFlow(profile, leg);
   }
   assertNoStrayRedemptionKeys(profile.id, 'top-level profile', profile);
-  // `reverify` on a non-live profile is refused — not built in this build (SPEC §9.2's
-  // live mode). Reaching here, `captureMode` is already narrowed to 'staged' (the 'live'
-  // guard above threw GOVERNED), so any `reverify:true` present is BY DEFINITION on a
-  // non-live profile.
-  if (profile.redeem?.reverify === true) {
+  // `reverify` on a non-live profile is refused — reverify is live capture's OWN control
+  // (SPEC §9.2: "A live profile either declares `confirmToRedeem` as a maximum age" or
+  // declares `reverify`), so declaring it on a staged profile is a misdeclaration, not
+  // an unimplemented-feature gap. Before the live-capture increment this arm needed no
+  // explicit `captureMode` check — every live profile threw GOVERNED above, so any
+  // `reverify:true` reaching here was BY DEFINITION on a non-live profile; now that
+  // `validateLiveCapture` (above) lets a live profile construct, this arm must name its
+  // own condition explicitly instead of inheriting it from a guard that no longer fires.
+  if (profile.captureMode !== 'live' && profile.redeem?.reverify === true) {
     throw new Error(
-      `invalid profile '${profile.id}': 'reverify' is not available on a non-live profile ` +
-        '(live capture is not implemented in this build — SPEC §9.2)',
+      `invalid profile '${profile.id}': 'reverify' is only available on a captureMode:'live' ` +
+        "profile (SPEC §9.2's live mode) — declaring it on a staged profile is a misdeclaration",
     );
   }
 }
