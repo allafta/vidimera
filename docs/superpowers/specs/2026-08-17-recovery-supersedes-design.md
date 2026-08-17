@@ -99,6 +99,14 @@ predecessor that is itself a recovery record ("an earlier superseded attempt") i
 legal — terminality is THE condition; §2's parenthetical is illustrative, and a pin
 proves a terminal `redeemed` predecessor qualifies.
 
+**No en-passant resolution of the predecessor's clock.** Verification is a pure read: a
+LAPSED-but-unswept `open` predecessor replays as `open`, non-terminal, and refuses —
+the operator sweeps first, then recovers, exactly `seal()`'s stated posture (SPEC §4:
+"the operator sweeps first, then seals"). The exclusivity retry's lapsed-blocker
+resolution is not a counter-precedent: there `open()` resolves a blocker of its OWN
+`(profile, subject)` genesis; here the mutation would belong to a different record's
+chain inside what §2 defines as verification. Pinned by a lapsed-open-predecessor test.
+
 ## 3. The genesis binding and the fold (`kernel/open.ts`, `types.ts`, `chain/replay.ts`)
 
 `open()`'s ladder gains the recovery rung AFTER the prior-legs sequencing rung and
