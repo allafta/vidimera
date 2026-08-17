@@ -199,7 +199,7 @@ parts:
   code, no new outcome class. **The two audit reads stay separate and neither ever
   gates**: `operator.verifyChain` remains the AL1 report, `operator.verifySignatures`
   the AL2 report — graduated honesty; the seams enforce. **The sanctioned sealed
-  bundle executed with this increment's exit**: SPEC §14's AL2 bullet and CONTROLS.md's
+  bundle executed with the enforcement increment's exit**: SPEC §14's AL2 bullet and CONTROLS.md's
   own AL2 cell moved `[SKETCHED]`/`SKETCHED` → `[PROVEN]`/`PROVEN`; OPEN-QUESTIONS.md
   §1's granularity, missing-signature-posture and key-custody tails are **Decided (this
   build)**, its authority-timestamps tail **explicitly still open** — the AL2 freshness
