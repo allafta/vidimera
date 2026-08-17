@@ -116,8 +116,9 @@ parts:
   then executed the marker ruling: SPEC §10.2's nine `[DESIGNED]`/`DESIGNED` tokens — eight in SPEC.md,
   one in CONTROLS.md — moved to `[PROVEN]`/`PROVEN`, the first draft-ahead marker to move in
   this repository.
-  Step 8 — recovery, live capture, AL2 signing, the self-test tier — **has started**: its
-  first item, SPEC §2's recovery linkage, landed whole. `open()` gains a new pre-genesis
+  Step 8 — recovery, live capture, AL2 signing, the self-test tier — **has started**, with
+  two of its four tail items now landed. The first, SPEC §2's recovery linkage, landed
+  whole. `open()` gains a new pre-genesis
   recovery rung (`kernel/supersedes.ts`'s `verifySupersedes`, consumed after the prior-legs
   sequencing rung and before the genesis mint): given a host-supplied `supersedes` claim —
   `{ recordId, chainHead }` naming a terminal predecessor — it replays that chain and
@@ -138,16 +139,45 @@ parts:
   This
   is a DIFFERENT tally from the construction-guarded count below, which the lift leaves
   UNCHANGED at two — a call-seam guard on a real, documented options-bag key is not a
-  `ConfirmProfile` construction guard. Step 8 records **Started**, not Exited: the tail —
-  live-mode capture and `reverify`, AL2 detached signing, and the self-test tier — is
+  `ConfirmProfile` construction guard.
+  **The second tail item, live-mode capture and `reverify` (SPEC §9.2), landed whole at the
+  live-capture increment.** `captureMode:'live'`'s GOVERNED throw is gone, replaced by
+  `validateLiveCapture` (`config.ts`): every leg of a live profile must declare
+  `requiredConsultations` — the decide-time independent re-derivation, gated as an ordinary
+  required consultation at `finalize()`'s already-built rung 5.5, no new gate needed — and
+  the profile's `redeem` block must declare `confirmToRedeem`, `reverify`, or both. Landing
+  in the SAME commit, `kernel/redeem.ts`'s `refuseCorrespondenceMismatch` gives `reverify`
+  its redemption-seam semantics: on a reverify-declaring profile, a CONTENT-digest mismatch
+  at any of the three redemption seams (the direct shape's rung (5), the token shape's
+  begin-time correspondence, and complete's content half — never its token half, which stays
+  `effect-mismatch`) now refuses `content-drift` with an APPENDED terminal `refused` edge
+  from the seam's current state, releasing the exclusivity hold — the ordinary non-terminal
+  path, no C4 carve-out — instead of the never-appended `effect-mismatch` every other profile
+  keeps; an enlisted (`tx`-carrying) call meeting drift refuses result-first with NO append,
+  the family's settled enlisted discipline. `content-drift` gains this as its SECOND
+  producer (§8), appending UNCONDITIONALLY at that seam — `terminalRefusals` is finalize's
+  own per-leg machinery and is not consulted there. The `captureMode:'live'` GOVERNED throw
+  lifted with the mapping in the same commit (governed count 2 → 1, `freshness` alone
+  remains). OPEN-QUESTIONS.md §7's two residuals are now **Decided (this build)**: the
+  `reverify` surface takes no new argument (the redemption seams' existing `content`
+  argument IS the fresh read), and the staged-reference contract is UNCHANGED — decide-time
+  binding is finalize's own recompute plus the gated re-derivation consultation, never a
+  change to `stage`/`open`/`finalize`. The four live-mode `[SKETCHED]` tokens (SPEC:488
+  inline, SPEC:667's bold heading, CONTROLS:40's prose, CONTROLS:45's cell) moved to
+  `[PROVEN]`, and SPEC:488's now-false trailing clause — naming the `reverify` seam
+  semantics as an open decision — was rewritten to point at OQ §7's recorded decisions
+  instead. The library never verifies the re-derivation's path-independence: the
+  consultation gates its presence and verdict, and genuineness stays the
+  operator-assurance tier's live-path-distinctness probe (CONTROLS §4). Step 8 records
+  **Started**, not Exited: the tail — AL2 detached signing and the self-test tier — is
   deferred to deferral register row 17, each gated on its own OPEN-QUESTIONS enablement
-  design rather than bundled into this one increment.
+  design rather than bundled into one increment.
   **`docs/process/implementation-status.md` is the authoritative
   account** of what this build does and does not implement, section by section, with the
   gate outputs and the outstanding list — read it rather than trusting a count here,
   which is a claim with a shelf life and no way to fail loudly. Step 8, the last of the
-  eight build-order steps, has started, its tail deferred by name, and the package is not
-  consumable by a host today.
+  eight build-order steps, has started, its remaining tail deferred by name, and the
+  package is not consumable by a host today.
 
 ## The standalone contract
 
@@ -233,7 +263,12 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   in this repository. A second move landed at step 8's own first increment: SPEC §2's five
   `[SKETCHED]` recovery tokens (SPEC.md ~128/130/318/564, CONTROLS.md ~46) moved to
   `[PROVEN]` once the behavior they describe — `open()`'s recovery rung — landed, tokens
-  only, byte-verified. `docs/process/implementation-status.md` is the substitute exit record
+  only, byte-verified. A third move landed at step 8's second tail item, the live-capture
+  increment: SPEC §9.2's four live-mode `[SKETCHED]` tokens (SPEC.md ~488's inline bracket,
+  ~667's bold heading, CONTROLS.md ~40's prose, ~45's cell) moved to `[PROVEN]`, plus
+  OPEN-QUESTIONS.md §7's two residual decisions recorded as "Decided (this build):" tails
+  and SPEC.md ~488's now-false trailing clause rewritten to point at them — tokens, tails,
+  and one clause, byte-verified. `docs/process/implementation-status.md` is the substitute exit record
   that moves at every other step's exit — do not expect a marker change at steps 1–6 and do
   not manufacture one there.
 - **Inverting an inherited pinned assertion is authorized explicitly, never slipped in.**
@@ -242,7 +277,9 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   inversions have been authorized so far, both during the step-1 remediation, each argued
   in place at `packages/record/test/terminality.test.ts` and recorded in the exit record.
 - Feature guards from day one — an unimplemented capability throws at construction
-  (`config.ts` `validateProfile`; two governed profile fields throw there, four before the
+  (`config.ts` `validateProfile`; one governed profile field throws there, two before the
+  live-capture increment lifted `captureMode:'live'` alongside its redemption-seam mapping;
+  four before the
   second step-7 increment lifted `ackMode`/`requiredAcks` alongside the seams and gate that
   give them teeth; five before the second step-6 increment lifted `policySource` alongside
   all three of its own seam
@@ -336,8 +373,24 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   neither, and `requiredAcks` non-empty, pairwise distinct, every kind a non-empty string —
   deliberately WITHOUT a reserved-kind arm, since finding kinds are their own namespace
   (SPEC §10.2: "the reserved consultation kinds do not apply to them"), so `'facts'` is a
-  LEGAL `requiredAcks` kind. Two fields are governed today: the whole-profile
-  `captureMode:'live'`, and the per-leg `freshness`. **The one call-seam GOVERNED guard
+  LEGAL `requiredAcks` kind. Two fields were governed at that point: the whole-profile
+  `captureMode:'live'`, and the per-leg `freshness`. **The construction-guarded count moves
+  once more, at the live-capture increment: two down to one.** `captureMode:'live'` — SPEC
+  §9.2's live mode — was GOVERNED from the kernel increment on; it lifted because
+  `validateLiveCapture` (`config.ts`) now enforces the mode's own construction
+  obligations — every leg must declare `requiredConsultations` (the decide-time
+  independent re-derivation, gated at finalize's already-built rung 5.5, no new gate
+  needed) and the profile's `redeem` block must declare `confirmToRedeem`, `reverify`, or
+  both — landing in the SAME commit as `kernel/redeem.ts`'s `refuseCorrespondenceMismatch`,
+  which gives `reverify` its own redemption-seam semantics: a reverify-declaring profile's
+  CONTENT mismatch at any of the three redemption seams now maps to `content-drift`,
+  appended terminal, releasing the hold, instead of the never-appended `effect-mismatch`
+  every other profile keeps. What replaces the guard is `validateLiveCapture`'s own
+  fail-closed structural posture, the same settled class every prior lift above used:
+  presence, not inertness, is what it checks. One field remains governed today: the
+  per-leg `freshness` alone — vacuous by construction at AL1 regardless, since the library
+  stamps every consultation's own recording time, so lifting this guard alone could never
+  make the gate fire. **The one call-seam GOVERNED guard
   outside `validateProfile` — `open()`'s `supersedes` options key (`kernel/open.ts`, reusing
   this same `governedUnavailable` helper) — lifted separately, at the step-8 recovery
   increment**, once `kernel/supersedes.ts`'s `verifySupersedes` existed to honor it; this is

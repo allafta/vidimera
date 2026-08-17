@@ -93,7 +93,8 @@ build. The second increment then executed the marker move: SPEC §10.2's own
 nine draft-ahead tokens, across the concept set's normative document and
 its controls table, moved from designed to proven — the first such move
 in this repository. Step 8 — recovery, live capture, AL2 signing, the
-self-test tier — has **started**: its first item, SPEC §2's recovery
+self-test tier — has **started**, with two of its four tail items now
+landed. The first, SPEC §2's recovery
 linkage, has landed. `open()` accepts a host-supplied `supersedes` claim —
 `{ recordId, chainHead }` naming a terminal predecessor — verifies it by
 replay before the record exists (an intact chain, a matching head, terminal
@@ -103,9 +104,21 @@ genesis; any verification failure refuses `supersedes-unverified` (the
 twenty-third code, count 22 → 23), pre-record and never-appended. The last
 call-seam GOVERNED guard in the build lifted with it — `open()`'s options
 bag now carries all three of its documented keys for real — a different
-tally from the construction-guarded count, which stays at two. Step 8
-records **started**, not exited: the tail — live-mode capture and
-`reverify`, AL2 detached signing, and the self-test tier — is deferred to
+tally from the construction-guarded count, which stood at two at that
+point. The second tail item, live-mode capture and `reverify` (SPEC §9.2),
+has since landed whole too, at the live-capture increment:
+`captureMode:'live'`'s construction guard is gone, replaced by rules
+requiring every leg to declare a required consultation (the decide-time
+independent re-derivation) and the profile's `redeem` block to declare
+`confirmToRedeem`, `reverify`, or both; and a reverify-declaring profile's
+redemption-time content mismatch now refuses `content-drift` with an
+appended terminal edge that releases the exclusivity hold, instead of the
+never-appended `effect-mismatch` every other profile keeps —
+`content-drift`'s second producer. The construction-guarded count moves to
+one with this lift (the per-leg `freshness` alone remains, deliberately
+unfireable at this build's assurance level). Step 8
+records **started**, not exited: the tail — AL2 detached signing and the
+self-test tier — is deferred to
 the deferral register, each item gated on its own open-question enablement
 design. The
 package is **not consumable by a host today** — no build, no published
