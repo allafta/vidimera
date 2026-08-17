@@ -116,9 +116,23 @@ appended terminal edge that releases the exclusivity hold, instead of the
 never-appended `effect-mismatch` every other profile keeps —
 `content-drift`'s second producer. The construction-guarded count moves to
 one with this lift (the per-leg `freshness` alone remains, deliberately
-unfireable at this build's assurance level). Step 8
-records **started**, not exited: the tail — AL2 detached signing and the
-self-test tier — is deferred to
+unfireable at this build's assurance level). **The third tail item has since
+begun, not landed whole: AL2 detached signing, the first of its own three
+increments — the mint.** A profile may now declare `signing: true`, and an
+instance may supply a signer hook, a verifier registry, and a detached
+sidecar store; a declaring profile without that instance support throws
+loud at construction. Nothing is enforced by this landing: a `create()`-level
+store decorator signs every transition of a signing record before it is
+appended — sign-before-append, so a lost write leaves only a harmless
+orphan signature, never an unsigned landed one — and one new operator read,
+`verifySignatures`, reports per-transition sign/verify status without ever
+refusing, appending, or gating on what it finds. AL1 semantics are
+untouched, no maturity marker moves, and the construction-guarded count
+above is unaffected — signing arrived with its own behavior in the same
+commit as its declaration, never as a construction throw waiting on a
+later increment to lift it. Step 8
+records **started**, not exited: the remaining tail — AL2's own
+enforcement and freshness increments, and the self-test tier — is deferred to
 the deferral register, each item gated on its own open-question enablement
 design. The
 package is **not consumable by a host today** — no build, no published
