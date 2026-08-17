@@ -62,8 +62,8 @@ export type RefusalCode =
   // conditional table names them "`refusal`-class, `terminalRefusals`-able, open-by-default"
   // under "findings flow (§10.2)". The distinction (§10.2): `ack-missing` = no ack at all
   // for a required-kind finding; `ack-stale` = acks present but none counting (wrong
-  // digest, wrong magnitude, or violating ackMode). Producers: finalize's ack-coverage rung,
-  // landing in the second step-7 increment
+  // digest, wrong magnitude, or violating ackMode). Producer: finalize's rung (5.7), the
+  // ack-coverage rung, real as of the second step-7 increment
   | 'ack-missing'
   | 'ack-stale';
 // class map: chain-compromise → 'compromise'; availability → 'availability'; all others →

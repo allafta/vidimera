@@ -1,15 +1,15 @@
 // @vidimera/record — kernel/findings.ts: SPEC §10.2's counting-ack predicate and the
 // per-finding coverage derivation (the first step-7 increment, the READ half). Both
 // functions are PURE reads over an already-folded `RecordedFinding[]` — no Store, no I/O —
-// consumed today by `kernel/review.ts`'s projection; the gate that consumes the same
-// derivation at finalize (`ack-missing` / `ack-stale`, already-registered refusal codes)
-// lands in the second step-7 increment, alongside the seams (`raiseFinding`/`acknowledge`)
-// that mint the transitions `chain/replay.ts` folds into the `RecordedFinding[]` these
-// functions read.
+// consumed by `kernel/review.ts`'s projection AND, as of the second step-7 increment, by
+// finalize's rung (5.7) (`ack-missing` / `ack-stale`) — the same commit that lands the
+// seams (`raiseFinding`/`acknowledge`, `kernel/findings-seams.ts`) that mint the
+// transitions `chain/replay.ts` folds into the `RecordedFinding[]` these functions read.
 //
-// "Whether an ack counts is decided only at finalize" (SPEC §10.2) — but the COUNTING
-// PREDICATE itself has no seam dependency, so it lands here, now, exercised only by
-// hand-built chains until the write half arrives.
+// "Whether an ack counts is decided only at finalize" (SPEC §10.2) — and now, as of the
+// second step-7 increment, it genuinely is: the COUNTING PREDICATE had no seam dependency
+// even before that (it landed here, exercised only by hand-built chains), and the write
+// half that makes the finalize half of that sentence real has since arrived.
 
 import type { LegSpec } from '../config.js';
 import type { RecordedAck, RecordedFinding } from '../types.js';
@@ -86,16 +86,16 @@ export interface FindingCoverageRow {
  *
  * `ackMode` is consulted only when a finding's kind IS required. SPEC §10.2's own
  * both-or-neither construction rule (`ackMode` + `requiredAcks` "both-or-neither; either
- * alone is a construction error") is not yet ENFORCED at construction in this build — both
- * fields still throw individually at profile construction (`config.ts`'s `validateLeg`), so
- * no profile this build can construct ever declares one without the other, or either at all.
- * `ackMode` is typed optional here for two reachable states, not one: a caller (the review
- * projection) reading an UNRESOLVABLE leg, where `requiredAcks` is undefined too and every
- * finding classifies `'not-required'` before `ackMode` would ever be consulted; and a direct
- * call to this exported pure function — not gated by profile construction — supplying a
- * required kind with no `ackMode`, the half-declared state the second step-7 increment's own
- * construction rule (the settled `validateSodShape` class, once the GOVERNED throws above
- * lift) will make unreachable for a real profile. See the fail-closed handling of that
+ * alone is a construction error") IS ENFORCED at construction as of the second step-7
+ * increment (`config.ts`'s `validateFindingsFlow`, the settled `validateSodShape` class),
+ * so no profile this build can construct ever declares one without the other, or either at
+ * all. `ackMode` is typed optional here for two reachable states, not one, even so: a
+ * caller (the review projection) reading an UNRESOLVABLE leg, where `requiredAcks` is
+ * undefined too and every finding classifies `'not-required'` before `ackMode` would ever
+ * be consulted; and a direct call to this exported pure function — not gated by profile
+ * construction — supplying a required kind with no `ackMode`, the half-declared state
+ * `validateFindingsFlow` makes unreachable for a real profile but that this exported
+ * function, callable directly, must still handle. See the fail-closed handling of that
  * second state below.
  *
  * `findings === undefined` (a findings-free record) returns `[]` — there is nothing to
@@ -118,12 +118,13 @@ export function findingCoverage(
       // The fail-closed reading of a half-declared state (see the function's own doc
       // comment above): a required kind with no declared `ackMode` — reachable today only
       // via a direct call, since no profile this build can construct declares one of
-      // `ackMode`/`requiredAcks` without the other. The second step-7 increment's own
-      // construction rule (the settled `validateSodShape` class) will make this
-      // unreachable for a real profile; until then, no ack counts under it — the house
-      // precedent an impossible state already sets elsewhere (finalize's paired-actor
-      // mismatch, redeem's garbled `tokenDigest`), never the fail-open `'any'` a permissive
-      // fallback would give it.
+      // `ackMode`/`requiredAcks` without the other (`config.ts`'s `validateFindingsFlow`,
+      // real as of the second step-7 increment, makes the pair unreachable for a real
+      // profile). This branch STAYS as defense-in-depth for the direct-call caller
+      // `findingCoverage` itself admits: no ack counts under it — the house precedent an
+      // impossible state already sets elsewhere (finalize's paired-actor mismatch,
+      // redeem's garbled `tokenDigest`), never the fail-open `'any'` a permissive fallback
+      // would give it.
       return { finding, coverage: 'ack-stale' };
     }
     const counts = finding.acks.some((ack) => ackCounts(finding, ack, ackMode));

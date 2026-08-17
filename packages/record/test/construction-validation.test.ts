@@ -13,7 +13,7 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import type { ConfirmProfile } from '../src/config.js';
+import type { ConfirmProfile, LegSpec } from '../src/config.js';
 import { create } from '../src/create.js';
 import {
   captureProfile,
@@ -22,6 +22,17 @@ import {
   effectSeamProfile,
   makeConfig,
 } from './helpers/profiles.js';
+
+/** A single-leg config with `extra` merged onto the leg — the `validateFindingsFlow`
+ * tests' own builder (this file's other settled-class tests each hand-roll `{ ...p,
+ * legs: [{ ...leg, ... }] }` inline; this is the first pair to need the SAME shape
+ * across two tests, so it is named once here rather than duplicated). */
+function cfgWithLeg(extra: Partial<LegSpec>) {
+  const p = captureProfile();
+  const leg = p.legs[0];
+  if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
+  return makeConfig([{ ...p, legs: [{ ...leg, ...extra }] }]);
+}
 
 // The byte-preserved HEAD of every GOVERNED message — up to and including the field's
 // closing parenthesis. `config.ts`'s `governedUnavailable(field, contract)` appends
@@ -271,24 +282,30 @@ test('GOVERNED: a leg declaring freshness throws (freshness)', () => {
   assertGoverned({ ...p, legs: [{ ...leg, freshness: { facts: 3600 } }] }, 'freshness');
 });
 
-test('GOVERNED: a leg declaring requiredAcks throws (requiredAcks)', () => {
-  const p = captureProfile();
-  const leg = p.legs[0];
-  if (leg === undefined)
-    throw new Error(
-      'construction-validation.test.ts: p.legs[0] missing — captureProfile() must have at least one leg',
-    );
-  assertGoverned({ ...p, legs: [{ ...leg, requiredAcks: ['counterparty'] }] }, 'requiredAcks');
+// === validateFindingsFlow: SPEC §10.2's both-or-neither + the settled class (second
+// step-7 increment — the ackMode/requiredAcks lift) ===
+
+test('findings flow: either field alone is a construction error, both-or-neither', () => {
+  assert.throws(() => create(cfgWithLeg({ ackMode: 'any' })), /both-or-neither|requiredAcks/i);
+  assert.throws(
+    () => create(cfgWithLeg({ requiredAcks: ['variance'] })),
+    /both-or-neither|ackMode/i,
+  );
 });
 
-test('GOVERNED: a leg declaring ackMode throws (ackMode)', () => {
-  const p = captureProfile();
-  const leg = p.legs[0];
-  if (leg === undefined)
-    throw new Error(
-      'construction-validation.test.ts: p.legs[0] missing — captureProfile() must have at least one leg',
-    );
-  assertGoverned({ ...p, legs: [{ ...leg, ackMode: 'counterparty' }] }, 'ackMode');
+test('findings flow: the settled class on requiredAcks — non-empty, distinct, non-empty strings; facts is LEGAL (own namespace)', () => {
+  assert.throws(() => create(cfgWithLeg({ ackMode: 'any', requiredAcks: [] })), /empty/i);
+  assert.throws(
+    () => create(cfgWithLeg({ ackMode: 'any', requiredAcks: ['x', 'x'] })),
+    /distinct|duplicate/i,
+  );
+  assert.throws(() => create(cfgWithLeg({ ackMode: 'any', requiredAcks: [''] })), /empty/i);
+  // Finding kinds are their own namespace — SPEC §10.2: "the reserved consultation
+  // kinds do not apply to them". 'facts' as a requiredAcks kind constructs cleanly:
+  assert.doesNotThrow(() => create(cfgWithLeg({ ackMode: 'any', requiredAcks: ['facts'] })));
+  assert.doesNotThrow(() =>
+    create(cfgWithLeg({ ackMode: 'counterparty', requiredAcks: ['variance', 'note'] })),
+  );
 });
 
 test('eligibility is accepted at construction — the gate arm is built', () => {
@@ -356,23 +373,25 @@ test('redeem.redeemBound is accepted at construction — the clock that honors i
 // === the guard sweep is TOTAL ========================================================
 
 test('GOVERNED: a profile declaring TWO governed features still throws (guard sweep is total)', () => {
-  // captureMode:'live' AND a leg declaring ackMode — must throw (on the first guard
+  // captureMode:'live' AND a leg declaring freshness — must throw (on the first guard
   // reached), never slip through. We only assert it throws GOVERNED for one of them, not
   // which one. `policySource` no longer belongs in this pair — the second step-6
-  // increment lifted it, so it would make the regex's second alternative dead; `ackMode`
-  // stays GOVERNED (findings/acknowledgments, SPEC §10.2, not yet built) and keeps both
-  // alternatives real.
+  // increment lifted it; `ackMode` no longer belongs in it either — the second step-7
+  // increment lifted it alongside `requiredAcks` (`validateFindingsFlow` replaces the
+  // guard). Two fields remain governed: the whole-profile `captureMode:'live'` and the
+  // per-leg `freshness` — `freshness` stays GOVERNED (consultation freshness gating,
+  // SPEC §11.1 and §14, not yet built) and keeps both alternatives real.
   const p = captureProfile();
   const leg = p.legs[0];
   if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
   const twoGoverned: ConfirmProfile = {
     ...p,
     captureMode: 'live',
-    legs: [{ ...leg, ackMode: 'self' }],
+    legs: [{ ...leg, freshness: { facts: 3600 } }],
   };
   assert.throws(
     () => create(makeConfig([twoGoverned])),
-    /GOVERNED feature not available in this build \((captureMode|ackMode)\)/,
+    /GOVERNED feature not available in this build \((captureMode|freshness)\)/,
   );
 });
 

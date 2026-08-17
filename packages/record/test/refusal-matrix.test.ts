@@ -492,12 +492,12 @@ test("policy-drift: registry/type presence + class + appendsOn shape only in thi
 // === ack-missing (the first step-7 increment) =============================================
 // `ack-missing` (SPEC §8's conditional table: findings flow, §10.2) is `refusal`-class,
 // `terminalRefusals`-able, open-by-default. It fires when no ack at all exists for a
-// required-kind finding. Its producer is finalize's ack-coverage rung, landing in the
+// required-kind finding. Its producer is finalize's ack-coverage rung, real as of the
 // second step-7 increment; this file carries a registry-only assertion, since
-// production-path coverage will live in findings.test.ts (the second step-7 increment's
+// production-path coverage lives in findings.test.ts (the second step-7 increment's
 // own file).
 
-test("ack-missing: registry/type presence + class + appendsOn shape only in this file — its producer is finalize's ack-coverage rung, landing in the second step-7 increment; production-path coverage lives in findings.test.ts", () => {
+test("ack-missing: registry/type presence + class + appendsOn shape only in this file — its producer is finalize's ack-coverage rung, real as of the second step-7 increment; production-path coverage lives in findings.test.ts", () => {
   // `code: RefusalCode = 'ack-missing'` is itself a COMPILE-TIME union-membership check
   // (this file fails to type-check if 'ack-missing' is ever removed from the union).
   const code: RefusalCode = 'ack-missing';
@@ -514,11 +514,11 @@ test("ack-missing: registry/type presence + class + appendsOn shape only in this
 // `ack-stale` (SPEC §8's conditional table: findings flow, §10.2) is `refusal`-class,
 // `terminalRefusals`-able, open-by-default. It fires when acks are present but none count
 // (wrong digest, wrong magnitude, or wrong ackMode principal). Its producer is finalize's
-// ack-coverage rung, landing in the second step-7 increment; this file carries a
-// registry-only assertion, since production-path coverage will live in findings.test.ts
+// ack-coverage rung, real as of the second step-7 increment; this file carries a
+// registry-only assertion, since production-path coverage lives in findings.test.ts
 // (the second step-7 increment's own file).
 
-test("ack-stale: registry/type presence + class + appendsOn shape only in this file — its producer is finalize's ack-coverage rung, landing in the second step-7 increment; production-path coverage lives in findings.test.ts", () => {
+test("ack-stale: registry/type presence + class + appendsOn shape only in this file — its producer is finalize's ack-coverage rung, real as of the second step-7 increment; production-path coverage lives in findings.test.ts", () => {
   // `code: RefusalCode = 'ack-stale'` is itself a COMPILE-TIME union-membership check
   // (this file fails to type-check if 'ack-stale' is ever removed from the union).
   const code: RefusalCode = 'ack-stale';

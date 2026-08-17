@@ -4,17 +4,20 @@
 //
 //   load chain → (1) pre-seam chain-verify → (2) state/expiry gate → (3) identity (both
 //   branches) → (3.5) separation of duties → (4) content-drift → (4.5) policy drift →
-//   (5) facts → (5.5) required consultations → (5.7) ack coverage [reserved] →
+//   (5) facts → (5.5) required consultations → (5.7) ack coverage →
 //   (6) success append batch.
 //
-// This build implements rungs (1)/(2)/(3)/(3.5)/(4)/(4.5)/(5)/(5.5)/(6) of the SPEC's full
-// ladder — the SPEC's (4.5) policy-drift rung is real as of the second step-6 increment
+// This build implements rungs (1)/(2)/(3)/(3.5)/(4)/(4.5)/(5)/(5.5)/(5.7)/(6) of the SPEC's
+// full ladder — the SPEC's (4.5) policy-drift rung is real as of the second step-6 increment
 // (`policySource` is accepted at construction; the presence contract and this rung close the
 // remaining two obligations, all three landing in that same commit). Rung (5.5) is built for
 // BOTH halves: the required-consultation half (SPEC §11.1, second step-5 increment) and the
 // eligibility half (SPEC §10.4, first step-6 increment) — a declaring leg's implicit
 // `'eligibility'` kind is prepended ahead of the declared `requiredConsultations`, so
-// authority-to-decide is checked before the evidence checks.
+// authority-to-decide is checked before the evidence checks. Rung (5.7), ack coverage (SPEC
+// §10.2), is real as of the second step-7 increment — the same commit that lands the two
+// operator-only seams (`kernel/findings-seams.ts`'s `raiseFinding`/`acknowledge`) that mint
+// the transitions this rung's own coverage derivation reads.
 //
 // (1) Chain-verify is FIRST after load. A DETECTED BREAK → refuse `chain-compromise` (class
 //     compromise, TERMINAL) and append ONE `refused` edge at head via NORMAL C2 (seq=max+1,
@@ -58,8 +61,13 @@
 //       `ineligible` instead (SPEC §10.4's trip mapping; a NON-declaring leg that merely lists
 //       `'eligibility'` in `requiredConsultations` keeps the generic code). The first kind
 //       that trips decides the outcome — order, not severity across kinds.
-// (5.7) Ack coverage — RESERVED. No producer at this build step; arrives with findings and
-//       acknowledgments (SPEC §10.2).
+// (5.7) Ack coverage (SPEC §10.2; second step-7 increment) — the library replays the
+//       record's own findings and acks (no new finalize inputs) and, for each finding whose
+//       `kind` appears in the leg's `requiredAcks`, in first-raise order, first trip refuses:
+//       no ack at all → `ack-missing`; acks present but none counting → `ack-stale`. Zero
+//       raised findings of a required kind, or an undeclared flow, pass vacuously. The
+//       derivation is the read side's own (`kernel/findings.ts`'s `findingCoverage`); this
+//       rung adds no recording of its own.
 // (6) Success batch — ONE atomic, variable-arity `appendBatch` call carrying SPEC §9's shape,
 //     `[chain-verify, facts, …obtained consultations, confirmed]` (the first step-5
 //     increment's attach form — the host's supplied consultations, order preserved, land
@@ -75,12 +83,12 @@
 //     with nothing recorded — the throw sits inside DECISIONS.md #10's "nothing was recorded"
 //     exception rather than beside it.
 //
-// (3)/(3.5)/(4)/(4.5)/(5)/(5.5) are refusal-class ON THEIR
-// consultation-missing/consultation-failed/ineligible/policy-drift ARMS: each appends
-// `open→refused` (terminal) IFF the leg's `terminalRefusals` lists it (the `appendsOn` rule),
-// else no append and the record stays open. (4.5)'s and (5.5)'s availability arms are a
-// DIFFERENT outcome status entirely (`unavailable`, never `refused`) and never append,
-// `terminalRefusals` notwithstanding (SPEC §8).
+// (3)/(3.5)/(4)/(4.5)/(5)/(5.5)/(5.7) are refusal-class ON THEIR
+// consultation-missing/consultation-failed/ineligible/policy-drift/ack-missing/ack-stale ARMS:
+// each appends `open→refused` (terminal) IFF the leg's `terminalRefusals` lists it (the
+// `appendsOn` rule), else no append and the record stays open. (4.5)'s and (5.5)'s
+// availability arms are a DIFFERENT outcome status entirely (`unavailable`, never `refused`)
+// and never append, `terminalRefusals` notwithstanding (SPEC §8).
 
 import { canonicalize, digest } from '../canonical.js';
 import { transitionDigest } from '../chain/encoding.js';
@@ -95,6 +103,7 @@ import type { AppendMeta, Store } from '../store/store.js';
 import type { Consultation, Digest, IdentityAssertion, RecordState, Transition } from '../types.js';
 import { validateConsultations, validatePolicyInput } from './consultations.js';
 import { deadlineIso, resolveDueClock } from './expiry.js';
+import { findingCoverage } from './findings.js';
 
 /** The finalize `facts` arg (SPEC §3's "Reviewed-surface (`facts`) binding"): the reviewed-surface figures + the review-surface checker. */
 type Facts = { figures: unknown; checker: IdentityAssertion };
@@ -407,6 +416,19 @@ export async function finalize(
       // verdict 'pass': this required kind is satisfied; it records in the success
       // batch with every other obtained consultation (the first step-5 increment's
       // recording is unchanged — the gate adds no recording of its own).
+    }
+  }
+
+  // --- (5.7) ack coverage (SPEC §10.2; the second step-7 increment) --------------------
+  // The library replays the record's own findings and acks — NO new finalize inputs —
+  // and, per SPEC §10.2, "for each finding whose `kind` appears in the leg's
+  // `requiredAcks`, in first-raise order, first trip refuses". Coverage is the read
+  // side's shared derivation (kernel/findings.ts) — the rung adds no recording of its
+  // own, and an undeclared flow or findings-free record passes vacuously ("`requiredAcks`
+  // gates *raised* findings; it does not require findings to exist").
+  for (const row of findingCoverage(record.findings, leg.ackMode, leg.requiredAcks)) {
+    if (row.coverage === 'ack-missing' || row.coverage === 'ack-stale') {
+      return refuseMaybeAppend(store, row.coverage, leg, chain, resolved, finalLeg, now);
     }
   }
 

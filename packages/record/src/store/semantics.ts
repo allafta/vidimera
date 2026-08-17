@@ -45,9 +45,10 @@ interface RefusedPayload {
  * completeness-over-narrowing reason `nonterminal.ts` writes its formula's full three
  * disjuncts rather than only the disjuncts this build can reach.
  *
- * `finding-raised`/`acknowledged` (GOVERNED annotations SPEC §10.2 defines, not emitted
- * by this build's kernel) are read as state-preserving on the same reasoning as
- * `sealed` — they record a fact ABOUT a record without themselves deciding it.
+ * `finding-raised`/`acknowledged` (SPEC §10.2's findings-flow annotations, minted by the
+ * findings seams as of the second step-7 increment) are read as state-preserving on the
+ * same reasoning as `sealed` — they record a fact ABOUT a record without themselves
+ * deciding it.
  */
 export function stateOf(kind: TransitionKind): RecordState | null {
   switch (kind) {

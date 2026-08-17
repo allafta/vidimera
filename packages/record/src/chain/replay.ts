@@ -98,16 +98,16 @@ interface RefusedPayload {
  *    counting is `kernel/findings.ts`'s `ackCounts`, consulted at review and (from the
  *    second step-7 increment) at finalize's coverage rung, never here (fidelity, not
  *    validity). An ack naming an absent `findingId` THROWS.
- *  - Any other `TransitionKind` is not yet emitted in this build — this kernel emits
- *    opened, consultation-recorded, confirmed, refused, expired, sealed, redeemed,
- *    redeeming (since the second step-3 increment's `beginRedemption`), and
- *    redemption-failed (since the third step-3 increment's clock resolution).
- *    `finding-raised`/`acknowledged` FOLD as of the first step-7 increment above, but no
- *    seam mints either yet — their kernel producers (`raiseFinding`/`acknowledge`) land in
- *    the second step-7 increment. `replay` THROWS on any genuinely unhandled kind rather
- *    than silently ignoring it, matching the codebase's fail-closed posture (an unhandled
- *    kind reaching this fold is either a not-yet-wired future capability or chain
- *    corruption; both should be loud, not silently dropped state).
+ *  - Every `TransitionKind` is emitted by this build's kernel: opened, consultation-recorded,
+ *    confirmed, refused, expired, sealed, redeemed, redeeming (since the second step-3
+ *    increment's `beginRedemption`), redemption-failed (since the third step-3 increment's
+ *    clock resolution), and finding-raised/acknowledged (since the second step-7
+ *    increment's `kernel/findings-seams.ts` — `raiseFinding`/`acknowledge` — folded as of
+ *    the first step-7 increment above, minted by a seam as of the second). `replay` still
+ *    THROWS on any genuinely unhandled kind rather than silently ignoring it, matching the
+ *    codebase's fail-closed posture (an unhandled kind reaching this fold is either a
+ *    not-yet-wired future capability or chain corruption; both should be loud, not
+ *    silently dropped state).
  *
  * Empty-chain choice: THROWS. Replaying a
  * record that doesn't exist (no `opened` transition to seed the required fields) is a
@@ -210,10 +210,10 @@ export function replay(chain: readonly Transition[]): DecisionRecord {
         // a new id appends in first-raise order; an existing id is a content update,
         // moving findingDigest, magnitude (present-iff-present on the raise — an
         // update without magnitude clears it), and raiser to the new version's. A
-        // re-raise changing `kind` cannot exist on an honest chain (the seam, landing
-        // in the second step-7 increment, throws on it) — meeting one here is a
-        // garbled or foreign chain, a storage/config fault (SPEC §8's loud-throw
-        // posture), never a fold.
+        // re-raise changing `kind` cannot exist on an honest chain (the seam, real as of
+        // the second step-7 increment, throws on it) — meeting one here is a garbled or
+        // foreign chain, a storage/config fault (SPEC §8's loud-throw posture), never a
+        // fold.
         const payload = transition.payload as FindingRaisedPayload;
         record.findings ??= [];
         const existing = record.findings.find((f) => f.findingId === payload.findingId);

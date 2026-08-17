@@ -264,7 +264,7 @@ export function runStoreConformance(label: string, makeStore: () => Store): void
       await store.appendTransition('open', confirmed, { nonTerminal: false }); // terminal
 
       const sealed = storeNext(confirmed, 'sealed', {
-        note: 'not emitted by this kernel build',
+        note: 'state-preserving — emitted by kernel/seal.ts',
       });
       // A sealed append preserves state, so the record's nonTerminal flag is unchanged (false).
       const result = await store.appendTransition('confirmed', sealed, { nonTerminal: false });
@@ -561,7 +561,7 @@ export function runStoreConformance(label: string, makeStore: () => Store): void
       const before = await store.readChain(recordId);
 
       const later = storeNext(sealed, 'finding-raised', {
-        note: 'not emitted by this kernel build',
+        note: 'state-preserving — emitted by the findings seams (kernel/findings-seams.ts) as of the second step-7 increment',
       });
       const res = await store.appendTransition('confirmed', later, { nonTerminal: false });
 

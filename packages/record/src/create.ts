@@ -7,17 +7,20 @@
 //
 // The "shared kernel closures" all live here so the capability split
 // (agent-surface.ts / operator-surface.ts) stays a pure select-and-freeze. Every
-// record-transitioning closure (`stage`/`open`/`review`/`finalize`/`redeem`/`seal`) calls
-// into `kernel/*.ts` — `redeem` delegates to `kernel/redeem.ts`, the DIRECT-shape
-// redemption seam (SPEC §11.2): a confirmed effect-seam record's final leg is coupled to
-// its effect via `confirmed → redeemed { via: 'direct' }`, enlisted in the caller's own
-// transaction when one is passed through; `unredeemable-state` on every profile/state with
-// no redeemable seam; `seal` delegates to `kernel/seal.ts`, the operator-only chain-retirement
-// seam that caps a verified derived-terminal record with a `sealed` transition and reports
-// `retired`. The reads (`getRecord`/`readChain`/`chainHead`/`listDue`) and the
-// `replay`/`verifyChain` `recordId` audit wrappers are REAL: direct Store delegation + the
-// pure `chain/replay.ts` core. `listDue`, new at the third step-3 increment, is the
-// sweep's one read — `store.listDue(now())` under the injected clock, no append authority.
+// record-transitioning closure (`stage`/`open`/`review`/`finalize`/`redeem`/`raiseFinding`/
+// `acknowledge`/`seal`) calls into `kernel/*.ts` — `redeem` delegates to `kernel/redeem.ts`,
+// the DIRECT-shape redemption seam (SPEC §11.2): a confirmed effect-seam record's final leg
+// is coupled to its effect via `confirmed → redeemed { via: 'direct' }`, enlisted in the
+// caller's own transaction when one is passed through; `unredeemable-state` on every
+// profile/state with no redeemable seam; `raiseFinding`/`acknowledge` delegate to
+// `kernel/findings-seams.ts`, SPEC §10.2's two operator-only mid-lifecycle seams (second
+// step-7 increment) — the only appends between `opened` and the decision; `seal` delegates
+// to `kernel/seal.ts`, the operator-only chain-retirement seam that caps a verified
+// derived-terminal record with a `sealed` transition and reports `retired`. The reads
+// (`getRecord`/`readChain`/`chainHead`/`listDue`) and the `replay`/`verifyChain` `recordId`
+// audit wrappers are REAL: direct Store delegation + the pure `chain/replay.ts` core.
+// `listDue`, new at the third step-3 increment, is the sweep's one read —
+// `store.listDue(now())` under the injected clock, no append authority.
 
 import { randomBytes } from 'node:crypto';
 import { type AgentSurface, makeAgentSurface } from './agent-surface.js';
@@ -31,6 +34,10 @@ import {
 } from './config.js';
 import { mintRecordId } from './id.js';
 import { finalize as finalizeKernel } from './kernel/finalize.js';
+import {
+  acknowledge as acknowledgeKernel,
+  raiseFinding as raiseFindingKernel,
+} from './kernel/findings-seams.js';
 import { open as openKernel } from './kernel/open.js';
 import {
   beginRedemption as beginRedemptionKernel,
@@ -105,6 +112,8 @@ export interface Kernel {
   redeem: OperatorSurface['redeem'];
   beginRedemption: OperatorSurface['beginRedemption'];
   completeRedemption: OperatorSurface['completeRedemption'];
+  raiseFinding: OperatorSurface['raiseFinding'];
+  acknowledge: OperatorSurface['acknowledge'];
   seal: OperatorSurface['seal'];
   replay: OperatorSurface['replay'];
   verifyChain: OperatorSurface['verifyChain'];
@@ -112,12 +121,14 @@ export interface Kernel {
 }
 
 /**
- * Assembles the shared kernel closures over `ctx`. All six transitioning/read closures
- * (`stage`/`open`/`review`/`finalize`/`redeem`/`seal`) delegate to `kernel/*.ts`; `redeem`
- * is real: the DIRECT shape (SPEC §11.2) couples a confirmed effect-seam record's final
- * leg to its effect via `confirmed → redeemed { via: 'direct' }`, `unredeemable-state` on
- * every profile/state with no redeemable seam. `seal` is real: it caps a verified
- * derived-terminal record with a `sealed` transition and reports `retired`. The reads +
+ * Assembles the shared kernel closures over `ctx`. All eight transitioning/read closures
+ * (`stage`/`open`/`review`/`finalize`/`redeem`/`raiseFinding`/`acknowledge`/`seal`) delegate
+ * to `kernel/*.ts`; `redeem` is real: the DIRECT shape (SPEC §11.2) couples a confirmed
+ * effect-seam record's final leg to its effect via `confirmed → redeemed { via: 'direct' }`,
+ * `unredeemable-state` on every profile/state with no redeemable seam. `raiseFinding`/
+ * `acknowledge` are real: SPEC §10.2's two operator-only mid-lifecycle seams. `seal` is
+ * real: it caps a verified derived-terminal record with a `sealed` transition and reports
+ * `retired`. The reads +
  * replay/verifyChain wrappers are real.
  */
 function makeKernel(ctx: KernelContext): Kernel {
@@ -144,6 +155,12 @@ function makeKernel(ctx: KernelContext): Kernel {
     // tokenDigest }` on presenting the issued token ---
     completeRedemption: (recordId, token, content) =>
       completeRedemptionKernel(ctx, recordId, token, content),
+
+    // --- raiseFinding()/acknowledge(): kernel/findings-seams.ts — SPEC §10.2's two
+    // operator-only mid-lifecycle seams (second step-7 increment) ---
+    raiseFinding: (recordId, finding, identity) =>
+      raiseFindingKernel(ctx, recordId, finding, identity),
+    acknowledge: (recordId, ack, identity) => acknowledgeKernel(ctx, recordId, ack, identity),
 
     // --- seal(): kernel/seal.ts — the operator-only chain-retirement seam ---
     seal: (recordId) => sealKernel(ctx, recordId),

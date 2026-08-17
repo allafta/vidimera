@@ -107,20 +107,6 @@ function assertNoStrayRedemptionKeys(profileId: string, where: string, obj: obje
 
 /** Per-leg GOVERNED guards: every not-yet-enforceable leg control throws. */
 function validateLeg(profileId: string, leg: LegSpec): void {
-  if (leg.ackMode !== undefined)
-    throw new Error(
-      governedUnavailable(
-        'ackMode',
-        'the findings-flow acknowledgment mode is not implemented in this build. Contract: §10.2.',
-      ),
-    );
-  if (leg.requiredAcks !== undefined)
-    throw new Error(
-      governedUnavailable(
-        'requiredAcks',
-        'required-acknowledgment gating on findings is not implemented in this build. Contract: §10.2.',
-      ),
-    );
   if (leg.freshness !== undefined)
     throw new Error(
       governedUnavailable(
@@ -259,6 +245,50 @@ function validateRequiredConsultations(profile: ConfirmProfile, leg: LegSpec): v
 }
 
 /**
+ * SPEC §10.2's findings-flow construction rules (the second step-7 increment — the
+ * ackMode/requiredAcks lift): the pair is declared "both-or-neither; either alone is a
+ * construction error", and `requiredAcks` takes the settled fail-closed class
+ * (`validateSodShape`/`validateRequiredConsultations`'s): non-empty, pairwise
+ * distinct, every kind a non-empty string. NO reserved-kind arm, deliberately —
+ * finding kinds are their own namespace (SPEC §10.2: "the reserved consultation kinds
+ * do not apply to them"), so 'facts' is a LEGAL requiredAcks kind.
+ */
+function validateFindingsFlow(profile: ConfirmProfile, leg: LegSpec): void {
+  const hasMode = leg.ackMode !== undefined;
+  const hasAcks = leg.requiredAcks !== undefined;
+  if (hasMode !== hasAcks) {
+    throw new Error(
+      `invalid profile '${profile.id}': leg '${leg.id}' declares ` +
+        `${hasMode ? 'ackMode without requiredAcks' : 'requiredAcks without ackMode'} — ` +
+        'SPEC §10.2: the findings flow is declared both-or-neither; either alone is a construction error',
+    );
+  }
+  if (!hasAcks) return;
+  const kinds = leg.requiredAcks as string[];
+  if (kinds.length === 0) {
+    throw new Error(
+      `invalid profile '${profile.id}': leg '${leg.id}' declares requiredAcks as an empty array — ` +
+        'the control must require at least one kind (non-empty by the fail-closed ruling)',
+    );
+  }
+  const seen = new Set<string>();
+  for (const kind of kinds) {
+    if (typeof kind !== 'string' || kind.length === 0) {
+      throw new Error(
+        `invalid profile '${profile.id}': leg '${leg.id}' declares a missing or empty finding kind in requiredAcks`,
+      );
+    }
+    if (seen.has(kind)) {
+      throw new Error(
+        `invalid profile '${profile.id}': leg '${leg.id}' requires acknowledgment of '${kind}' twice — ` +
+          'entries must be pairwise distinct (duplicate)',
+      );
+    }
+    seen.add(kind);
+  }
+}
+
+/**
  * Fail-CLOSED structural validation of a single profile. Order:
  *  1. structural: at least one leg (internal legId derivation must be well-defined);
  *  2. structural: unique leg ids (SPEC §10.1 keys recorded evidence by legId);
@@ -269,8 +299,9 @@ function validateRequiredConsultations(profile: ConfirmProfile, leg: LegSpec): v
  *     check;
  *  5. per-leg GOVERNED guards + stray-redemption-key check (inside `validateLeg`), then
  *     structural SoD shape validation (`validateSodShape`), structural
- *     requiredConsultations validation (`validateRequiredConsultations`), and structural
- *     eligibility validation (`validateEligibility`), all three after;
+ *     requiredConsultations validation (`validateRequiredConsultations`), structural
+ *     eligibility validation (`validateEligibility`), and structural findings-flow
+ *     validation (`validateFindingsFlow`), all four after;
  *  6. structural: stray redemption key on the profile itself;
  *  7. structural: `reverify` on a non-live profile — not built in this build (SPEC §9.2's
  *     live mode).
@@ -311,6 +342,15 @@ function validateRequiredConsultations(profile: ConfirmProfile, leg: LegSpec): v
  * The structural empty-label check above replaces the deleted GOVERNED throw with the same
  * settled fail-closed class `eligibility`'s own empty-label rule uses. The governed count
  * moves 5 → 4 with this lift.
+ * `ackMode`/`requiredAcks` (SPEC §10.2's findings flow) are accepted-at-construction as of
+ * the second step-7 increment: the seams that mint `finding-raised`/`acknowledged`
+ * (`kernel/findings-seams.ts`) and the coverage gate that reads the pair at finalize's rung
+ * (5.7) land in the SAME commit as this lift, so the GOVERNED throws are gone —
+ * `validateFindingsFlow` (above) replaces them with the same settled fail-closed structural
+ * class `validateRequiredConsultations`'s uses, MINUS a reserved-kind arm (finding kinds
+ * are their own namespace, SPEC §10.2). Two per-leg/profile fields remain governed today:
+ * the whole-profile `captureMode:'live'` and the per-leg `freshness`. The governed count
+ * moves 4 → 2 with this lift (both fields of the pair lift together, in one commit).
  * The sweep is TOTAL: a profile declaring any governed feature throws — the first one
  * reached wins, but none slips through. Canonicalizer resolution + duplicate-id detection
  * are `create.ts`'s (they need the registry / the whole profile list).
@@ -350,6 +390,7 @@ export function validateProfile(profile: ConfirmProfile): void {
     validateSodShape(profile, index, leg);
     validateRequiredConsultations(profile, leg);
     validateEligibility(profile, leg);
+    validateFindingsFlow(profile, leg);
   }
   assertNoStrayRedemptionKeys(profile.id, 'top-level profile', profile);
   // `reverify` on a non-live profile is refused — not built in this build (SPEC §9.2's

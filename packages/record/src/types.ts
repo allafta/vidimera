@@ -40,10 +40,10 @@ export interface Consultation {
  * `Transition.at` already carries recording time, the convention this build's time-free
  * delta payloads follow (`confirmed`'s `{actor}`, `refused`'s `{code}`); `Consultation`
  * (above) is the one exception, carrying its own `at` inside the object rather than relying
- * on the enclosing transition's. The seam that mints this shape, `raiseFinding`, lands in
- * the second step-7 increment — the first landed only the READ half: the fold
- * (`chain/replay.ts`), the counting predicate and the coverage derivation
- * (`kernel/findings.ts`), and the review projection.
+ * on the enclosing transition's. The seam that mints this shape, `raiseFinding`
+ * (`kernel/findings-seams.ts`), is real as of the second step-7 increment — the first
+ * landed only the READ half: the fold (`chain/replay.ts`), the counting predicate and the
+ * coverage derivation (`kernel/findings.ts`), and the review projection.
  */
 export interface FindingRaisedPayload {
   findingId: string;
@@ -62,8 +62,9 @@ export interface FindingRaisedPayload {
  * acknowledging identity would read as the same field twice under one name. That is a
  * divergence from SPEC §2's Ack structure, recorded rather than reconciled: it is tracked
  * in `docs/process/implementation-status.md`, entered by the record task of the first
- * step-7 increment. The seam that mints this shape, `acknowledge`, lands in the second
- * step-7 increment, alongside `raiseFinding`.
+ * step-7 increment. The seam that mints this shape, `acknowledge`
+ * (`kernel/findings-seams.ts`), is real as of the second step-7 increment, alongside
+ * `raiseFinding`.
  */
 export interface AcknowledgedPayload {
   findingId: string;
@@ -125,7 +126,8 @@ export type TransitionKind =
   | 'redemption-failed';
 // this build's kernel emits: opened, consultation-recorded, confirmed, refused, expired,
 // sealed, redeemed, redeeming, redemption-failed (the third step-3 increment's clock
-// resolution) — not yet finding-raised/acknowledged (§10.2)
+// resolution), finding-raised, acknowledged (§10.2, the second step-7 increment's
+// `kernel/findings-seams.ts`) — every kind in the union above is a real producer now
 
 export interface Transition {
   recordId: string;
@@ -157,8 +159,8 @@ export interface DecisionRecord {
    * `finding-raised` transition — a non-declaring profile's chain never acquires one, so
    * this field is genuinely absent (not present-but-empty) on it, matching SPEC §10.2's
    * own "its chains are byte-identical to a pre-findings implementation" guarantee.
-   * `chain/replay.ts` folds it; no seam mints the transitions that populate it until the
-   * second step-7 increment.
+   * `chain/replay.ts` folds it; `kernel/findings-seams.ts`'s `raiseFinding` mints the
+   * transitions that populate it, real as of the second step-7 increment.
    */
   findings?: RecordedFinding[];
   consultations: Consultation[];
