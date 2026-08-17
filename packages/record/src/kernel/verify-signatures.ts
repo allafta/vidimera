@@ -40,7 +40,10 @@ export interface SignatureReport {
  * walks `chain` (never the sidecar) and, for each transition, resolves whether it
  * carries a sidecar entry, whether that entry's `keyRef` resolves in `ctx.signing`'s
  * registry, and whether the resolved verifier accepts the canonical bytes — a throwing
- * verifier folds to `verified: false`, fail-closed, never a throw out of this module.
+ * verifier's own throw never escapes this module, folding instead to `verified: false`,
+ * fail-closed; a REJECTING sidecar store (`ctx.signing.signatures.listByRecord`) is a
+ * different class and DOES propagate, a storage fault of the same class as a rejecting
+ * `readChain`.
  * `signingDeclared` reads the GENESIS transition's own `profileId`, resolved against
  * THIS instance's profile registry — the id-resolution posture named at the two
  * call sites below: an instance that cannot resolve the genesis profile treats the

@@ -48,9 +48,9 @@ are **out of scope by design**: the operator is the records' sole consumer (`CON
 | AL2 detached signing | operator enablement (granularity decided on record — `OPEN-QUESTIONS.md` §1) | Signatures over canonical transitions + consultations | PROVEN | Closes the recompute + head-edit residuals **when the key is outside the insider boundary** |
 
 The AL2 row sits in GOVERNED by the tier test (a host-declared feature), not by profile
-declaration — its switch is operator enablement, with the granularity
-(deployment/profile/record) a named open decision; every other row's switch is a profile
-field.
+declaration — its switch is operator enablement, with the granularity decided on record
+— per profile, record-homogeneous (`OPEN-QUESTIONS.md` §1); every other row's switch is
+a profile field.
 
 ## 4. OPERATOR-ASSURANCE — self-run verification
 
