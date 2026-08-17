@@ -383,8 +383,9 @@ function validateFindingsFlow(profile: ConfirmProfile, leg: LegSpec): void {
  * (5.7) land in the SAME commit as this lift, so the GOVERNED throws are gone —
  * `validateFindingsFlow` (above) replaces them with the same settled fail-closed structural
  * class `validateRequiredConsultations`'s uses, MINUS a reserved-kind arm (finding kinds
- * are their own namespace, SPEC §10.2). Two per-leg/profile fields remain governed today:
- * the whole-profile `captureMode:'live'` and the per-leg `freshness`. The governed count
+ * are their own namespace, SPEC §10.2). Two per-leg/profile fields remained governed after
+ * this lift: the whole-profile `captureMode:'live'` and the per-leg `freshness` — since
+ * moved again at the live-capture increment; see the live-capture paragraph below. The governed count
  * moves 4 → 2 with this lift (both fields of the pair lift together, in one commit).
  * `captureMode:'live'` (SPEC §9.2's live mode) is accepted-at-construction as of the
  * live-capture increment: `validateLiveCapture` (above) replaces the GOVERNED throw with

@@ -152,7 +152,7 @@ parts:
   begin-time correspondence, and complete's content half — never its token half, which stays
   `effect-mismatch`) now refuses `content-drift` with an APPENDED terminal `refused` edge
   from the seam's current state, releasing the exclusivity hold — the ordinary non-terminal
-  path, no C4 carve-out — instead of the never-appended `effect-mismatch` every other profile
+  path, no C3 carve-out — instead of the never-appended `effect-mismatch` every other profile
   keeps; an enlisted (`tx`-carrying) call meeting drift refuses result-first with NO append,
   the family's settled enlisted discipline. `content-drift` gains this as its SECOND
   producer (§8), appending UNCONDITIONALLY at that seam — `terminalRefusals` is finalize's
