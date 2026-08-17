@@ -89,9 +89,9 @@ The mode is sketched (independent re-derivation gated as a required consultation
 `confirmToRedeem`-or-`reverify` at the effect seam). Residual: the `reverify` redemption
 surface's exact argument shape, and whether a live profile's staging step (there is no inert
 draft) changes the staged-reference contract or bypasses it. **Decided (this build):** the
-reverify surface takes no new argument — the redemption seams' existing content argument
-is the fresh read, and a reverify-declaring profile maps every content-digest mismatch
-to content-drift, appended and terminal (the token comparison keeps effect-mismatch; an
+`reverify` surface takes no new argument — the redemption seams' existing content argument
+is the fresh read, and a reverify-declaring profile maps every content-digest mismatch to
+`content-drift`, appended and terminal (the token comparison keeps `effect-mismatch`; an
 enlisted direct-shape call refuses result-first with no append). **Decided (this build):**
 the staging contract is unchanged — neither changed nor bypassed; decide-time binding
 is finalize's own recompute plus the gated independent re-derivation consultation.
