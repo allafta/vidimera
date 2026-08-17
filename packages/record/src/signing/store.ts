@@ -23,6 +23,9 @@ export interface SignatureEntry {
  * injected separately (SPEC §14's "detached"). Same provisional-signature discipline
  * as the Store: behaviors stable, method shapes pre-1.0. */
 export interface SignatureStore {
+  /** At most one entry per transitionDigest — put upserts; a sidecar returning
+   * multiple entries for one digest is out of contract (the report's correlation
+   * assumes the invariant). */
   put(entry: SignatureEntry): Promise<void>;
   /** All entries for a record, chain order not guaranteed — the caller correlates by
    * transitionDigest (chain-driven, never sidecar-driven). */

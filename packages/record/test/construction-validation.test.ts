@@ -398,6 +398,17 @@ test('structural: an empty policySource label throws — the malformed-reference
   assertStructural({ ...p, policySource: '' }, /empty/i);
 });
 
+test('structural: signing accepts only the literal true — any other declared value throws', () => {
+  // The settled fail-closed class, added at the AL2 mint increment's final review:
+  // `signing?: true` closes the `signing: false` inertness at the TYPE level for a TS
+  // caller (there is no declarable-but-inert `false` to construct against); this guard
+  // closes the same hole at RUNTIME for a non-TS caller, who could otherwise pass any
+  // other value and construct a silently non-signing profile.
+  const p = captureProfile();
+  assertStructural({ ...p, signing: 'yes' as never }, /signing/i);
+  assertStructural({ ...p, signing: false as never }, /signing/i);
+});
+
 test('redeem.redeemBound is accepted at construction — the clock that honors it is built', () => {
   // INVERTED, at the third step-3 increment: the second step-3 increment pinned a
   // GOVERNED throw here (its `redeeming` edges could not carry §4's declared `bound`

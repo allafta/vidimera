@@ -258,9 +258,11 @@ pnpm workspace (Node 22.16+, pnpm via corepack):
   maintainer working alongside other private repositories should extend the script's
   patterns with those projects' names, package names, and tooling — the AL2 mint
   increment did exactly this itself: the commit-reference pattern gained two exact
-  negative-lookahead exclusions, `ed25519`/`ed448`, for the Ed-curve algorithm names the
-  signing tests pass to `node:crypto`, which are public identifiers hex-shaped only by
-  coincidence (the trailing guard on each keeps `ed25519abc` still a hit). **Exits 0
+  negative-lookahead exclusions, `ed25519`/`ed448`, for the Ed-curve algorithm names,
+  public identifiers hex-shaped only by coincidence: `ed25519` is the excluded name the
+  AL2 mint increment's tests actually pass to `node:crypto`; `ed448` rides as defensive
+  symmetry for the sibling Ed-curve name, today below the pattern's own 7-char floor and
+  therefore inert (the trailing guard on each keeps `ed25519abc` still a hit). **Exits 0
   today, zero findings** — the imported kernel's comment scrub that rewrote every reference-project
   pointer is complete. The scan also **resolves** citations in tracked code: a `SPEC §N`
   must name a section that exists, and a quoted phrase attached to a citation must occur

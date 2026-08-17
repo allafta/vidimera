@@ -77,8 +77,11 @@ const openQuestionPattern = /\bOQ\d*-\d/i;
 // comment points into a git history, and the scan cannot tell whose — so none belong in
 // code, and a provenance claim is deleted rather than repointed. Two EXACT exclusions,
 // `ed25519` and `ed448`: the Ed-curve algorithm names are public identifiers that are
-// hex-shaped by coincidence — the AL2 mint increment's tests pass them to node:crypto —
-// and are excluded exactly (the trailing guard on each keeps `ed25519abc` still a hit).
+// hex-shaped by coincidence. `ed25519` is the excluded name the AL2 mint increment's
+// tests actually pass to node:crypto; `ed448` rides as defensive symmetry for the
+// sibling Ed-curve name — at 5 characters it sits below this pattern's own {7,40}
+// floor, so its own exclusion is a behavioral no-op today (the trailing guard on each
+// keeps `ed25519abc` still a hit).
 const commitRefPattern =
   /(?<![\w.])(?!ed25519(?![\w.]))(?!ed448(?![\w.]))(?=[0-9a-f]{7,40}(?![\w.]))(?=[0-9a-f]*[a-f])(?=[0-9a-f]*\d)[0-9a-f]{7,40}(?![\w.])/;
 

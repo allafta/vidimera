@@ -3,9 +3,11 @@
 // sign-before-append via the create()-level Store decorator, the chain-driven
 // verifySignatures read. NOTHING enforces yet: no seam consults signatures (the AL2
 // enforcement increment's own work), and AL1's guarantees hold throughout — the
-// signed chain's BYTES are identical to an unsigned one's, pinned below. The tests
-// sign with real Ed25519 via node:crypto; the library itself does no crypto — the
-// signer/verifier are host hooks.
+// signed chain's BYTES are identical to an unsigned one's except the declared
+// control's own genesis profileDigest and its hash-chain derivations (prevHash; the
+// chain-verify consultation's payloadDigest) — no signature material anywhere,
+// pinned below. The tests sign with real Ed25519 via node:crypto; the library itself
+// does no crypto — the signer/verifier are host hooks.
 
 import assert from 'node:assert/strict';
 import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';
@@ -192,8 +194,7 @@ test('sign-before-append: a throwing signer PREVENTS the append (order proven, n
   if (staged.status !== 'ok') return;
   await assert.rejects(handles.operator.open(staged.value.stagedRef), /signer down/);
   // Append-then-sign would have landed the genesis before the throw; sign-before-
-  // append leaves NO chain — the order pin. (findNonTerminal is C1's read — adapt
-  // the null/absence assertion to its real signature and return shape.)
+  // append leaves NO chain — the order pin.
   const anyChain = await store.findNonTerminal('test.signed.v1', SUBJ);
   assert.equal(anyChain, null, 'nothing landed');
 });

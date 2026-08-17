@@ -44,9 +44,11 @@ export interface ConfirmProfile {
    * declaration alone mints a detached signature over every transition this profile's
    * records ever append (`signing/decorate.ts`); nothing consults it yet (the AL2
    * enforcement increment's own work). The literal `true` (never `boolean`) closes the
-   * `signing: false` inertness at the type level — there is no declarable-but-inert
-   * `false` to construct against, matching the settled fail-closed class this file's
-   * other structural guards use. */
+   * `signing: false` inertness at the type level for a TS caller — and, as of this
+   * review's guard, at runtime too: `validateProfile` (below) throws on any declared
+   * value other than `true`, so a non-TS caller cannot construct a silently-inert
+   * `signing: false` (or any other truthy-but-wrong value) either. Settled fail-closed
+   * class, now true at BOTH levels — matching this file's other structural guards. */
   signing?: true;
 }
 
@@ -441,6 +443,13 @@ export function validateProfile(profile: ConfirmProfile): void {
       `invalid profile '${profile.id}': declares an empty policySource label — ` +
         'an opaque reference that references nothing is malformed config (the label names ' +
         "the operator's policy authority; the gate keys on the declaration, SPEC §10.3)",
+    );
+  }
+  if (Object.hasOwn(profile, 'signing') && profile.signing !== true) {
+    throw new Error(
+      `invalid profile '${profile.id}': signing must be the literal true when declared — ` +
+        'any other value would construct as a non-signing profile, a silent AL1 downgrade ' +
+        '(the fail-closed structural class; SPEC §14 signing is operator-ENABLED, never approximate)',
     );
   }
   for (const [index, leg] of profile.legs.entries()) {
