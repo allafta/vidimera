@@ -524,7 +524,7 @@ defined with their sections:
 | `ineligible` | eligibility gating (§10.4); `refusal`-class, open-by-default so a different eligible actor may decide | [PROVEN] |
 | `consultation-failed` | required consultations (§11.1); `refusal`-class, open-by-default for re-run | [PROVEN] |
 | `availability` | §11.1 + §10.3; the availability class's single code, never appends | [PROVEN] |
-| `consultation-stale` | consultation freshness (§11.1); can only fire with authority timestamps | [SKETCHED — AL2-dependent] |
+| `consultation-stale` | consultation freshness (§11.1); can only fire with authority timestamps | [PROVEN] |
 | `effect-mismatch` / `already-redeemed` / `redemption-timeout` | redemption (§11.2); never append | [PROVEN] |
 
 **Append semantics.** Whether a `refusal`-classed outcome appends a `refused` transition is a
@@ -631,7 +631,7 @@ a one-line applicability note, not through a separate tier system.
 | `captureMode` | `staged` or `live` (§9.2) |
 | `expiry` | `{ ttl }` (`ttl` in **seconds**) bounding the `open` state, or `none` — a policy choice, never a truth |
 | `requiredConsultations` | Per-leg consultation kinds that must be present and passing at finalize (§11.1) |
-| `freshness` | Per-leg max consultation ages (§11.1). **[SKETCHED]** — meaningful only with AL2 authority timestamps (§14); at AL1 the staleness gate cannot fire |
+| `freshness` | Per-leg max consultation ages (§11.1). **[PROVEN]** — meaningful only with AL2 authority timestamps (§14); at AL1 the staleness gate cannot fire |
 | `policySource` | Per-profile opaque label naming the operator's policy authority; declaring it binds a `policyDigest` at `open()` and gates finalize on drift (`policy-drift`). Never fetched or evaluated by the library (§10.3) |
 | `redeem` | Effect-seam configuration: the redemption bounds (`confirmToRedeem`, `redeemBound`). Its presence declares an **effect seam** (§11.2) |
 | `sod.notActorOf`, `proposer` | Per-leg separation-of-duties controls (§10.1) |
@@ -948,7 +948,7 @@ observed. The library does not accept a caller-supplied consultation time, which
 be caller-trusted (§13A, clock trust). One consequence is named rather than hidden: a
 `freshness` bound over a consultation kind the library itself stamps is **vacuous by
 construction** — that kind's `at` is always the recording instant, so it can never be found
-stale. **For this reason the freshness gate (`consultation-stale`) is [SKETCHED] and
+stale. **For this reason the freshness gate (`consultation-stale`) is [PROVEN] and
 AL2-dependent:** at AL1 it would gate on a value the library just stamped to `now` and could
 never fire — a dead gate wearing an assurance label. Meaningful facts-freshness and
 observation-time fidelity arrive with **AL2** authority timestamps carried inside the digested

@@ -17,7 +17,7 @@ enablement design is deliberately reserved for a dedicated decision:
   boundary (a profile flipping signing on with unsigned history behind it)? **Decided (this
   build):** per profile, record-homogeneous — a record opened under a signing profile is
   signed whole from its genesis; a profile flipping the field is the version-discipline
-  violation §2's convention names.
+  violation SPEC §2's convention names.
 - **Missing-signature posture** — when verification encounters an unsigned transition in a
   signing-enabled scope: fail-closed refusal, degraded-trust reporting, or
   enablement-boundary-aware acceptance? **Decided (this build):** fail-closed into each
@@ -30,8 +30,8 @@ enablement design is deliberately reserved for a dedicated decision:
   holds keys.
 - **Authority timestamps** — AL2 admits authority-supplied times inside digested payloads,
   which is what makes freshness gating meaningful (§4 below); which consultation kinds carry
-  them, and how they are attested, is part of this design. **Still open:** the AL2 freshness
-  increment's own design — see §4 below.
+  them, and how they are attested, is part of this design. **Decided (this build):** the
+  recorded-claim, signing-gated design — see §4 below.
 
 Motivating context, recorded: two AL1 blind windows (separation-of-duties genesis evidence;
 policy-binding genesis) both name AL2 as their closure, and insider/database-administrator
@@ -53,7 +53,7 @@ is a deliberate behavior decision, not an ad-hoc patch; AL2 is the ultimate clos
 ## 3. Recovery (`supersedes`) — the remaining flow details
 
 The reference decision is taken (verify-by-replay, terminal-predecessor-required, recorded
-in the recovering record's genesis — `SPEC.md` §2). Still open:
+in the recovering record's genesis — `SPEC.md` §2). Open at that writing:
 
 - The refusal shape when the named predecessor is **not** terminal (a dedicated code vs the
   prior-leg-unverified pattern; never-append pre-record either way). **Decided (this build):**
@@ -74,7 +74,14 @@ The gate (`consultation-stale`) is unfireable at AL1 by construction (recording-
 stamps). When AL2 authority timestamps exist: which kinds are freshness-eligible (only
 authority-timestamped ones), how a bound interacts with retry (does a stale-then-refreshed
 consultation re-enter within the same finalize attempt?), and whether facts-freshness (the
-reviewed surface's age) gets its own bound.
+reviewed surface's age) gets its own bound. **Decided (this build):** freshness-eligible
+kinds are the leg's own required kinds (or the implicit eligibility where declared) —
+the freshness keys must be a subset, and a bounded kind whose input lacks `observedAt`, or
+claims a future one, refuses `consultation-stale` fail-closed. No in-attempt re-entry —
+inputs are fixed per finalize call; the refusal leaves the record open and the seam re-arms
+per invocation. `facts` gets no own bound — the `facts` consultation is library-stamped
+at the finalize instant, so recording is observation there; a host wanting surface-age
+gating models its renderer as an ordinary timestamped kind.
 
 ## 5. The self-test tier (operator-assurance) contract
 

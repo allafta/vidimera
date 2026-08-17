@@ -44,7 +44,7 @@ are **out of scope by design**: the operator is the records' sole consumer (`CON
 | Findings & acknowledgments | `ackMode` + `requiredAcks` (per leg, both-or-neither) | Review-time findings with digest coverage; named-magnitude acks; `ack-missing`/`ack-stale` gate | PROVEN | Coverage of raised findings; does not require findings to exist; records non-counting acks faithfully |
 | Live capture + `reverify` | `captureMode: 'live'` | Decide-what-exists; independent re-derivation gated as a required consultation; redemption-time re-verify | PROVEN | No pre-decision immutability — catches change at the decision |
 | Recovery (`supersedes`) | profile-conditional field; the verified reference supplied at the recovering record's `open()` | Verify-by-replay link from a fresh record to a terminal predecessor | PROVEN | Recovery linkage evidence; open flow details enumerated (`OPEN-QUESTIONS.md` §3) |
-| Consultation freshness | `freshness` (per leg) | Staleness gate over consultation age | SKETCHED (AL2-dependent) | Unfireable at AL1 (recording-time stamps); meaningful only with authority timestamps |
+| Consultation freshness | `freshness` (per leg) | Staleness gate over consultation age | PROVEN (AL2-dependent) | Unfireable at AL1 (recording-time stamps); meaningful only with authority timestamps |
 | AL2 detached signing | operator enablement (granularity decided on record — `OPEN-QUESTIONS.md` §1) | Signatures over canonical transitions + consultations | PROVEN | Closes the recompute + head-edit residuals **when the key is outside the insider boundary** |
 
 The AL2 row sits in GOVERNED by the tier test (a host-declared feature), not by profile
