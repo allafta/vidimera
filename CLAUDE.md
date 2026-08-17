@@ -116,12 +116,34 @@ parts:
   then executed the marker ruling: SPEC §10.2's nine `[DESIGNED]`/`DESIGNED` tokens — eight in SPEC.md,
   one in CONTROLS.md — moved to `[PROVEN]`/`PROVEN`, the first draft-ahead marker to move in
   this repository.
+  Step 8 — recovery, live capture, AL2 signing, the self-test tier — **has started**: its
+  first item, SPEC §2's recovery linkage, landed whole. `open()` gains a new pre-genesis
+  recovery rung (`kernel/supersedes.ts`'s `verifySupersedes`, consumed after the prior-legs
+  sequencing rung and before the genesis mint): given a host-supplied `supersedes` claim —
+  `{ recordId, chainHead }` naming a terminal predecessor — it replays that chain and
+  requires it intact, its recomputed head matching the claim, TERMINAL by the derived
+  formula (the `confirmed`-state profile-resolution nuance failing closed: an unresolvable
+  predecessor profile fails closed too), and decided over the SAME `subjectRef`; any
+  failure refuses the twenty-third code, `supersedes-unverified` (count 22 → 23), pre-record
+  and never-appended, the `prior-leg-unverified` pattern at its own name. On success the
+  verified reference binds into the recovering record's genesis and folds by replay onto
+  `DecisionRecord.supersedes`; `ReviewView` deliberately does NOT gain the field, the
+  `priorRecordRefs` precedent. This is the LAST call-seam GOVERNED guard in the build:
+  `open()`'s options bag now carries all three of its documented keys —
+  `priorRecordRefs`, `policyDigest`, `supersedes` — for real, and `config.ts`'s
+  `governedUnavailable` supersedes arm is deleted in the same commit as the behavior. This
+  is a DIFFERENT tally from the construction-guarded count below, which the lift leaves
+  UNCHANGED at two — a call-seam guard on a real, documented options-bag key is not a
+  `ConfirmProfile` construction guard. Step 8 records **Started**, not Exited: the tail —
+  live-mode capture and `reverify`, AL2 detached signing, and the self-test tier — is
+  deferred to deferral register row 17, each gated on its own OPEN-QUESTIONS enablement
+  design rather than bundled into this one increment.
   **`docs/process/implementation-status.md` is the authoritative
   account** of what this build does and does not implement, section by section, with the
   gate outputs and the outstanding list — read it rather than trusting a count here,
-  which is a claim with a shelf life and no way to fail loudly. One of the eight
-  build-order steps remains unstarted (step 8), and the package is not consumable by a
-  host today.
+  which is a claim with a shelf life and no way to fail loudly. Step 8, the last of the
+  eight build-order steps, has started, its tail deferred by name, and the package is not
+  consumable by a host today.
 
 ## The standalone contract
 
@@ -204,9 +226,12 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   has **nothing to move** at steps 1–6: every section those steps build is already
   `[PROVEN]`, and the first draft-ahead marker that could come off was §10.2's `[DESIGNED]`
   at step 7 — and it moved, at the second step-7 increment's own exit, the first such move
-  in this repository. `docs/process/implementation-status.md` is the substitute exit record
-  that moves at every other step's exit — do not expect a marker change at steps 1–6 or
-  step 8 and do not manufacture one there.
+  in this repository. A second move landed at step 8's own first increment: SPEC §2's five
+  `[SKETCHED]` recovery tokens (SPEC.md ~128/130/318/564, CONTROLS.md ~46) moved to
+  `[PROVEN]` once the behavior they describe — `open()`'s recovery rung — landed, tokens
+  only, byte-verified. `docs/process/implementation-status.md` is the substitute exit record
+  that moves at every other step's exit — do not expect a marker change at steps 1–6 and do
+  not manufacture one there.
 - **Inverting an inherited pinned assertion is authorized explicitly, never slipped in.**
   The kernel arrived with the reference implementation's test corpus; adopting a corpus
   and quietly changing what it pins is how a build drifts while its suite stays green. Two
@@ -308,6 +333,11 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   deliberately WITHOUT a reserved-kind arm, since finding kinds are their own namespace
   (SPEC §10.2: "the reserved consultation kinds do not apply to them"), so `'facts'` is a
   LEGAL `requiredAcks` kind. Two fields are governed today: the whole-profile
-  `captureMode:'live'`, and the per-leg `freshness`.
+  `captureMode:'live'`, and the per-leg `freshness`. **The one call-seam GOVERNED guard
+  outside `validateProfile` — `open()`'s `supersedes` options key (`kernel/open.ts`, reusing
+  this same `governedUnavailable` helper) — lifted separately, at the step-8 recovery
+  increment**, once `kernel/supersedes.ts`'s `verifySupersedes` existed to honor it; this is
+  the LAST call-seam GOVERNED guard in the build, and its lift does not move the
+  construction-guarded count above, which is a distinct tally.
 - Byte-stability pins and adjacent-pair gate-order tests, from the kernel increment on.
 - The living deferral register: `docs/process/deferral-register.md`.

@@ -92,8 +92,22 @@ declared together — lifted alongside them. SPEC §10.2 is whole in this
 build. The second increment then executed the marker move: SPEC §10.2's own
 nine draft-ahead tokens, across the concept set's normative document and
 its controls table, moved from designed to proven — the first such move
-in this repository. One of the eight build-order
-steps remains unstarted (step 8), and the
+in this repository. Step 8 — recovery, live capture, AL2 signing, the
+self-test tier — has **started**: its first item, SPEC §2's recovery
+linkage, has landed. `open()` accepts a host-supplied `supersedes` claim —
+`{ recordId, chainHead }` naming a terminal predecessor — verifies it by
+replay before the record exists (an intact chain, a matching head, terminal
+state by the derived formula, and the same subject required; any profile
+allowed), and binds the verified reference into the recovering record's
+genesis; any verification failure refuses `supersedes-unverified` (the
+twenty-third code, count 22 → 23), pre-record and never-appended. The last
+call-seam GOVERNED guard in the build lifted with it — `open()`'s options
+bag now carries all three of its documented keys for real — a different
+tally from the construction-guarded count, which stays at two. Step 8
+records **started**, not exited: the tail — live-mode capture and
+`reverify`, AL2 detached signing, and the self-test tier — is deferred to
+the deferral register, each item gated on its own open-question enablement
+design. The
 package is **not consumable by a host today** — no build, no published
 artifact; that record states it in the same breath as the green gates. The
 maturity markers inside the concept set speak to a reference implementation

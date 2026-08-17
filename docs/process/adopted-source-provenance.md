@@ -679,14 +679,17 @@ them to match the reference project more closely would be a regression, not a co
   project's base commit returned the live stored object. Same shape as the previous item —
   independently reached, convergent with the reference's later head, and pinned by
   `test/store-constraints.test.ts:130`.
-- **`open()` throws on any unexpected key in its `opts` bag** (`kernel/open.ts:65-69`,
-  `config.ts:234`'s `OpenOptions = Record<string, never>`), rather than relying on TypeScript's
+- **`open()` throws on any unexpected key in its `opts` bag** (`kernel/open.ts`'s unknown-key
+  loop, ahead of the recovery rung), rather than relying on TypeScript's
   static type to silently drop an unrecognized key at runtime. A plain-JavaScript caller
-  passing `supersedes` today would otherwise have the key silently dropped and believe it
-  received a linkage it never got — type-level absence is not a runtime guard for a
-  JavaScript caller. `priorRecordRefs` (build-order step 4) and `policyDigest` (the second
-  step-6 increment) are no longer examples of this: both are real keys now, honored rather
-  than silently dropped. Keep this note for `supersedes` until it too is actually built.
+  passing an unrecognized key today would otherwise have it silently dropped and believe it
+  took effect — type-level absence is not a runtime guard for a
+  JavaScript caller. `priorRecordRefs` (build-order step 4), `policyDigest` (the second
+  step-6 increment), and `supersedes` (the step-8 recovery increment) are no longer examples
+  of this: all three are real, documented `OpenOptions` fields now (`config.ts`'s
+  `OpenOptions` interface — no longer `Record<string, never>`), honored rather than silently
+  dropped. Every documented `open()` key is real as of the step-8 recovery increment; the
+  note this bullet kept for `supersedes` retires here, its own trigger having fired.
 - **`kernel/stage.ts` was taken from the reference project's *head*, not its base** — the one
   file in this kernel where that is true. Every other adopted source file is base-first
   (deliberately — see the companion whole-branch-review document's account of why base-file-
