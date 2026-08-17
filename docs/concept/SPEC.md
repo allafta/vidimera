@@ -125,7 +125,7 @@ acknowledgments, prior-leg evidence, consultation results) only in process memor
 **Profile-conditional fields** (present only when the profile switches the feature on):
 `priorRecordRefs` and `priorLegActors`, carried on a multi-leg successor record (§10.1)
 **[PROVEN]**; `findings` and `acks` (a findings flow, §10.2) **[PROVEN]**; and `supersedes`
-**[PROVEN]**.
+(recovery of a terminal predecessor, below) **[PROVEN]**.
 
 **Recovery (`supersedes`) [PROVEN].** `supersedes` names the terminal predecessor record (a
 `refused` or `expired` record, or an earlier superseded attempt) that a fresh record recovers
