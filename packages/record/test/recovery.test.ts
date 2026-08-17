@@ -336,3 +336,38 @@ test('intake THROWS at argument depth on a malformed supersedes; the GOVERNED gu
     /GOVERNED|nonsense/,
   );
 });
+
+test('a non-final-leg confirmed predecessor qualifies too — terminal FOR THAT LEG even though its own flow may continue', async () => {
+  // Pin of ALREADY-LANDED behavior, not TDD: a mid-flow leg's `confirmed` is terminal
+  // for THAT LEG by the derived formula (`isFinalLeg` false ⇒
+  // `nonTerminal('confirmed', false, …)` false), a non-final confirmed leg admitting
+  // the next leg without ceasing to be terminal for its own — SPEC §2's own reading —
+  // so it already qualifies as a recovery predecessor under kernel/supersedes.ts's
+  // `verifySupersedes`, even on `twoLegProfile`, whose own flow may still proceed to
+  // the checker leg.
+  const store = new MemoryStore();
+  const handles = create(
+    makeConfig([twoLegProfile({ id: 'test.rec.two.v1' }), terminalProfile('test.rec.v1')], {
+      store,
+    }),
+  );
+  // First leg: no priorRecordRefs needed (mirrors multi-leg.test.ts's own makerConcluded).
+  const makerId = await openRecord(handles, CONTENT, 'test.rec.two.v1', SUBJ, 'maker-decide');
+  const done = await handles.operator.finalize(makerId, identity(), CONTENT, facts());
+  assert.equal(done.status, 'ok', 'fixture: the maker leg must confirm');
+  assert.equal((await handles.operator.getRecord(makerId))?.state, 'confirmed');
+  const head = await handles.operator.chainHead(makerId);
+  assert.ok(head !== null);
+
+  const staged = await handles.agent.stage(CONTENT, 'test.rec.v1', SUBJ);
+  assert.equal(staged.status, 'ok');
+  if (staged.status !== 'ok') return;
+  const out = await handles.operator.open(staged.value.stagedRef, {
+    supersedes: { recordId: makerId, chainHead: head },
+  });
+  assert.equal(
+    out.status,
+    'ok',
+    'a non-final-leg confirmed is terminal FOR THAT LEG — a legal recovery predecessor',
+  );
+});

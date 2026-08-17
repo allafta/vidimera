@@ -130,8 +130,12 @@ parts:
   `DecisionRecord.supersedes`; `ReviewView` deliberately does NOT gain the field, the
   `priorRecordRefs` precedent. This is the LAST call-seam GOVERNED guard in the build:
   `open()`'s options bag now carries all three of its documented keys —
-  `priorRecordRefs`, `policyDigest`, `supersedes` — for real, and `config.ts`'s
-  `governedUnavailable` supersedes arm is deleted in the same commit as the behavior. This
+  `priorRecordRefs`, `policyDigest`, `supersedes` — for real, and `kernel/open.ts`'s own
+  per-key `openOptionMessage` helper — the arm that named `supersedes` GOVERNED — is
+  deleted whole in the same commit as the behavior, its generic message inlined via a
+  direct call to `config.ts`'s `governedUnavailable`, which never had per-key arms of its
+  own and still serves the two construction guards plus the generic unknown-key throws.
+  This
   is a DIFFERENT tally from the construction-guarded count below, which the lift leaves
   UNCHANGED at two — a call-seam guard on a real, documented options-bag key is not a
   `ConfirmProfile` construction guard. Step 8 records **Started**, not Exited: the tail —

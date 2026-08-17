@@ -48,8 +48,13 @@ export function validateSupersedesShape(value: unknown): asserts value is Supers
  * Verify the recovery claim: the predecessor's chain must exist, verify intact, match
  * the claimed head, be TERMINAL by the derived formula (SPEC §2), and have decided the
  * SAME subject. `confirmed` is the one state whose terminality needs the PREDECESSOR's
- * profile (final-leg + effect-seam judgment) — unresolvable there fails closed. Every
- * failure is one refusal, `supersedes-unverified`, mapped by the caller.
+ * profile (final-leg + effect-seam judgment) — unresolvable there fails closed. A
+ * NON-final leg's `confirmed` qualifies too, by that same formula (`isFinalLeg` false
+ * makes `nonTerminal('confirmed', false, effectSeam)` false regardless of effect seam):
+ * it is terminal FOR THAT LEG even though the predecessor's own flow may still proceed
+ * to its next leg (SPEC §2) — this check reads only the named record's own leg, never
+ * the whole multi-leg flow, and treats that leg's terminality as sufficient on its own.
+ * Every failure is one refusal, `supersedes-unverified`, mapped by the caller.
  */
 export async function verifySupersedes(
   store: Store,
