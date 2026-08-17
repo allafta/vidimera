@@ -228,8 +228,10 @@ test('findingCoverage: not-required never gates; ack-missing vs ack-stale; cover
 
 test('findingCoverage: ackMode undefined with a required kind fails closed — no ack ever counts', () => {
   // A required kind with no declared `ackMode` is a half-declared state no profile this
-  // build can construct (ackMode/requiredAcks both still GOVERNED, config.ts) — reachable
-  // here only as a direct call, since findingCoverage is an exported pure function. It must
+  // build can construct — `validateFindingsFlow`'s both-or-neither rule (config.ts, real as
+  // of the second step-7 increment) rejects it structurally now, replacing the GOVERNED
+  // throws that stood in for the same rule before the lift. Reachable here only as a direct
+  // call, since findingCoverage is an exported pure function. It must
   // fail CLOSED: the ack below would count under 'any' (current digest, no magnitude on
   // either side), yet with no declared mode it still doesn't.
   const wouldCountUnderAny: RecordedFinding = {

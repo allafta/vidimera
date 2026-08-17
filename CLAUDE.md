@@ -93,19 +93,29 @@ parts:
   refuses `policy-drift` rather than skipping the gate; the `policySource` GOVERNED throw
   lifted with all three seam obligations in the same commit (governed count 5 → 4).
   Step 7 — findings & acknowledgments, SPEC §10.2, where the first draft-ahead maturity
-  marker could finally move — **has started** (first of two increments): the read side
-  landed — SPEC §10.2's read half whole: `ack-missing`/`ack-stale` join the refusal-code
+  marker could finally move — **has exited**: two increments landed. The first landed
+  SPEC §10.2's read half: `ack-missing`/`ack-stale` join the refusal-code
   union (twenty-first and twenty-second; count 20 → 22 in one move), `replay()`'s two
   throwing arms fold instead (a `kind`-mutating re-raise and an ack naming an absent
-  `findingId` now throw as storage/config faults, unreachable on any chain a seam can
+  `findingId` throw as storage/config faults, unreachable on any chain a seam can
   mint), `DecisionRecord`/`ReviewView` gain a digest-only findings projection, and
-  `kernel/findings.ts` (new) carries the counting-ack predicate and the per-finding
-  coverage derivation the second increment's finalize gate will consume — every piece
-  exercisable today only over hand-built chains, since no seam mints either kind yet. The
-  seams (`raiseFinding`/`acknowledge`), rung (5.7)'s ack-coverage gate, the
-  `ackMode`/`requiredAcks` construction-guard lift (**governed count UNCHANGED at 4**), and
-  the maturity-marker move all remain — the second step-7 increment's own work, which exits
-  the step.
+  `kernel/findings.ts` carries the counting-ack predicate and the per-finding
+  coverage derivation finalize's gate consumes as of the second increment — every piece
+  exercisable, at that point, only over hand-built chains, since no seam minted either kind
+  yet. **The second landed the seams, the gate, and the construction lift, all three in ONE
+  atomic commit**: the two operator-only seams (`kernel/findings-seams.ts`'s
+  `raiseFinding`/`acknowledge`, sharing one prologue — argument intake, chain-verify FIRST,
+  profile/leg resolution, a declaring-check throw on a non-declaring leg, state/expiry en
+  passant, and the seam-specific semantic check before the one append, which re-supplies the
+  open window's `dueAt`); `finalize()`'s rung (5.7), reading the read side's own
+  `findingCoverage` derivation with no new finalize inputs and refusing `ack-missing`/
+  `ack-stale` at the first tripped row in first-raise order; and the `ackMode`/
+  `requiredAcks` construction-guard lift (`validateFindingsFlow`, `config.ts` — both-or-neither
+  plus the settled fail-closed class, deliberately WITHOUT a reserved-kind arm, since finding
+  kinds are their own namespace). §10.2 is whole in this build. The second step-7 increment
+  then executed the marker ruling: SPEC §10.2's nine `[DESIGNED]`/`DESIGNED` tokens — eight in SPEC.md,
+  one in CONTROLS.md — moved to `[PROVEN]`/`PROVEN`, the first draft-ahead marker to move in
+  this repository.
   **`docs/process/implementation-status.md` is the authoritative
   account** of what this build does and does not implement, section by section, with the
   gate outputs and the outstanding list — read it rather than trusting a count here,
@@ -192,18 +202,21 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
 - One cluster per increment; **spec-moves-to-truth** at every increment's exit (a
   maturity marker moves only when the behavior lands in this repository). That exit step
   has **nothing to move** at steps 1–6: every section those steps build is already
-  `[PROVEN]`, and the first draft-ahead marker that could come off is §10.2's `[DESIGNED]`
-  at step 7. `docs/process/implementation-status.md` is the substitute exit record that
-  can move, and each step's exit is written there — do not expect a marker change and do
-  not manufacture one.
+  `[PROVEN]`, and the first draft-ahead marker that could come off was §10.2's `[DESIGNED]`
+  at step 7 — and it moved, at the second step-7 increment's own exit, the first such move
+  in this repository. `docs/process/implementation-status.md` is the substitute exit record
+  that moves at every other step's exit — do not expect a marker change at steps 1–6 or
+  step 8 and do not manufacture one there.
 - **Inverting an inherited pinned assertion is authorized explicitly, never slipped in.**
   The kernel arrived with the reference implementation's test corpus; adopting a corpus
   and quietly changing what it pins is how a build drifts while its suite stays green. Two
   inversions have been authorized so far, both during the step-1 remediation, each argued
   in place at `packages/record/test/terminality.test.ts` and recorded in the exit record.
 - Feature guards from day one — an unimplemented capability throws at construction
-  (`config.ts` `validateProfile`; four governed profile fields throw there, five before the
-  second step-6 increment lifted `policySource` alongside all three of its own seam
+  (`config.ts` `validateProfile`; two governed profile fields throw there, four before the
+  second step-7 increment lifted `ackMode`/`requiredAcks` alongside the seams and gate that
+  give them teeth; five before the second step-6 increment lifted `policySource` alongside
+  all three of its own seam
   obligations). `redeem`
   was originally the eleventh governed capability, throwing at the call seam instead
   (`kernel/redeem.ts`) rather than at construction; the first step-3 increment landed
@@ -281,7 +294,20 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   FAIL-CLOSE — and the `availability` outcome (its second producer) on a reported-unreachable
   source. What replaces the guard is the same settled fail-closed structural class
   `validateEligibility`'s own empty-label rule uses: an opaque reference that references
-  nothing is malformed config. Four fields are governed today: the whole-profile
-  `captureMode:'live'`, and the per-leg `ackMode`, `requiredAcks`, `freshness`.
+  nothing is malformed config. **The construction-guarded count moves once more, at the
+  second step-7 increment: four down to two.** `ackMode`/`requiredAcks` — SPEC §10.2's
+  findings-flow controls, declared both-or-neither — were GOVERNED-throw-guarded
+  individually from the kernel increment on; they lift together because the write half
+  lands in the SAME commit as the lift: the two operator-only seams
+  (`kernel/findings-seams.ts`'s `raiseFinding`/`acknowledge`) and `finalize()`'s new rung
+  (5.7), which reads the pair's own declaration via the read side's `findingCoverage`
+  derivation and raises `ack-missing`/`ack-stale` on it. What replaces the guard is
+  `validateFindingsFlow` (`config.ts`), the same settled fail-closed structural class
+  `validateEligibility`'s/`validateRequiredConsultations`'s/`validateSodShape`'s: both-or-
+  neither, and `requiredAcks` non-empty, pairwise distinct, every kind a non-empty string —
+  deliberately WITHOUT a reserved-kind arm, since finding kinds are their own namespace
+  (SPEC §10.2: "the reserved consultation kinds do not apply to them"), so `'facts'` is a
+  LEGAL `requiredAcks` kind. Two fields are governed today: the whole-profile
+  `captureMode:'live'`, and the per-leg `freshness`.
 - Byte-stability pins and adjacent-pair gate-order tests, from the kernel increment on.
 - The living deferral register: `docs/process/deferral-register.md`.
