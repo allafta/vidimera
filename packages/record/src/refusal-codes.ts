@@ -183,7 +183,7 @@ const NEVER_APPENDS: ReadonlySet<RefusalCode> = new Set<RefusalCode>([
  * `leg-expired` is a member of `RefusalCode` and CAN legally appear in a leg's
  * `terminalRefusals`, but it is resolved by finalize()'s state/expiry gate BEFORE any
  * refusal-append decision is reached (kernel/finalize.ts step (2), ahead of steps
- * (3)-(5) which are the only callers of `appendsOn`) — so `appendsOn('leg-expired', …)`
+ * (3)-(5.7) which are the only callers of `appendsOn`) — so `appendsOn('leg-expired', …)`
  * is never actually consulted by the kernel. `availability` is legal in a leg's
  * `terminalRefusals` too, but by a different mechanism: this function's own
  * availability-class check above returns `false` for it unconditionally, ahead of the
@@ -192,7 +192,7 @@ const NEVER_APPENDS: ReadonlySet<RefusalCode> = new Set<RefusalCode>([
  * `availability` are the two legal-but-inert `terminalRefusals` members SPEC §8 names
  * "so an adopter isn't trapped configuring a control that can never fire" (both pinned in
  * refusal-matrix.test.ts). Keep it that way, or gate it explicitly if/when `appendsOn`
- * usage widens beyond finalize's steps (3)-(5).
+ * usage widens beyond finalize's steps (3)-(5.7).
  */
 export function appendsOn(code: RefusalCode, leg: AppendDecisionLeg): boolean {
   if (REGISTRY[code] === 'compromise') return true;
