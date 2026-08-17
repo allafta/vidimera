@@ -485,7 +485,7 @@ across process boundaries. Each outcome is classed:
 
 | Code | Meaning |
 |---|---|
-| `content-drift` | bound content changed between render and finalize (§3, §9); the [SKETCHED] live mode also raises it at redemption-time `reverify` (§9.2), whose seam semantics are among that mode's open decisions (`OPEN-QUESTIONS.md`) |
+| `content-drift` | bound content changed between render and finalize (§3, §9); the [PROVEN] live mode also raises it at redemption-time `reverify` (§9.2), whose seam semantics are decided on record (`OPEN-QUESTIONS.md` §7) |
 | `identity-authority-refused` | payload-carried identity, or an authority not allowed for the leg (§6) |
 | `record-exists` | a non-terminal record already exists for this `(profile, subject)` (§9); never appends |
 | `leg-expired` | a decision-progress seam (finalize; the findings seams, §10.2) attempted against an `expired` or due-expired record |
@@ -664,7 +664,7 @@ never auto-resolves one.
 - **`staged` (the base mode) [PROVEN].** The digest covers a staged proposal that is inert
   until decided — the north-star shape: an agent drafts, the draft is bound, a human confirms.
   A capture-only host runs entirely in this mode.
-- **`live` [SKETCHED].** The digest covers a fresh read of live state (decide-what-exists).
+- **`live` [PROVEN].** The digest covers a fresh read of live state (decide-what-exists).
   Live capture binds at *decision time* and provides no pre-decision immutability: it does not
   prevent the subject changing during review; it catches the change at the decision. A live
   profile requires a decide-time re-derivation from an **independent access path**, and that
