@@ -460,9 +460,12 @@ function validateFindingsFlow(profile: ConfirmProfile, leg: LegSpec): void {
  * so a live profile could never construct at all. One field remained governed after this
  * lift: the per-leg `freshness`. The governed count moved 2 → 1 with this lift.
  * `freshness` (SPEC §11.1/§14) is accepted-at-construction as of the AL2 freshness
- * increment — the LAST governed lift, a TENTH self-authored inversion (argued in place
- * at construction-validation.test.ts's own pin, after the nine recorded above): the
- * freshness arm that reads the declaration lands at finalize's rung 5.5, in the SAME
+ * increment — the LAST governed lift, the TENTH self-authored inversion in
+ * `implementation-status.md`'s numbered sequence (argued in place at
+ * construction-validation.test.ts's own pin, where EIGHT of the prior nine live; the
+ * sequence's second entry, the replay-fold inversion, is argued at
+ * replay-verify.test.ts's own pin instead): the freshness arm that reads the
+ * declaration lands at finalize's rung 5.5, in the SAME
  * commit as this lift, so the guard's stated trigger (an authority-timestamped build)
  * has fired. `validateFreshness` (above) replaces the GOVERNED throw with this build's
  * own fail-closed structural posture — the AL2 dependency made structural (a declaring

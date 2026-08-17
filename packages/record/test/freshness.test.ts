@@ -12,10 +12,23 @@ import { test } from 'vitest';
 
 import type { ConfirmProfile } from '../src/config.js';
 import { create, createWithClock } from '../src/create.js';
+import { isFinalLeg, nonTerminal } from '../src/nonterminal.js';
+import { profileDigest } from '../src/profile-digest.js';
 import { MemorySignatureStore } from '../src/signing/memory.js';
 import type { Signer, Verifier } from '../src/signing/store.js';
 import { MemoryStore } from '../src/store/memory.js';
-import { captureProfile, facts, identity, makeConfig, openRecord } from './helpers/profiles.js';
+import type { Consultation } from '../src/types.js';
+import { buildChain } from './helpers/chain.js';
+import {
+  captureProfile,
+  DEFAULT_SUBJECT_REF,
+  facts,
+  identity,
+  makeConfig,
+  openRecord,
+  tamperNonLast,
+} from './helpers/profiles.js';
+import { TamperingStore } from './helpers/stores.js';
 
 const CONTENT = { subject: 'week-1', total: 40 };
 const CHECKER = { principal: 'svc:risk', authority: 'mtls:risk' };
@@ -159,6 +172,51 @@ test('terminalRefusals can end the leg on consultation-stale', async () => {
   assert.equal(rec?.refusalCode, 'consultation-stale');
 });
 
+test('the implicit-first eligibility kind is bound by its own freshness entry too: a stale eligibility consultation refuses consultation-stale; a fresh one proceeds', async () => {
+  // SPEC §10.4's implicit-FIRST 'eligibility' kind is just another entry in rung 5.5's
+  // effective-kinds loop — this profile declares NO ordinary requiredConsultations at
+  // all, so 'eligibility' is the only kind the gate ever checks, isolating that the
+  // freshness arm runs on the implicit kind exactly as it does on a declared one.
+  const p = captureProfile({ id: 'test.fresh.elig.v1' });
+  const leg = p.legs[0];
+  if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
+  const eligibilityProfile: ConfirmProfile = {
+    ...p,
+    signing: true,
+    legs: [{ ...leg, eligibility: 'hr.approver-check', freshness: { eligibility: 3600 } }],
+  };
+  const { handles } = freshSetup([eligibilityProfile]);
+  const recordId = await openRecord(handles, CONTENT, 'test.fresh.elig.v1', 'subject:fr-elig-1');
+
+  const stale = await handles.operator.finalize(recordId, identity(), CONTENT, facts(), {
+    consultations: [
+      {
+        kind: 'eligibility',
+        checker: CHECKER,
+        payloadDigest: DIGEST,
+        verdict: 'pass',
+        observedAt: '2026-08-17T08:00:00.000Z', // two hours old vs the 3600s bound
+      },
+    ],
+  });
+  assert.equal(stale.status, 'refused');
+  if (stale.status === 'refused') assert.equal(stale.code, 'consultation-stale');
+  assert.equal((await handles.operator.getRecord(recordId))?.state, 'open', 'open for re-run');
+
+  const fresh = await handles.operator.finalize(recordId, identity(), CONTENT, facts(), {
+    consultations: [
+      {
+        kind: 'eligibility',
+        checker: CHECKER,
+        payloadDigest: DIGEST,
+        verdict: 'pass',
+        observedAt: '2026-08-17T09:45:00.000Z', // 15 minutes old
+      },
+    ],
+  });
+  assert.equal(fresh.status, 'ok', 'a fresh eligibility claim clears rung 5.5 and confirms');
+});
+
 test('the presence contract: a NON-signing profile refuses observedAt at profile-resolution depth; intake rejects malformed shapes', async () => {
   const store = new MemoryStore();
   const plain = captureProfile({ id: 'test.fresh.plain.v1' });
@@ -212,4 +270,74 @@ test('the presence contract: a NON-signing profile refuses observedAt at profile
     } as never),
     /unknown key|observedAt/i,
   );
+});
+
+test('the adjacency pin: a tampered chain refuses chain-compromise BEFORE the observedAt presence contract ever runs (non-signing profile)', async () => {
+  // Rung (1) chain-verify precedes EVERY later rung, presence contracts included — the
+  // same ordering shape §10.3's own policy presence contract already stands on. A
+  // non-signing profile's observedAt-carrying consultation WOULD throw the presence
+  // contract's error if that rung were ever reached; a tampered chain must never let it
+  // get there — the compromise wins, result-first, no throw.
+  const inner = new MemoryStore();
+  const plain = captureProfile({ id: 'test.fresh.adj.v1' });
+  const leg0 = plain.legs[0];
+  if (leg0 === undefined) throw new Error('fixture');
+  const profile: ConfirmProfile = {
+    ...plain,
+    legs: [{ ...leg0, requiredConsultations: ['risk-check'] }],
+  };
+  const legId = leg0.id;
+  const recordId = 'rec-fresh-adjacency';
+  const openedPayload = {
+    profileId: profile.id,
+    profileDigest: profileDigest(profile),
+    legId,
+    subjectRef: DEFAULT_SUBJECT_REF,
+    contentDigest: 'sha256:adjacency1',
+  };
+  const factsConsultation: Consultation = {
+    kind: 'facts',
+    checker: { principal: 'svc:review-surface', authority: 'mtls:review-surface' },
+    at: '2026-07-24T00:30:00.000Z',
+    payloadDigest: 'sha256:adjacency2',
+    verdict: 'pass',
+  };
+  // [opened, consultation-recorded] — a non-last transition to tamper (tamperNonLast
+  // needs >= 2 transitions; a last-element tamper is the documented AL1 blind spot).
+  const chain = buildChain(recordId, [
+    { kind: 'opened', payload: openedPayload },
+    { kind: 'consultation-recorded', payload: factsConsultation },
+  ]);
+  const openedTransition = chain[0];
+  const consultationTransition = chain[1];
+  if (openedTransition === undefined || consultationTransition === undefined) {
+    throw new Error('freshness.test.ts: buildChain must return transitions at index 0 and 1');
+  }
+  const openNT = nonTerminal('open', isFinalLeg(0, 1), false);
+  assert.equal(
+    (await inner.appendTransition(null, openedTransition, { nonTerminal: openNT })).appended,
+    true,
+  );
+  assert.equal(
+    (await inner.appendTransition('open', consultationTransition, { nonTerminal: openNT }))
+      .appended,
+    true,
+  );
+
+  const store = new TamperingStore(inner, recordId, (c) => tamperNonLast(c));
+  const { operator } = create(makeConfig([profile], { store }));
+
+  const outcome = await operator.finalize(recordId, identity(), CONTENT, facts(), {
+    consultations: [
+      {
+        kind: 'risk-check',
+        checker: CHECKER,
+        payloadDigest: DIGEST,
+        verdict: 'pass',
+        observedAt: T0.toISOString(),
+      },
+    ],
+  });
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status === 'refused') assert.equal(outcome.code, 'chain-compromise');
 });

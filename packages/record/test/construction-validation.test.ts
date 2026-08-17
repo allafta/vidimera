@@ -5,9 +5,13 @@
 // — lifted feature-by-feature as build steps added enforcement, `freshness` (the AL2
 // freshness increment) being the LAST: the governed count reached ZERO with that lift,
 // so this file no longer has any live GOVERNED-throw pin of its own (the dead
-// `assertGoverned`/`GOVERNED` helpers this file once carried are gone with it — the
-// nine "is accepted at construction" tests below, plus freshness's own, are this
-// file's own record of the era, each argued in place as a self-authored inversion).
+// `assertGoverned`/`GOVERNED` helpers this file once carried are gone with it).
+// `docs/process/implementation-status.md` carries the authoritative numbered
+// self-authored-inversion sequence, which SPANS FILES — freshness's own pin below is
+// its TENTH entry. EIGHT of the prior nine are argued in place in THIS file's own
+// "is accepted at construction" tests; the sequence's SECOND entry — the replay-fold
+// inversion (`replay()`'s `redemption-failed` throw becoming a fold) — is argued at
+// `replay-verify.test.ts`'s own pin instead, not here.
 // Structural rejections still throw a DIFFERENT (non-GOVERNED) error: zero legs
 // (exactly one required), a stray redemption key placed outside a `redeem` block,
 // `reverify` on a non-live profile, an unresolved `canonicalizerRef`, a duplicate
@@ -318,13 +322,15 @@ test('structural: requiredConsultations rejects empty, duplicate, empty-string, 
 });
 
 test('freshness is accepted at construction — the gate arm is built (the guard era ends)', () => {
-  // INVERTED, at the AL2 freshness increment (the TENTH self-authored inversion, after
-  // the nine recorded above): the kernel increment pinned a GOVERNED throw here while no
-  // gate consumed the declaration and no clock could stamp an authority-supplied
-  // observation time. The freshness arm lands at finalize's rung 5.5 in the same commit
-  // as this lift, so the guard's stated trigger (an authority-timestamped build, SPEC
-  // §11.1/§14) has fired — this is the LAST governed lift; the governed count moves
-  // 1 → 0.
+  // INVERTED, at the AL2 freshness increment: the TENTH self-authored inversion in
+  // `implementation-status.md`'s numbered sequence, which spans files — EIGHT of the
+  // prior nine are argued in this file, above; the sequence's second entry (the
+  // replay-fold inversion) is argued at `replay-verify.test.ts`'s own pin instead. The
+  // kernel increment pinned a GOVERNED throw here while no gate consumed the
+  // declaration and no clock could stamp an authority-supplied observation time. The
+  // freshness arm lands at finalize's rung 5.5 in the same commit as this lift, so the
+  // guard's stated trigger (an authority-timestamped build, SPEC §11.1/§14) has fired —
+  // this is the LAST governed lift; the governed count moves 1 → 0.
   const p = captureProfile();
   const leg = p.legs[0];
   if (leg === undefined)
