@@ -221,7 +221,7 @@ parts:
   signature-covered `observedAt` claim on an obtained consultation (the `opts.policy`
   presence-contract precedent — a non-signing profile's throws); rung 5.5 gains a
   freshness arm refusing the twenty-fourth and last refusal code, `consultation-stale`, on
-  a bounded required kind's missing, unparseable, future, or out-of-bound claim.
+  a bounded required kind's missing, future, or out-of-bound claim.
   `validateFreshness` (`config.ts`) replaces the GOVERNED throw — the LAST governed field
   in this build, the guard era's own exit (see the guards bullet above): the governed
   count reaches ZERO. A second sanctioned sealed bundle executed at this increment's own
@@ -479,7 +479,7 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   `freshness` — SPEC §11.1/§14's per-leg consultation-freshness bound, the one field still
   governed after the live-capture increment — lifted because `finalize()`'s rung 5.5 gains a
   freshness arm in the SAME commit, refusing the twenty-fourth and last refusal code,
-  `consultation-stale`, on a bounded required kind's missing, unparseable, future, or
+  `consultation-stale`, on a bounded required kind's missing, future, or
   out-of-bound `observedAt` claim. What replaces the guard is `validateFreshness`
   (`config.ts`), the same settled fail-closed structural class every guard above used: the
   AL2 dependency made structural (a declaring leg's profile must set `signing: true`), every

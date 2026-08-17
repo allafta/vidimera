@@ -12,8 +12,8 @@
 // "is accepted at construction" tests; the sequence's SECOND entry — the replay-fold
 // inversion (`replay()`'s `redemption-failed` throw becoming a fold) — is argued at
 // `replay-verify.test.ts`'s own pin instead, not here.
-// Structural rejections still throw a DIFFERENT (non-GOVERNED) error: zero legs
-// (exactly one required), a stray redemption key placed outside a `redeem` block,
+// Structural rejections still throw a DIFFERENT (non-GOVERNED) error: at least one leg
+// is required, a stray redemption key placed outside a `redeem` block,
 // `reverify` on a non-live profile, an unresolved `canonicalizerRef`, a duplicate
 // profile id, and every settled-class field validator below. `open()`'s `supersedes`
 // options key was the one GOVERNED guard living outside this file's construction-time
@@ -537,6 +537,20 @@ test('a FULLY-LOADED two-leg profile declaring every once-governed field constru
   // reject a caller-supplied key this build never documents at all, not a declared
   // field this build merely hasn't wired up yet); `config.ts`'s own `validateProfile`
   // header names both survivors precisely.
+  // EVERY once-governed field this file's own guard-lift sequence names is declared
+  // somewhere below: `legs.length>1` (leg1+leg2), `sod.notActorOf`/`proposer` (leg2),
+  // `requiredConsultations` (leg1, leg2), `eligibility` (leg2), `ackMode`/
+  // `requiredAcks` (leg2), `freshness` (leg2), `captureMode:'live'`, `policySource`
+  // (the EIGHTH self-authored inversion), and `redeemBound` (the third step-3
+  // increment's own clock guard). Found at this same review: an earlier draft of this
+  // fixture omitted `policySource` and `redeemBound`, so the title's "every" claim did
+  // not yet hold — both are declared now. `signing: true` sits beside them but was
+  // NEVER itself a governed field — it arrived WITH its own behavior in the mint
+  // increment that declared it, no throwing stub ever standing in for it
+  // (`docs/process/implementation-status.md`'s §14 row: "there was never a guard here
+  // to begin with") — it is declared here only because `validateFreshness` makes it
+  // freshness's OWN structural prerequisite (a declaring leg's profile must set
+  // `signing: true`).
   const base = captureProfile();
   const leg1: LegSpec = {
     id: 'leg-1',
@@ -560,8 +574,9 @@ test('a FULLY-LOADED two-leg profile declaring every once-governed field constru
     legs: [leg1, leg2],
     captureMode: 'live',
     expiry: { ttl: 3600 },
-    signing: true,
-    redeem: { reverify: true }, // live capture's redemption tail
+    policySource: 'rules.v1', // the eighth self-authored inversion
+    signing: true, // freshness's own structural prerequisite — never itself governed
+    redeem: { reverify: true, redeemBound: 86400 }, // live capture's tail + the clock bound
   };
   assert.doesNotThrow(() => create({ ...makeConfig([fullyLoaded]), signing: stubSigningConfig() }));
 });

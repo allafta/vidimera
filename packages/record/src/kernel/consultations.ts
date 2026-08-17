@@ -35,6 +35,12 @@ const OBTAINED_KEYS: ReadonlySet<string> = new Set([
   'observedAt',
 ]);
 const MARKER_KEYS: ReadonlySet<string> = new Set(['kind', 'unreachable', 'authority']);
+// RFC 3339 date-time WITH an explicit offset ('Z' or '+HH:MM'/'-HH:MM') — plain
+// `Date.parse`-ability alone would also accept an offset-less clock time or a
+// date-only string, both parsed HOST-LOCAL, making staleness locale-dependent (found
+// at the AL2 freshness increment's final review). Required at intake; `Date.parse`
+// (below) still does the actual value parse once the shape is confirmed.
+const RFC3339_WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0;
@@ -114,9 +120,10 @@ export function validateConsultations(
     // supplied recording time is an unknown-key throw, never a silently dropped field.
     // `observedAt` (the AL2 freshness increment) is the one exception to "the library
     // stamps every timestamp itself" — SPEC §14's admission — checked structurally
-    // below (parseable RFC 3339) at this argument-depth intake; WHETHER a signing
-    // profile may accept a present one is `kernel/finalize.ts`'s presence contract, a
-    // different depth entirely, not this validator's concern.
+    // below (RFC 3339 with an explicit offset, enforced at intake) at this
+    // argument-depth intake; WHETHER a signing profile may accept a present one is
+    // `kernel/finalize.ts`'s presence contract, a different depth entirely, not this
+    // validator's concern.
     for (const key of Object.keys(record)) {
       if (!OBTAINED_KEYS.has(key)) {
         throw new Error(
@@ -151,10 +158,15 @@ export function validateConsultations(
       );
     }
     if (record.observedAt !== undefined) {
-      if (typeof record.observedAt !== 'string' || Number.isNaN(Date.parse(record.observedAt))) {
+      if (
+        typeof record.observedAt !== 'string' ||
+        !RFC3339_WITH_OFFSET.test(record.observedAt) ||
+        Number.isNaN(Date.parse(record.observedAt))
+      ) {
         throw new Error(
-          `finalize: consultations[${index}] (obtained '${kind}') has an unparseable observedAt — ` +
-            'the authority-claimed observation time is an RFC 3339 timestamp (SPEC §14, §11.1)',
+          `finalize: consultations[${index}] (obtained '${kind}') has a malformed observedAt — ` +
+            'the authority-claimed observation time is an RFC 3339 date-time with an explicit ' +
+            'offset — a caller error (SPEC §14, §11.1)',
         );
       }
     }

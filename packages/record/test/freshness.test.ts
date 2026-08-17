@@ -151,6 +151,78 @@ test('fail-closed: a MISSING observedAt on the bounded kind refuses; a FUTURE on
   assert.equal(out.status, 'ok');
 });
 
+test('an explicit non-Z offset claim gates on its converted UTC instant (the AL2 freshness increment, final review)', async () => {
+  const { handles } = freshSetup();
+  const recordId = await openRecord(handles, CONTENT, 'test.fresh.v1', 'subject:fr-offset');
+  // 2026-08-17T11:45:00+02:00 === 2026-08-17T09:45:00.000Z — 15 minutes before T0
+  // (2026-08-17T10:00:00.000Z), well inside the 3600s bound.
+  const out = await handles.operator.finalize(
+    recordId,
+    identity(),
+    CONTENT,
+    facts(),
+    obtained('2026-08-17T11:45:00+02:00'),
+  );
+  assert.equal(out.status, 'ok');
+  assert.equal(
+    Date.parse('2026-08-17T11:45:00+02:00'),
+    Date.parse('2026-08-17T09:45:00.000Z'),
+    "sanity: the offset converts to the same instant as the equivalent 'Z' claim",
+  );
+});
+
+test('the prototype-key guard: a leg requiring "toString" alongside a freshness-bound kind is not spuriously bound by inherited Object.prototype.toString (the AL2 freshness increment, final review)', async () => {
+  const p = captureProfile({ id: 'test.fresh.proto.v1' });
+  const leg = p.legs[0];
+  if (leg === undefined) throw new Error('fixture');
+  const protoProfile: ConfirmProfile = {
+    ...p,
+    signing: true,
+    legs: [
+      {
+        ...leg,
+        requiredConsultations: ['toString', 'risk-check'],
+        freshness: { 'risk-check': 3600 }, // bounds a DIFFERENT key — 'toString' stays unbounded
+      },
+    ],
+  };
+  const { handles } = freshSetup([protoProfile]);
+  const recordId = await openRecord(handles, CONTENT, 'test.fresh.proto.v1', 'subject:fr-proto');
+  const out = await handles.operator.finalize(recordId, identity(), CONTENT, facts(), {
+    consultations: [
+      { kind: 'toString', checker: CHECKER, payloadDigest: DIGEST, verdict: 'pass' },
+      {
+        kind: 'risk-check',
+        checker: CHECKER,
+        payloadDigest: DIGEST,
+        verdict: 'pass',
+        observedAt: '2026-08-17T09:45:00.000Z', // 15 minutes old, inside the 3600s bound
+      },
+    ],
+  });
+  assert.equal(
+    out.status,
+    'ok',
+    "leg.freshness has no OWN 'toString' key — a plain-object lookup must say so via " +
+      'Object.hasOwn, never inherit Object.prototype.toString',
+  );
+});
+
+test('the marker arm precedes the freshness arm: an UNREACHABLE marker on a required, freshness-bounded kind yields availability, never consultation-stale', async () => {
+  const { handles } = freshSetup();
+  const recordId = await openRecord(handles, CONTENT, 'test.fresh.v1', 'subject:fr-unavail');
+  const out = await handles.operator.finalize(recordId, identity(), CONTENT, facts(), {
+    consultations: [{ kind: 'risk-check', unreachable: true, authority: 'svc:risk' }],
+  });
+  assert.equal(out.status, 'unavailable');
+  if (out.status === 'unavailable') assert.equal(out.code, 'availability');
+  assert.equal(
+    (await handles.operator.getRecord(recordId))?.state,
+    'open',
+    'no observation exists to evaluate — the record stays open for bounded retry',
+  );
+});
+
 test('terminalRefusals can end the leg on consultation-stale', async () => {
   const base = freshProfile('test.fresh.term.v1');
   const leg0 = base.legs[0];
@@ -217,7 +289,7 @@ test('the implicit-first eligibility kind is bound by its own freshness entry to
   assert.equal(fresh.status, 'ok', 'a fresh eligibility claim clears rung 5.5 and confirms');
 });
 
-test('the presence contract: a NON-signing profile refuses observedAt at profile-resolution depth; intake rejects malformed shapes', async () => {
+test('the presence contract: a NON-signing profile throws on observedAt at profile-resolution depth; intake rejects malformed shapes', async () => {
   const store = new MemoryStore();
   const plain = captureProfile({ id: 'test.fresh.plain.v1' });
   const leg0 = plain.legs[0];

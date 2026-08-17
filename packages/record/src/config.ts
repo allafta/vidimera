@@ -586,9 +586,10 @@ export interface ObtainedConsultation {
   verdict: 'pass' | 'fail';
   proofRef?: string;
   /** SPEC §14's AL2 admission (the AL2 freshness increment): the checker-claimed
-   * observation time, present-iff-supplied. Structural well-formedness (RFC 3339
-   * parseable) is `kernel/consultations.ts`'s intake job; WHETHER a present one is
-   * legal at all is `kernel/finalize.ts`'s presence contract (signing-gated). */
+   * observation time, present-iff-supplied. Structural well-formedness (RFC 3339 with
+   * an explicit offset, enforced at intake) is `kernel/consultations.ts`'s intake job;
+   * WHETHER a present one is legal at all is `kernel/finalize.ts`'s presence contract
+   * (signing-gated). */
   observedAt?: string;
 }
 

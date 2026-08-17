@@ -76,11 +76,13 @@ export type RefusalCode =
   | 'supersedes-unverified'
   // the twenty-fourth and LAST code of this build (the AL2 freshness increment): SPEC
   // §11.1/§14's consultation freshness gate — a bounded required kind whose obtained
-  // `observedAt` claim is missing, unparseable, in the future, or older than the leg's
-  // declared bound. `refusal`-class, `terminalRefusals`-able, open-by-default for
-  // re-run (the `consultation-failed` family's own register — SPEC §8's row: "can only
-  // fire with authority timestamps"). Producer: finalize's rung 5.5 freshness arm
-  // (kernel/finalize.ts), real as of the AL2 freshness increment — this same commit.
+  // `observedAt` claim is missing, future, or out-of-bound (an unparseable claim is
+  // the intake's own throw, never this refusal — kernel/consultations.ts's shape check
+  // runs before this rung is ever reached). `refusal`-class, `terminalRefusals`-able,
+  // open-by-default for re-run (the `consultation-failed` family's own register — SPEC
+  // §8's row: "can only fire with authority timestamps"). Producer: finalize's rung
+  // 5.5 freshness arm (kernel/finalize.ts), real as of the AL2 freshness increment —
+  // this same commit.
   | 'consultation-stale';
 // class map: chain-compromise → 'compromise'; availability → 'availability'; all others →
 // 'refusal'

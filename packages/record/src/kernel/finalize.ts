@@ -453,7 +453,16 @@ export async function finalize(
       // or out-of-bound refuses `consultation-stale`, fail-closed, open-by-default
       // for re-run with a fresh consultation (the family's own register). The gate
       // reads the RECORDED claim; §11.1's recording-time sentence stands untouched.
-      const bound = leg.freshness?.[requiredKind];
+      // Object.hasOwn, not a bare index: `leg.freshness` is a plain object, and an
+      // UNBOUNDED requiredKind named e.g. 'toString' would otherwise resolve to the
+      // INHERITED Object.prototype.toString function via `?.[requiredKind]` — truthy,
+      // so `bound !== undefined` below would spuriously enter the freshness arm and
+      // refuse `consultation-stale` on a kind this leg never bounds at all (found at
+      // the AL2 freshness increment's final review).
+      const bound =
+        leg.freshness !== undefined && Object.hasOwn(leg.freshness, requiredKind)
+          ? leg.freshness[requiredKind]
+          : undefined;
       if (bound !== undefined) {
         const claimed = obtained.observedAt;
         const nowMs = now().getTime();

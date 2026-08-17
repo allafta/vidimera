@@ -163,6 +163,26 @@ test('validateConsultations: malformed entries throw — shape is exact, unknown
   assert.throws(() => validateConsultations([obtained('k1', { proofRef: 7 })]), /proofRef/i);
 });
 
+test('validateConsultations: observedAt must be RFC 3339 WITH an explicit offset — offset-less and date-only strings throw at intake (the AL2 freshness increment, final review)', () => {
+  // Bare `Date.parse`-ability let an offset-less clock time or a date-only string
+  // through, both parsed HOST-LOCAL — staleness would then depend on the machine's
+  // timezone rather than the claimed instant. The shape check runs BEFORE Date.parse,
+  // so both throw here instead of reaching the freshness gate at all.
+  assert.throws(
+    () => validateConsultations([obtained('k1', { observedAt: '2026-08-17T09:45:00' })]),
+    /observedAt/i,
+  );
+  assert.throws(
+    () => validateConsultations([obtained('k1', { observedAt: '2026-08-17' })]),
+    /observedAt/i,
+  );
+  // An explicit non-Z offset is accepted structurally and records verbatim.
+  const parted = validateConsultations([
+    obtained('k1', { observedAt: '2026-08-17T09:45:00+02:00' }),
+  ]);
+  assert.equal(parted.obtained[0]?.observedAt, '2026-08-17T09:45:00+02:00');
+});
+
 // === the attach form at the seam (first step-5 increment) ===
 
 const CONTENT = { subject: 'week-1', total: 40 };
