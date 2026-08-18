@@ -290,10 +290,15 @@ raises either, is real as of the second step-7 increment: the two-touch wording
 retired for this pair too. The two count pins (`refusal-matrix.test.ts`, `outcome-model.test.ts`) moved 13→14 with the third step-3 increment, 14→15 with the first step-4 increment, 15→16 with the second, 16→18 with the second step-5 increment, 18→19 with the first step-6 increment, 19→20 with the second step-6 increment, and 20→22 in
 ONE MOVE with the first step-7 increment, and 22→23 with the step-8 recovery increment —
 `outcome-model.test.ts`'s own
-`ALL_REFUSAL_CODES.length` assertion carries the final move | Consultation freshness's
-`consultation-stale` (§11.1's own freshness tail — meaningful only with AL2 authority
-timestamps, §14) remains unbuilt; the findings flow (§10.2) has no freshness tail of its
-own to be unbuilt (see the §10.2 row). A `terminalRefusals` entry that is not a real code is accepted at construction and then never matches |
+`ALL_REFUSAL_CODES.length` assertion carries the final move | Nothing in §8's registry remains
+unbuilt: `consultation-stale` — the last code to land, §11.1's own freshness tail,
+meaningful only with the AL2 authority timestamps §14 admits — was built at the AL2
+freshness increment, and this column said "remains unbuilt" until the post-build-order
+housekeeping pass corrected it (a stale claim that survived its own increment's sweep,
+contradicting this row's own Built-here column). The findings flow (§10.2) has no
+freshness tail of its own to be unbuilt (see the §10.2 row). What remains is a caveat,
+not a gap: a `terminalRefusals` entry that is not a real code is accepted at
+construction and then never matches |
 | 9 | The API surface | All four decision calls, split as §9 splits them: `stage()` agent-reachable, `open()`/`review()`/`finalize()` operator-only. `review()`'s own
 findings projection (SPEC §10.2) is real — `ReviewView.findings?`,
 digest-only with per-finding coverage, present iff the record carries findings. As of the
@@ -975,7 +980,8 @@ Carried in the deferral register, with triggers:
 - **Row 4** — generalizing the root `typecheck` beyond `packages/record`, and per-package
   test-runner devDependencies.
 - **Row 5** — `biome migrate` for the deprecated `linter.rules.recommended` field (one of
-  the thirteen infos above).
+  the fourteen infos the current tree reports; the count was thirteen when this bullet
+  was written and moved with a later increment's own test file).
 - **Row 6** — the pre-0.1 API naming review over what `index.ts` actually exports.
 - **Row 15** — the server-SQL backing, SPEC §12's third reference backing: deferred to the
   first multi-operator consumer or the 0.1 cut, whichever lands first. This row carries
