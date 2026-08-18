@@ -95,8 +95,7 @@ build. The second increment then executed the marker move: SPEC §10.2's own
 nine draft-ahead tokens, across the concept set's normative document and
 its controls table, moved from designed to proven — the first such move
 in this repository. Step 8 — recovery, live capture, AL2 signing, the
-self-test tier — has **started**, with three of its four tail items now
-landed. The first, SPEC §2's recovery
+self-test tier — has **reached its exit**, all four tail items landed. The first, SPEC §2's recovery
 linkage, has landed. `open()` accepts a host-supplied `supersedes` claim —
 `{ recordId, chainHead }` naming a terminal predecessor — verifies it by
 replay before the record exists (an intact chain, a matching head, terminal
@@ -167,13 +166,26 @@ question and §4's own freshness-semantics questions are now decided on
 record too. The library never verifies the observation happened at
 `observedAt` — it gates on the recorded, signature-covered claim;
 genuineness stays the checker's `proofRef` and the operator-assurance
-tier. Step 8
-records **started**, not exited: the remaining tail — the self-test tier
-alone — is deferred to
-the deferral register, gated on its own open-question enablement
-design. The
+tier. **Step 8's fourth and last tail item, the self-test tier, has since landed too**, at
+the self-test-tier increment: a library subpath, `src/probes/`, ships a runner, a typed
+driver interface the host wires against its own real configuration, and seventeen probes
+authored against the concept set's own operator-assurance target list, plus dated,
+expiring waiver governance. `not-driven` — reported wherever the host's driver lacks an
+exercise hook, or the probed configuration declares no profile for the control being
+re-attacked — is unproved, never disproved, never a silent skip. Each probe class is
+demonstrated able to fail, against deliberately-broken drivers, so the suite itself cannot
+quietly become a stubbed-pass trap. A numeric-bounds hardening task landed in the same
+increment (`expiry.ttl`, `redeem.confirmToRedeem`, and `redeem.redeemBound` now construct
+only as positive finite integers of seconds), closing the last item the deferral register
+carried against the build order. **Step 8 exits here: eight of eight build-order steps are
+now exited, and the build order is complete at the concept's declared embedded,
+operator-only scope.** The
 package is **not consumable by a host today** — no build, no published
-artifact; that record states it in the same breath as the green gates. The
+artifact; that record states it in the same breath as the green gates, independent of the
+build order's own completion. The remaining deferral-register residue (publish tooling,
+the pre-0.1 API-naming review, the server-SQL backing among it) are pre-0.1/1.0 hygiene
+and proof-structure gates that outlive the build order by design, never unfinished
+build-order work. The
 maturity markers inside the concept set speak to a reference implementation
 of the spec and move only when the behavior actually lands here.
 

@@ -212,8 +212,8 @@ function validateFreshness(profile: ConfirmProfile, leg: LegSpec): void {
  * SPEC §9.1/§4's numeric bounds — `expiry.ttl` (when declared, i.e. `expiry !== 'none'`),
  * `redeem.confirmToRedeem`, and `redeem.redeemBound` (when present; SPEC §9.1's `redeem`
  * block leaves both optional) — validated for the first time at the self-test-tier
- * increment (deferral register row 18, found at the AL2 freshness increment's own final
- * review). Until now all three were unvalidated numeric fields: a `NaN`/`Infinity` value
+ * increment (deferral register row 18, retired by this landing; found at the AL2
+ * freshness increment's own final review). Until now all three were unvalidated numeric fields: a `NaN`/`Infinity` value
  * constructed cleanly and only crashed later, wherever first reached (`jcs.ts`'s own
  * non-finite-numbers-throw rule, or `kernel/expiry.ts`'s `resolveDueClock` calling
  * `toISOString()` on the resulting Invalid Date); a negative or zero value constructed

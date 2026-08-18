@@ -118,8 +118,8 @@ parts:
   then executed the marker ruling: SPEC §10.2's nine `[DESIGNED]`/`DESIGNED` tokens — eight in SPEC.md,
   one in CONTROLS.md — moved to `[PROVEN]`/`PROVEN`, the first draft-ahead marker to move in
   this repository.
-  Step 8 — recovery, live capture, AL2 signing, the self-test tier — **has started**, with
-  three of its four tail items now landed. The first, SPEC §2's recovery linkage, landed
+  Step 8 — recovery, live capture, AL2 signing, the self-test tier — **has reached its
+  exit**, all four tail items landed. The first, SPEC §2's recovery linkage, landed
   whole. `open()` gains a new pre-genesis
   recovery rung (`kernel/supersedes.ts`'s `verifySupersedes`, consumed after the prior-legs
   sequencing rung and before the genesis mint): given a host-supplied `supersedes` claim —
@@ -229,15 +229,46 @@ parts:
   (AL2-dependent)`, and `OPEN-QUESTIONS.md` §1's own fourth tail — left open above —
   completed to **Decided (this build): the recorded-claim, signing-gated design**. The
   library never verifies the observation happened AT `observedAt` — genuineness stays
-  `proofRef` and the operator-assurance probes. Step 8 records
-  **Started**, not Exited: the remaining tail — the self-test tier alone
-  (`OPEN-QUESTIONS.md` §5) — is deferred to deferral register row 17.
+  `proofRef` and the operator-assurance probes. **Step 8's fourth and last tail item, the
+  self-test tier (`OPEN-QUESTIONS.md` §5), has since landed too, at the self-test-tier
+  increment.** `src/probes/` ships a library subpath — a runner (`runProbes`/
+  `assertSatisfied`), a typed `ProbeDriver` interface the host wires against its own real
+  configuration (isolation is the driver's own duty), and seventeen probes authored
+  against `docs/concept/CONTROLS.md` §4's own target list, quoted verbatim — plus dated,
+  expiring waiver governance (an unexpired waiver converts `fail`/`not-driven` to
+  `waived`; an expired one converts nothing and is flagged; an unused one is listed,
+  never silently absorbed). `not-driven` is GENERALIZED past a missing driver hook alone,
+  to a probed configuration reaching no profile declaring the control being re-attacked —
+  graduated honesty applied to the tier itself: "unproved", never "disproved". The suite
+  proves each probe class CAN fail, against deliberately-broken drivers (a constant-digest
+  canonicalizer defeats the drift probe; a lying severed-authority hook defeats the
+  genuineness probe; a state-losing driver defeats the restart probe, exercised over a
+  REAL sqlite close-reopen fixture; a minimal-config driver reports the declaring probes
+  `not-driven`, never a false pass) — a probe suite that can only pass is the stubbed-pass
+  trap wearing a runner. Deferral register row 18's own bounds-validation task landed
+  inside the same increment: `validateBounds` (`config.ts`) makes `expiry.ttl` (when
+  declared), `redeem.confirmToRedeem`, and `redeem.redeemBound` each a positive finite
+  integer of seconds — the settled class `validateFreshness` already used —
+  RED-first, with `construction-validation.test.ts:514`'s own recorded stance
+  ("Bound-value validation deliberately mirrors expiry.ttl's treatment (no novel
+  posture)") amended IN PLACE as the sequence's ELEVENTH self-authored inversion, a
+  different mechanic from the ten guard-lifts before it (nothing was governed here to
+  lift; this inverts a deliberate no-validation stance instead — see the guards bullet
+  below). Deferral register rows 17 AND 18 both retire with this increment, triggers
+  fired. **Step 8 EXITS here: eight of eight build-order steps are now exited, the build
+  order complete at the concept's declared embedded, operator-only scope.**
   **`docs/process/implementation-status.md` is the authoritative
   account** of what this build does and does not implement, section by section, with the
   gate outputs and the outstanding list — read it rather than trusting a count here,
   which is a claim with a shelf life and no way to fail loudly. Step 8, the last of the
-  eight build-order steps, has started, its remaining tail deferred by name, and the
-  package is not consumable by a host today.
+  eight build-order steps, has exited, and the build order is complete at its declared
+  scope — stated with the same honesty register throughout: AL3 anchoring stays
+  documented-only, `[SKETCHED]`; concurrent legs stay out of scope pre-1.0; and the
+  deferral register's surviving residue — rows 5, 6, and 15 among them — are pre-0.1/1.0
+  hygiene and proof-structure gates that outlive the build order BY DESIGN, never
+  unfinished build-order work. The
+  package is still not consumable by a host today: no build, no published artifact — that
+  remains true independent of the build order's own completion.
 
 ## The standalone contract
 
@@ -344,7 +375,16 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   `[PROVEN]`/`PROVEN (AL2-dependent)`, plus OPEN-QUESTIONS.md §1's own fourth
   (authority-timestamps) tail — left open at the fourth move above — completed to "Decided
   (this build): the recorded-claim, signing-gated design" — tokens and one tail,
-  byte-verified. `docs/process/implementation-status.md` is the substitute exit record
+  byte-verified. **A sixth move landed at the self-test-tier increment, closing step 8's
+  fourth and last tail item and the build order itself**: `docs/concept/CONTROLS.md` §4's
+  four OPERATOR-ASSURANCE maturity cells (the probe runner, consultation-genuineness,
+  live-path distinctness, waiver governance) moved `SKETCHED` → `PROVEN`, honest bounds
+  unchanged, plus `OPEN-QUESTIONS.md` §5's own "Decided (this build)" tail naming the
+  `src/probes/` subpath contract and the not-driven/waiver posture — the concept set's
+  last `SKETCHED`-to-`PROVEN` move this build order makes, byte-verified. Six sealed-edit
+  commits in total, each `docs/concept/` un-sealed for exactly one commit and exactly its
+  own tokens, re-armed immediately after. `docs/process/implementation-status.md` is the
+  substitute exit record
   that moves at every other step's exit — do not expect a marker change at steps 1–6 and do
   not manufacture one there.
 - **Inverting an inherited pinned assertion is authorized explicitly, never slipped in.**
@@ -491,6 +531,15 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   behavior; `governedUnavailable` (`config.ts`) survives only for the two generic
   unknown-option-key throws (`finalize()`'s own `finalizeOptionMessage`, `open()`'s own),
   neither of which names a not-yet-enforceable field the way every guard this bullet has
-  tracked did.
+  tracked did. **One more self-authored inversion follows this guard era's own close, an
+  ELEVENTH and a different mechanic — no guard, so no lift.** The self-test-tier
+  increment took deferral register row 18: `expiry.ttl`, `redeem.confirmToRedeem`, and
+  `redeem.redeemBound` were unvalidated numeric fields, never GOVERNED, a RECORDED stance
+  (`construction-validation.test.ts:514`'s own comment: "Bound-value validation
+  deliberately mirrors expiry.ttl's treatment (no novel posture)") rather than an
+  oversight. `validateFreshness`'s own lift, above, ended the symmetry that stance leaned
+  on, so `validateBounds` (`config.ts`) closes it with the same settled positive-finite-
+  integer-of-seconds class, and the `:514` comment is amended in place, not rewritten, to
+  record the inversion.
 - Byte-stability pins and adjacent-pair gate-order tests, from the kernel increment on.
 - The living deferral register: `docs/process/deferral-register.md`.
