@@ -1,6 +1,9 @@
 // @vidimera/record — probes/runner.ts: every registered probe runs (a failure never
 // aborts the suite — the report is the product); waivers apply per the expiry
-// discipline; assertSatisfied() is the CI hook (no CLI ships).
+// discipline; assertSatisfied() is the CI hook (no CLI ships). The honest bound a
+// passing report carries (CONTROLS §4): it "proves the control operated in the probed
+// configuration, at probe time" — never third-party assurance, never a claim about an
+// unprobed configuration.
 
 import { ALL_PROBES } from './probes.js';
 import type { ProbeDriver, ProbeReport, ProbeResult, Waiver } from './types.js';

@@ -422,15 +422,27 @@ const sodRefuses: Probe = {
   id: 'sod-refuses',
   target: 'cross-leg self-approval refuses',
   async run(driver) {
+    // NARROWED, honestly: `verifyPriorLegs` demands EXACTLY `legIndex` entries in
+    // `priorRecordRefs`, paired by index against every strictly-earlier leg (SPEC
+    // §10.1) — this attack builds only ONE reference (the named prior leg), so it can
+    // only ever open a leg at legIndex 1 correctly. A leg deeper than that (legIndex
+    // 2+) whose sod.notActorOf still names its immediate predecessor would need
+    // references for EVERY earlier leg too, which this probe does not build — so it
+    // deliberately does not claim that shape. A profile that only declares sod deeper
+    // than legIndex 1 reports not-driven with that reason named, never a false FAIL
+    // from a probe-side setup mismatch it could not have satisfied.
     const scan = driver.makeConfig();
-    let target: { profileId: string; legIndex: number } | undefined;
+    let target: { profileId: string } | undefined;
+    let deeperOnly = false;
     for (const p of scan.profiles) {
       for (const [index, leg] of p.legs.entries()) {
         if (leg.sod === undefined) continue;
         const namedId = leg.sod.notActorOf[0];
-        if (namedId !== undefined && p.legs[index - 1]?.id === namedId) {
-          target = { profileId: p.id, legIndex: index };
-          break;
+        if (namedId === undefined || p.legs[index - 1]?.id !== namedId) continue;
+        if (index === 1) {
+          target = { profileId: p.id };
+        } else {
+          deeperOnly = true;
         }
       }
       if (target !== undefined) break;
@@ -438,14 +450,18 @@ const sodRefuses: Probe = {
     if (target === undefined) {
       return notDriven(
         this,
-        'no profile declares a leg whose sod.notActorOf names its immediately-preceding leg ' +
-          '(the shape this probe attacks)',
+        deeperOnly
+          ? 'a profile declares sod naming its immediately-preceding leg, but only beyond ' +
+              'legIndex 1 — this probe drives only the two-leg shape (legIndex 1) today; deeper ' +
+              'chains are a pre-1.0 driver-shape question'
+          : 'no profile declares a leg whose sod.notActorOf names its immediately-preceding leg ' +
+              '(the shape this probe attacks)',
       );
     }
     const config = driver.makeConfig();
     const profile = config.profiles.find((p) => p.id === target.profileId);
-    const priorLeg = profile?.legs[target.legIndex - 1];
-    const sodLeg = profile?.legs[target.legIndex];
+    const priorLeg = profile?.legs[0];
+    const sodLeg = profile?.legs[1];
     if (profile === undefined || priorLeg === undefined || sodLeg === undefined) {
       throw new Error('sod-refuses: the scanned profile/leg vanished between makeConfig() calls');
     }

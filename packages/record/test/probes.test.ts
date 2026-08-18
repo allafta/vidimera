@@ -1,14 +1,23 @@
 // @vidimera/record — probes.test.ts (CONTROLS §4's OPERATOR-ASSURANCE tier; the
-// self-test-tier increment, the build order's last item). Three fixture drivers:
+// self-test-tier increment, the build order's last item). The fixture drivers:
 //   - `makeFullDriver()` — declares one profile per attacked feature (capture,
 //     effect-seam, requiredConsultations, eligibility, findings-flow, two-leg SoD, and
-//     a combined live+reverify+signing profile), plus every optional host hook. Every
-//     probe in `ALL_PROBES` must PASS against it.
-//   - three BROKEN drivers, each demonstrating that a probe CAN fail (never a suite
-//     that only ever reports pass): a constant-digest canonicalizer (drift-refuses
-//     fails), a stubbed-pass sever hook (consultation-genuineness fails), and a
-//     minimal single-profile, no-optional-hooks config (every declaring/hook-gated
-//     probe reports not-driven, honestly, never a fabricated pass).
+//     a combined live+reverify+signing profile), plus every optional host hook EXCEPT
+//     restartPersistence (an in-memory Store has nothing durable to restart — a no-op
+//     fake would prove nothing). Every probe but `state-survives-restart` must PASS
+//     against it; that one honestly reports not-driven here.
+//   - `makeSqliteRestartDriver()` — the SAME declared surface, over a REAL file-backed
+//     `SqliteStore` whose `restartPersistence()` closes and reopens that file (the
+//     `test/sqlite-store.test.ts` close-reopen pattern) — `state-survives-restart`'s
+//     genuine pass path, proving actual persistence, not an in-memory no-op.
+//   - broken drivers, each demonstrating that a probe CAN fail (never a suite that only
+//     ever reports pass): a constant-digest canonicalizer (`drift-refuses` fails), a
+//     stubbed-pass sever hook (`consultation-genuineness` fails), a restart hook that
+//     swaps in a FRESH empty store instead of reopening (`state-survives-restart`
+//     fails), a disabled-credential path that lies — the re-derivation itself starts
+//     failing once "disabled" (`path-distinctness` fails), and a minimal
+//     single-profile, no-optional-hooks config (every declaring/hook-gated probe
+//     reports not-driven, honestly, never a fabricated pass).
 //   - `makeDeclaringNoHooksDriver()` isolates the OTHER not-driven reason: every
 //     declaring profile is present, but the optional host hooks are not, so the
 //     hook-gated probes' own not-driven detail names the missing hook, not a missing
@@ -17,7 +26,10 @@
 
 import assert from 'node:assert/strict';
 import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';
-import { test } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, test } from 'vitest';
 
 import type { Canonicalizer } from '../src/canonical.js';
 import type { Config, ConfirmProfile, ConsultationInput, FinalizeOptions } from '../src/config.js';
@@ -26,6 +38,8 @@ import { ALL_PROBES, assertSatisfied, runProbes } from '../src/probes/index.js';
 import { MemorySignatureStore } from '../src/signing/memory.js';
 import type { Signer, Verifier } from '../src/signing/store.js';
 import { MemoryStore } from '../src/store/memory.js';
+import { SqliteStore } from '../src/store/sqlite.js';
+import type { Store } from '../src/store/store.js';
 import type { IdentityAssertion } from '../src/types.js';
 
 // === shared fixture vocabulary =========================================================
@@ -145,29 +159,24 @@ const verifier: Verifier = async (bytes, signature) =>
   edVerify(null, bytes, publicKey, Buffer.from(signature, 'base64'));
 
 /**
- * The full-featured driver: every probe in `ALL_PROBES` must pass against it. Content
- * and subjectRefs are minted from a monotonic counter — unique per call, deterministic
- * across a test run. `sampleConsultations` answers per declaring profile; a severed
- * `'risk-check'` (tracked in `severed`, set/cleared only through the REAL
- * `severConsultationAuthority` hook below) switches its answer to an unreachable
- * marker — the genuine sever-and-recover behavior `consultation-genuineness` attacks.
+ * The methods every full-featured driver below shares, independent of which `Store` it
+ * hands out: content/subjectRef minting (a monotonic counter — unique per call,
+ * deterministic across a test run), a fixed leg-decider identity every declared
+ * `allowedAuthorities` list accepts, `sampleConsultations`'s per-declaring-profile
+ * answers, and the sever/disable hooks. Each caller gets its OWN `counter`/`severed`
+ * closures — no cross-driver state leaks.
  */
-function makeFullDriver(): ProbeDriver {
+function sharedDriverMethods(): Pick<
+  ProbeDriver,
+  | 'sampleContent'
+  | 'sampleIdentity'
+  | 'sampleConsultations'
+  | 'severConsultationAuthority'
+  | 'disableRenderingCredential'
+> {
   let counter = 0;
   const severed = new Set<string>();
   return {
-    makeConfig(): Config {
-      return {
-        profiles: fullProfiles(),
-        store: new MemoryStore(),
-        canonicalizers: { [CANONICALIZER_REF]: identityCanonicalizer() },
-        signing: {
-          signer,
-          verifiers: { 'probe-key-1': verifier },
-          signatures: new MemorySignatureStore(),
-        },
-      };
-    },
     sampleContent(profileId: string) {
       counter += 1;
       return {
@@ -209,13 +218,194 @@ function makeFullDriver(): ProbeDriver {
       // A fake: the independent re-derivation ('rederive') is answered by
       // sampleConsultations regardless of this toggle — demonstrating the PASS path
       // (an honest limitation of an in-memory fixture, noted per CONTROLS §4's own
-      // "Probe-proved, host-specific" bound).
+      // "Probe-proved, host-specific" bound). `makeFakeIndependencePathDriver` below
+      // overrides BOTH methods together to demonstrate the FAIL direction instead.
       return async () => {};
     },
+  };
+}
+
+/**
+ * A `Store` wrapper whose underlying backing can be swapped out from under it —
+ * `swap()` redirects every subsequent call without changing the WRAPPER's own object
+ * identity, the one `create()` already closed over when it built `handles`. This is
+ * what makes a driver's `restartPersistence()` hook actually MEAN something: reopening
+ * the same file (real durability, `makeSqliteRestartDriver` below) or swapping in a
+ * fresh store (simulated data loss, `makeLosesStateOnRestartDriver` below) both take
+ * effect on the very same `Store` reference `handles` already holds.
+ */
+function swappableStore(initial: Store): { store: Store; swap: (next: Store) => void } {
+  let current = initial;
+  const store: Store = {
+    putStaged: (s, tx) => current.putStaged(s, tx),
+    getStaged: (r) => current.getStaged(r),
+    appendTransition: (e, t, m, tx) => current.appendTransition(e, t, m, tx),
+    appendBatch: (e, ts, m, tx) => current.appendBatch(e, ts, m, tx),
+    chainHead: (r) => current.chainHead(r),
+    listDue: (now) => current.listDue(now),
+    findNonTerminal: (p, s) => current.findNonTerminal(p, s),
+    readChain: (r) => current.readChain(r),
+  };
+  return {
+    store,
+    swap: (next) => {
+      current = next;
+    },
+  };
+}
+
+/**
+ * The full-featured driver: every probe in `ALL_PROBES` EXCEPT `state-survives-restart`
+ * must pass against it. This driver deliberately carries NO `restartPersistence` hook —
+ * an in-memory `Store` has nothing durable to restart, and a no-op fake claiming
+ * otherwise would prove nothing. `state-survives-restart`'s own REAL pass path is
+ * `makeSqliteRestartDriver` below, over a genuine close-and-reopen file-backed store.
+ */
+function makeFullDriver(): ProbeDriver {
+  return {
+    ...sharedDriverMethods(),
+    makeConfig(): Config {
+      return {
+        profiles: fullProfiles(),
+        store: new MemoryStore(),
+        canonicalizers: { [CANONICALIZER_REF]: identityCanonicalizer() },
+        signing: {
+          signer,
+          verifiers: { 'probe-key-1': verifier },
+          signatures: new MemorySignatureStore(),
+        },
+      };
+    },
+    // No restartPersistence — see the doc comment above.
+  };
+}
+
+/** Cleanup closures minted by `makeSqliteRestartDriver` below, one per `makeConfig()`
+ * call — run after every test so this file leaves nothing on disk. Each closure closes
+ * whatever connection is CURRENTLY open (read at cleanup time, not capture time — a
+ * restart may have reopened a new one) before removing the temp directory: on Windows
+ * an open `DatabaseSync` holds the file (and its WAL/SHM siblings) locked, and
+ * `rmSync` before the close is exactly the EPERM this ordering avoids. */
+const sqliteCleanups: (() => void)[] = [];
+afterEach(() => {
+  for (const cleanup of sqliteCleanups.splice(0)) {
+    cleanup();
+  }
+});
+
+/**
+ * The REAL pass-path driver for `state-survives-restart`: a file-backed `SqliteStore`
+ * whose `restartPersistence()` closes the connection and reopens the SAME file — the
+ * exact close-and-reopen shape `test/sqlite-store.test.ts`'s own durability test uses.
+ * Every other profile/hook is identical to `makeFullDriver`'s, over the swappable
+ * wrapper so `handles` (built once per probe, over the STABLE wrapper) transparently
+ * sees the reopened connection afterward.
+ */
+function makeSqliteRestartDriver(): ProbeDriver {
+  let active: { path: string; sqlite: SqliteStore; swap: (next: Store) => void } | undefined;
+  return {
+    ...sharedDriverMethods(),
+    makeConfig(): Config {
+      const dir = mkdtempSync(join(tmpdir(), 'vidimera-probe-sqlite-'));
+      const path = join(dir, 'store.db');
+      const sqlite = new SqliteStore(path);
+      const { store, swap } = swappableStore(sqlite);
+      const handle = { path, sqlite, swap };
+      active = handle;
+      sqliteCleanups.push(() => {
+        try {
+          handle.sqlite.database.close();
+        } catch {
+          // already closed — fine, the file is what we actually need to release
+        }
+        rmSync(dir, { recursive: true, force: true });
+      });
+      return {
+        profiles: fullProfiles(),
+        store,
+        canonicalizers: { [CANONICALIZER_REF]: identityCanonicalizer() },
+        signing: {
+          signer,
+          verifiers: { 'probe-key-1': verifier },
+          signatures: new MemorySignatureStore(),
+        },
+      };
+    },
     async restartPersistence() {
-      // A fake: the in-memory fixture's state has nothing to restart — the SAME
-      // `handles` reads it unchanged, which is the honest limitation this SKETCHED-tier
-      // hook carries in-process (CONTROLS §4).
+      if (active === undefined) {
+        throw new Error('restartPersistence: called before any makeConfig()');
+      }
+      active.sqlite.database.close();
+      const reopened = new SqliteStore(active.path); // the SAME file, genuinely reopened
+      active.sqlite = reopened;
+      active.swap(reopened);
+    },
+  };
+}
+
+/**
+ * The FAIL-direction driver for `state-survives-restart`: `restartPersistence()`
+ * deliberately swaps in a FRESH, EMPTY `MemoryStore` — a "restart" that actually lost
+ * everything. `state-survives-restart` must catch this as a fail, not a pass.
+ */
+function makeLosesStateOnRestartDriver(): ProbeDriver {
+  let active: { swap: (next: Store) => void } | undefined;
+  return {
+    ...sharedDriverMethods(),
+    makeConfig(): Config {
+      const { store, swap } = swappableStore(new MemoryStore());
+      active = { swap };
+      return {
+        profiles: fullProfiles(),
+        store,
+        canonicalizers: { [CANONICALIZER_REF]: identityCanonicalizer() },
+        signing: {
+          signer,
+          verifiers: { 'probe-key-1': verifier },
+          signatures: new MemorySignatureStore(),
+        },
+      };
+    },
+    async restartPersistence() {
+      if (active === undefined) {
+        throw new Error('restartPersistence: called before any makeConfig()');
+      }
+      active.swap(new MemoryStore());
+    },
+  };
+}
+
+/**
+ * The FAIL-direction driver for `path-distinctness`: under the disabled credential,
+ * `sampleConsultations` for the live profile's `'rederive'` kind switches to a FAILING
+ * verdict instead of staying a pass — the paths were never actually independent, the
+ * same lying-hook shape `makeStubbedSeverDriver` demonstrates for
+ * `consultation-genuineness`.
+ */
+function makeFakeIndependencePathDriver(): ProbeDriver {
+  const inner = makeFullDriver();
+  let disabled = false;
+  return {
+    ...inner,
+    sampleConsultations(profileId: string, legId: string): FinalizeOptions {
+      if (profileId === 'probe.live.v1' && disabled) {
+        return {
+          consultations: [
+            {
+              ...obtainedPass('rederive'),
+              verdict: 'fail',
+              observedAt: new Date().toISOString(),
+            } as ConsultationInput,
+          ],
+        };
+      }
+      return inner.sampleConsultations?.(profileId, legId) ?? {};
+    },
+    async disableRenderingCredential() {
+      disabled = true;
+      return async () => {
+        disabled = false;
+      };
     },
   };
 }
@@ -379,22 +569,39 @@ test("every probe's target is a verbatim substring of CONTROLS §4's target list
 
 // === the full-featured driver: every probe passes ======================================
 
-test('the full-featured driver: every registered probe passes', async () => {
+test('the full-featured (in-memory) driver: every registered probe passes EXCEPT state-survives-restart, which honestly reports not-driven', async () => {
   const driver = makeFullDriver();
   const report = await runProbes(driver);
   assert.equal(report.results.length, ALL_PROBES.length);
   for (const probe of ALL_PROBES) {
     const result = report.results.find((r) => r.id === probe.id);
     assert.ok(result !== undefined, `probe '${probe.id}' produced no result`);
+    if (probe.id === 'state-survives-restart') {
+      // The in-memory driver carries no restartPersistence hook — see makeFullDriver's
+      // own doc comment. Its REAL pass path is the dedicated SQLite driver test below.
+      assert.equal(
+        result.status,
+        'not-driven',
+        `expected not-driven, observed ${JSON.stringify(result)}`,
+      );
+      continue;
+    }
     assert.equal(
       result.status,
       'pass',
       `probe '${probe.id}' expected pass, observed ${JSON.stringify(result)}`,
     );
   }
-  assert.equal(report.satisfied, true);
   assert.equal(report.expiredWaivers.length, 0);
   assert.equal(report.unusedWaivers.length, 0);
+});
+
+test('a SQLite-backed restart driver: state-survives-restart passes against REAL close-and-reopen persistence', async () => {
+  const driver = makeSqliteRestartDriver();
+  const report = await runProbes(driver);
+  const result = report.results.find((r) => r.id === 'state-survives-restart');
+  assert.ok(result !== undefined);
+  assert.equal(result.status, 'pass', `expected pass, observed ${JSON.stringify(result)}`);
 });
 
 // === demonstrated FAIL paths: probes that can fail, not just pass ======================
@@ -415,6 +622,22 @@ test('a stubbed-pass sever hook driver: consultation-genuineness fails (a severe
   assert.ok(genuineness !== undefined);
   assert.equal(genuineness.status, 'fail');
   assert.match(genuineness.detail, /stubbed pass/);
+});
+
+test('a driver whose restart swaps in a FRESH empty store: state-survives-restart fails (state was actually lost)', async () => {
+  const driver = makeLosesStateOnRestartDriver();
+  const report = await runProbes(driver);
+  const result = report.results.find((r) => r.id === 'state-survives-restart');
+  assert.ok(result !== undefined);
+  assert.equal(result.status, 'fail', `expected fail, observed ${JSON.stringify(result)}`);
+});
+
+test('a driver whose disabled-credential path LIES (the re-derivation fails once disabled): path-distinctness fails', async () => {
+  const driver = makeFakeIndependencePathDriver();
+  const report = await runProbes(driver);
+  const result = report.results.find((r) => r.id === 'path-distinctness');
+  assert.ok(result !== undefined);
+  assert.equal(result.status, 'fail', `expected fail, observed ${JSON.stringify(result)}`);
 });
 
 test('a minimal-config driver: every declaring/hook-gated probe reports not-driven honestly; profile-agnostic probes still pass', async () => {
@@ -558,7 +781,10 @@ test('an EXPIRED waiver converts NOTHING and is flagged in expiredWaivers', asyn
 });
 
 test('a waiver on a probe that PASSES outright is unused (never converts a pass) and is not expired', async () => {
-  const driver = makeFullDriver();
+  // makeSqliteRestartDriver, not makeFullDriver: every probe genuinely passes against
+  // it (including state-survives-restart), so the ONLY thing left unsatisfied would be
+  // the waiver's own bookkeeping — exactly what this test isolates.
+  const driver = makeSqliteRestartDriver();
   const waiver: Waiver = {
     probeId: 'agent-cannot-decide',
     reason: 'just in case',
@@ -590,8 +816,15 @@ test('runProbes throws on a malformed waiver expires — missing offset, or unpa
 });
 
 test('assertSatisfied does not throw when satisfied and no waivers are expired', async () => {
-  const driver = makeFullDriver();
+  // makeSqliteRestartDriver, not makeFullDriver: every probe genuinely passes against
+  // it, so `satisfied` is true with no help from a waiver.
+  const driver = makeSqliteRestartDriver();
   const report = await runProbes(driver);
+  assert.equal(
+    report.satisfied,
+    true,
+    `fixture: expected every probe to pass — ${JSON.stringify(report.results.filter((r) => r.status !== 'pass'))}`,
+  );
   assert.doesNotThrow(() => assertSatisfied(report));
 });
 
@@ -602,9 +835,12 @@ test('assertSatisfied throws naming every fail/not-driven result when unsatisfie
 });
 
 test("assertSatisfied throws on an expired waiver even when every OTHER probe passes (the row's own governance point)", async () => {
-  const driver = makeFullDriver();
+  // makeSqliteRestartDriver, not makeFullDriver: every probe genuinely passes against
+  // it, so the expired waiver below is the ONLY thing standing between this report and
+  // a clean `assertSatisfied`.
+  const driver = makeSqliteRestartDriver();
   const waiver: Waiver = {
-    probeId: 'drift-refuses', // passes under the full driver: the waiver is simply UNUSED, and expired
+    probeId: 'drift-refuses', // passes under this driver: the waiver is simply UNUSED, and expired
     reason: 'stale',
     expires: '2000-01-01T00:00:00Z',
   };
