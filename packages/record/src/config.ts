@@ -209,6 +209,55 @@ function validateFreshness(profile: ConfirmProfile, leg: LegSpec): void {
 }
 
 /**
+ * SPEC §9.1/§4's numeric bounds — `expiry.ttl` (when declared, i.e. `expiry !== 'none'`),
+ * `redeem.confirmToRedeem`, and `redeem.redeemBound` (when present; SPEC §9.1's `redeem`
+ * block leaves both optional) — validated for the first time at the self-test-tier
+ * increment (deferral register row 18, found at the AL2 freshness increment's own final
+ * review). Until now all three were unvalidated numeric fields: a `NaN`/`Infinity` value
+ * constructed cleanly and only crashed later, wherever first reached (`jcs.ts`'s own
+ * non-finite-numbers-throw rule, or `kernel/expiry.ts`'s `resolveDueClock` calling
+ * `toISOString()` on the resulting Invalid Date); a negative or zero value constructed
+ * cleanly too and silently PRE-ELAPSED the window it declares, never refusing at
+ * construction the way a freshness bound already does. Row 18's own recorded stance —
+ * `construction-validation.test.ts`'s redeemBound pin, "Bound-value validation
+ * deliberately mirrors expiry.ttl's treatment (no novel posture)" — is inverted here,
+ * deliberately, not by drift: `validateFreshness` (above) ended this file's
+ * no-numeric-rules symmetry at the AL2 freshness increment, so mirroring `expiry.ttl`'s
+ * own laxity stopped being this build's only posture on a numeric bound, leaving the
+ * three fields here as the sole remaining unvalidated class — row 18's own trigger. The
+ * message register and rule class are `validateFreshness`'s own, unchanged: a positive
+ * integer of seconds (the ttl convention), WHERE DECLARED.
+ */
+function validateBounds(profile: ConfirmProfile): void {
+  if (profile.expiry !== 'none') {
+    const { ttl } = profile.expiry;
+    if (!Number.isInteger(ttl) || ttl <= 0) {
+      throw new Error(
+        `invalid profile '${profile.id}': expiry.ttl is ${String(ttl)} — ` +
+          'a bound is a positive integer of seconds (the ttl convention)',
+      );
+    }
+  }
+  const confirmToRedeem = profile.redeem?.confirmToRedeem;
+  if (
+    confirmToRedeem !== undefined &&
+    (!Number.isInteger(confirmToRedeem) || confirmToRedeem <= 0)
+  ) {
+    throw new Error(
+      `invalid profile '${profile.id}': redeem.confirmToRedeem is ${String(confirmToRedeem)} — ` +
+        'a bound is a positive integer of seconds (the ttl convention)',
+    );
+  }
+  const redeemBound = profile.redeem?.redeemBound;
+  if (redeemBound !== undefined && (!Number.isInteger(redeemBound) || redeemBound <= 0)) {
+    throw new Error(
+      `invalid profile '${profile.id}': redeem.redeemBound is ${String(redeemBound)} — ` +
+        'a bound is a positive integer of seconds (the ttl convention)',
+    );
+  }
+}
+
+/**
  * SPEC §9.2's live-mode construction rules (the live-capture increment — the
  * captureMode:'live' lift). "The obligation is gated, not merely stated: the
  * re-derivation is declared as a `requiredConsultations` kind under §11.1" — so every
@@ -385,19 +434,23 @@ function validateFindingsFlow(profile: ConfirmProfile, leg: LegSpec): void {
  *  2. structural: unique leg ids (SPEC §10.1 keys recorded evidence by legId);
  *  3. structural: `captureMode:'live'` construction rules (`validateLiveCapture`, SPEC
  *     §9.2, live as of the live-capture increment) — checked at this same position,
- *     still ahead of the reverify guard below (rung 7), whose own condition now reads
+ *     still ahead of the reverify guard below (rung 8), whose own condition now reads
  *     `captureMode` directly rather than relying on this rung to have thrown first;
- *  4. structural: an empty `policySource` label (policy drift, SPEC §10.3) — the
+ *  4. structural: numeric bounds (`validateBounds`, SPEC §9.1/§4, real as of the
+ *     self-test-tier increment — register row 18) — `expiry.ttl` where declared,
+ *     `redeem.confirmToRedeem`/`redeem.redeemBound` where present, each a positive
+ *     finite integer of seconds;
+ *  5. structural: an empty `policySource` label (policy drift, SPEC §10.3) — the
  *     malformed-reference rule, the same settled class as `eligibility`'s own empty-label
  *     check;
- *  5. the stray-redemption-key check (inside `validateLeg` — no per-leg GOVERNED guard
+ *  6. the stray-redemption-key check (inside `validateLeg` — no per-leg GOVERNED guard
  *     remains there, see below), then structural SoD shape validation
  *     (`validateSodShape`), structural requiredConsultations validation
  *     (`validateRequiredConsultations`), structural eligibility validation
  *     (`validateEligibility`), structural freshness validation (`validateFreshness`),
  *     and structural findings-flow validation (`validateFindingsFlow`), all five after;
- *  6. structural: stray redemption key on the profile itself;
- *  7. structural: `reverify` on a non-live profile — live capture's own control,
+ *  7. structural: stray redemption key on the profile itself;
+ *  8. structural: `reverify` on a non-live profile — live capture's own control,
  *     misdeclared onto a staged profile (SPEC §9.2's live mode).
  * `legs.length>1` (multi-leg maker-checker sequencing, SPEC §10.1) is accepted at
  * construction as of the first step-4 increment: `kernel/open.ts`'s sequencing rung
@@ -499,6 +552,7 @@ export function validateProfile(profile: ConfirmProfile): void {
     seenLegIds.set(leg.id, index);
   }
   validateLiveCapture(profile);
+  validateBounds(profile);
   if (profile.policySource !== undefined && profile.policySource.length === 0) {
     throw new Error(
       `invalid profile '${profile.id}': declares an empty policySource label — ` +

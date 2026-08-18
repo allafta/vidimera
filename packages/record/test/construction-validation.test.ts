@@ -512,11 +512,63 @@ test('redeem.redeemBound is accepted at construction — the clock that honors i
   // resolution that consumes `dueAt` at the seams (kernel/redeem.ts's shared prologue;
   // finalize()'s and open()'s own clock rungs), all in the same increment.
   // Bound-value validation deliberately mirrors expiry.ttl's treatment (no novel posture).
+  // INVERTED, at the self-test-tier increment (the ELEVENTH self-authored inversion):
+  // `validateFreshness` ended the no-numeric-rules symmetry this sentence leaned on, and
+  // `validateBounds` (config.ts) now demands positive finite integer seconds for all
+  // three bounds — register row 18's own trigger, taken deliberately.
   const declaring = {
     ...effectSeamProfile(),
     redeem: { confirmToRedeem: 1, redeemBound: 86400 },
   };
   assert.doesNotThrow(() => create(makeConfig([declaring])));
+});
+
+// === validateBounds: register row 18's numeric-bounds tightening (the self-test-tier
+// increment, the ELEVENTH self-authored inversion) — the settled fail-closed class
+// `validateFreshness` already uses (positive finite integer seconds), applied to
+// expiry.ttl (when not 'none'), redeem.confirmToRedeem, and redeem.redeemBound ===
+
+test('structural: expiry.ttl rejects NaN, Infinity, negative, zero, and fractional values', () => {
+  const p = captureProfile();
+  const withTtl = (ttl: number): ConfirmProfile => ({ ...p, expiry: { ttl } });
+  assertStructural(withTtl(Number.NaN), /expiry\.ttl.*positive integer/i);
+  assertStructural(withTtl(Number.POSITIVE_INFINITY), /expiry\.ttl.*positive integer/i);
+  assertStructural(withTtl(-1), /expiry\.ttl.*positive integer/i);
+  assertStructural(withTtl(0), /expiry\.ttl.*positive integer/i);
+  assertStructural(withTtl(1.5), /expiry\.ttl.*positive integer/i);
+});
+
+test("structural: expiry:'none' is exempt from bounds validation — nothing to bound", () => {
+  assert.doesNotThrow(() => create(makeConfig([{ ...captureProfile(), expiry: 'none' }])));
+});
+
+test('structural: redeem.confirmToRedeem rejects NaN, Infinity, negative, zero, and fractional values', () => {
+  const p = effectSeamProfile();
+  const withConfirmToRedeem = (confirmToRedeem: number): ConfirmProfile => ({
+    ...p,
+    redeem: { ...p.redeem, confirmToRedeem },
+  });
+  assertStructural(withConfirmToRedeem(Number.NaN), /confirmToRedeem.*positive integer/i);
+  assertStructural(
+    withConfirmToRedeem(Number.POSITIVE_INFINITY),
+    /confirmToRedeem.*positive integer/i,
+  );
+  assertStructural(withConfirmToRedeem(-1), /confirmToRedeem.*positive integer/i);
+  assertStructural(withConfirmToRedeem(0), /confirmToRedeem.*positive integer/i);
+  assertStructural(withConfirmToRedeem(1.5), /confirmToRedeem.*positive integer/i);
+});
+
+test('structural: redeem.redeemBound rejects NaN, Infinity, negative, zero, and fractional values', () => {
+  const p = effectSeamProfile();
+  const withRedeemBound = (redeemBound: number): ConfirmProfile => ({
+    ...p,
+    redeem: { ...p.redeem, redeemBound },
+  });
+  assertStructural(withRedeemBound(Number.NaN), /redeemBound.*positive integer/i);
+  assertStructural(withRedeemBound(Number.POSITIVE_INFINITY), /redeemBound.*positive integer/i);
+  assertStructural(withRedeemBound(-1), /redeemBound.*positive integer/i);
+  assertStructural(withRedeemBound(0), /redeemBound.*positive integer/i);
+  assertStructural(withRedeemBound(1.5), /redeemBound.*positive integer/i);
 });
 
 // === the guard sweep is TOTAL — TERMINAL form (the AL2 freshness increment) ==========
