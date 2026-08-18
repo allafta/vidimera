@@ -14,261 +14,37 @@ parts:
   operator-assurance tier. The operator is the sole consumer of the records; capabilities
   meaningful only to an outside party are out of scope by design.
 - **The implementation** (`packages/`): a TypeScript pnpm-workspace monorepo implementing
-  the concept in the proven build order (`docs/concept/SCOPING-GUIDE.md` §7). Build-order
-  step 1 — the kernel — was adopted from a reference implementation of the same spec and
-  **has reached its exit**; `packages/record/src` is real code today, not a skeleton, and
-  `create()` is implemented and exercised by a full suite with zero skips. A base-vs-head
-  provenance audit (`docs/process/adopted-source-provenance.md`) found ten fixes the
-  reference project had already made that this build had not taken; the nine that were
-  genuinely applicable are now applied, and the tenth was reclassified as a local
-  improvement rather than an inherited fix (see that document). The remediation plan's
-  units R1–R5 (`docs/superpowers/plans/2026-08-03-step-1-remediation.md`) are all
-  complete. Step 2 — the store, for real — **exited, with a recorded deferral**: five
-  increments landed the atomic `appendBatch`, `listDue`, §12's
-  `{ nonTerminal, dueAt? }` meta shape on both append seams, the C4 seal-finality bar,
-  the operator-only `seal()` chain-retirement seam with its derived
-  `active`/`retired` status, `findNonTerminal`, completing the eight-method Store
-  contract, the backing-parameterized conformance suite (test-side, run over that one
-  backing), and the embedded-SQL adapter (`store/sqlite.ts`) with the `tx?` seam and the
-  cross-backing byte-identity test — two of §12's three reference backings, held
-  equivalent by the suite and the byte-identity test; the server-SQL adapter is deferred
-  to deferral register row 15, which carries the exit ruling. Step 3 — redemption (the
-  effect seam) — **exited**: three increments landed. The first
-  landed SPEC §11.2's direct shape, `redeem(recordId, content, tx?)` as a verify-first
-  ladder ending in `confirmed → redeemed { via: 'direct' }`. The second landed the token
-  shape, `beginRedemption`/`completeRedemption`, ending in `confirmed → redeeming { tokenDigest }`
-  then `redeeming → redeemed { via: 'token', tokenDigest }`. The third landed the clocks:
-  one generalized module (`kernel/expiry.ts`) resolving both remaining SPEC §4 edges —
-  `confirmed → expired` (the `confirmToRedeem` window) and `redeeming → redemption-failed`
-  (the `redeemBound` window) — the fourteenth refusal code `redemption-timeout`, the
-  `redeemBound` construction guard lifted, and `operator.listDue()`, the sweep's one read
-  surface; §11.2 is whole in this build. Step 4 — multi-leg separation of duties — has
-  **reached its exit**: two increments landed. The first landed `open()`'s SPEC §10.1
-  sequencing rung (`kernel/prior-legs.ts`'s `verifyPriorLegs`), which verifies every
-  prior-leg reference by replay — the six conditions the section names — before a successor
-  record is created, and chains the verified evidence, the recorded `priorRecordRefs` plus
-  library-derived `priorLegActors`, into the successor's `opened` snapshot; the fifteenth
-  refusal code, `prior-leg-unverified`, is a pre-record never-append. The second landed the
-  SoD gate itself: `finalize()`'s rung 3.5 reads that chained evidence — `sod.notActorOf`
-  keyed by the record's own recorded references, principal-only comparison, and `proposer`
-  as the may-not-decide-own-leg pin — both raising the sixteenth refusal code,
-  `sod-violation`. §10.1 is whole in this build. Step 5 — required-consultation gating,
-  SPEC §11.1 — **has reached its exit**: two increments landed. The first landed §11.1's
-  unconditional half, "The attach form is always available." `finalize()` gains its first
-  options bag, `opts?: FinalizeOptions` (§9's documented five-argument signature,
-  `finalize(recordId, identity, content, facts, opts?)`, now real), a standalone intake
-  validator (`kernel/consultations.ts`) that throws at argument depth — before the chain
-  loads — on a malformed entry, a reserved kind, or a duplicate kind, and a variable-arity
-  success batch, `appendBatch([chain-verify, facts, …obtained consultations, confirmed])`,
-  each entry stamped with the library's own recording time, never a host-supplied one. The
-  second landed the gate itself: `finalize()`'s rung 5.5 reads a leg's declared
-  `requiredConsultations` in order — an obtained `fail` verdict on a required kind refuses
-  `consultation-failed` (the seventeenth code), a required kind absent from the supplied
-  set refuses `consultation-missing` (that code's second producer, after the facts rung),
-  and a required kind the host reports unreachable produces the `availability` outcome
-  instead (the eighteenth code and its own third outcome class — `{ status: 'unavailable';
-  code: 'availability'; authority }`, never a `refused` edge and never appended, the
-  record staying open so the seam re-arms for bounded host retry); the
-  `requiredConsultations` GOVERNED throw lifted with the gate in the same commit (governed
-  count 7 → 6). §11.1 was whole in this build except its freshness tail at that point:
-  `freshness` stayed GOVERNED and `[SKETCHED]` deliberately (an AL1 build can never make
-  that bound fire) — since built whole at the AL2 freshness increment; see step 8's own
-  paragraph below.
-  Step 6 — authority checks: eligibility + policy drift, SPEC §10.4 + §10.3 — **has
-  exited**: both of its two increments landed. The first landed eligibility gating, SPEC
-  §10.4 whole — declaring a per-leg `eligibility` reference makes `'eligibility'` an
-  implicit-FIRST required consultation kind at `finalize()`'s rung 5.5, checked ahead of the
-  leg's own declared `requiredConsultations`; a `fail` verdict on that implicit kind refuses
-  `ineligible` (the nineteenth code, `refusal`-class, open-by-default so a different
-  eligible actor may decide), while a missing or unreachable input keeps the generic codes,
-  and a NON-declaring leg that merely lists `'eligibility'` in `requiredConsultations` keeps
-  the generic codes too; the `eligibility` GOVERNED throw lifted with the gate in the same
-  commit (governed count 6 → 5). The second landed policy-drift notarization, SPEC §10.3
-  whole: `open()`'s options bag binds the operator-attested `policyDigest` into the genesis,
-  present-iff-declared and fail-closed loud both directions; `finalize()`'s matching
-  presence contract requires (or, on a non-declaring profile, forbids) `opts.policy` at
-  profile-resolution depth; and rung (4.5) compares the live digest against the record's
-  bound one — `policy-drift` (the twentieth code) on mismatch, including both cross-instance
-  corners, and the `availability` outcome (its second producer) on a reported-unreachable
-  source; the cross-drift open decision named at the step-6 brainstorm is DECIDED in code as
-  FAIL-CLOSE, so a bound record finalized under a same-id non-declaring instance still
-  refuses `policy-drift` rather than skipping the gate; the `policySource` GOVERNED throw
-  lifted with all three seam obligations in the same commit (governed count 5 → 4).
-  Step 7 — findings & acknowledgments, SPEC §10.2, where the first draft-ahead maturity
-  marker could finally move — **has exited**: two increments landed. The first landed
-  SPEC §10.2's read half: `ack-missing`/`ack-stale` join the refusal-code
-  union (twenty-first and twenty-second; count 20 → 22 in one move), `replay()`'s two
-  throwing arms fold instead (a `kind`-mutating re-raise and an ack naming an absent
-  `findingId` throw as storage/config faults, unreachable on any chain a seam can
-  mint), `DecisionRecord`/`ReviewView` gain a digest-only findings projection, and
-  `kernel/findings.ts` carries the counting-ack predicate and the per-finding
-  coverage derivation finalize's gate consumes as of the second increment — every piece
-  exercisable, at that point, only over hand-built chains, since no seam minted either kind
-  yet. **The second landed the seams, the gate, and the construction lift, all three in ONE
-  atomic commit**: the two operator-only seams (`kernel/findings-seams.ts`'s
-  `raiseFinding`/`acknowledge`, sharing one prologue — argument intake, chain-verify FIRST,
-  profile/leg resolution, a declaring-check throw on a non-declaring leg, state/expiry en
-  passant, and the seam-specific semantic check before the one append, which re-supplies the
-  open window's `dueAt`); `finalize()`'s rung (5.7), reading the read side's own
-  `findingCoverage` derivation with no new finalize inputs and refusing `ack-missing`/
-  `ack-stale` at the first tripped row in first-raise order; and the `ackMode`/
-  `requiredAcks` construction-guard lift (`validateFindingsFlow`, `config.ts` — both-or-neither
-  plus the settled fail-closed class, deliberately WITHOUT a reserved-kind arm, since finding
-  kinds are their own namespace). §10.2 is whole in this build. The second step-7 increment
-  then executed the marker ruling: SPEC §10.2's nine `[DESIGNED]`/`DESIGNED` tokens — eight in SPEC.md,
-  one in CONTROLS.md — moved to `[PROVEN]`/`PROVEN`, the first draft-ahead marker to move in
-  this repository.
-  Step 8 — recovery, live capture, AL2 signing, the self-test tier — **has reached its
-  exit**, all four tail items landed. The first, SPEC §2's recovery linkage, landed
-  whole. `open()` gains a new pre-genesis
-  recovery rung (`kernel/supersedes.ts`'s `verifySupersedes`, consumed after the prior-legs
-  sequencing rung and before the genesis mint): given a host-supplied `supersedes` claim —
-  `{ recordId, chainHead }` naming a terminal predecessor — it replays that chain and
-  requires it intact, its recomputed head matching the claim, TERMINAL by the derived
-  formula (the `confirmed`-state profile-resolution nuance failing closed: an unresolvable
-  predecessor profile fails closed too), and decided over the SAME `subjectRef`; any
-  failure refuses the twenty-third code, `supersedes-unverified` (count 22 → 23), pre-record
-  and never-appended, the `prior-leg-unverified` pattern at its own name. On success the
-  verified reference binds into the recovering record's genesis and folds by replay onto
-  `DecisionRecord.supersedes`; `ReviewView` deliberately does NOT gain the field, the
-  `priorRecordRefs` precedent. This is the LAST call-seam GOVERNED guard in the build:
-  `open()`'s options bag now carries all three of its documented keys —
-  `priorRecordRefs`, `policyDigest`, `supersedes` — for real, and `kernel/open.ts`'s own
-  per-key `openOptionMessage` helper — the arm that named `supersedes` GOVERNED — is
-  deleted whole in the same commit as the behavior, its generic message inlined via a
-  direct call to `config.ts`'s `governedUnavailable`, which never had per-key arms of its
-  own and still serves the two construction guards plus the generic unknown-key throws.
-  This
-  is a DIFFERENT tally from the construction-guarded count below, which the lift leaves
-  UNCHANGED at two — a call-seam guard on a real, documented options-bag key is not a
-  `ConfirmProfile` construction guard.
-  **The second tail item, live-mode capture and `reverify` (SPEC §9.2), landed whole at the
-  live-capture increment.** `captureMode:'live'`'s GOVERNED throw is gone, replaced by
-  `validateLiveCapture` (`config.ts`): every leg of a live profile must declare
-  `requiredConsultations` — the decide-time independent re-derivation, gated as an ordinary
-  required consultation at `finalize()`'s already-built rung 5.5, no new gate needed — and
-  the profile's `redeem` block must declare `confirmToRedeem`, `reverify`, or both. Landing
-  in the SAME commit, `kernel/redeem.ts`'s `refuseCorrespondenceMismatch` gives `reverify`
-  its redemption-seam semantics: on a reverify-declaring profile, a CONTENT-digest mismatch
-  at any of the three redemption seams (the direct shape's rung (5), the token shape's
-  begin-time correspondence, and complete's content half — never its token half, which stays
-  `effect-mismatch`) now refuses `content-drift` with an APPENDED terminal `refused` edge
-  from the seam's current state, releasing the exclusivity hold — the ordinary non-terminal
-  path, no C3 carve-out — instead of the never-appended `effect-mismatch` every other profile
-  keeps; an enlisted (`tx`-carrying) call meeting drift refuses result-first with NO append,
-  the family's settled enlisted discipline. `content-drift` gains this as its SECOND
-  producer (§8), appending UNCONDITIONALLY at that seam — `terminalRefusals` is finalize's
-  own per-leg machinery and is not consulted there. The `captureMode:'live'` GOVERNED throw
-  lifted with the mapping in the same commit (governed count 2 → 1, `freshness` alone
-  remains). OPEN-QUESTIONS.md §7's two residuals are now **Decided (this build)**: the
-  `reverify` surface takes no new argument (the redemption seams' existing `content`
-  argument IS the fresh read), and the staged-reference contract is UNCHANGED — decide-time
-  binding is finalize's own recompute plus the gated re-derivation consultation, never a
-  change to `stage`/`open`/`finalize`. The four live-mode `[SKETCHED]` tokens (SPEC:488
-  inline, SPEC:667's bold heading, CONTROLS:40's prose, CONTROLS:45's cell) moved to
-  `[PROVEN]`, and SPEC:488's now-false trailing clause — naming the `reverify` seam
-  semantics as an open decision — was rewritten to point at OQ §7's recorded decisions
-  instead. The library never verifies the re-derivation's path-independence: the
-  consultation gates its presence and verdict, and genuineness stays the
-  operator-assurance tier's live-path-distinctness probe (CONTROLS §4).
-  **The third tail item has since landed all three of its own increments: AL2
-  detached signing (SPEC §14) — the mint, the enforcement, then freshness. AL2 is whole.**
-  The mint landed
-  `ConfirmProfile.signing?: true` and `Config.signing?: { signer, verifiers, signatures }`
-  (`config.ts`) — a declaring profile without `config.signing` throws loud at `create()`;
-  a prepared instance carrying the block with no declaring profile is legal. The mint
-  point is one `create()`-level Store decorator (`signing/decorate.ts`'s `withSigning`,
-  delegating all eight `Store` methods explicitly by name — a class-instance spread would
-  drop prototype methods): it signs every transition of a signing record BEFORE
-  delegating the append (`encodeTransition` bytes; `chain/encoding.ts` untouched),
-  writing to a detached sidecar (`signing/store.ts`'s `SignatureStore`; `signing/memory.ts`'s
-  reference `MemorySignatureStore`) keyed by the transition's own digest — an orphan
-  entry from a lost CAS after a sign is harmless BY DESIGN, since verification is
-  chain-driven, never sidecar-driven. **The enforcement — landed at the second
-  increment — makes the layer load-bearing**: one shared async helper,
-  `kernel/verify-signatures.ts`'s `signatureLayerHolds(ctx, chain)`, factored onto the
-  SAME correlation core `operator.verifySignatures` already used; it returns `true`
-  where the layer does not apply (a non-signing or unresolvable genesis profile) and
-  otherwise requires EVERY transition to carry a sidecar entry whose `keyRef` resolves
-  and whose verifier passes. ALL SIX verification sites now consult it, right after
-  AL1's own cheap `verifyChain` intactness check: `finalize`, `seal`, the redemption
-  family's shared prologue (serving `redeem`/`beginRedemption`/`completeRedemption` —
-  the enlisted direct shape's result-first no-append refusal INHERITED, not
-  re-decided), and the findings family's shared prologue (`raiseFinding`/`acknowledge`)
-  all fold a bad layer into `chain-compromise`, the SAME arm a hash break already
-  took — the compromise edge itself, appended onto a signing record, is signed by
-  construction; `verifyPriorLegs` and `verifySupersedes` fold a bad layer into their
-  own existing codes, `prior-leg-unverified`/`supersedes-unverified`. No new refusal
-  code, no new outcome class. **The two audit reads stay separate and neither ever
-  gates**: `operator.verifyChain` remains the AL1 report, `operator.verifySignatures`
-  the AL2 report — graduated honesty; the seams enforce. **The sanctioned sealed
-  bundle executed with the enforcement increment's exit**: SPEC §14's AL2 bullet and CONTROLS.md's
-  own AL2 cell moved `[SKETCHED]`/`SKETCHED` → `[PROVEN]`/`PROVEN`; OPEN-QUESTIONS.md
-  §1's granularity, missing-signature-posture and key-custody tails are **Decided (this
-  build)**, its authority-timestamps tail left **explicitly still open** at that point —
-  the AL2 freshness increment's own ground, below. **The rehoming residual is named, not
-  closed**: a whole-chain recompute rehoming the genesis onto a registered non-signing
-  profile produces a hash-intact chain the layer does not apply to, since the obligation
-  keys on the genesis's own `profileId` claim; `verifySignatures` reports the truth either
-  way (`signingDeclared: false` on the rehomed claim). The governed count stayed
-  UNCHANGED at 1 (`freshness` alone) through the enforcement increment: `signing` arrived
-  WITH its own behavior in the commit that declared it — the `reverify`-arrival class
-  above — and the enforcement increment adds new behavior at existing seams, never a
-  construction throw. **The third and last AL2 increment, freshness (SPEC §11.1/§14), has
-  since landed too.** `Consultation` gains `observedAt?: string` — §2's own table lists
-  the AL1 shape; the field lands under §14's own admission sentence, an anticipated AL2
-  extension, not a divergence. A signing profile's `finalize()` admits a recorded,
-  signature-covered `observedAt` claim on an obtained consultation (the `opts.policy`
-  presence-contract precedent — a non-signing profile's throws); rung 5.5 gains a
-  freshness arm refusing the twenty-fourth and last refusal code, `consultation-stale`, on
-  a bounded required kind's missing, future, or out-of-bound claim.
-  `validateFreshness` (`config.ts`) replaces the GOVERNED throw — the LAST governed field
-  in this build, the guard era's own exit (see the guards bullet above): the governed
-  count reaches ZERO. A second sanctioned sealed bundle executed at this increment's own
-  exit: the freshness-tail `[SKETCHED]` tokens moved to `[PROVEN]`/`PROVEN
-  (AL2-dependent)`, and `OPEN-QUESTIONS.md` §1's own fourth tail — left open above —
-  completed to **Decided (this build): the recorded-claim, signing-gated design**. The
-  library never verifies the observation happened AT `observedAt` — genuineness stays
-  `proofRef` and the operator-assurance probes. **Step 8's fourth and last tail item, the
-  self-test tier (`OPEN-QUESTIONS.md` §5), has since landed too, at the self-test-tier
-  increment.** `src/probes/` ships a library subpath — a runner (`runProbes`/
-  `assertSatisfied`), a typed `ProbeDriver` interface the host wires against its own real
-  configuration (isolation is the driver's own duty), and seventeen probes authored
-  against `docs/concept/CONTROLS.md` §4's own target list, quoted verbatim — plus dated,
-  expiring waiver governance (an unexpired waiver converts `fail`/`not-driven` to
-  `waived`; an expired one converts nothing and is flagged; an unused one is listed,
-  never silently absorbed). `not-driven` is GENERALIZED past a missing driver hook alone,
-  to a probed configuration reaching no profile declaring the control being re-attacked —
-  graduated honesty applied to the tier itself: "unproved", never "disproved". The suite
-  proves each probe class CAN fail, against deliberately-broken drivers (a constant-digest
-  canonicalizer defeats the drift probe; a lying severed-authority hook defeats the
-  genuineness probe; a state-losing driver defeats the restart probe, exercised over a
-  REAL sqlite close-reopen fixture; a minimal-config driver reports the declaring probes
-  `not-driven`, never a false pass) — a probe suite that can only pass is the stubbed-pass
-  trap wearing a runner. Deferral register row 18's own bounds-validation task landed
-  inside the same increment: `validateBounds` (`config.ts`) makes `expiry.ttl` (when
-  declared), `redeem.confirmToRedeem`, and `redeem.redeemBound` each a positive finite
-  integer of seconds — the settled class `validateFreshness` already used —
-  RED-first, with `construction-validation.test.ts:514`'s own recorded stance
-  ("Bound-value validation deliberately mirrors expiry.ttl's treatment (no novel
-  posture)") amended IN PLACE as the sequence's ELEVENTH self-authored inversion, a
-  different mechanic from the ten guard-lifts before it (nothing was governed here to
-  lift; this inverts a deliberate no-validation stance instead — see the guards bullet
-  below). Deferral register rows 17 AND 18 both retire with this increment, triggers
-  fired. **Step 8 EXITS here: eight of eight build-order steps are now exited, the build
-  order complete at the concept's declared embedded, operator-only scope.**
-  **`docs/process/implementation-status.md` is the authoritative
-  account** of what this build does and does not implement, section by section, with the
-  gate outputs and the outstanding list — read it rather than trusting a count here,
-  which is a claim with a shelf life and no way to fail loudly. Step 8, the last of the
-  eight build-order steps, has exited, and the build order is complete at its declared
-  scope — stated with the same honesty register throughout: AL3 anchoring stays
-  documented-only, `[SKETCHED]`; concurrent legs stay out of scope pre-1.0; and the
-  deferral register's surviving residue — rows 5, 6, and 15 among them — are pre-0.1/1.0
-  hygiene and proof-structure gates that outlive the build order BY DESIGN, never
-  unfinished build-order work. The
-  package is still not consumable by a host today: no build, no published artifact — that
-  remains true independent of the build order's own completion.
+  the concept in the proven build order (`docs/concept/SCOPING-GUIDE.md` §7).
+
+**State.** The eight-step build order is complete — all eight steps exited, the last
+(recovery, live capture, AL2 detached signing, and the operator-assurance self-test tier)
+settling at the self-test-tier increment, commit `84484ba`. Measured against the current
+tree: `pnpm test` — 45 test files, 621 tests, zero skips; `packages/record/src/refusal-codes.ts`
+carries 24 refusal codes; zero GOVERNED construction guards remain in `config.ts` — every
+field the feature-guard era installed has lifted behind real behavior at its own seam
+(`governedUnavailable` survives only for two generic unknown-option-key throws, in
+`finalize()` and `open()`, neither naming a not-yet-enforceable field).
+
+**The honest bound, in the same breath.** The package is still not consumable by a host:
+`packages/record/package.json` carries no `exports`, `main`, `types`, `files`, or
+`scripts` field, and nothing here is compiled. Publish tooling (deferral register row 1)
+and the pre-0.1 API-naming review over the public surface (row 6) are both still open.
+
+**Read these, not this file, for the record and the plan.**
+`docs/process/implementation-status.md` is the authoritative account of what this build
+does and does not implement, step by step, with gate outputs and the outstanding list —
+read it rather than trusting any count here, which is a claim with a shelf life and no way
+to fail loudly. `docs/process/next-phases.md` names what gates the next cut (six live
+deferral-register rows, each with its own trigger) and what stays deliberately out of
+scope.
+
+**What a working agent must not do here:** edit `docs/concept/` — it is SEALED, and the
+marker-move sanctions that licensed each past edit were per-increment and are spent, so a
+new edit needs a fresh, explicit sanction through `SCOPING-GUIDE.md` §§1–2's own machinery,
+never assumed from a past one; touch the frozen byte-stability digests in
+`packages/record/test/byte-stability.test.ts` — an oracle, not an assertion to update,
+since a mismatch means the minimal chain moved, not that the pin is stale; or push to any
+remote without instruction.
 
 ## The standalone contract
 
@@ -353,206 +129,40 @@ concurrency group per ref.
 From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
 
 - One cluster per increment; **spec-moves-to-truth** at every increment's exit (a
-  maturity marker moves only when the behavior lands in this repository). That exit step
-  has **nothing to move** at steps 1–6: every section those steps build is already
-  `[PROVEN]`, and the first draft-ahead marker that could come off was §10.2's `[DESIGNED]`
-  at step 7 — and it moved, at the second step-7 increment's own exit, the first such move
-  in this repository. A second move landed at step 8's own first increment: SPEC §2's five
-  `[SKETCHED]` recovery tokens (SPEC.md ~128/130/318/564, CONTROLS.md ~46) moved to
-  `[PROVEN]` once the behavior they describe — `open()`'s recovery rung — landed, tokens
-  only, byte-verified. A third move landed at step 8's second tail item, the live-capture
-  increment: SPEC §9.2's four live-mode `[SKETCHED]` tokens (SPEC.md ~488's inline bracket,
-  ~667's bold heading, CONTROLS.md ~40's prose, ~45's cell) moved to `[PROVEN]`, plus
-  OPEN-QUESTIONS.md §7's two residual decisions recorded as "Decided (this build):" tails
-  and SPEC.md ~488's now-false trailing clause rewritten to point at them — tokens, tails,
-  and one clause, byte-verified. A fourth move landed at step 8's third tail item, AL2
-  signing's own enforcement increment: SPEC §14's AL2 bullet and CONTROLS.md:48's bare cell
-  moved to `[PROVEN]`/`PROVEN`, plus OPEN-QUESTIONS.md §1's granularity,
-  missing-signature-posture, and key-custody tails recorded "Decided (this build)" — tokens
-  and tails, byte-verified. A fifth move landed at the AL2 freshness increment, closing
-  step 8's third tail item whole: SPEC:527's, SPEC:634's, and SPEC:951's freshness-row
-  `[SKETCHED]`/`[SKETCHED — AL2-dependent]` tokens and CONTROLS.md:47's cell moved to
-  `[PROVEN]`/`PROVEN (AL2-dependent)`, plus OPEN-QUESTIONS.md §1's own fourth
-  (authority-timestamps) tail — left open at the fourth move above — completed to "Decided
-  (this build): the recorded-claim, signing-gated design" — tokens and one tail,
-  byte-verified. **A sixth move landed at the self-test-tier increment, closing step 8's
-  fourth and last tail item and the build order itself**: `docs/concept/CONTROLS.md` §4's
-  four OPERATOR-ASSURANCE maturity cells (the probe runner, consultation-genuineness,
-  live-path distinctness, waiver governance) moved `SKETCHED` → `PROVEN`, honest bounds
-  unchanged, plus `OPEN-QUESTIONS.md` §5's own "Decided (this build)" tail naming the
-  `src/probes/` subpath contract and the not-driven/waiver posture — the concept set's
-  last `SKETCHED`-to-`PROVEN` move this build order makes, byte-verified. **Eleven commits
-  touch `docs/concept/` in total (`git log --oneline -- docs/concept/`), not six.** Six are
-  marker moves — `3f8051e`, `bb30e2e`, `4f93e8b`, `3aea0af`, `a55d3b1`, `07dd900` — each
-  moving tokens/tails for behavior that had just landed, `docs/concept/` un-sealed for
-  exactly that one commit and re-armed immediately after. Three more are SANCTIONED
-  CORRECTIVE commits, each its own deliberate, controller-ruled un-seal between marker
-  moves, never a marker move itself: `0300feb` (a prose-restoration fix, repairing a
-  parenthetical `bb30e2e`'s own marker swap had accidentally deleted), `12ca3aa` (a
-  backtick-convention fix, retroactively applying the section's own code-identifier
-  convention to prose `4f93e8b` had added), and `8def41b` (an accuracy correction under
-  what its own commit message names "the extended sanction" — "every accuracy claim ends
-  true" — fixing a stale contradiction a later review found). The seal re-arms after every
-  SANCTIONED edit, marker move or corrective alike, and has never been edited outside a
-  sanction since the convention began. The remaining two — `c26c179`, `a4acfae`, both
-  2026-08-02 — PREDATE the convention entirely, before the set was sealed.
-  `docs/process/implementation-status.md` is the
-  substitute exit record
-  that moves at every other step's exit — do not expect a marker change at steps 1–6 and do
-  not manufacture one there.
+  maturity marker moves only when the behavior lands in this repository). Every
+  build-order step whose section carried a draft-ahead marker has had it move: SPEC
+  §10.2's nine `[DESIGNED]` tokens at step 7 (the first such move in this repository),
+  then SPEC §2's recovery tokens, SPEC §9.2's live-mode tokens, and SPEC §14's AL2 bullet
+  and freshness tail, all at step 8 — six marker-move commits in total, each a separate,
+  explicit, per-increment authorization, spent at the increment it covered. A new
+  `docs/concept/` edit needs a FRESH sanction through `SCOPING-GUIDE.md` §§1–2's own
+  tier-test and promotion-rule machinery, never assumed from a past one.
+  `docs/process/implementation-status.md` is the substitute exit record for every step
+  whose own exit step was vacuous (steps 1–6, whose sections were already `[PROVEN]`); the
+  full lineage — which commit moved which token, which commits were sanctioned corrective
+  edits rather than moves, which predate the sealing convention — is recorded in its
+  step-7 and step-8 rows, not restated here.
 - **Inverting an inherited pinned assertion is authorized explicitly, never slipped in.**
   The kernel arrived with the reference implementation's test corpus; adopting a corpus
   and quietly changing what it pins is how a build drifts while its suite stays green. Two
-  inversions have been authorized so far, both during the step-1 remediation, each argued
-  in place at `packages/record/test/terminality.test.ts` and recorded in the exit record.
-- Feature guards from day one — an unimplemented capability throws at construction
-  (`config.ts` `validateProfile`; ZERO governed profile fields throw there today — the
-  era closed at the AL2 freshness increment, below; one before that lift, two before the
-  live-capture increment lifted `captureMode:'live'` alongside its redemption-seam mapping;
-  four before the
-  second step-7 increment lifted `ackMode`/`requiredAcks` alongside the seams and gate that
-  give them teeth; five before the second step-6 increment lifted `policySource` alongside
-  all three of its own seam
-  obligations). `redeem`
-  was originally the eleventh governed capability, throwing at the call seam instead
-  (`kernel/redeem.ts`) rather than at construction; the first step-3 increment landed
-  SPEC §11.2's direct shape, and the second landed the token shape —
-  `beginRedemption`/`completeRedemption`, two NEW operator calls with no throwing-stub
-  history to lift, unlike `redeem`'s own — so that throw is gone from every confirmed or
-  redeeming effect-seam record. **Nothing at the redemption seams remains governed as of
-  the third step-3 increment**: `redeemBound`'s own construction guard (`config.ts`) —
-  added at the second step-3 increment, briefly bringing the construction-guarded count to
-  eleven — lifted WITH its clock at the third, back down to ten. `beginRedemption`
-  now mints SPEC §4's present-iff-declared `bound` byte into the `redeeming` payload (via
-  `deadlineIso`), and `kernel/expiry.ts`'s `resolveDueClock` resolves the window that byte
-  opens — together the guard's own stated trigger, so a declaring profile constructs cleanly;
-  `confirmToRedeem` was accepted-but-inert from the second increment and is now genuinely
-  acted on by the same clock; and `redemption-timeout` has a real producer, the clock
-  resolution shared by all three redemption seams' prologue. A confirmed
-  effect-seam record's held `(profile, subject)` pair is now
-  released by that direct-shape redemption — the `confirmed → redeemed` edge lifts the
-  Store's C1 exclusivity hold, where before neither a throw nor a refusal could. `seal()`
-  remains **not** a release path: SPEC §12 admits it only against a derived-terminal
-  record, and a final-leg `confirmed` on an effect-seam profile is non-terminal (SPEC §2).
-  That last claim is no longer argued only in prose — now that `seal()` is built, it is
-  pinned by an executing test in `packages/record/test/seal.test.ts`. Recorded in
-  `docs/process/implementation-status.md` (an earlier framing of this remedy was itself
-  wrong and was corrected in place, first in the now-retired deferral register row 9 and
-  carried forward when that row retired; the `seal()`-as-release half was a second error,
-  found by the citation audit and corrected in the same place). **The construction-guarded
-  count moves twice more, across the two step-4 increments: ten down to seven.**
-  `legs.length>1` — SPEC §10.1's multi-leg maker-checker sequencing — was GOVERNED from the
-  kernel increment on; it lifted at the first step-4 increment because `open()`'s new
-  sequencing rung (`kernel/prior-legs.ts`'s `verifyPriorLegs`, consumed before a successor
-  record is created) now verifies every prior-leg reference by replay, landing in the same
-  commit as the lift, bringing the count to nine. Per-leg `sod.notActorOf` and `proposer` —
-  SPEC §10.1's own two remaining controls — lifted together at the second step-4 increment,
-  in the same commit as `finalize()`'s new rung 3.5, which reads the now-chained
-  `priorLegActors` evidence and raises the sixteenth refusal code, `sod-violation`, on
-  either a `notActorOf` match (principal-only comparison; a lookup miss also refuses,
-  fail-closed) or a `proposer` match — bringing the count to seven. What replaces the two
-  guards is this build's own fail-closed structural posture, `validateSodShape`
-  (`config.ts`): `sod.notActorOf` entries must be non-empty, pairwise distinct, and name a
-  strictly-earlier leg, and `proposer` is multi-leg-only — the spec is silent on all three
-  rulings; each is a permitted tightening, not a divergence. **The construction-guarded
-  count moves once more, at the second step-5 increment: seven down to six.**
-  `requiredConsultations` — SPEC §11.1's required-consultation gating — was GOVERNED from
-  the kernel increment on; it lifted because `finalize()`'s new rung 5.5 now reads the
-  declaration, landing in the same commit as the lift. What replaces the guard is this
-  build's own fail-closed structural posture, `validateRequiredConsultations`
-  (`config.ts`), the same settled class as `validateSodShape`'s: the declared list must be
-  non-empty, pairwise distinct, every kind a non-empty string, and never a reserved
-  library-emitted kind (`facts`, `chain-verify`) — the spec's own sentence for the last
-  rule ("declaring a reserved kind in `requiredConsultations` is likewise a
-  profile-construction error"). `freshness` stayed governed deliberately at this point,
-  since at AL1 the library stamps every consultation's own recording time, so a
-  `freshness` bound could never fire (the spec's own vacuity argument) — vacuous only
-  until AL2 exists; it lifts at the AL2 freshness increment, below. **The construction-guarded count moves once
-  more, at the first step-6 increment: six down to five.** `eligibility` — SPEC §10.4's
-  eligibility gating — was GOVERNED from the kernel increment on; it lifted because
-  `finalize()`'s rung 5.5 now reads the declaration too, prepending an implicit-FIRST
-  `'eligibility'` required kind ahead of the leg's own declared `requiredConsultations`,
-  landing in the same commit as the lift. What replaces the guard is this build's own
-  fail-closed structural posture, `validateEligibility` (`config.ts`), the same settled
-  class as `validateSodShape`'s/`validateRequiredConsultations`'s: an empty label throws as
-  the malformed-reference rule (the gate keys on the declaration's presence, never the
-  label — NOT `proposer: ''`'s inertness trap), and declaring `eligibility` while also
-  listing `'eligibility'` in the same leg's `requiredConsultations` throws SPEC §10.4's own
-  "declare it once" construction error. **The construction-guarded count moves once more, at
-  the second step-6 increment: five down to four.** `policySource` — SPEC §10.3's opaque
-  per-profile policy-authority label — was GOVERNED from the kernel increment on; it lifted
-  because all three of its own seam obligations land in the same commit: `open()`'s binding
-  contract binds the operator-attested `policyDigest` into the genesis, present-iff-declared
-  and fail-closed loud both directions; `finalize()`'s presence contract requires (or, on a
-  non-declaring profile, forbids unconditionally) `opts.policy` at profile-resolution depth;
-  and `finalize()`'s new rung (4.5) compares the live digest against the record's bound one,
-  raising the twentieth refusal code, `policy-drift`, on a mismatch — including both
-  cross-instance corners, the reverse one answering §10.3's own named open decision
-  FAIL-CLOSE — and the `availability` outcome (its second producer) on a reported-unreachable
-  source. What replaces the guard is the same settled fail-closed structural class
-  `validateEligibility`'s own empty-label rule uses: an opaque reference that references
-  nothing is malformed config. **The construction-guarded count moves once more, at the
-  second step-7 increment: four down to two.** `ackMode`/`requiredAcks` — SPEC §10.2's
-  findings-flow controls, declared both-or-neither — were GOVERNED-throw-guarded
-  individually from the kernel increment on; they lift together because the write half
-  lands in the SAME commit as the lift: the two operator-only seams
-  (`kernel/findings-seams.ts`'s `raiseFinding`/`acknowledge`) and `finalize()`'s new rung
-  (5.7), which reads the pair's own declaration via the read side's `findingCoverage`
-  derivation and raises `ack-missing`/`ack-stale` on it. What replaces the guard is
-  `validateFindingsFlow` (`config.ts`), the same settled fail-closed structural class
-  `validateEligibility`'s/`validateRequiredConsultations`'s/`validateSodShape`'s: both-or-
-  neither, and `requiredAcks` non-empty, pairwise distinct, every kind a non-empty string —
-  deliberately WITHOUT a reserved-kind arm, since finding kinds are their own namespace
-  (SPEC §10.2: "the reserved consultation kinds do not apply to them"), so `'facts'` is a
-  LEGAL `requiredAcks` kind. Two fields were governed at that point: the whole-profile
-  `captureMode:'live'`, and the per-leg `freshness`. **The construction-guarded count moves
-  once more, at the live-capture increment: two down to one.** `captureMode:'live'` — SPEC
-  §9.2's live mode — was GOVERNED from the kernel increment on; it lifted because
-  `validateLiveCapture` (`config.ts`) now enforces the mode's own construction
-  obligations — every leg must declare `requiredConsultations` (the decide-time
-  independent re-derivation, gated at finalize's already-built rung 5.5, no new gate
-  needed) and the profile's `redeem` block must declare `confirmToRedeem`, `reverify`, or
-  both — landing in the SAME commit as `kernel/redeem.ts`'s `refuseCorrespondenceMismatch`,
-  which gives `reverify` its own redemption-seam semantics: a reverify-declaring profile's
-  CONTENT mismatch at any of the three redemption seams now maps to `content-drift`,
-  appended terminal, releasing the hold, instead of the never-appended `effect-mismatch`
-  every other profile keeps. What replaces the guard is `validateLiveCapture`'s own
-  fail-closed structural posture, the same settled class every prior lift above used:
-  presence, not inertness, is what it checks. One field remained governed at this point:
-  the per-leg `freshness` alone — vacuous by construction at AL1 regardless, since the
-  library stamps every consultation's own recording time, so lifting this guard alone could
-  never
-  make the gate fire. **The one call-seam GOVERNED guard
-  outside `validateProfile` — `open()`'s `supersedes` options key (`kernel/open.ts`, reusing
-  this same `governedUnavailable` helper) — lifted separately, at the step-8 recovery
-  increment**, once `kernel/supersedes.ts`'s `verifySupersedes` existed to honor it; this is
-  the LAST call-seam GOVERNED guard in the build, and its lift does not move the
-  construction-guarded count above, which is a distinct tally. **The construction-guarded
-  count moves once more, and last, at the AL2 freshness increment: one down to ZERO.**
-  `freshness` — SPEC §11.1/§14's per-leg consultation-freshness bound, the one field still
-  governed after the live-capture increment — lifted because `finalize()`'s rung 5.5 gains a
-  freshness arm in the SAME commit, refusing the twenty-fourth and last refusal code,
-  `consultation-stale`, on a bounded required kind's missing, future, or
-  out-of-bound `observedAt` claim. What replaces the guard is `validateFreshness`
-  (`config.ts`), the same settled fail-closed structural class every guard above used: the
-  AL2 dependency made structural (a declaring leg's profile must set `signing: true`), every
-  bounded key a subset of the leg's own required set (plus the implicit `eligibility` where
-  declared), every bound a positive integer of seconds. **This is the guard era's own exit,
-  and it is stated as such, not merely counted: zero fields are governed today.** Every
-  guard this bullet's own opening sentence names — "an unimplemented capability throws at
-  construction" — has now lifted behind its own behavior, each in the same commit as that
-  behavior; `governedUnavailable` (`config.ts`) survives only for the two generic
-  unknown-option-key throws (`finalize()`'s own `finalizeOptionMessage`, `open()`'s own),
-  neither of which names a not-yet-enforceable field the way every guard this bullet has
-  tracked did. **One more self-authored inversion follows this guard era's own close, an
-  ELEVENTH and a different mechanic — no guard, so no lift.** The self-test-tier
-  increment took deferral register row 18: `expiry.ttl`, `redeem.confirmToRedeem`, and
-  `redeem.redeemBound` were unvalidated numeric fields, never GOVERNED, a RECORDED stance
-  (`construction-validation.test.ts:514`'s own comment: "Bound-value validation
-  deliberately mirrors expiry.ttl's treatment (no novel posture)") rather than an
-  oversight. `validateFreshness`'s own lift, above, ended the symmetry that stance leaned
-  on, so `validateBounds` (`config.ts`) closes it with the same settled positive-finite-
-  integer-of-seconds class, and the `:514` comment is amended in place, not rewritten, to
-  record the inversion.
+  such inversions were authorized, both during the step-1 remediation, argued in place at
+  `packages/record/test/terminality.test.ts` and recorded in
+  `docs/process/implementation-status.md`. A separate, larger numbered sequence tracks
+  this build inverting its OWN earlier recorded stance instead of an inherited one — also
+  recorded there, each instance argued at its own site.
+- **Feature guards from day one** — an unimplemented capability throws at construction
+  (`config.ts`'s `validateProfile`) until its own seam behavior lands, in the same commit
+  as that behavior. Every profile field the kernel increment marked GOVERNED has since
+  lifted this way; measured against the current tree, zero fields are governed
+  (`governedUnavailable` survives only for two generic unknown-option-key throws, in
+  `finalize()` and `open()`, neither naming a not-yet-enforceable field). `redeem` was
+  the one capability originally guarded at its call seam instead of construction
+  (`kernel/redeem.ts`); that throw is gone too, since the first two step-3 increments. The
+  field-by-field lineage — which field lifted at which increment, and the
+  construction-guarded count's own movement (ten at the kernel increment, zero at the AL2
+  freshness increment) — is recorded in `docs/process/implementation-status.md`'s
+  step-by-step accounts; do not re-derive or re-count it here.
 - Byte-stability pins and adjacent-pair gate-order tests, from the kernel increment on.
-- The living deferral register: `docs/process/deferral-register.md`.
+- The living deferral register: `docs/process/deferral-register.md`. See also
+  `docs/process/next-phases.md`'s own "disciplines that outlive the build order" section,
+  which draws these same threads together for what comes next.
