@@ -381,9 +381,22 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   live-path distinctness, waiver governance) moved `SKETCHED` → `PROVEN`, honest bounds
   unchanged, plus `OPEN-QUESTIONS.md` §5's own "Decided (this build)" tail naming the
   `src/probes/` subpath contract and the not-driven/waiver posture — the concept set's
-  last `SKETCHED`-to-`PROVEN` move this build order makes, byte-verified. Six sealed-edit
-  commits in total, each `docs/concept/` un-sealed for exactly one commit and exactly its
-  own tokens, re-armed immediately after. `docs/process/implementation-status.md` is the
+  last `SKETCHED`-to-`PROVEN` move this build order makes, byte-verified. **Eleven commits
+  touch `docs/concept/` in total (`git log --oneline -- docs/concept/`), not six.** Six are
+  marker moves — `3f8051e`, `bb30e2e`, `4f93e8b`, `3aea0af`, `a55d3b1`, `07dd900` — each
+  moving tokens/tails for behavior that had just landed, `docs/concept/` un-sealed for
+  exactly that one commit and re-armed immediately after. Three more are SANCTIONED
+  CORRECTIVE commits, each its own deliberate, controller-ruled un-seal between marker
+  moves, never a marker move itself: `0300feb` (a prose-restoration fix, repairing a
+  parenthetical `bb30e2e`'s own marker swap had accidentally deleted), `12ca3aa` (a
+  backtick-convention fix, retroactively applying the section's own code-identifier
+  convention to prose `4f93e8b` had added), and `8def41b` (an accuracy correction under
+  what its own commit message names "the extended sanction" — "every accuracy claim ends
+  true" — fixing a stale contradiction a later review found). The seal re-arms after every
+  SANCTIONED edit, marker move or corrective alike, and has never been edited outside a
+  sanction since the convention began. The remaining two — `c26c179`, `a4acfae`, both
+  2026-08-02 — PREDATE the convention entirely, before the set was sealed.
+  `docs/process/implementation-status.md` is the
   substitute exit record
   that moves at every other step's exit — do not expect a marker change at steps 1–6 and do
   not manufacture one there.
