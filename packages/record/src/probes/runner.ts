@@ -63,6 +63,12 @@ export async function runProbes(
   return { results, satisfied, expiredWaivers, unusedWaivers };
 }
 
+/** The CI hook. Throws unless EVERY result is pass/waived AND no waiver has expired —
+ * two independent conditions, not one: `report.satisfied` alone covers only the first,
+ * so a report can read `satisfied: true` while still carrying an expired waiver this
+ * function throws on (the waiver-governance expiry discipline's own point — an expired
+ * waiver must not silently keep covering the probe it named). Call this, or check both
+ * fields yourself; `satisfied` by itself is not the CI verdict. */
 export function assertSatisfied(report: ProbeReport): void {
   if (report.satisfied && report.expiredWaivers.length === 0) return;
   const bad = report.results

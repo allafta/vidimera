@@ -504,6 +504,80 @@ function makeThrowingSampleContentDriver(): ProbeDriver {
   };
 }
 
+/** The self-test-tier increment's fix-wave pin: a two-leg profile whose ONLY declaring
+ * leg for `requiredConsultations` is leg 1 (the checker), never leg 0. `openOne` always
+ * stages+opens leg 0, so `consultation-genuineness` must report not-driven here, honestly
+ * naming the leg-0 narrowing — never a false FAIL from severing a kind the attacked
+ * leg-0 record never gated. */
+function makeDeclaringLegOneDriver(): ProbeDriver {
+  return {
+    ...sharedDriverMethods(),
+    makeConfig(): Config {
+      return {
+        profiles: [
+          {
+            id: 'probe.leg1gated.v1',
+            subject: { canonicalizerRef: CANONICALIZER_REF },
+            legs: [
+              { id: 'maker', allowedAuthorities: ['session:probe'] },
+              {
+                id: 'checker',
+                allowedAuthorities: ['session:probe'],
+                requiredConsultations: ['risk-check'],
+              },
+            ],
+            captureMode: 'staged',
+            expiry: { ttl: 3600 },
+          },
+        ],
+        store: new MemoryStore(),
+        canonicalizers: { [CANONICALIZER_REF]: identityCanonicalizer() },
+      };
+    },
+  };
+}
+
+/** The self-test-tier increment's fix-wave pin: the only effect-seam profile is
+ * multi-leg (no single-leg effect-seam profile exists at all). `at-most-once-redeem` and
+ * `effects-match` must both report not-driven — driving leg 0's own `redeem()` on a
+ * non-final leg would otherwise throw `unredeemable-state` inside the probes' own setup,
+ * surfacing as a false "probe threw" fail against a legal multi-leg maker-checker
+ * config. */
+function makeMultiLegEffectSeamDriver(): ProbeDriver {
+  let counter = 0;
+  return {
+    makeConfig(): Config {
+      return {
+        profiles: [
+          {
+            id: 'probe.multilegeffect.v1',
+            subject: { canonicalizerRef: CANONICALIZER_REF },
+            legs: [
+              { id: 'maker', allowedAuthorities: ['session:probe'] },
+              { id: 'checker', allowedAuthorities: ['session:probe'] },
+            ],
+            captureMode: 'staged',
+            expiry: { ttl: 3600 },
+            redeem: { confirmToRedeem: 3600, redeemBound: 86400 },
+          },
+        ],
+        store: new MemoryStore(),
+        canonicalizers: { [CANONICALIZER_REF]: identityCanonicalizer() },
+      };
+    },
+    sampleContent(profileId: string) {
+      counter += 1;
+      return {
+        content: { probedProfile: profileId, n: counter },
+        subjectRef: `subject:probe-multileg-${counter}`,
+      };
+    },
+    sampleIdentity(): IdentityAssertion {
+      return IDENTITY;
+    },
+  };
+}
+
 // === ALL_PROBES shape pins =============================================================
 
 test('ALL_PROBES: seventeen probes, unique ids, stable registry order', () => {
@@ -725,6 +799,39 @@ test('a throwing driver: every probe still runs; a probe whose setup throws surf
   // agent-cannot-decide and unknown-fails-closed never call sampleContent — untouched:
   assert.equal(report.results.find((r) => r.id === 'agent-cannot-decide')?.status, 'pass');
   assert.equal(report.results.find((r) => r.id === 'unknown-fails-closed')?.status, 'pass');
+});
+
+// === narrowed not-driven shapes (the self-test-tier increment's final review) ==========
+
+test('consultation-genuineness: a declaring leg beyond leg 0 reports not-driven honestly, never a false fail', async () => {
+  const driver = makeDeclaringLegOneDriver();
+  const report = await runProbes(driver);
+  const result = report.results.find((r) => r.id === 'consultation-genuineness');
+  assert.equal(
+    result?.status,
+    'not-driven',
+    `expected not-driven, observed ${JSON.stringify(result)}`,
+  );
+  assert.match(result?.detail ?? '', /leg 0/);
+});
+
+test('at-most-once-redeem and effects-match: a multi-leg-only effect-seam configuration reports not-driven for both, never a probe-threw false fail', async () => {
+  const driver = makeMultiLegEffectSeamDriver();
+  const report = await runProbes(driver);
+  const atMostOnce = report.results.find((r) => r.id === 'at-most-once-redeem');
+  const effects = report.results.find((r) => r.id === 'effects-match');
+  assert.equal(
+    atMostOnce?.status,
+    'not-driven',
+    `expected not-driven, observed ${JSON.stringify(atMostOnce)}`,
+  );
+  assert.match(atMostOnce?.detail ?? '', /single-leg/);
+  assert.equal(
+    effects?.status,
+    'not-driven',
+    `expected not-driven, observed ${JSON.stringify(effects)}`,
+  );
+  assert.match(effects?.detail ?? '', /single-leg/);
 });
 
 // === the runner and waiver-governance pins =============================================

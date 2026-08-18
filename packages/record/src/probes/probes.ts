@@ -25,7 +25,8 @@
 // the SAME declared profiles, never the same store.
 
 import type { AgentSurface } from '../agent-surface.js';
-import type { Config, ConsultationInput, FinalizeOptions } from '../config.js';
+import { canonicalize, digest, resolveCanonicalizer } from '../canonical.js';
+import type { Config, ConfirmProfile, ConsultationInput, FinalizeOptions } from '../config.js';
 import { profileDeclaresEffectSeam } from '../config.js';
 import { create } from '../create.js';
 import type { OperatorSurface } from '../operator-surface.js';
@@ -178,6 +179,34 @@ function corruptedCopy(content: unknown): unknown {
   return { __probeCorrupted: true, original: content };
 }
 
+/** RESOLVED honestly (a self-test-tier fix-wave rider): a synthetic foreign-shaped value —
+ * `{ DRIFTED: true, ... }` above, `corruptedCopy`'s `__probeCorrupted` keys — is exactly
+ * the shape a shape-validating adopter canonicalizer can throw on meeting, turning a
+ * WORKING drift/corruption control into "probe threw" rather than the refusal it should
+ * demonstrate. Draws a SECOND `driver.sampleContent(profileId)` instead — a value the
+ * host's own canonicalizer already knows how to shape, since the driver is the host's own
+ * wiring — and falls back to `fallback` (the caller's synthetic value) ONLY when the
+ * redraw happens to digest IDENTICALLY to `content` under the profile's own canonicalizer
+ * (sampleContent's own counter can coincidentally collide, or a driver may mint the same
+ * fixture every call); the synthetic shape is still correct there, since drift genuinely
+ * cannot be demonstrated with a same-digest value. */
+function driftedOrFallback(
+  driver: ProbeDriver,
+  config: Config,
+  profile: ConfirmProfile,
+  content: unknown,
+  fallback: unknown,
+): unknown {
+  const canonicalizer = resolveCanonicalizer(
+    config.canonicalizers,
+    profile.subject.canonicalizerRef,
+  );
+  const originalDigest = digest(canonicalize(canonicalizer(content)));
+  const resampled = driver.sampleContent(profile.id).content;
+  const resampledDigest = digest(canonicalize(canonicalizer(resampled)));
+  return resampledDigest === originalDigest ? fallback : resampled;
+}
+
 /** Corrupts a COPY of a sampled `FinalizeOptions`' `eligibility` consultation verdict
  * to `fail` (ProbeDriver's own contract: "Probes corrupt COPIES of these"). `undefined`
  * when there is nothing to corrupt — the caller's own not-driven branch. */
@@ -205,10 +234,14 @@ const driftRefuses: Probe = {
     const { handles, recordId, content, legId } = await openOne(driver, profile.id);
     const identity = driver.sampleIdentity(profile.id, legId);
     const consultations = driver.sampleConsultations?.(profile.id, legId);
+    const drifted = driftedOrFallback(driver, config, profile, content, {
+      DRIFTED: true,
+      was: content,
+    });
     const out = await handles.operator.finalize(
       recordId,
       identity,
-      { DRIFTED: true, was: content },
+      drifted,
       probeFacts(),
       consultations,
     );
@@ -245,13 +278,30 @@ const consultationGenuineness: Probe = {
       return notDriven(this, 'the driver supplies no severConsultationAuthority hook');
     }
     const config = driver.makeConfig();
-    const declaring = config.profiles.find((p) =>
-      p.legs.some((l) => (l.requiredConsultations?.length ?? 0) > 0),
+    // NARROWED, honestly, the same shape `sod-refuses` (below) already uses: `openOne`
+    // always stages+opens leg 0, so accepting a declaring leg ANYWHERE (the prior
+    // `p.legs.some(...)` scan) let a declaration past leg 0 through — severing that
+    // leg's authority then attacked a leg-0 record the severed kind never gated, so
+    // finalize returned ok and this probe reported a FALSE FAIL ("a stubbed pass")
+    // against a CONFORMING host. Scan leg 0 only, like `consultations-present`
+    // (~consultationsPresent below), `ineligible-refuses`, and `acks-block` already do.
+    const declaring = config.profiles.find(
+      (p) => (p.legs[0]?.requiredConsultations?.length ?? 0) > 0,
     );
     if (declaring === undefined) {
-      return notDriven(this, 'no profile declares requiredConsultations');
+      const deeperOnly = config.profiles.some((p) =>
+        p.legs.some((l, i) => i > 0 && (l.requiredConsultations?.length ?? 0) > 0),
+      );
+      return notDriven(
+        this,
+        deeperOnly
+          ? 'a profile declares requiredConsultations only beyond leg 0 — this probe ' +
+              'drives only the leg-0 shape today (openOne always stages+opens leg 0); ' +
+              'deeper legs are a pre-1.0 driver-shape question'
+          : 'no profile declares requiredConsultations',
+      );
     }
-    const leg = declaring.legs.find((l) => (l.requiredConsultations?.length ?? 0) > 0);
+    const leg = declaring.legs[0];
     const kind = leg?.requiredConsultations?.[0];
     if (leg === undefined || kind === undefined) return notDriven(this, 'unreachable');
     const { handles, recordId, content } = await openOne(driver, declaring.id);
@@ -363,11 +413,24 @@ const atMostOnceRedeem: Probe = {
   target: 'a confirmation redeems at most once',
   async run(driver) {
     const scan = driver.makeConfig();
-    const profile = scan.profiles.find((p) => profileDeclaresEffectSeam(p));
+    // NARROWED, honestly: `kernel/redeem.ts` refuses `unredeemable-state` on any
+    // non-final leg, so a legal multi-leg maker-checker+redemption profile makes this
+    // probe's own setup (`assertOk` below) THROW on leg 0's own redeem — a legal host
+    // config reported as "probe threw" rather than the honest not-driven it is owed.
+    // Require the effect-seam profile to be single-leg; a multi-leg-only effect-seam
+    // config reports not-driven with that reason named, rather than this probe building
+    // a prior-leg chain to reach a final leg.
+    const profile = scan.profiles.find((p) => profileDeclaresEffectSeam(p) && p.legs.length === 1);
     if (profile === undefined) {
+      const multiLegOnly = scan.profiles.some(
+        (p) => profileDeclaresEffectSeam(p) && p.legs.length > 1,
+      );
       return notDriven(
         this,
-        'the configuration declares no effect-seam profile (a redeem block or captureMode "live")',
+        multiLegOnly
+          ? 'every effect-seam profile is multi-leg — the probe drives the single-leg ' +
+              'effect-seam shape today'
+          : 'the configuration declares no effect-seam profile (a redeem block or captureMode "live")',
       );
     }
     const { handles, recordId, content, legId } = await openOne(driver, profile.id);
@@ -393,11 +456,21 @@ const effectsMatch: Probe = {
   target: 'effects require redemption and match the redeemed record',
   async run(driver) {
     const scan = driver.makeConfig();
-    const profile = scan.profiles.find((p) => profileDeclaresEffectSeam(p));
+    // NARROWED the same way `at-most-once-redeem` is, immediately above:
+    // `kernel/redeem.ts` refuses `unredeemable-state` on any non-final leg, so this
+    // probe's own setup (`assertOk` below) would THROW against a legal multi-leg
+    // effect-seam config rather than reporting the honest not-driven it is owed.
+    const profile = scan.profiles.find((p) => profileDeclaresEffectSeam(p) && p.legs.length === 1);
     if (profile === undefined) {
+      const multiLegOnly = scan.profiles.some(
+        (p) => profileDeclaresEffectSeam(p) && p.legs.length > 1,
+      );
       return notDriven(
         this,
-        'the configuration declares no effect-seam profile (a redeem block or captureMode "live")',
+        multiLegOnly
+          ? 'every effect-seam profile is multi-leg — the probe drives the single-leg ' +
+              'effect-seam shape today'
+          : 'the configuration declares no effect-seam profile (a redeem block or captureMode "live")',
       );
     }
     const { handles, recordId, content, legId } = await openOne(driver, profile.id);
@@ -407,7 +480,10 @@ const effectsMatch: Probe = {
       await handles.operator.finalize(recordId, identity, content, probeFacts(), consultations),
       'effects-match: finalize (setup)',
     );
-    const attack = await handles.operator.redeem(recordId, corruptedCopy(content));
+    const attack = await handles.operator.redeem(
+      recordId,
+      driftedOrFallback(driver, scan, profile, content, corruptedCopy(content)),
+    );
     return attack.status === 'refused' &&
       (attack.code === 'effect-mismatch' || attack.code === 'content-drift')
       ? pass(this, `wrong content at redemption refused ${attack.code}`)
