@@ -89,7 +89,12 @@ The tier is scoped (self-run probes as CI regression; genuineness and path-disti
 proofs; self-waiver governance) but its delivery contract is undecided: a public library
 subpath the operator imports, or a documented pattern the operator copies? Either way, the
 tier's drivers are authored in the tier's own vocabulary, against the target list in
-`CONTROLS.md` §4. Sequencing note on record: the tier is most valuable **after** AL2 exists (a
+`CONTROLS.md` §4. **Decided (this build):** a public library subpath — `src/probes/`
+ships the runner, the typed driver interface, the probes (authored against the target list),
+and waiver governance, versioned with the library under the store contract's own pre-1.0
+provisional-shape discipline; a probe the host's driver or configuration cannot drive
+reports `not-driven` — unproved, never disproved, waivable only by a dated, unexpired
+waiver. Sequencing note on record: the tier is most valuable **after** AL2 exists (a
 re-attack suite is strongest when there is a signing layer to re-attack).
 
 ## 6. Registry candidates not minted

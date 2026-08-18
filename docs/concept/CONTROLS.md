@@ -56,10 +56,10 @@ a profile field.
 
 | Capability | What it does | Maturity | Honest bound |
 |---|---|---|---|
-| Self-run probe runner + driver interface | The operator re-attacks the promoted behaviors (drift, forge, replay, fail-closed, exclusivity) as a CI regression suite, catching config drift that silently reopens a path | SKETCHED | Proves the control operated in the probed configuration, at probe time |
-| Consultation-genuineness proof | The live-dependency exercise: sever the authority; a required consultation must yield `availability`, not a stubbed pass | SKETCHED | A probe-proved property, not a library-enforced one |
-| Live-path distinctness proof | Disable the rendering credential; the independent re-derivation must still succeed | SKETCHED | Probe-proved, host-specific |
-| Waiver governance (self) | Dated, expiring waivers for the operator's own accepted-open gaps | SKETCHED | Self-attestation with expiry discipline — not third-party assurance |
+| Self-run probe runner + driver interface | The operator re-attacks the promoted behaviors (drift, forge, replay, fail-closed, exclusivity) as a CI regression suite, catching config drift that silently reopens a path | PROVEN | Proves the control operated in the probed configuration, at probe time |
+| Consultation-genuineness proof | The live-dependency exercise: sever the authority; a required consultation must yield `availability`, not a stubbed pass | PROVEN | A probe-proved property, not a library-enforced one |
+| Live-path distinctness proof | Disable the rendering credential; the independent re-derivation must still succeed | PROVEN | Probe-proved, host-specific |
+| Waiver governance (self) | Dated, expiring waivers for the operator's own accepted-open gaps | PROVEN | Self-attestation with expiry discipline — not third-party assurance |
 
 **The probe suite's target list** — the behaviors worth re-attacking first-party, in one
 place: decision state survives restart; tampering is evident on replay; drifted content
