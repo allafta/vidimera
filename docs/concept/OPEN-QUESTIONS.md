@@ -49,6 +49,9 @@ finalized under a now-non-declaring profile refuses) versus ratify as by-design 
 audit trail as compensation. **Recommendation on record: fail-close** — the asymmetry with
 the forward direction (which refuses) cuts against the drift-refusal promise. Either way it
 is a deliberate behavior decision, not an ad-hoc patch; AL2 is the ultimate closure.
+**Decided (this build):** fail-close — the recommendation on record is taken: a record
+carrying a bound `policyDigest`, finalized under a same-id instance that no longer declares a
+`policySource`, refuses `policy-drift` rather than skipping the gate.
 
 ## 3. Recovery (`supersedes`) — the remaining flow details
 

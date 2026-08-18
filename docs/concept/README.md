@@ -35,7 +35,7 @@ breath.
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | narrative | How it fits and why: capability split, chain model, outcome model, the gate ladder, the store, design invariants |
 | [`CONTROLS.md`](CONTROLS.md) | catalog | Every capability with tier, switch, maturity, honest bound; cross-industry applicability |
 | [`ASSURANCE.md`](ASSURANCE.md) | threat model | What is defended, the named blind windows, what is out of scope, the AL1→AL3 gradient |
-| [`SCOPING-GUIDE.md`](SCOPING-GUIDE.md) | method | The tier test, promotion rule, the four scope commitments, build-vs-buy honesty, a build order proven through step 6 (7–8 the designed continuation), the rescoping checklist |
+| [`SCOPING-GUIDE.md`](SCOPING-GUIDE.md) | method | The tier test, promotion rule, the four scope commitments, build-vs-buy honesty, a proven eight-step build order, the rescoping checklist |
 | [`DECISIONS.md`](DECISIONS.md) | rationale | Thirty load-bearing design decisions with their whys and re-deciding costs (costs spelled out where not implicit) |
 | [`OPEN-QUESTIONS.md`](OPEN-QUESTIONS.md) | honesty | The named open decisions an inheriting project must take |
 | [`GLOSSARY.md`](GLOSSARY.md) | vocabulary | The working vocabulary, defined once |

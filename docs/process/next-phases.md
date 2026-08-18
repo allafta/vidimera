@@ -128,13 +128,13 @@ deliberate, documented act." No step of the completed build order reversed that 
 ## The genuinely open questions that remain
 
 `docs/concept/OPEN-QUESTIONS.md` is the sealed set's own inventory of undecided points.
-Sections §1, §3, §4, §5, and §7 each now carry a "**Decided (this build):**" tail on every
-one of their sub-questions and are CLOSED — they do not appear below. Of the remaining
-sections, §6, §9, and §10 carry no such tail and are genuinely open, listed here; §8 is
-addressed above under "What is deliberately outside the scope" rather than repeated here
-(the section frames concurrent legs as a pre-1.0 declaration already made, not a decision
-pending now); §2 is a third case — neither open nor tail-closed — held in its own entry
-below rather than listed as open.
+Sections §1, §2, §3, §4, §5, and §7 each now carry a "**Decided (this build):**" tail and
+are CLOSED — they do not appear below (§2's tail is the newest, added by the 2026-08-19
+sanctioned corrective pass; its entry below records the history of that gap). Of the
+remaining sections, §6, §9, and §10 carry no such tail and are genuinely open, listed here;
+§8 is addressed above under "What is deliberately outside the scope" rather than repeated
+here (the section frames concurrent legs as a pre-1.0 declaration already made, not a
+decision pending now).
 
 - **§6 — Registry candidates not minted.** Whether `unknown-staged`/`unknown-record` — today
   loud caller-error throws — become coded refusal-registry outcomes for hosts that want them
@@ -150,7 +150,7 @@ below rather than listed as open.
   inactive status is quoted above under "outside the scope"; the design questions for the day
   it activates are what remain open here.)
 
-### OQ §2 — decided in code, not yet tailed in the sealed set (a recording gap)
+### OQ §2 — decided in code; the recording gap closed 2026-08-19
 
 This is not a genuinely open question and not a closed one either — a third state. The
 sealed `docs/concept/OPEN-QUESTIONS.md` §2 still reads as a live decision: "**Decision:**
@@ -172,6 +172,10 @@ What is missing is only the sealed document's own closing mark: §2 has never re
 "Decided (this build)" tail the way its five sibling sections did. Adding one is a
 sealed-set edit, and this housekeeping directive grants no sanction to make it — the gap is
 recorded here, not closed here.
+
+**Closed 2026-08-19:** the sanctioned corrective pass
+(`docs/analysis/2026-08-19-sealed-set-sanction.md`) added exactly that tail, in the sibling
+form; the account above stands as the history of the gap.
 
 ## The disciplines that outlive the build order
 

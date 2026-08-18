@@ -119,13 +119,16 @@ acknowledgments, prior-leg evidence, consultation results) only in process memor
 | `actor` | IdentityAssertion | The deciding human (§6); never a bare string |
 | `consultations` | list of Consultation | Evidence attached to the leg, including the reviewed-surface (`facts`) binding (§3, §11.1) |
 | `state` | enum | `open`, `confirmed`, `refused`, `expired`, and — on effect-seam profiles — `redeeming`, `redeemed`, `redemption-failed` |
+| `status` | enum | Per-record report: `active`, or `retired` once sealed (§5, §12, §13) — distinct from `state`, which the seal preserves |
 | `refusalCode` | string or absent | Registry code (§8) when the state is a refusal, or `redemption-timeout` on a `redemption-failed` record (§11.2) |
 | *(chain)* | — | Every state-bearing change is a chained transition (§4) |
 
 **Profile-conditional fields** (present only when the profile switches the feature on):
 `priorRecordRefs` and `priorLegActors`, carried on a multi-leg successor record (§10.1)
-**[PROVEN]**; `findings` and `acks` (a findings flow, §10.2) **[PROVEN]**; and `supersedes`
-(recovery of a terminal predecessor, below) **[PROVEN]**.
+**[PROVEN]**; `findings` and `acks` (a findings flow, §10.2) **[PROVEN]**. **Flow-conditional
+field:** `supersedes` (recovery of a terminal predecessor, below) **[PROVEN]** — present only
+when a recovering `open()` supplied the verified reference; no profile field declares it, and
+§9.1's table carries none.
 
 **Recovery (`supersedes`) [PROVEN].** `supersedes` names the terminal predecessor record (a
 `refused` or `expired` record, or an earlier superseded attempt) that a fresh record recovers
@@ -382,7 +385,8 @@ operator's own audit path:
   chain** is detected here; the absence of a whole record is not (§13A).
 
 These are library functions **over** the chain, not `Store` methods (§12) — they run on
-whatever the store returns.
+whatever the store returns. They are exposed on the operator handle (§9), each taking a
+`recordId` and running over the chain the store returns for that record.
 
 **Honesty about hash chains.** `verifyChain` detects **non-recomputing** tampering only, and
 only of a transition that is **not** the current chain head. Each transition's integrity is
@@ -397,7 +401,12 @@ then verifies clean. Both are the base-level (AL1) limit, stated plainly; detach
 storage.
 
 **Mandatory pre-seam chain-verify.** Every operator-side mutating seam verifies the chain
-before acting. `finalize` (§9) replays from genesis, and on a clean replay records the
+before acting — the acted-on record's own chain. The one en-passant append to a **different**
+record's chain — `open()`'s exclusivity path expiring a due-`open` blocker (§4) — runs
+without a pre-verify of the blocker's chain, so that edge is only as trustworthy as the chain
+it extends, and a compromise there is caught at the blocker's own next verifying seam
+(`seal()`, a recovering `open()`'s verify-by-replay) or its audit functions, not at the
+expiring append. `finalize` (§9) replays from genesis, and on a clean replay records the
 verification as a `chain-verify` consultation (`verdict: pass`, under the library's own system
 checker) — the first of its confirming appends. On a **detected break** it does not confirm:
 it refuses `chain-compromise` (class `compromise`, terminal) and appends a single `refused`

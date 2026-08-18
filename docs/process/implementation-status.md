@@ -762,17 +762,19 @@ CONTROLS §4's own four maturity cells `[SKETCHED]` → `[PROVEN]` and records
 `[PROVEN]` move this build order makes, per the sealed-edit ruling every prior marker
 move in this document has used: `docs/concept/` un-sealed for exactly that one commit and
 exactly those tokens, re-armed immediately after. **The full `docs/concept/` history,
-verified against `git log --oneline -- docs/concept/` rather than assumed: ELEVEN commits
+verified against `git log --oneline -- docs/concept/` rather than assumed: TWELVE commits
 touch it, not six.** Six are marker moves (`3f8051e`, `bb30e2e`, `4f93e8b`, `3aea0af`,
 `a55d3b1`, this row's own `07dd900`), each moving tokens/tails for a behavior that had just
-landed. Three more are SANCTIONED CORRECTIVE commits, each its own deliberate,
-controller-ruled un-seal between marker moves, not a marker move itself: `0300feb` (a
+landed. Four more are SANCTIONED CORRECTIVE commits, each its own deliberate,
+controller-ruled un-seal, not a marker move itself: `0300feb` (a
 prose-restoration fix, repairing a parenthetical `bb30e2e`'s own marker swap had
 accidentally deleted), `12ca3aa` (a backtick-convention fix, retroactively applying the
 section's own code-identifier convention to prose `4f93e8b` had added), and `8def41b` (an
 accuracy correction under what its own commit message calls "the extended sanction" —
-"every accuracy claim ends true" — fixing a stale contradiction a later review found). The
-seal re-arms after EVERY sanctioned edit, marker move or corrective alike — it has never
+"every accuracy claim ends true" — fixing a stale contradiction a later review found), and the 2026-08-19
+corrective pass — the first after the build order's completion — landing five owner-ruled
+corrections under the sanction recorded in `docs/analysis/2026-08-19-sealed-set-sanction.md`.
+The seal re-arms after EVERY sanctioned edit, marker move or corrective alike — it has never
 been edited outside a sanction since the convention began. The remaining two — `c26c179`,
 `a4acfae`, both 2026-08-02 — PREDATE the convention entirely, before the set was sealed.
 
@@ -1088,6 +1090,18 @@ them rather than adjudicated again:
   build has, and it ships. What is open is only which text should have named it — §2's table
   gaining a `status` row, or §5/§12/§13 wording their requirement against `state` — and both
   candidate fixes are edits to `docs/concept/`.
+
+  **2026-08-19 — the owner ruled, and the sanctioned corrective pass closed the sealed-set
+  side of all four items** (`docs/analysis/2026-08-19-sealed-set-sanction.md` carries the
+  session and each ruling): SPEC §5 now states the operator-handle exposure of
+  `replay`/`verifyChain` and the en-passant blocker-expire carve-out with its limit (the
+  index-export half of the first item stays a pre-0.1 API-review question, register row 6);
+  the `supersedes` divergence closed by ratifying the open()-option shape this build ships
+  (§2's list and CONTROLS' Recovery row moved; §9.1 untouched); and `DecisionRecord.status`
+  gained its §2 table row. The same pass added OPEN-QUESTIONS §2's "Decided (this build)"
+  tail and corrected the concept README's front-door build-order line; the [PROVEN] legend
+  was deliberately left untouched, its server-SQL clause to be satisfied by the release
+  plan's row-15 adapter.
 
 Full accounts: `docs/analysis/2026-08-03-step-1-review.md` (Class D and "Findings that
 need a sealed `docs/concept/` decision"),
