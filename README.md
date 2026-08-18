@@ -43,7 +43,7 @@ For the record and what comes next, read these rather than trusting a count here
 | `docs/concept/` | The ten-document concept set — `SPEC.md` is the single normative document |
 | `docs/process/` | Living process artifacts: implementation status, the next-phases roadmap, the deferral register, adopted-source provenance |
 | `docs/analysis/` | Point-in-time review documents (the step-1 whole-branch review) |
-| `docs/superpowers/` | The increment record — one spec/plan pair per increment (`specs/`, `plans/`), named by the increment it served |
+| `docs/superpowers/` | The increment record — 24 specs, 27 plans (`specs/`, `plans/`; 3 plans have no spec), indexed chronologically at [`docs/superpowers/INDEX.md`](docs/superpowers/INDEX.md) |
 | `packages/record` | `@vidimera/record` — the implementation, whole: the capability-split factory (`create.ts`), canonicalization and digests (`canonical.ts`, `jcs.ts`), chain encoding and replay (`chain/`), profile construction and validation (`config.ts`), and the kernel's per-seam logic (`kernel/`) — `open`, `finalize`, `redeem`, `seal`, findings, prior-legs, supersedes, expiry, consultations; two store backings held equivalent by a shared conformance suite (`store/` — in-memory and embedded-SQL); AL2 detached signing (`signing/`); and the operator-assurance self-test tier (`probes/`). `docs/process/implementation-status.md` is the section-by-section account of what it does and does not build |
 | `scripts/` | Repo tooling (the standalone-contract scan) |
 
