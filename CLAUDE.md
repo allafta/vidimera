@@ -38,6 +38,18 @@ to fail loudly. `docs/process/next-phases.md` names what gates the next cut (six
 deferral-register rows, each with its own trigger) and what stays deliberately out of
 scope.
 
+**The public docset.** The repo carries a public-repo documentation set beyond the concept
+and process docs: root `README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`,
+`CHANGELOG.md`, `.github/` templates, `docs/README.md` (the documentation front door), and
+`docs/guide/` (concepts, getting-started, integrating, api-reference, faq). `docs/guide/`
+is **derived from source**: where it and the source disagree, the guide is stale and the
+source wins. A change to the public surface (`packages/record/src/index.ts` or either
+surface interface) must move `docs/guide/api-reference.md` and any affected walkthroughs in
+the same change — the PR template asks for this. Every code sample in the guide was
+verified by executing it as a scratch vitest file before being written down; hold edits to
+the samples to the same bar. Guide markdown is not citation-checked by the contract scan
+(same trap as all markdown — see below), so hand-verify quotes and section numbers.
+
 **What a working agent must not do here:** edit `docs/concept/` — it is SEALED, and the
 marker-move sanctions that licensed each past edit were per-increment and are spent, so a
 new edit needs a fresh, explicit sanction through `SCOPING-GUIDE.md` §§1–2's own machinery,
@@ -109,7 +121,7 @@ pnpm workspace (Node 22.16+, pnpm via corepack):
   pointer is complete. The scan also **resolves** citations in tracked code: a `SPEC §N`
   must name a section that exists, and a quoted phrase attached to a citation must occur
   in the document it is attributed to. That resolver ships with a bounds list in the
-  script's own header naming what it deliberately does **not** check — read it before
+  script's citation-integrity section comment naming what it deliberately does **not** check — read it before
   treating a green scan as coverage. **Markdown is not citation-checked at all**, so a
   wrong citation in a process document, plan or README has no gate behind it and must be
   hand-verified against a whitespace-collapsed copy of the source: a quoted SPEC phrase

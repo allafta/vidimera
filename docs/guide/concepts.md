@@ -1,0 +1,229 @@
+# The model in ten minutes
+
+This is the derived, fast version. The normative version is
+[`../concept/SPEC.md`](../concept/SPEC.md); the design narrative with the reasoning is
+[`../concept/ARCHITECTURE.md`](../concept/ARCHITECTURE.md); the vocabulary is defined once
+in [`../concept/GLOSSARY.md`](../concept/GLOSSARY.md). Where this page and those disagree,
+this page is wrong.
+
+## The record and the chain
+
+A **decision record** is not a row you update — it is a fold over an append-only chain of
+**transitions**. Each transition carries `{ recordId, seq, at, kind, payload, prevHash }`,
+where `prevHash` is the digest of the previous transition (and a derivation of the record
+id at genesis). Two operator functions make the chain useful:
+
+- `replay(recordId)` folds the chain back into the record: its state, actor,
+  consultations, findings, linkage.
+- `verifyChain(recordId)` recomputes every link and reports `{ intact: true }` or the
+  first break's sequence number.
+
+The guarantee, with its limit in the same breath: the chain is **tamper-evident against
+non-recomputing edits**. Deleting, reordering, or editing a non-head transition breaks the
+next link and is caught on verify. A tamper to the *last* transition — or to a
+transition's own `prevHash` field — is indistinguishable from that transition never having
+existed, because a singly-linked chain protects each transition through the *next* link.
+That is the AL1 bound; see "The assurance ladder" below for what upgrades it.
+
+Content is never persisted. The record binds a **digest** of the reviewed content
+(`contentDigest`); at decision time the caller re-supplies the content, the library
+re-canonicalizes and re-digests it, and a mismatch is refused as `content-drift`.
+
+## The capability split
+
+`create(config)` returns **two frozen handles** over one shared kernel:
+
+- `agent` — what the drafting side may hold: `stage()` plus three pure reads
+  (`getRecord`, `readChain`, `chainHead`). Nothing on this handle transitions a record.
+- `operator` — what the host/human side holds: `open`, `review`, `finalize`, the
+  redemption seams, `raiseFinding`/`acknowledge`, `seal`, the reads, and the audit
+  functions.
+
+This is in-process object-capability discipline, not a sandbox: the agent handle simply
+*has no method* that decides anything, and the handles are frozen plain objects. Handing
+your agent framework the `agent` handle and keeping `operator` on the host side is the
+integration's one non-negotiable move.
+
+## Profiles: declaring what a decision requires
+
+A `ConfirmProfile` declares, per kind of decision, what confirmation requires:
+
+```ts
+{
+  id: 'finance.invoice-approval.v1',        // convention: <domain>.<subject>.v<n>
+  subject: { canonicalizerRef: 'finance.invoice.v1' },
+  legs: [{ id: 'approver-decide', allowedAuthorities: ['session:ap-console'] }],
+  captureMode: 'staged',                    // or 'live'
+  expiry: { ttl: 3600 },                    // seconds; or 'none'
+}
+```
+
+Everything beyond the kernel is **feature-conditional on declared fields** — there is no
+separate tier system in the code. Declare more than one leg and separation of duties
+switches on; declare a `redeem` block and the effect seam switches on; declare
+`policySource`, `requiredConsultations`, `eligibility`, `freshness`, or `signing: true`
+and those controls attach. Declare nothing and you have the base confirm loop.
+
+**Construction is loud.** `create()` validates every profile fail-closed and throws on
+anything it cannot honor — a bad shape, an unresolvable canonicalizer reference, a
+`signing: true` profile on an instance with no signing configuration. A config the library
+cannot enforce fails at startup, never by silently degrading at decision time.
+
+Profiles are code, not persisted state — but each record's genesis carries a
+`profileDigest` of the profile it was opened under, so later drift between the record and
+the code is detectable.
+
+## The lifecycle
+
+```text
+stage (agent)  →  open (operator)  →  review (operator, pure read)  →  finalize (operator)
+                                                                          │
+                             ┌────────────────────────────────────────────┤
+                             ▼                                            ▼
+                          refused                                     confirmed
+                                                                          │  (effect-seam
+                                                                          │   profiles only)
+                                              redeem ── or ── beginRedemption → redeeming
+                                                 │                             │
+                                                 ▼                             ▼
+                                             redeemed          completeRedemption → redeemed
+```
+
+- `stage(content, profileId, subjectRef)` digests the content and stores an inert staged
+  draft — digest only, no record yet, nothing to approve against yet.
+- `open(stagedRef)` mints the record: the genesis transition binds profile, leg, subject,
+  and content digest. Options carry multi-leg prior references and the `supersedes`
+  recovery claim — both verified by replay before anything is appended — and a policy
+  digest, which is presence-checked and bound as the operator's attestation (the drift
+  comparison against it happens at finalize).
+- `review(recordId)` is the content-free projection a review surface renders from: digests
+  and state, never content.
+- `finalize(recordId, identity, content, facts, opts?)` is the decision. `identity` is the
+  transport-established assertion of who decides; `content` is re-verified against the
+  bound digest; `facts` is the reviewed-surface binding — a digest of what the screen
+  actually rendered, attested by the review surface's own identity, so the record can
+  later show not just *what* was approved but *what the approver saw*.
+
+Record states: `open`, `confirmed`, `refused`, `expired`, and — on effect-seam profiles —
+`redeeming`, `redeemed`, `redemption-failed`. Once a record is terminal, its chain can be
+capped with a `sealed` transition (`seal()` refuses `unsealable-state` against anything
+still live), after which the record reports `status: 'retired'` and admits no further
+append.
+
+## The outcome model
+
+Domain refusals are **returned, never thrown**:
+
+```ts
+type Outcome<T> =
+  | { status: 'ok'; value: T }
+  | { status: 'refused'; code: RefusalCode; class: 'refusal' | 'compromise'; transitionRef?: Digest }
+  | { status: 'unavailable'; code: 'availability'; authority: string };
+```
+
+Exceptions are reserved for **caller and config errors** (unknown `recordId`, malformed
+input, a construction-time contract violation) and storage faults — cases where nothing
+was recorded and the caller has a bug or an outage, not a decision outcome.
+
+A refusal *may* append a `refused` transition — that is itself a recorded decision — or
+may leave the record open for retry. The rule: `chain-compromise` records itself wherever
+the record's state still admits an append; a fixed never-appends set (the pre-record
+failures, the state-gate refusals, and every redemption-seam refusal) never does; every
+other refusal appends `open → refused` only if the leg's `terminalRefusals` lists that
+code, and otherwise leaves the record open. `unavailable` (a required authority
+unreachable) never appends — an outage is not a decision.
+
+The full registry is 24 codes; the API reference lists them all. The ones you will meet
+first: `content-drift`, `identity-authority-refused`, `consultation-missing`,
+`record-not-open`, `leg-expired`, `chain-compromise`.
+
+## The finalize gate ladder
+
+`finalize` checks in a fixed order, and the precedence is the design — every adjacent pair
+of gates is pinned by an explicit order test:
+
+1. **Chain verify** — a tampered record refuses `chain-compromise` before anything else is
+   considered; integrity outranks everything.
+2. **State / expiry** — a decided or expired record resolves here (a due-open record is
+   expired *en passant*).
+3. **Identity** — read only from the explicit argument; the authority must be in the leg's
+   `allowedAuthorities`.
+4. **Separation of duties** (multi-leg) — the finalizer must not be the recorded actor of
+   any prior leg the leg's `sod` declaration names, nor the declared proposer.
+5. **Content drift** — re-canonicalize, re-digest, compare.
+6. **Policy drift** (policy-declaring profiles) — the live policy digest against the bound
+   one.
+7. **Facts** — the reviewed-surface binding must be present and well-formed.
+8. **Consultations / eligibility** — required kinds in declared order, first trip wins.
+9. **Ack coverage** (findings flow) — raised findings of required kinds must carry
+   counting acknowledgments.
+10. **The success batch** — one atomic append of `[chain-verify, facts, …consultations,
+    confirmed]`; all-or-nothing, so a conflict never leaves a partial tail.
+
+## Consultations, findings, and the governed controls
+
+A **consultation** is recorded machine evidence: `{ kind, checker, at, payloadDigest,
+verdict }`. The library mints two kinds itself (`chain-verify` and `facts` — reserved, a
+host cannot forge them); every other kind is the host's own domain check, *recorded, never
+performed* by the library. Machine verdicts can refuse a finalize; they can never approve
+one — the final leg of every flow is a human's (the human-anchor principle).
+
+The other governed controls, one line each — the catalog with tiers and honest bounds is
+[`../concept/CONTROLS.md`](../concept/CONTROLS.md); the section numbers below are
+[`../concept/SPEC.md`](../concept/SPEC.md)'s:
+
+- **Separation of duties** (§10.1): distinct principals across legs, evidenced —
+  distinctness, not independence; two colluding humans satisfy it.
+- **Findings & acknowledgments** (§10.2): operator-raised findings between `opened` and
+  the decision, with named-magnitude acknowledgments gating finalize.
+- **Policy-drift notarization** (§10.3): the decision binds a policy digest; deciding
+  under a changed policy refuses.
+- **Eligibility** (§10.4): a host-checked eligibility verdict as an implicit-first
+  consultation, refusing `ineligible`.
+- **Redemption — the effect seam** (§11.2): a confirmed effect-seam record is *not
+  terminal* until the host couples the effect to it, at most once — direct shape
+  (enlistable in the host's transaction) or token shape (a single-use token returned
+  exactly once, only its digest ever recorded). Refusable-at-the-seam, not standalone
+  prevention: the library never executes effects and cannot see effects that bypass the
+  seam.
+- **Recovery** (`supersedes`, §2): a new record verifiably linked to the terminal
+  predecessor it replaces.
+- **Live capture** (§9.2): decide-what-exists mode for content that cannot be staged
+  inert, with mandatory re-derivation consultation and redemption tail.
+
+## The assurance ladder
+
+- **AL1 — chained** (the default): tamper-evident against non-recomputing edits, with the
+  last-transition blind spot named above. An insider who can rewrite storage *and*
+  recompute digests defeats it by construction.
+- **AL2 — signed** (built; operator-enabled): every transition of a declaring profile's
+  records gets a detached signature at append, and every *seam* that verifies a chain
+  before acting folds the signature layer into its verdict. (The standalone `verifyChain`
+  audit read checks linkage only; `verifySignatures` is the signature layer's own report.)
+  Raises the bar against a rewriting insider exactly when the signing key is held outside
+  that insider's boundary — key custody is the host's problem, and the guarantee is only
+  as good as it.
+- **AL3 — anchored** (documented, deliberately inactive): chain heads in an external
+  append-only log the operator does not solely control. Documented so the honesty gradient
+  is complete.
+
+None of these levels is non-repudiation, and the documentation never calls them that.
+The threat model with the named blind windows is
+[`../concept/ASSURANCE.md`](../concept/ASSURANCE.md).
+
+## The self-test tier
+
+`packages/record/src/probes/` ships an operator-assurance probe suite: seventeen probes
+that drive a *host-supplied* driver (your config, your store, your identities) and check
+that the controls actually operate in your configuration — drift refuses, the agent handle
+cannot decide, tamper is evident, redemption is at-most-once, state survives a restart,
+and so on. `runProbes(driver)` returns a report; `assertSatisfied(report)` is the CI hook;
+waivers exist and expire. The honest bound: a passing report proves the control operated
+*in the probed configuration, at probe time* — never third-party assurance.
+
+## Where to go next
+
+- Run it: [`getting-started.md`](getting-started.md)
+- Wire it into a host: [`integrating.md`](integrating.md)
+- Look something up: [`api-reference.md`](api-reference.md)
+- The questions everyone asks: [`faq.md`](faq.md)
