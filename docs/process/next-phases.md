@@ -22,10 +22,12 @@ and "What is deliberately outside the scope" below says so in the concept's own 
 
 ## What gates the next cut
 
-Six deferral-register rows survive the build order. All are pre-0.1/1.0 hygiene or
-proof-structure gates that outlive the build order **by design**, never unfinished
-build-order work (`docs/process/implementation-status.md`'s own boundary paragraph draws the
-same line). Each item below names its row and quotes its trigger verbatim.
+Six deferral-register rows survive the build order — all hygiene or proof-structure gates
+that outlive the build order **by design**, never unfinished build-order work. Five are
+pre-0.1/1.0 gates; the sixth, row 4, is a workspace-shape gate whose own trigger is the
+second workspace package landing, not any 0.1/1.0 cut
+(`docs/process/implementation-status.md`'s own boundary paragraph draws the same
+distinction). Each item below names its row and quotes its trigger verbatim.
 
 ### Consumability — register rows 1 and 6
 
@@ -176,8 +178,10 @@ recorded here, not closed here.
 - **The sealed set stays sealed.** `docs/concept/` is read, quoted, never edited — outside the
   tier-test and promotion-rule machinery `docs/concept/SCOPING-GUIDE.md` §§1–2 define. The
   maturity-marker moves the build order made (SPEC §10.2's nine `[DESIGNED]` tokens at step 7;
-  SPEC §14's AL2 bullet, and later its freshness tail, at step 8) were each an explicit,
-  per-increment authorization, recorded at the increment that earned it
+  then SPEC §2's recovery tokens, SPEC §9.2's live-mode tokens, SPEC §14's AL2 bullet and
+  freshness tail, all at step 8; and CONTROLS.md §4's four operator-assurance cells, the only
+  non-SPEC move and the concept set's last — six marker-move commits in total) were each an
+  explicit, per-increment authorization, recorded at the increment that earned it
   (`docs/process/implementation-status.md`'s step-7 and step-8 rows). That authorization was
   spent at the increment it covered; it licenses no further edit on its own strength — a new
   edit needs a fresh, explicit sanction through the same machinery.

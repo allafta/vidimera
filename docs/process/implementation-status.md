@@ -8,6 +8,31 @@ record of code, not of intent — every claim below is settled against
 `packages/record/src`, and where a section of the spec is partly built the entry says
 which part.
 
+---
+
+## Current state
+
+**Read this first.** The step-by-step accounts below are this repository's historical
+record, increment by increment; this block is the state, kept current rather than frozen at
+any one exit.
+
+- **The build order is complete.** All eight build-order steps
+  (`docs/concept/SCOPING-GUIDE.md` §7) are exited; the last, step 8, settled at the
+  self-test-tier increment's own fix wave, commit `84484ba`.
+- **Measured against the current tree**: `pnpm test` — 45 test files, 621 tests, zero skips;
+  `pnpm lint` (`biome check .`) — 97 files checked, 14 infos, zero warnings or errors;
+  `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
+  (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
+  `packages/record/src/refusal-codes.ts` carries 24 refusal codes, the twenty-fourth and
+  last being `consultation-stale`; zero GOVERNED construction guards remain in `config.ts`.
+- **The live deferral-register rows**: 1, 4, 5, 6, 15, 16 — six rows, each carrying its own
+  trigger. See `docs/process/deferral-register.md` for the rows themselves and
+  `docs/process/next-phases.md` for what gates the next cut.
+- **How to read this document**: the per-step accounts below are the record of how the build
+  order ran; this header is the state.
+
+---
+
 **Why it exists.** The process discipline this repository inherited puts
 **spec-moves-to-truth** "as an explicit exit step of every increment" — "draft-ahead
 markers come off only when the behavior lands" (`docs/concept/SCOPING-GUIDE.md` §7). Here,
@@ -34,29 +59,6 @@ such in both front doors; it was never a claim about this repository, so nothing
 here makes it truer and nothing outstanding here makes it false. The per-section table
 below is what answers "what does *this* build do", which is the question the markers were
 never asked.
-
----
-
-## Current state
-
-**Read this first.** The step-by-step accounts below are this repository's historical
-record, increment by increment; this block is the state, kept current rather than frozen at
-any one exit.
-
-- **The build order is complete.** All eight build-order steps
-  (`docs/concept/SCOPING-GUIDE.md` §7) are exited; the last, step 8, settled at the
-  self-test-tier increment's own fix wave, commit `84484ba`.
-- **Measured against the current tree**: `pnpm test` — 45 test files, 621 tests, zero skips;
-  `pnpm lint` (`biome check .`) — 97 files checked, 14 infos, zero warnings or errors;
-  `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
-  (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
-  `packages/record/src/refusal-codes.ts` carries 24 refusal codes, the twenty-fourth and
-  last being `consultation-stale`; zero GOVERNED construction guards remain in `config.ts`.
-- **The live deferral-register rows**: 1, 4, 5, 6, 15, 16 — six rows, each carrying its own
-  trigger. See `docs/process/deferral-register.md` for the rows themselves and
-  `docs/process/next-phases.md` for what gates the next cut.
-- **How to read this document**: the per-step accounts below are the record of how the build
-  order ran; this header is the state.
 
 ---
 

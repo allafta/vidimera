@@ -12,6 +12,10 @@ operator-only scope — the operator who runs the application is the sole consum
 records — with [`docs/concept/SPEC.md`](docs/concept/SPEC.md) as the single normative
 document the rest defer to.
 
+Its maturity markers — `[PROVEN]` / `[DESIGNED]` / `[SKETCHED]` — are accuracy claims, not
+aspirations: `[PROVEN]` speaks to a reference implementation of the spec, and a marker moves
+only when the behavior actually lands in this repository.
+
 The implementation (`packages/record`, TypeScript) has **finished the eight-step build
 order** `docs/concept/SCOPING-GUIDE.md` §7 lays out — all eight steps exited, the last
 (recovery, live-mode capture, cryptographic chain-signing at AL2, and the
@@ -33,7 +37,8 @@ For the record and what comes next, read these rather than trusting a count here
   with gate outputs and the outstanding list.
 - [`docs/process/next-phases.md`](docs/process/next-phases.md) — what gates the next
   cut (six live deferral-register rows, each with its own trigger) and what stays
-  deliberately out of scope.
+  deliberately out of scope. The six, by number: 1 publish tooling, 4 root typecheck, 5
+  biome migrate, 6 API naming review, 15 server-SQL backing, 16 the token seams' `tx?`.
 - [`docs/concept/README.md`](docs/concept/README.md) — the concept set's own front door.
 
 ## Layout
@@ -41,10 +46,10 @@ For the record and what comes next, read these rather than trusting a count here
 | Path | What it is |
 |---|---|
 | `docs/concept/` | The ten-document concept set — `SPEC.md` is the single normative document |
-| `docs/process/` | Living process artifacts: implementation status, the next-phases roadmap, the deferral register, adopted-source provenance |
+| `docs/process/` | Living process artifacts: implementation status, the next-phases roadmap, the deferral register, [adopted-source provenance](docs/process/adopted-source-provenance.md) |
 | `docs/analysis/` | Point-in-time review documents (the step-1 whole-branch review) |
 | `docs/superpowers/` | The increment record — 24 specs, 27 plans (`specs/`, `plans/`; 3 plans have no spec), indexed chronologically at [`docs/superpowers/INDEX.md`](docs/superpowers/INDEX.md) |
-| `packages/record` | `@vidimera/record` — the implementation, whole: the capability-split factory (`create.ts`), canonicalization and digests (`canonical.ts`, `jcs.ts`), chain encoding and replay (`chain/`), profile construction and validation (`config.ts`), and the kernel's per-seam logic (`kernel/`) — `open`, `finalize`, `redeem`, `seal`, findings, prior-legs, supersedes, expiry, consultations; two store backings held equivalent by a shared conformance suite (`store/` — in-memory and embedded-SQL); AL2 detached signing (`signing/`); and the operator-assurance self-test tier (`probes/`). `docs/process/implementation-status.md` is the section-by-section account of what it does and does not build |
+| `packages/record` | `@vidimera/record` — the implementation, whole: the capability-split factory (`create.ts`), canonicalization and digests (`canonical.ts`, `jcs.ts`), chain encoding and replay (`chain/`), profile construction and validation (`config.ts`), and the kernel's per-seam logic (`kernel/`) — `open`, `finalize`, `redeem`, `seal`, findings, prior-legs, supersedes, expiry, consultations; two store backings held equivalent by a shared conformance suite (`store/` — in-memory and embedded-SQL; the third, server-SQL, is deferred at register row 15); AL2 detached signing (`signing/`); and the operator-assurance self-test tier (`probes/`). `docs/process/implementation-status.md` is the section-by-section account of what it does and does not build |
 | `scripts/` | Repo tooling (the standalone-contract scan) |
 
 ## Development

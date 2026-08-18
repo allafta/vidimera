@@ -48,6 +48,13 @@ beyond "the reference implementation." Its commits are cited only by short hash.
   throw at construction today, not "every" field that would switch one of these capabilities
   on. This sentence is left as R1 stated it, since it is a dated audit record;
   `docs/process/implementation-status.md` carries the current, per-section account.
+
+  **Correction, at the second step-5 increment:** the required-consultation gate itself has
+  since landed — `finalize()`'s rung 5.5 (SPEC §11.1) now reads a leg's declared
+  `requiredConsultations`, so the consultation attach form is whole here, not merely its
+  unconditional half. The "seven governed profile fields" count is stale too: it has since
+  reached **zero**, as of the AL2 freshness increment. `docs/process/implementation-status.md`
+  carries the field-by-field lineage and the current, per-section account.
 - **INHERIT** — a bug fix or hardening in the adopted code that base did not have and head did;
   we should take it. **This is the only bucket with action items.**
 - **LATER-STEP** — a genuine new capability, correctly excluded because we have not built the
@@ -643,6 +650,16 @@ them to match the reference project more closely would be a regression, not a co
   ten to **eleven** — `redeemBound` joined the construction-time guards (`config.ts`) as an
   eleventh field guarded the same way the original ten are; this does not change the
   two-consumer count the correction above states.
+
+  **Correction, at the AL2 freshness increment:** the first of the two consumers named
+  above is gone too. The per-field construction-guard count reached **zero** at the AL2
+  freshness increment, `freshness` being the last field to lift, alongside its own gate
+  (`docs/process/implementation-status.md` carries the field-by-field lineage from eleven
+  down). `governedUnavailable` has exactly two live consumers today, and neither is a
+  per-field guard: `finalize()`'s own `finalizeOptionMessage` and `kernel/open.ts`'s
+  unknown-open-option-key message — both generic unknown-option-key throws (`config.ts`'s
+  own comment names both by name). `docs/process/implementation-status.md` carries the
+  current account.
 - **`redeem()` throws a build-capability error** on a confirmed effect-seam record
   (`kernel/redeem.ts:57-66`), rather than silently returning `unredeemable-state` or attempting
   to "close the strand." Neither a throw nor a refusal can release the `(profile, subject)`

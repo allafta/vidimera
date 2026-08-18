@@ -133,7 +133,9 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   build-order step whose section carried a draft-ahead marker has had it move: SPEC
   §10.2's nine `[DESIGNED]` tokens at step 7 (the first such move in this repository),
   then SPEC §2's recovery tokens, SPEC §9.2's live-mode tokens, and SPEC §14's AL2 bullet
-  and freshness tail, all at step 8 — six marker-move commits in total, each a separate,
+  and freshness tail, all at step 8, and finally CONTROLS.md §4's four operator-assurance
+  cells (commit `07dd900`) — the only non-SPEC move, and the concept set's last — six
+  marker-move commits in total, each a separate,
   explicit, per-increment authorization, spent at the increment it covered. A new
   `docs/concept/` edit needs a FRESH sanction through `SCOPING-GUIDE.md` §§1–2's own
   tier-test and promotion-rule machinery, never assumed from a past one.
