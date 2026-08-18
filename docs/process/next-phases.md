@@ -127,14 +127,13 @@ deliberate, documented act." No step of the completed build order reversed that 
 
 `docs/concept/OPEN-QUESTIONS.md` is the sealed set's own inventory of undecided points.
 Sections §1, §3, §4, §5, and §7 each now carry a "**Decided (this build):**" tail on every
-one of their sub-questions and are CLOSED — they do not appear below. The remaining sections
-carry no such tail:
+one of their sub-questions and are CLOSED — they do not appear below. Of the remaining
+sections, §6, §9, and §10 carry no such tail and are genuinely open, listed here; §8 is
+addressed above under "What is deliberately outside the scope" rather than repeated here
+(the section frames concurrent legs as a pre-1.0 declaration already made, not a decision
+pending now); §2 is a third case — neither open nor tail-closed — held in its own entry
+below rather than listed as open.
 
-- **§2 — The policy-gate reverse cross-instance direction.** A record opened under a
-  policy-declaring profile, then finalized under a same-id non-declaring instance: fail-close
-  in code, or ratify the skip as by-design with the recorded `profileDigest` as compensating
-  audit trail. "Recommendation on record: fail-close" — recorded as a recommendation, not
-  (in this document) a decided tail.
 - **§6 — Registry candidates not minted.** Whether `unknown-staged`/`unknown-record` — today
   loud caller-error throws — become coded refusal-registry outcomes for hosts that want them
   across a process boundary where the throw boundary is awkward: "Not minted; the caller-error
@@ -149,9 +148,28 @@ carry no such tail:
   inactive status is quoted above under "outside the scope"; the design questions for the day
   it activates are what remain open here.)
 
-§8 (concurrent legs) also carries no tail, but is addressed above under "What is deliberately
-outside the scope" rather than repeated here: the section itself frames concurrent legs as a
-pre-1.0 declaration already made, not a decision pending now.
+### OQ §2 — decided in code, not yet tailed in the sealed set (a recording gap)
+
+This is not a genuinely open question and not a closed one either — a third state. The
+sealed `docs/concept/OPEN-QUESTIONS.md` §2 still reads as a live decision: "**Decision:**
+fail-close in code ... versus ratify as by-design with the audit trail as compensation."
+"**Recommendation on record: fail-close**" — and, unlike §1/§3/§4/§5/§7 above, §2 carries no
+"Decided (this build)" tail anywhere in its text.
+
+The recommendation has already been taken in code. `finalize()`'s rung (4.5) refuses
+`policy-drift` on exactly this corner — a record carrying a bound `policyDigest`, finalized
+under a resolved profile whose `policySource` is now undefined — and the arm's own comment
+names the question it closes: "THE DECIDED OPEN QUESTION (§10.3 names it; the recommendation
+on record is fail-close, and this build takes it)" (`packages/record/src/kernel/finalize.ts`,
+the guard at line 353 through the refusal at line 361). `docs/process/implementation-status.md`'s
+step-6 account records the same fact in prose: "The cross-drift open decision named at the
+step-6 brainstorm is now DECIDED in code: FAIL-CLOSE, so a bound record finalized under a
+same-id non-declaring instance still refuses `policy-drift` rather than skipping the gate."
+
+What is missing is only the sealed document's own closing mark: §2 has never received a
+"Decided (this build)" tail the way its five sibling sections did. Adding one is a
+sealed-set edit, and this housekeeping directive grants no sanction to make it — the gap is
+recorded here, not closed here.
 
 ## The disciplines that outlive the build order
 
