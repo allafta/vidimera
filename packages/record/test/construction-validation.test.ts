@@ -675,3 +675,30 @@ test('structural: a duplicate profile id is rejected (fail-fast)', () => {
   const b = effectSeamProfile({ id: 'dup.v1' });
   assert.throws(() => create(makeConfig([a, b])), /duplicate profile id .*dup\.v1/i);
 });
+
+// === terminalRefusals: members must be registry codes ====================================
+// The step-8 exit record flagged the footgun this pins shut: a `terminalRefusals` member
+// that is not a real refusal code constructed silently and then never matched, so a leg
+// the operator believed configured terminal was not. Ruled at the 2026-08-19 phase-1 API
+// review (`docs/analysis/2026-08-19-phase-1-api-review.md`): throw at construction —
+// SPEC §9.1's own sentence, "inert or contradictory feature combinations are construction
+// errors". The two legal-but-INERT registry members SPEC §8 itself names (`leg-expired`,
+// `availability`) stay constructible: their inertness is at-the-seam semantics
+// (refusal-matrix.test.ts pins both), not a misspelled code.
+
+test('structural: a terminalRefusals member that is not a registry refusal code throws at construction', () => {
+  const p = captureProfile();
+  const leg = p.legs[0];
+  if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
+  const typoed: ConfirmProfile = {
+    ...p,
+    // biome-ignore lint/suspicious/noExplicitAny: the runtime guard exists exactly for callers outside the type system
+    legs: [{ ...leg, terminalRefusals: ['content-drfit' as any] }],
+  };
+  assertStructural(typoed, /terminalRefusals.*not a registry refusal code/i);
+});
+
+test('structural: the legal-but-inert registry members SPEC §8 names still construct', () => {
+  const handles = create(cfgWithLeg({ terminalRefusals: ['leg-expired', 'availability'] }));
+  assert.equal(typeof handles.operator.finalize, 'function');
+});

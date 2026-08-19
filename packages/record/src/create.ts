@@ -228,7 +228,7 @@ export function createWithClock(
   now: () => Date,
   mintId: () => string = mintRecordId,
   tokenSource: () => string = defaultTokenSource,
-): { agent: AgentSurface; operator: OperatorSurface } {
+): Surfaces {
   const profiles = new Map<string, ResolvedProfile>();
 
   for (const profile of config.profiles) {
@@ -289,6 +289,18 @@ export function createWithClock(
 }
 
 /**
+ * The handle pair `create()` returns: the two frozen capability-split surfaces over one
+ * shared kernel. Named (rather than left an inline shape) so a host can spell the pair —
+ * annotate a field, type a wrapper — without re-deriving it; SPEC §9's composition rule
+ * ("the host MUST compose the handles so the agent receives only the agent surface")
+ * is about how these two members are handed out.
+ */
+export interface Surfaces {
+  agent: AgentSurface;
+  operator: OperatorSurface;
+}
+
+/**
  * `create(config)`: fail-fast, FAIL-CLOSED at construction (SPEC §9.1 "Construction is
  * loud"). Every profile is validated (config.ts's GOVERNED throws + structural
  * rejections), duplicate ids are rejected, and every `canonicalizerRef` must resolve.
@@ -296,6 +308,6 @@ export function createWithClock(
  * Profiles are never persisted.
  * The public factory: it fixes the clock to real time and delegates to `createWithClock`.
  */
-export function create(config: Config): { agent: AgentSurface; operator: OperatorSurface } {
+export function create(config: Config): Surfaces {
   return createWithClock(config, realClock);
 }

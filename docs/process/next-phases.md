@@ -2,7 +2,7 @@
 
 This document is a **roadmap**: what gates the next cut and why, never how — no
 implementation plan lives here. It is derived from three sources, read whole rather than
-sampled: `docs/process/deferral-register.md`'s six live rows, `docs/concept/OPEN-QUESTIONS.md`
+sampled: `docs/process/deferral-register.md`'s five live rows, `docs/concept/OPEN-QUESTIONS.md`
 (sealed, read-only — quoted here, never edited), and `docs/process/implementation-status.md`'s
 "Still outstanding" and "The package is unconsumable today" sections. Nothing below is
 invented; every register row, quote, and section number is checked against those sources at
@@ -22,29 +22,31 @@ and "What is deliberately outside the scope" below says so in the concept's own 
 
 ## What gates the next cut
 
-Six deferral-register rows survive the build order — all hygiene or proof-structure gates
-that outlive the build order **by design**, never unfinished build-order work. Five are
-pre-0.1/1.0 gates; the sixth, row 4, is a workspace-shape gate whose own trigger is the
-second workspace package landing, not any 0.1/1.0 cut
+Five deferral-register rows survive the build order — all hygiene or proof-structure gates
+that outlive the build order **by design**, never unfinished build-order work (row 6, the
+pre-0.1 API review, completed and retired 2026-08-19 — its account is in the Consumability
+section below). Four are pre-0.1/1.0 gates; the fifth, row 4, is a workspace-shape gate
+whose own trigger is the second workspace package landing, not any 0.1/1.0 cut
 (`docs/process/implementation-status.md`'s own boundary paragraph draws the same
 distinction). Each item below names its row and quotes its trigger verbatim.
 
-### Consumability — register rows 1 and 6
+### Consumability — register row 1 (row 6 completed and retired 2026-08-19)
 
 - **Row 1** — deferred item: "Publish tooling (build, versioning, release) for the record
   package". Trigger (verbatim): "First external consumer, or the 0.1 cut".
-- **Row 6** — deferred item: the pre-0.1 API naming review "over the whole public surface —
-  **every** name `packages/record/src/index.ts` re-exports, values and types alike, read as
-  the vocabulary an adopter has to learn" — deliberately left uncounted in the register itself
-  ("the file's own export list, counted at review time rather than snapshotted here, is the
-  review's scope"). Trigger (verbatim): "The 0.1 cut".
-- **What done would look like:** `packages/record/package.json` gains a real `exports` map —
-  today it carries exactly five fields (`name`, `version`, `private: true`, `type`,
-  `description`; no `exports`, `main`, `types`, `files`, or `scripts`) — pointing at a built
-  artifact, a build step that produces that artifact, and a completed pass over every value
-  and type `index.ts` currently re-exports, with the asymmetry the row already flags
-  (`SignatureReport` unexported where the same-shaped `ChainVerifyReport` is) resolved or
-  ratified in writing.
+- **Row 6 — retired.** The pre-0.1 API review completed 2026-08-19 over the whole surface
+  (`docs/analysis/2026-08-19-phase-1-api-review.md`): every prior name ratified; every
+  signature-reachable type exported (the no-unspellable-names rule — the `SignatureReport`
+  asymmetry the row flagged resolved in the export direction); the signing tier moved onto
+  the root; the pure audit functions exported beside their operator-handle forms;
+  `Surfaces` naming `create()`'s handle pair; and the `terminalRefusals` footgun closed at
+  construction. `./probes` is the one decided subpath (OPEN-QUESTIONS §5's own tail),
+  landing with row 1's exports map.
+- **What done would look like (row 1):** `packages/record/package.json` gains a real
+  `exports` map — today it carries exactly five fields (`name`, `version`, `private: true`,
+  `type`, `description`; no `exports`, `main`, `types`, `files`, or `scripts`) — with the
+  decided `./probes` subpath, pointing at a built artifact, and a build step that produces
+  that artifact.
 
 ### The server-SQL backing — register row 15
 

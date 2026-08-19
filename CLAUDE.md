@@ -19,7 +19,7 @@ parts:
 **State.** The eight-step build order is complete — all eight steps exited, the last
 (recovery, live capture, AL2 detached signing, and the operator-assurance self-test tier)
 settling at the self-test-tier increment, commit `84484ba`. Measured against the current
-tree: `pnpm test` — 45 test files, 621 tests, zero skips; `packages/record/src/refusal-codes.ts`
+tree: `pnpm test` — 46 test files, 625 tests, zero skips; `packages/record/src/refusal-codes.ts`
 carries 24 refusal codes; zero GOVERNED construction guards remain in `config.ts` — every
 field the feature-guard era installed has lifted behind real behavior at its own seam
 (`governedUnavailable` survives only for two generic unknown-option-key throws, in
@@ -28,13 +28,14 @@ field the feature-guard era installed has lifted behind real behavior at its own
 **The honest bound, in the same breath.** The package is still not consumable by a host:
 `packages/record/package.json` carries no `exports`, `main`, `types`, `files`, or
 `scripts` field, and nothing here is compiled. Publish tooling (deferral register row 1)
-and the pre-0.1 API-naming review over the public surface (row 6) are both still open.
+is still open; the pre-0.1 API review (row 6) completed and retired 2026-08-19
+(`docs/analysis/2026-08-19-phase-1-api-review.md`).
 
 **Read these, not this file, for the record and the plan.**
 `docs/process/implementation-status.md` is the authoritative account of what this build
 does and does not implement, step by step, with gate outputs and the outstanding list —
 read it rather than trusting any count here, which is a claim with a shelf life and no way
-to fail loudly. `docs/process/next-phases.md` names what gates the next cut (six live
+to fail loudly. `docs/process/next-phases.md` names what gates the next cut (five live
 deferral-register rows, each with its own trigger) and what stays deliberately out of
 scope.
 

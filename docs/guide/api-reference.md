@@ -1,18 +1,25 @@
 # API reference
 
-**Derived from source, 2026-08-18.** This page enumerates the public surface as
+**Derived from source, 2026-08-19.** This page enumerates the public surface as
 `packages/record/src/index.ts` exports it against the current tree. The source and
 [`../concept/SPEC.md`](../concept/SPEC.md) are authoritative; if this page disagrees with
-either, this page is stale — file it as a bug. Two standing caveats: the pre-0.1 naming
-review over this whole surface (deferral register row 6) is open, so **names may change
-before 0.1**; and the package has no `exports` map yet, so inside the workspace you import
+either, this page is stale — file it as a bug. Two standing caveats: the pre-0.1 API
+review (deferral register row 6) completed 2026-08-19 — every name below is
+review-ratified (`docs/analysis/2026-08-19-phase-1-api-review.md`), the store contract's
+method signatures staying explicitly provisional pre-1.0 by the sealed set's own
+declaration; and the package has no `exports` map yet, so inside the workspace you import
 from `packages/record/src/index.js` (the `@vidimera/record` form is the eventual published
 one).
 
 ## `create(config)`
 
 ```ts
-function create(config: Config): { agent: AgentSurface; operator: OperatorSurface };
+function create(config: Config): Surfaces;
+
+interface Surfaces {                         // the named handle pair
+  agent: AgentSurface;
+  operator: OperatorSurface;
+}
 ```
 
 Fail-fast, fail-closed at construction: every profile is validated, duplicate profile ids
@@ -60,7 +67,8 @@ interface LegSpec {
   requiredConsultations?: string[];          // consultation kinds required, in order
   freshness?: Record<string, number>;        // per-kind max age (seconds) of observedAt claims
   eligibility?: string;                      // eligibility authority — implicit-first consultation
-  terminalRefusals?: RefusalCode[];          // codes that append open → refused
+  terminalRefusals?: RefusalCode[];          // codes that append open → refused; a member
+                                             // that is not a registry code throws at construction
 }
 ```
 
@@ -142,10 +150,10 @@ Notes that save debugging time:
 - `beginRedemption`'s `token` is secret material returned exactly once and never
   persisted — the chain and store carry only its digest. Do not log it.
 - `verifySignatures` reports and never gates; enforcement is folded into the chain-verify
-  arm at every seam on signing profiles. Its report type (`SignatureReport`) is not
-  re-exported from the entry point today — a recorded asymmetry awaiting the naming review.
+  arm at every seam on signing profiles. Its report type (`SignatureReport`) is exported
+  from the entry point — the review's no-unspellable-names rule.
 - SPEC §11.2 names one redemption verb; the three names here (`redeem`, `beginRedemption`,
-  `completeRedemption`) are this build's own, flagged to the pre-0.1 naming review.
+  `completeRedemption`) are this build's own, ratified at the 2026-08-19 review.
 
 ## The outcome model
 
@@ -231,9 +239,9 @@ interface DecisionRecord {                   // the replay fold — derived, nev
   contentDigest: Digest;
   policyDigest?: Digest;
   priorRecordRefs?: RecordedPriorLegRef[];   // multi-leg evidence — { recordId, chainHead, legId }
-  priorLegActors?: IdentityAssertion[];      // (RecordedPriorLegRef / RecordedFinding are not
-                                             //  re-exported names today — row 6's review scope)
-  supersedes?: { recordId: string; chainHead: Digest };
+  priorLegActors?: IdentityAssertion[];      // (RecordedPriorLegRef, RecordedFinding, RecordedAck,
+                                             //  and SupersedesRef are all exported names)
+  supersedes?: SupersedesRef;                // { recordId, chainHead }
   actor?: IdentityAssertion;
   findings?: RecordedFinding[];
   consultations: Consultation[];
@@ -276,6 +284,12 @@ function canonicalize(structure: unknown): Uint8Array;  // the library's canonic
 function digest(input: Uint8Array | string, algorithm?: DigestAlgorithm): Digest;
 type DigestAlgorithm = 'sha256';                        // the supported set today
 type Canonicalizer = (content: unknown) => unknown;     // YOUR projection, run before canonicalize
+
+// The pure audit functions (SPEC §5), exported beside their operator-handle forms for
+// the offline case: an archived chain — a sealed record's, say — replays and verifies
+// with no store and no handle.
+function replay(chain: readonly Transition[]): DecisionRecord;
+function verifyChain(chain: readonly Transition[]): ChainVerifyReport;
 ```
 
 ## Stores
@@ -327,15 +341,16 @@ interface SignatureReport {                              // verifySignatures()'s
 }
 ```
 
-None of these type names is re-exported from the entry point yet (supply the config
-structurally; TypeScript checks it against `Config.signing`), and the reference
-`MemorySignatureStore` lives at `src/signing/memory.js` as a deep import. Both facts are
-recorded in deferral register row 6 for the pre-0.1 naming review.
+All of these names — plus `withSigning` (the store decorator) and the reference
+`MemorySignatureStore` — are exported from the entry point: the 2026-08-19 review moved
+the whole signing tier onto the root, beside the stores it mirrors.
 
-## Probes — deep import today
+## Probes — the decided `./probes` subpath, deep import until the exports map lands
 
-`src/probes/index.js` (no subpath export yet — the entry point deliberately has a single
-`.` export today):
+`./probes` is the decided delivery shape (the sealed set's own ruling, OPEN-QUESTIONS §5's
+"a public library subpath", confirmed at the 2026-08-19 review) — it becomes importable
+when publish tooling lands the `exports` map (deferral register row 1). Until then, inside
+the workspace, deep-import `src/probes/index.js`:
 
 ```ts
 const ALL_PROBES: readonly Probe[];          // seventeen probes against the current tree

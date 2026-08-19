@@ -9,7 +9,7 @@
 // Config type consumer has one import site.
 
 import type { Canonicalizer } from './canonical.js';
-import type { RefusalCode } from './refusal-codes.js';
+import { REGISTRY, type RefusalCode } from './refusal-codes.js';
 import type { SigningConfig } from './signing/store.js';
 import type { Store } from './store/store.js';
 import type { Digest, IdentityAssertion, SupersedesRef } from './types.js';
@@ -135,6 +135,22 @@ function assertNoStrayRedemptionKeys(profileId: string, where: string, obj: obje
  * kept as the stray-redemption-key check's own per-leg call site. */
 function validateLeg(profileId: string, leg: LegSpec): void {
   assertNoStrayRedemptionKeys(profileId, 'leg', leg);
+  // `terminalRefusals` members must be registry codes (SPEC §8): an unrecognized string
+  // constructs inert and never matches, so a leg the operator believes configured
+  // terminal is not — SPEC §9.1's construction-is-loud rule makes that a construction
+  // error, not a runtime surprise. The two legal-but-inert registry members SPEC §8
+  // itself names (`leg-expired`, `availability`) stay constructible: their inertness is
+  // at-the-seam semantics (pinned in refusal-matrix.test.ts), not a misspelling.
+  for (const code of leg.terminalRefusals ?? []) {
+    if (!Object.hasOwn(REGISTRY, code)) {
+      throw new Error(
+        `invalid profile '${profileId}': leg '${leg.id}' lists '${code}' in terminalRefusals, ` +
+          'which is not a registry refusal code (SPEC §8) — an unrecognized member would never ' +
+          'match, leaving a leg the operator believes terminal silently non-terminal ' +
+          '(SPEC §9.1: inert feature configuration is a construction error)',
+      );
+    }
+  }
 }
 
 /**

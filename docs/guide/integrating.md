@@ -3,8 +3,9 @@
 This page is for wiring the library into a real application. It assumes you have run
 [`getting-started.md`](getting-started.md) and hold the model from
 [`concepts.md`](concepts.md). Every code shape below was executed against this tree before
-being written down; signatures marked *provisional* may still change under the pre-0.1
-naming review (deferral register row 6).
+being written down. The pre-0.1 API review (deferral register row 6) completed 2026-08-19,
+so the names below are review-ratified; the store contract's method signatures stay
+explicitly provisional pre-1.0 by the sealed set's own declaration.
 
 ## The division of labor
 
@@ -240,15 +241,15 @@ What you get, with its limits in the same breath:
   profile's own genesis `profileDigest` (and its hash-chain derivations) — so enabling AL2
   does not fork your record format.
 
-Caveats today: the signing config types (`SigningConfig`, `Signer`, `Verifier`,
-`SignatureStore`) and the reference `MemorySignatureStore` are not re-exported from the
-package entry point — supply the config structurally, or deep-import
-`src/signing/memory.js` for the reference sidecar in tests. This asymmetry is recorded in
-deferral register row 6 for the pre-0.1 naming review.
+The signing tier is root-reachable: `SigningConfig`, `Signer`, `Verifier`,
+`SignatureStore`, `SignatureEntry`, the reference `MemorySignatureStore`, and the
+`withSigning` store decorator all export from the package entry point (the 2026-08-19 API
+review moved them there) — no deep import needed.
 
 ## The probe tier in your CI
 
-`packages/record/src/probes/` (deep import today — no subpath export yet) runs seventeen
+`packages/record/src/probes/` (the decided `./probes` subpath — importable as such once
+the exports map lands, register row 1; a deep import until then) runs seventeen
 operator-assurance probes against *your* configuration via a driver you supply:
 
 ```ts
