@@ -1,0 +1,12 @@
+# Code owners for the two never-touch-without-sanction surfaces (phase-3 ruling). This
+# file is advisory until the require-review-from-code-owners branch protection is enabled
+# in the repository settings — a release-day checklist item.
+#
+# The sealed concept set: an edit needs a fresh, explicit sanction through
+# SCOPING-GUIDE.md's own tier-test and promotion-rule machinery, never assumed from a
+# past one. A code-owner review makes that rule mechanical for pull requests.
+/docs/concept/ @allafta
+
+# The frozen byte-stability digests: an oracle, never an assertion to update — a mismatch
+# means the minimal chain moved, not that the pin is stale.
+/packages/record/test/byte-stability.test.ts @allafta

@@ -63,12 +63,18 @@ is the summary, and that file wins on conflict.
   on every CI run (`pnpm smoke` — installs the tarball into a scratch project and drives a
   confirm loop through the exports map), and a dispatch-only, provenance-attested release
   workflow. The package stays `private: true` until the 0.1 cut by design.
+- **CI hardening** (2026-08-19): a two-tier workflow — the platform-independent gates once
+  on Linux; tests, build, and the tarball smoke test on a matrix covering the exact
+  declared Node floor (22.16.0), current Node, and all three OSes — plus pnpm caching,
+  weekly grouped Dependabot updates, and a CODEOWNERS guard over the sealed concept set
+  and the frozen byte-stability digests. The Biome config migration landed with it
+  (deferral register row 5, its trigger fired deliberately), clearing the deprecation
+  notice from lint output.
 
 ### Known not-done
 
 - The release itself: the package is `private: true` and unpublished by design until the
   0.1 cut — the publish tooling landed 2026-08-19, and deferral register row 1 stays open
   until the release workflow is exercised once at that cut.
-- Server-SQL backing (row 15), token-seam `tx?` (row 16), workspace-shape generalization
-  (row 4), and the Biome config migration (row 5) are consciously deferred, each with a
-  recorded trigger.
+- Server-SQL backing (row 15), token-seam `tx?` (row 16), and workspace-shape
+  generalization (row 4) are consciously deferred, each with a recorded trigger.

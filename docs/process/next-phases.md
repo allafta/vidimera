@@ -2,7 +2,7 @@
 
 This document is a **roadmap**: what gates the next cut and why, never how — no
 implementation plan lives here. It is derived from three sources, read whole rather than
-sampled: `docs/process/deferral-register.md`'s five live rows, `docs/concept/OPEN-QUESTIONS.md`
+sampled: `docs/process/deferral-register.md`'s four live rows, `docs/concept/OPEN-QUESTIONS.md`
 (sealed, read-only — quoted here, never edited), and `docs/process/implementation-status.md`'s
 "Still outstanding" and "The package is unconsumable today" sections. Nothing below is
 invented; every register row, quote, and section number is checked against those sources at
@@ -22,11 +22,13 @@ and "What is deliberately outside the scope" below says so in the concept's own 
 
 ## What gates the next cut
 
-Five deferral-register rows survive the build order — all hygiene or proof-structure gates
+Four deferral-register rows survive the build order — all hygiene or proof-structure gates
 that outlive the build order **by design**, never unfinished build-order work (row 6, the
 pre-0.1 API review, completed and retired 2026-08-19 — its account is in the Consumability
-section below). Four are pre-0.1/1.0 gates; the fifth, row 4, is a workspace-shape gate
-whose own trigger is the second workspace package landing, not any 0.1/1.0 cut
+section below; row 5, the Biome migration, landed and retired the same day — its section
+below records the firing). Three are pre-0.1/1.0 gates; the fourth, row 4, is a
+workspace-shape gate whose own trigger is the second workspace package landing, not any
+0.1/1.0 cut
 (`docs/process/implementation-status.md`'s own boundary paragraph draws the same
 distinction). Each item below names its row and quotes its trigger verbatim.
 
@@ -75,7 +77,7 @@ distinction). Each item below names its row and quotes its trigger verbatim.
   issuance or completion the same host-transaction atomicity, and shrinking the crash-strand
   window between the append and the token's return.
 
-### The Biome migration — register row 5
+### The Biome migration — register row 5, retired 2026-08-19
 
 - Deferred item: `biome migrate --write` to clear the deprecated `linter.rules.recommended`
   field in `biome.json` — the dry-run against biome 2.5.6 confirms one hunk,
@@ -88,6 +90,10 @@ distinction). Each item below names its row and quotes its trigger verbatim.
   after its own trigger had already fired".
 - **What done would look like:** `biome migrate --write` run in the same commit as the next
   `biome.json` edit, clearing the deprecation info from `pnpm lint`'s output.
+- **Done, 2026-08-19 (the phase-3 CI increment):** the trigger was fired deliberately
+  rather than tripped — the migration produced exactly the dry-run's one hunk, the
+  `$schema` field was added by hand, and the deprecation left `pnpm lint`'s output. The
+  row is retired.
 
 ### The workspace-shape gate — register row 4
 

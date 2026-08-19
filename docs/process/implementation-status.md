@@ -20,14 +20,15 @@ any one exit.
   (`docs/concept/SCOPING-GUIDE.md` §7) are exited; the last, step 8, settled at the
   self-test-tier increment's own fix wave, commit `84484ba`.
 - **Measured against the current tree**: `pnpm test` — 46 test files, 625 tests, zero skips;
-  `pnpm lint` (`biome check .`) — 100 files checked, 14 infos, zero warnings or errors;
+  `pnpm lint` (`biome check .`) — 100 files checked, 13 infos, zero warnings or errors;
   `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 24 refusal codes, the twenty-fourth and
   last being `consultation-stale`; zero GOVERNED construction guards remain in `config.ts`.
-- **The live deferral-register rows**: 1, 4, 5, 15, 16 — five rows, each carrying its own
+- **The live deferral-register rows**: 1, 4, 15, 16 — four rows, each carrying its own
   trigger (row 6, the pre-0.1 API review, completed and retired 2026-08-19 —
-  `docs/analysis/2026-08-19-phase-1-api-review.md`). See `docs/process/deferral-register.md` for the rows themselves and
+  `docs/analysis/2026-08-19-phase-1-api-review.md`; row 5, the Biome migration, landed and
+  retired the same day at the phase-3 CI increment, its trigger fired deliberately). See `docs/process/deferral-register.md` for the rows themselves and
   `docs/process/next-phases.md` for what gates the next cut.
 - **How to read this document**: the per-step accounts below are the record of how the build
   order ran; this header is the state.
@@ -999,9 +1000,13 @@ Carried in the deferral register, with triggers:
 - **Row 1** — publish tooling (build, versioning, release).
 - **Row 4** — generalizing the root `typecheck` beyond `packages/record`, and per-package
   test-runner devDependencies.
-- **Row 5** — `biome migrate` for the deprecated `linter.rules.recommended` field (one of
-  the fourteen infos the current tree reports; the count was thirteen when this bullet
-  was written and moved with a later increment's own test file).
+- **Row 5** — RETIRED 2026-08-19 (the phase-3 CI increment): the trigger — "the next
+  commit that edits `biome.json` for any reason" — was fired deliberately rather than
+  tripped: `biome migrate --write` produced exactly the one hunk the row's own dry-run
+  predicted (`"recommended": true` → `"preset": "recommended"`), the `$schema` field was
+  added by hand as the row noted migrate would not, and the deprecation notice left
+  `pnpm lint`'s output (14 infos → 13). Kept here as the record; the register carries the
+  numbering gap.
 - **Row 6** — RETIRED 2026-08-19: the pre-0.1 API review completed over the whole surface
   (`docs/analysis/2026-08-19-phase-1-api-review.md`) — every prior name ratified, the
   no-unspellable-names export rule applied, the signing tier moved onto the root, the pure
@@ -1019,8 +1024,8 @@ last tail item landed (see the CONTROLS §4 row and the boundary above for the f
 account, including the ELEVENTH self-authored inversion row 18 carries), so neither is
 listed here any longer. **The build order is complete: no row above carries any of the
 eight build-order steps as unfinished work** — every surviving row is a hygiene or
-proof-structure gate (rows 1, 4, 5, 15, 16) that outlives the build order by design:
-four of them pre-0.1/1.0 gates, and row 4 a workspace-SHAPE gate whose trigger is the
+proof-structure gate (rows 1, 4, 15, 16) that outlives the build order by design:
+three of them pre-0.1/1.0 gates, and row 4 a workspace-SHAPE gate whose trigger is the
 second workspace package landing rather than a 0.1/1.0 cut (the boundary paragraph above
 draws the same distinction).
 

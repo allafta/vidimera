@@ -15,11 +15,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
-      - run: corepack enable
+          cache: pnpm
       - run: pnpm install --frozen-lockfile
       # The release-day guard: refuse a package still carrying the pre-release shape.
       - name: guard — version bumped and private dropped

@@ -1,0 +1,21 @@
+# Weekly, grouped dependency updates (phase-3 ruling). One PR per ecosystem per week at
+# most — CI's full gate set, the packed-tarball smoke test included, is what makes these
+# safe to review quickly.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      dev-dependencies:
+        patterns:
+          - "*"
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns:
+          - "*"

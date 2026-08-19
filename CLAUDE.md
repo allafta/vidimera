@@ -139,12 +139,17 @@ pnpm workspace (Node 22.16+, pnpm via corepack):
   treating any red result as a regression — a scan total moving has hidden an equal-sized
   regression in the opposite direction here before.
 
-CI (`.github/workflows/ci.yml`) runs typecheck, test, build, the packed-tarball smoke
-test, lint, contract-scan, and the stricter `lint:strict`
-(`biome check --error-on-warnings`) on every push to `main` and every pull request, with
-read-only token permissions and one cancel-on-supersede concurrency group per ref.
-`.github/workflows/release.yml` is the dispatch-only, provenance-attested publish
-workflow, unexercised until the 0.1 cut.
+CI (`.github/workflows/ci.yml`) is two-tier on every push to `main` and every pull
+request: a Linux `checks` job runs the platform-independent gates (typecheck, lint,
+contract-scan, `lint:strict`), and a `test` matrix runs test + build + the packed-tarball
+smoke test on the exact declared Node floor (ubuntu @ 22.16.0), current Node
+(ubuntu @ 24), and Windows/macOS @ 22 — with pnpm caching, read-only token permissions,
+and one cancel-on-supersede concurrency group per ref. `.github/workflows/release.yml` is
+the dispatch-only, provenance-attested publish workflow, unexercised until the 0.1 cut.
+`.github/dependabot.yml` groups weekly npm and actions updates; `.github/CODEOWNERS`
+guards `docs/concept/` and the frozen byte-stability test (binding once the
+require-review-from-code-owners branch protection is enabled — a release-day checklist
+item).
 
 ## Process disciplines (inherited from the concept)
 
