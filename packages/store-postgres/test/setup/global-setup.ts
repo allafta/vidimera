@@ -25,6 +25,16 @@ async function freePort(): Promise<number> {
 }
 
 export default async function setup(): Promise<() => Promise<void>> {
+  // The documented external-server seam: a pre-provided URL wins, and the embedded
+  // server never spawns. This exists because a real environment can be unable to run
+  // the embedded binaries at all — the first CI run proved it: postgres.exe refuses an
+  // elevated (administrator) token, which is exactly what GitHub's Windows runners
+  // carry, so that leg starts the runner's preinstalled PostgreSQL service and hands
+  // its URL in (ci.yml). Either way the suite runs against a real server — no skip
+  // path exists on any branch.
+  if (process.env.VIDIMERA_PG_URL !== undefined) {
+    return async () => {};
+  }
   const port = await freePort();
   const pg = new EmbeddedPostgres({
     databaseDir: mkdtempSync(join(tmpdir(), 'vidimera-pg-')),
@@ -35,8 +45,19 @@ export default async function setup(): Promise<() => Promise<void>> {
     // initdb/postgres chatter stays out of the test output; real errors still surface.
     onLog: () => {},
   });
-  await pg.initialise();
-  await pg.start();
+  // The library's start() rejects with NO argument when the server process exits
+  // before its readiness line, and its stderr goes only to the readiness parser — a
+  // bare `undefined` failure with the real message swallowed (the first CI run's
+  // exact symptom). Wrap both phases so a failure names itself and the likely causes.
+  try {
+    await pg.initialise();
+    await pg.start();
+  } catch (err) {
+    throw new Error(
+      `embedded Postgres failed to ${err === undefined ? 'start (the server process exited before readiness — its stderr is swallowed by the library; an elevated/administrator token is the known cause on Windows)' : 'initialise/start'}: ${String(err)}. ` +
+        'Provide a reachable server via VIDIMERA_PG_URL to run the suite against it instead.',
+    );
+  }
   process.env.VIDIMERA_PG_URL = `postgresql://vidimera:vidimera@127.0.0.1:${port}/postgres`;
   return async () => {
     await pg.stop();

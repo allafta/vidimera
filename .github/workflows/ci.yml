@@ -51,6 +51,23 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Windows runners carry an elevated token, which postgres.exe hard-refuses — the
+      # embedded server cannot start there (initdb self-restricts its token and
+      # succeeds, the server binary does not; the first matrix run proved it). The
+      # runner image preinstalls PostgreSQL as a proper service under a non-admin
+      # account: start it and hand the suite its URL through the globalSetup's
+      # documented external-server seam. Every other OS runs the embedded server.
+      - name: start the preinstalled PostgreSQL (Windows only)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $svc = Get-Service -Name postgresql* | Select-Object -First 1
+          if ($null -eq $svc) { Write-Error 'no preinstalled postgresql service found on the runner image'; exit 1 }
+          Set-Service -InputObject $svc -StartupType Manual
+          Start-Service -InputObject $svc
+          Write-Host "started service: $($svc.Name)"
+          & "$env:PGBIN\pg_isready" -h 127.0.0.1 -p 5432
+          "VIDIMERA_PG_URL=postgresql://postgres:root@127.0.0.1:5432/postgres" >> $env:GITHUB_ENV
       - run: pnpm test
       - run: pnpm build
       - run: pnpm smoke

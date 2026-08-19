@@ -19,7 +19,11 @@ One thing worth knowing before your first install: the test suite runs the
 downloads its platform binaries (tens of MB, a devDependency of that package only), and
 the suite's own globalSetup starts and stops the server per run. No Docker, no external
 database, nothing to configure; a machine that cannot start the server fails the suite
-loudly rather than skipping it.
+loudly rather than skipping it. If your environment genuinely cannot run the embedded
+binaries (an elevated Windows token is the known case — `postgres.exe` refuses
+administrator privileges), point `VIDIMERA_PG_URL` at a reachable server and the suite
+runs against that instead — CI's Windows leg does exactly this with the runner's
+preinstalled PostgreSQL.
 
 ## The gates
 
