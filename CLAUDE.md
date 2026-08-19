@@ -109,7 +109,11 @@ pnpm workspace (Node 22.16+, pnpm via corepack):
   into a scratch project, and drives a confirm loop through the exports map
   (`scripts/smoke-pack.mjs`)
 - `pnpm lint` — Biome (`pnpm lint:fix` to apply safe fixes)
-- `pnpm test` — vitest, all packages
+- `pnpm test` — vitest, all packages (the store-postgres project starts a real embedded
+  Postgres per run via its globalSetup — no Docker, no external database)
+- `pnpm api-sync` — the api-reference drift gate: every name `packages/record/src/index.ts`
+  exports must occur in `docs/guide/api-reference.md` (`scripts/api-reference-sync.mjs`;
+  presence only, never accuracy — read its bounds comment)
 - `pnpm contract-scan` — the **standalone contract scan**: run before any commit that
   touches markdown or TypeScript. Prints nothing and exits 0 when clean; prints
   `path:line:text` and exits 1 on findings (`scripts/contract-scan.mjs`). Scans all
@@ -144,11 +148,13 @@ pnpm workspace (Node 22.16+, pnpm via corepack):
 
 CI (`.github/workflows/ci.yml`) is two-tier on every push to `main` and every pull
 request: a Linux `checks` job runs the platform-independent gates (typecheck, lint,
-contract-scan, `lint:strict`), and a `test` matrix runs test + build + the packed-tarball
+contract-scan, `api-sync`, `lint:strict`), and a `test` matrix runs test + build + the packed-tarball
 smoke test on the exact declared Node floor (ubuntu @ 22.16.0), current Node
 (ubuntu @ 24), and Windows/macOS @ 22 — with pnpm caching, read-only token permissions,
 and one cancel-on-supersede concurrency group per ref. `.github/workflows/release.yml` is
-the dispatch-only, provenance-attested publish workflow, unexercised until the 0.1 cut.
+the dispatch-only, provenance-attested publish workflow (both packages, record first),
+unexercised until the 0.1 cut; `docs/process/release-checklist.md` is release day's
+authoritative list.
 `.github/dependabot.yml` groups weekly npm and actions updates; `.github/CODEOWNERS`
 guards `docs/concept/` and the frozen byte-stability test (binding once the
 require-review-from-code-owners branch protection is enabled — a release-day checklist

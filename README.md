@@ -170,10 +170,13 @@ the pin).
 
 ```text
 pnpm install
-pnpm typecheck      # tsc strict, no emit
-pnpm lint           # Biome
-pnpm test           # vitest
+pnpm typecheck      # tsc strict, no emit — both packages
+pnpm lint           # Biome (CI also runs the stricter lint:strict)
+pnpm test           # vitest — includes a real embedded Postgres for the server backing
+pnpm build          # compile both packages to dist/
+pnpm smoke          # pack, install into a scratch project, run — the consumability gate
 pnpm contract-scan  # the standalone-contract scan — exit 0, no output, when clean
+pnpm api-sync       # every exported name must appear in the API reference
 ```
 
 All of these run in CI on every push to `main` and every pull request. `pnpm contract-scan`

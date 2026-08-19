@@ -28,7 +28,8 @@
   },
   "files": [
     "dist",
-    "LICENSE"
+    "LICENSE",
+    "NOTICE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json"

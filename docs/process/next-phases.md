@@ -48,9 +48,10 @@ distinction). Each item below names its row and quotes its trigger verbatim.
   The manifest carries the full publish shape with the decided `./probes` subpath;
   `pnpm build` emits `dist/`; `pnpm smoke` packs the tarball and consumer-tests it on
   every CI run; and the dispatch-only, provenance-attested release workflow exists,
-  guarded against publishing the pre-release shape. The row stays open until the 0.1 cut
-  exercises that workflow once — release day is: bump the version off `0.0.0`, drop
-  `private: true`, commit, tag, dispatch.
+  guarded against publishing the pre-release shape (and, per the phase-5 ruling,
+  publishing BOTH packages — record first). The row stays open until the 0.1 cut
+  exercises that workflow once; `docs/process/release-checklist.md` is release day's
+  authoritative list.
 
 ### The server-SQL backing — register row 15, retired 2026-08-19
 

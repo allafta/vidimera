@@ -27,10 +27,13 @@ Every pull request must pass all of these — CI runs them on every push to `mai
 PR:
 
 ```text
-pnpm typecheck      # tsc strict, no emit
+pnpm typecheck      # tsc strict, no emit — both packages
 pnpm lint           # Biome (pnpm lint:fix applies safe fixes)
 pnpm test           # vitest — the suite runs with zero skipped tests, keep it that way
+pnpm build          # compile both packages to dist/
+pnpm smoke          # pack the record tarball, install it in a scratch project, run it
 pnpm contract-scan  # the standalone-contract scan (see below)
+pnpm api-sync       # every index.ts export must appear in docs/guide/api-reference.md
 ```
 
 CI additionally runs `pnpm lint:strict` (`biome check --error-on-warnings`), so a warning

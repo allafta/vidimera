@@ -27,6 +27,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm contract-scan
+      - run: pnpm api-sync
       - run: pnpm lint:strict
   test:
     strategy:

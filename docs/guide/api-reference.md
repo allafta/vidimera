@@ -161,6 +161,31 @@ Notes that save debugging time:
 - SPEC §11.2 names one redemption verb; the three names here (`redeem`, `beginRedemption`,
   `completeRedemption`) are this build's own, ratified at the 2026-08-19 review.
 
+The option and input types those signatures name — all exported (the review's
+no-unspellable-names rule):
+
+```ts
+interface OpenOptions {
+  priorRecordRefs?: PriorRecordRef[];        // multi-leg successor evidence, verified by replay
+  policyDigest?: Digest;                     // the operator's open-time policy attestation
+  supersedes?: SupersedesRef;                // recovery claim — { recordId, chainHead }
+}
+interface PriorRecordRef { recordId: string; chainHead: Digest }
+
+interface FinalizeOptions {
+  consultations?: ConsultationInput[];       // the host's obtained consultations, attach-form
+  policy?: PolicyInput;                      // required iff the profile declares policySource
+}
+type ConsultationInput = ObtainedConsultation | UnreachableMarker;
+interface ObtainedConsultation {
+  kind: string; checker: IdentityAssertion; payloadDigest: Digest;
+  verdict: 'pass' | 'fail'; proofRef?: string;
+  observedAt?: string;                       // AL2's checker-claimed observation time
+}
+interface UnreachableMarker { kind: string; unreachable: true; authority: string }
+type PolicyInput = { digest: Digest } | { unreachable: true; authority: string };
+```
+
 ## The outcome model
 
 ```ts

@@ -1,0 +1,11 @@
+# Blank issues are off: the two templates carry the repository-specific questions a
+# useful report needs (bug reports ask "on whose authority" because the guide is derived
+# and the spec is normative). Security reports route to private reporting, never to a
+# public issue.
+blank_issues_enabled: false
+contact_links:
+  - name: Security report (private)
+    url: https://github.com/allafta/vidimera/security/advisories/new
+    about: >-
+      Report a vulnerability privately. Please do not open a public issue for anything
+      security-shaped — SECURITY.md describes what is in scope.

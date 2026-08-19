@@ -14,7 +14,8 @@
     "lint:strict": "biome check --error-on-warnings .",
     "test": "vitest run",
     "smoke": "node scripts/smoke-pack.mjs",
-    "contract-scan": "node scripts/contract-scan.mjs"
+    "contract-scan": "node scripts/contract-scan.mjs",
+    "api-sync": "node scripts/api-reference-sync.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.6",

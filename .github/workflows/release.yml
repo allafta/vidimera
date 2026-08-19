@@ -1,9 +1,12 @@
 # The 0.1-cut release workflow (phase-2 packaging ruling: manual version, dispatch
-# publish). Deliberately manual-only: publishing is the release event the phase-0 record
-# gates on readiness, never on a push. Release day, in order: bump the version off 0.0.0,
-# drop `private: true`, commit, tag v<version>, then dispatch this workflow — the guard
-# step refuses to publish a package that skipped any of that. Requires the NPM_TOKEN
-# repository secret (an npm automation token for the @vidimera scope).
+# publish; phase-5 ruling: BOTH packages publish at the cut). Deliberately manual-only:
+# publishing is the release event the phase-0 record gates on readiness, never on a push.
+# Release day, in order (docs/process/release-checklist.md is the authoritative list):
+# bump both versions off 0.0.0, drop both `private: true`, commit, tag v<version>, then
+# dispatch this workflow — the guard step refuses to publish a package that skipped any
+# of that. Publishing goes tarball-first (`pnpm pack`, then `npm publish <tarball>`) so
+# pnpm rewrites the adapter's `workspace:*` peer range to the real version. Requires the
+# NPM_TOKEN repository secret (an npm automation token for the @vidimera scope).
 name: Release
 on:
   workflow_dispatch:
@@ -22,13 +25,15 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # The release-day guard: refuse a package still carrying the pre-release shape.
-      - name: guard — version bumped and private dropped
+      # The release-day guard: refuse any package still carrying the pre-release shape.
+      - name: guard — versions bumped and private dropped, both packages
         run: |
           node -e "
-            const p = require('./packages/record/package.json');
-            if (p.private) { console.error('refusing to publish: private is still true'); process.exit(1); }
-            if (p.version === '0.0.0') { console.error('refusing to publish: version is still 0.0.0'); process.exit(1); }
+            for (const pkg of ['record', 'store-postgres']) {
+              const p = require('./packages/' + pkg + '/package.json');
+              if (p.private) { console.error('refusing to publish ' + p.name + ': private is still true'); process.exit(1); }
+              if (p.version === '0.0.0') { console.error('refusing to publish ' + p.name + ': version is still 0.0.0'); process.exit(1); }
+            }
           "
       # Every gate the repository has, then the artifact gates.
       - run: pnpm typecheck
@@ -37,8 +42,19 @@ jobs:
       - run: pnpm smoke
       - run: pnpm lint:strict
       - run: pnpm contract-scan
-      - name: publish (provenance, public)
-        run: npm publish --provenance --access public
+      # Tarball-first so pnpm rewrites workspace: ranges; record publishes before the
+      # adapter that peer-depends on it.
+      - name: publish @vidimera/record (provenance, public)
+        run: |
+          pnpm pack
+          npm publish ./*.tgz --provenance --access public
         working-directory: packages/record
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: publish @vidimera/store-postgres (provenance, public)
+        run: |
+          pnpm pack
+          npm publish ./*.tgz --provenance --access public
+        working-directory: packages/store-postgres
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
