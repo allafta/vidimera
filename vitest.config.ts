@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 // Two projects (a third file-set, scripts/test, rides with record): the record project
@@ -18,9 +19,20 @@ export default defineConfig({
         },
       },
       {
+        // The alias resolves the adapter's runtime imports of @vidimera/record to
+        // source, preserving the workspace's run-from-source discipline (record's own
+        // exports map points at dist, which only exists when built).
+        resolve: {
+          alias: {
+            '@vidimera/record': fileURLToPath(
+              new URL('./packages/record/src/index.ts', import.meta.url),
+            ),
+          },
+        },
         test: {
           name: 'store-postgres',
           include: ['packages/store-postgres/test/**/*.test.ts'],
+          globalSetup: ['packages/store-postgres/test/setup/global-setup.ts'],
           execArgv,
         },
       },

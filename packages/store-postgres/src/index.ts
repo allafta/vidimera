@@ -1,4 +1,6 @@
-// @vidimera/store-postgres — public entry point. The PostgresStore lands with the
-// conformance increment of docs/superpowers/plans/2026-08-19-store-postgres.md; this
-// placeholder keeps the package compiling from the moment it exists.
-export {};
+// @vidimera/store-postgres — public entry point: the server-SQL third reference backing
+// (SPEC §12), multi-connection-safe over a caller-owned pg.Pool. Connection custody is
+// the host's: the store never creates or closes the pool.
+
+export type { PostgresStoreOptions } from './postgres-store.js';
+export { PostgresStore } from './postgres-store.js';
