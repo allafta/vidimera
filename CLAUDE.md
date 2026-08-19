@@ -18,8 +18,11 @@ parts:
 
 **State.** The eight-step build order is complete — all eight steps exited, the last
 (recovery, live capture, AL2 detached signing, and the operator-assurance self-test tier)
-settling at the self-test-tier increment, commit `84484ba`. Measured against the current
-tree: `pnpm test` — 46 test files, 625 tests, zero skips; `packages/record/src/refusal-codes.ts`
+settling at the self-test-tier increment, commit `84484ba`. The workspace holds two
+packages: `@vidimera/record` and `@vidimera/store-postgres` (the server-SQL third
+reference backing, tested against a real embedded Postgres the suite starts per run).
+Measured against the current
+tree: `pnpm test` — 50 test files, 691 tests, zero skips; `packages/record/src/refusal-codes.ts`
 carries 24 refusal codes; zero GOVERNED construction guards remain in `config.ts` — every
 field the feature-guard era installed has lifted behind real behavior at its own seam
 (`governedUnavailable` survives only for two generic unknown-option-key throws, in

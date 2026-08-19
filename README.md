@@ -124,7 +124,9 @@ defer to. Maturity markers (`[PROVEN]` / `[DESIGNED]` / `[SKETCHED]`) are accura
 not aspirations: a marker moves only when the behavior actually lands in this repository.
 
 **The implementation has finished its eight-step build order.** The kernel confirm loop,
-two store backings held equivalent by a shared conformance suite, multi-leg separation of
+three store backings held equivalent by a shared conformance suite and cross-backing
+byte-identity proofs (in-memory, embedded-SQL, and the server-SQL
+`@vidimera/store-postgres`), multi-leg separation of
 duties, the effect seam with single-use redemption, required consultations, eligibility and
 policy-drift gating, findings and acknowledgments, recovery, live capture, AL2 detached
 signing, and an operator-assurance self-test tier are all built and tested.

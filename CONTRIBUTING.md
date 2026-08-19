@@ -14,6 +14,13 @@ Requires Node 22.16+ and pnpm. `pnpm@11.18.0` is pinned in `package.json`, so
 pnpm install
 ```
 
+One thing worth knowing before your first install: the test suite runs the
+`@vidimera/store-postgres` backing against a **real embedded Postgres** — `pnpm install`
+downloads its platform binaries (tens of MB, a devDependency of that package only), and
+the suite's own globalSetup starts and stops the server per run. No Docker, no external
+database, nothing to configure; a machine that cannot start the server fails the suite
+loudly rather than skipping it.
+
 ## The gates
 
 Every pull request must pass all of these — CI runs them on every push to `main` and every

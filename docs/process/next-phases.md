@@ -2,7 +2,7 @@
 
 This document is a **roadmap**: what gates the next cut and why, never how — no
 implementation plan lives here. It is derived from three sources, read whole rather than
-sampled: `docs/process/deferral-register.md`'s four live rows, `docs/concept/OPEN-QUESTIONS.md`
+sampled: `docs/process/deferral-register.md`'s one live row, `docs/concept/OPEN-QUESTIONS.md`
 (sealed, read-only — quoted here, never edited), and `docs/process/implementation-status.md`'s
 "Still outstanding" and "The package is unconsumable today" sections. Nothing below is
 invented; every register row, quote, and section number is checked against those sources at
@@ -22,13 +22,13 @@ and "What is deliberately outside the scope" below says so in the concept's own 
 
 ## What gates the next cut
 
-Four deferral-register rows survive the build order — all hygiene or proof-structure gates
-that outlive the build order **by design**, never unfinished build-order work (row 6, the
-pre-0.1 API review, completed and retired 2026-08-19 — its account is in the Consumability
-section below; row 5, the Biome migration, landed and retired the same day — its section
-below records the firing). Three are pre-0.1/1.0 gates; the fourth, row 4, is a
-workspace-shape gate whose own trigger is the second workspace package landing, not any
-0.1/1.0 cut
+One deferral-register row survives the build order: row 1, publish tooling — its tooling
+landed at the phase-2 packaging increment, and the row stays open until the release
+workflow is exercised once at the 0.1 cut. Every other row retired 2026-08-19, each with
+its account in its own section below: row 6 (the pre-0.1 API review), row 5 (the Biome
+migration), row 15 (the server-SQL backing, landed whole as `@vidimera/store-postgres`),
+row 16 (the token seams' `tx?`), and row 4 (the workspace shape, its trigger fired
+deliberately by the second package)
 (`docs/process/implementation-status.md`'s own boundary paragraph draws the same
 distinction). Each item below names its row and quotes its trigger verbatim.
 
@@ -52,7 +52,7 @@ distinction). Each item below names its row and quotes its trigger verbatim.
   exercises that workflow once — release day is: bump the version off `0.0.0`, drop
   `private: true`, commit, tag, dispatch.
 
-### The server-SQL backing — register row 15
+### The server-SQL backing — register row 15, retired 2026-08-19
 
 - Deferred item: the third of SPEC §12's reference backings — "a server-SQL store
   (production, multi-connection-safe)" — deferred at step 2's own exit, with two of the
@@ -64,8 +64,14 @@ distinction). Each item below names its row and quotes its trigger verbatim.
   package or module) wired into the existing conformance suite by one caller file, a third leg
   added to the cross-backing byte-identity test, and real multi-connection contention coverage
   that neither existing backing (`store/memory.ts`, `store/sqlite.ts`) can express.
+- **Done, 2026-08-19 (the phase-4 store-postgres increment):** all three parts landed as
+  `@vidimera/store-postgres` — the one-caller-file conformance wiring (all 50 tests,
+  suite unchanged), the Memory ↔ Postgres byte-identity leg, and five multi-connection
+  contention scenarios — over an embedded Postgres the suite's own globalSetup starts per
+  run, dissolving the zero-skips collision the row recorded rather than waiving it. The
+  row is retired; `docs/analysis/2026-08-19-phase-4-store-postgres.md` carries the account.
 
-### The token seams' `tx?` — register row 16
+### The token seams' `tx?` — register row 16, retired 2026-08-19
 
 - Deferred item: `beginRedemption`/`completeRedemption` (`kernel/redeem.ts`) take no `tx` —
   deliberately: SPEC §12's `tx` seam states its purpose as the co-located direct shape, and
@@ -76,6 +82,10 @@ distinction). Each item below names its row and quotes its trigger verbatim.
   direct shape's `redeem(recordId, content, tx?)` already has one — giving an enlisted token
   issuance or completion the same host-transaction atomicity, and shrinking the crash-strand
   window between the append and the token's return.
+- **Done, 2026-08-19 (the phase-4 store-postgres increment):** exactly that shape landed,
+  inverting the seams' own recorded "NO tx, deliberately" comments — the TWELFTH entry of
+  `docs/process/implementation-status.md`'s numbered inversion sequence, argued at the
+  seam and pinned by four enlisted-token tests. The row is retired.
 
 ### The Biome migration — register row 5, retired 2026-08-19
 
@@ -95,7 +105,7 @@ distinction). Each item below names its row and quotes its trigger verbatim.
   `$schema` field was added by hand, and the deprecation left `pnpm lint`'s output. The
   row is retired.
 
-### The workspace-shape gate — register row 4
+### The workspace-shape gate — register row 4, retired 2026-08-19
 
 - Deferred item: generalize the root `typecheck` script beyond `packages/record`, and declare
   per-package test-runner devDependencies rather than relying on the root's.
@@ -104,6 +114,9 @@ distinction). Each item below names its row and quotes its trigger verbatim.
   holds exactly one package today. Once a second lands, the root `typecheck` script covers
   every workspace package and each package declares its own test-runner devDependency instead
   of inheriting the root's.
+- **Done, 2026-08-19 (the phase-4 store-postgres increment):** the second package fired the
+  trigger deliberately; root `typecheck` and `build` cover both packages, `vitest` is
+  declared per-package, and the vitest config runs per-package projects. The row is retired.
 
 ## What is deliberately outside the scope
 

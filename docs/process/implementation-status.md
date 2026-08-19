@@ -19,16 +19,22 @@ any one exit.
 - **The build order is complete.** All eight build-order steps
   (`docs/concept/SCOPING-GUIDE.md` §7) are exited; the last, step 8, settled at the
   self-test-tier increment's own fix wave, commit `84484ba`.
-- **Measured against the current tree**: `pnpm test` — 46 test files, 625 tests, zero skips;
-  `pnpm lint` (`biome check .`) — 100 files checked, 13 infos, zero warnings or errors;
+- **Measured against the current tree**: `pnpm test` — 50 test files, 691 tests, zero skips
+  (the record and store-postgres vitest projects together, the latter over a real embedded
+  Postgres its own globalSetup starts per run);
+  `pnpm lint` (`biome check .`) — 112 files checked, 13 infos, zero warnings or errors;
   `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 24 refusal codes, the twenty-fourth and
   last being `consultation-stale`; zero GOVERNED construction guards remain in `config.ts`.
-- **The live deferral-register rows**: 1, 4, 15, 16 — four rows, each carrying its own
-  trigger (row 6, the pre-0.1 API review, completed and retired 2026-08-19 —
-  `docs/analysis/2026-08-19-phase-1-api-review.md`; row 5, the Biome migration, landed and
-  retired the same day at the phase-3 CI increment, its trigger fired deliberately). See `docs/process/deferral-register.md` for the rows themselves and
+- **The live deferral-register rows**: 1 — one row (publish tooling, whose tooling landed
+  at the phase-2 packaging increment and which stays open until the release workflow is
+  exercised once at the 0.1 cut). Five rows retired 2026-08-19, each with its account in
+  "Still outstanding" below: 6 (the API review), 5 (the Biome migration), and — at the
+  phase-4 store-postgres increment — 15 (the server-SQL backing, landed whole as
+  `@vidimera/store-postgres`), 16 (the token seams' `tx?`, the TWELFTH self-authored
+  inversion), and 4 (the workspace shape, its trigger fired deliberately by the second
+  package). See `docs/process/deferral-register.md` for the rows themselves and
   `docs/process/next-phases.md` for what gates the next cut.
 - **How to read this document**: the per-step accounts below are the record of how the build
   order ran; this header is the state.
@@ -998,8 +1004,11 @@ has actually run once. The full account: `docs/analysis/2026-08-19-phase-2-packa
 Carried in the deferral register, with triggers:
 
 - **Row 1** — publish tooling (build, versioning, release).
-- **Row 4** — generalizing the root `typecheck` beyond `packages/record`, and per-package
-  test-runner devDependencies.
+- **Row 4** — RETIRED 2026-08-19 (the phase-4 store-postgres increment): the trigger —
+  "Second workspace package lands" — fired deliberately when `packages/store-postgres`
+  landed; the same commit generalized root `typecheck` and `build` across both packages,
+  declared `vitest` per-package, and restructured the vitest config into per-package
+  projects. Kept here as the record; the register carries the numbering gap.
 - **Row 5** — RETIRED 2026-08-19 (the phase-3 CI increment): the trigger — "the next
   commit that edits `biome.json` for any reason" — was fired deliberately rather than
   tripped: `biome migrate --write` produced exactly the one hunk the row's own dry-run
@@ -1012,22 +1021,33 @@ Carried in the deferral register, with triggers:
   no-unspellable-names export rule applied, the signing tier moved onto the root, the pure
   audit functions exported, `Surfaces` named, and the `terminalRefusals` footgun closed at
   construction. Kept here as the record; the register carries the numbering gap.
-- **Row 15** — the server-SQL backing, SPEC §12's third reference backing: deferred to the
-  first multi-operator consumer or the 0.1 cut, whichever lands first. This row carries
-  step 2's own exit ruling, recorded in full at the row itself.
-- **Row 16** — the token-shape seams' missing `tx?` (`beginRedemption`/`completeRedemption`
-  take none), deferred to the first host architecture that needs an enlisted token issuance
-  or completion, or the 0.1 cut, whichever lands first.
+- **Row 15** — RETIRED 2026-08-19 (the phase-4 store-postgres increment): the server-SQL
+  backing landed whole as `@vidimera/store-postgres` (`PostgresStore` over a caller-owned
+  `pg.Pool`, FOR-UPDATE row locks and a genesis advisory lock making the CAS and C1
+  race-free under real concurrency), meeting the row's own three-part shape exactly — the
+  conformance suite wired by one caller file (all 50 tests, unchanged), the third
+  cross-backing byte-identity leg (Memory ↔ Postgres, transitively identical with
+  Sqlite), and five real multi-connection contention scenarios neither prior backing
+  could express. The test server is an embedded Postgres the suite's own globalSetup
+  starts per run — the zero-skips collision the row worried about dissolved rather than
+  waived. `docs/analysis/2026-08-19-phase-4-store-postgres.md` carries the account.
+- **Row 16** — RETIRED 2026-08-19 (the phase-4 store-postgres increment): both token seams
+  gained the additive trailing `tx?`, threaded through the already-tx-aware prologue and
+  each seam's single append. This inverted the seams' own recorded "NO tx, deliberately"
+  doc comments — the **TWELFTH** entry of this document's numbered self-authored-inversion
+  sequence, argued in place at `kernel/redeem.ts` (an enlisted issuance commits or rolls
+  back with the host's own outbox row, so a rollback declines the issuance whole, never a
+  strand; §11.2's "no transaction is shared" defines the executor relationship, not the
+  issuance's persistence) and pinned by four new enlisted-token tests in
+  `redeem-token.test.ts`.
 
 Rows 17 and 18 both retired at the self-test-tier increment — step 8's own fourth and
 last tail item landed (see the CONTROLS §4 row and the boundary above for the full
 account, including the ELEVENTH self-authored inversion row 18 carries), so neither is
 listed here any longer. **The build order is complete: no row above carries any of the
-eight build-order steps as unfinished work** — every surviving row is a hygiene or
-proof-structure gate (rows 1, 4, 15, 16) that outlives the build order by design:
-three of them pre-0.1/1.0 gates, and row 4 a workspace-SHAPE gate whose trigger is the
-second workspace package landing rather than a 0.1/1.0 cut (the boundary paragraph above
-draws the same distinction).
+eight build-order steps as unfinished work** — the one surviving row (row 1,
+publish tooling) is a hygiene gate that outlives the build order by design, held open
+until the release workflow it authored is exercised once at the 0.1 cut.
 
 Raised by this step's own review and planning documents and **not in the deferral register** —
 recorded here so the step does not exit with them unstated, and left as their sources state

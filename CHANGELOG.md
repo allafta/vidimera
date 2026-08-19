@@ -25,8 +25,8 @@ is the summary, and that file wins on conflict.
   actionable — landed here); the in-memory and embedded-SQL (`node:sqlite`) reference
   backings, held equivalent by a backing-parameterized conformance suite and a
   cross-backing byte-identity test; chain retirement via the operator-only `seal()` and
-  the store's seal-finality bar. The server-SQL third backing is consciously deferred
-  (deferral register row 15).
+  the store's seal-finality bar. The server-SQL third backing was consciously deferred at
+  that step (deferral register row 15) and landed 2026-08-19 — see its own entry below.
 - **The effect seam** (step 3): single-use redemption in both shapes — direct
   (`redeem`, host-transaction enlistable) and token (`beginRedemption` /
   `completeRedemption`, single-use token returned exactly once and never persisted) —
@@ -70,11 +70,25 @@ is the summary, and that file wins on conflict.
   and the frozen byte-stability digests. The Biome config migration landed with it
   (deferral register row 5, its trigger fired deliberately), clearing the deprecation
   notice from lint output.
+- **The server-SQL backing** (2026-08-19, retiring deferral register rows 15 and 4):
+  `@vidimera/store-postgres`, a second workspace package — `PostgresStore` over a
+  caller-owned `pg.Pool`, row locks and a genesis advisory lock making the append CAS and
+  the exclusivity constraint race-free under real concurrency. Proven three ways: the
+  backing-parameterized conformance suite wired by one caller file (unchanged), a third
+  cross-backing byte-identity leg, and five multi-connection contention scenarios —
+  all against a real embedded Postgres the suite starts per run, on every CI OS. The
+  second package fired row 4's workspace-shape work in the same increment, and `record`
+  gained the adapter-author exports (`transitionDigest` and the C3/C4 semantic arms) a
+  conforming third-party backing needs.
+- **Enlisted token seams** (2026-08-19, retiring deferral register row 16):
+  `beginRedemption`/`completeRedemption` gained the additive trailing `tx?` the direct
+  `redeem` has — an enlisted issuance or completion commits or rolls back with the host's
+  own outbox/effect row, and the enlisted-tampered corner refuses `chain-compromise`
+  result-first with no edge.
 
 ### Known not-done
 
 - The release itself: the package is `private: true` and unpublished by design until the
-  0.1 cut — the publish tooling landed 2026-08-19, and deferral register row 1 stays open
-  until the release workflow is exercised once at that cut.
-- Server-SQL backing (row 15), token-seam `tx?` (row 16), and workspace-shape
-  generalization (row 4) are consciously deferred, each with a recorded trigger.
+  0.1 cut — the publish tooling landed 2026-08-19, and deferral register row 1 (the
+  register's one live row) stays open until the release workflow is exercised once at
+  that cut.

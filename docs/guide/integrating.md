@@ -37,12 +37,13 @@ protection, so treat the operator handle like you treat your database handle.
   path, or `':memory:'` for throwaway instances. Note Node still flags `node:sqlite` as
   experimental and prints a warning (this repo's own vitest config suppresses exactly that
   warning class).
-- **A server-SQL backing does not exist yet** (deferral register row 15; its trigger is
-  the first multi-operator consumer or the 0.1 cut). If you need multi-connection,
-  multi-process access today, you are early — say so in an issue, because that is exactly
-  the trigger the register is waiting on.
-- **Writing your own:** the `Store` interface is exported and the conformance suite that
-  holds the two reference backings equivalent lives at
+- **`PostgresStore(pool, { schema })`** — the server-SQL backing
+  (`@vidimera/store-postgres`, this workspace's second package; landed 2026-08-19,
+  retiring deferral register row 15): multi-connection-safe over a `pg.Pool` you own —
+  the store never creates or closes the pool. Its suite runs against a real embedded
+  Postgres and includes real multi-connection contention coverage.
+- **Writing your own:** the `Store` interface and the adapter-author helpers are exported,
+  and the conformance suite that holds the three reference backings equivalent lives at
   `packages/record/test/conformance/store-conformance.ts` — wire your adapter into it. The
   contract's *behaviors* are stable; its *method signatures* are explicitly provisional
   pre-1.0.

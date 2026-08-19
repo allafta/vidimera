@@ -103,14 +103,14 @@ problem, but nothing in the record model checks who did the drafting.
 Not yet, on publishing grounds rather than behavioral ones. The behaviors are built and
 tested (the suite runs with zero skips; the step-by-step account is
 [`../process/implementation-status.md`](../process/implementation-status.md)), but: the
-package is unpublished and has no build or `exports` map; the pre-0.1 API naming review is
-open, so exported names may change; the store contract's signatures are explicitly
-provisional pre-1.0; and there is no server-SQL backing yet, so multi-process deployment
-has no supported store. Each of these is deliberate and recorded, not an accident: publish
-tooling, the naming review, and the server-SQL backing are deferral-register rows with
-triggers, and the store-contract freeze is the concept set's own named 1.0 gate
-(open-questions §9). "First external consumer" is literally one of the triggers, so saying
-hello in an issue moves the register.
+package is deliberately `private: true` and unpublished until the 0.1 cut (the build,
+`exports` map, and a CI-exercised tarball smoke test exist; the release workflow is
+dispatch-only and unexercised — deferral-register row 1, the register's one live row); and
+the store contract's signatures are explicitly provisional pre-1.0, the concept set's own
+named 1.0 gate (open-questions §9). The pre-0.1 API review completed 2026-08-19 (names are
+review-ratified), and the server-SQL backing exists (`@vidimera/store-postgres`), so
+multi-process deployment has a supported store. "First external consumer" is literally
+row 1's trigger, so saying hello in an issue moves the register.
 
 ## Can I use the records to evaluate my reviewers?
 
@@ -128,9 +128,10 @@ recomputed from the chain, never cached authority. The named residual risk is th
 shape's crash-strand window — a crash between the `redeeming` append and the token
 reaching the executor strands the redemption until its bound lapses and the sweep resolves
 it (`redemption-failed`), after which recovery is a new record that verifiably
-`supersedes` the stranded one. Shrinking that window with a host transaction on the token
-seams is deferral-register row 16, un-deferred by the first host architecture that needs
-it or the 0.1 cut — whichever lands first.
+`supersedes` the stranded one. A co-located host can shrink that window to its own
+transaction: the token seams take an optional trailing `tx?` (landed 2026-08-19, retiring
+deferral-register row 16), so the `redeeming` append commits or rolls back with the
+host's own outbox row.
 
 ## Why does the documentation keep saying what things are NOT?
 
