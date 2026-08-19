@@ -100,15 +100,17 @@ problem, but nothing in the record model checks who did the drafting.
 
 ## Is it production-ready?
 
-It is published (0.1.0, 2026-08-19 — both packages, provenance-attested), and its
-behaviors are built and tested with zero skips (the step-by-step account is
-[`../process/implementation-status.md`](../process/implementation-status.md)). The honest
-0.x bounds: the store contract's signatures are explicitly provisional pre-1.0, the
-concept set's own named 1.0 gate (open-questions §9) — behaviors are stable, argument
-lists are not frozen — and the exported names are review-ratified (the pre-0.1 API review
-completed 2026-08-19). The server-SQL backing (`@vidimera/store-postgres`) gives
-multi-process deployment a supported store. Adopt 0.x knowing what "provisional" means
-here, and say hello in an issue — early adopters shape the 1.0 freeze.
+Not yet, on publishing grounds rather than behavioral ones. The behaviors are built and
+tested (the suite runs with zero skips; the step-by-step account is
+[`../process/implementation-status.md`](../process/implementation-status.md)), but: the
+package is deliberately `private: true` and unpublished until the 0.1 cut (the build,
+`exports` map, and a CI-exercised tarball smoke test exist; the release workflow is
+dispatch-only and unexercised — deferral-register row 1, the register's one live row); and
+the store contract's signatures are explicitly provisional pre-1.0, the concept set's own
+named 1.0 gate (open-questions §9). The pre-0.1 API review completed 2026-08-19 (names are
+review-ratified), and the server-SQL backing exists (`@vidimera/store-postgres`), so
+multi-process deployment has a supported store. "First external consumer" is literally
+row 1's trigger, so saying hello in an issue moves the register.
 
 ## Can I use the records to evaluate my reviewers?
 

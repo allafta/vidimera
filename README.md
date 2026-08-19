@@ -131,15 +131,16 @@ duties, the effect seam with single-use redemption, required consultations, elig
 policy-drift gating, findings and acknowledgments, recovery, live capture, AL2 detached
 signing, and an operator-assurance self-test tier are all built and tested.
 
-**Published at 0.1.0 (2026-08-19), with its bounds in the same breath.**
-`npm install @vidimera/record` is real, and so is `@vidimera/store-postgres` for the
-server-SQL backing — both provenance-attested, both smoke-tested as packed tarballs in a
-scratch consumer on every CI run before any publish. The 0.x bounds, stated plainly: the
-exported names are review-ratified (the pre-0.1 API review completed 2026-08-19), but the
-store contract's method signatures stay explicitly provisional pre-1.0 by the concept
-set's own declaration; and importing the package on Node lines where `node:sqlite` is
-still experimental greets you with one ExperimentalWarning
-(`--disable-warning=ExperimentalWarning` silences it; the guide explains why it appears).
+**The package is not yet published, in the same breath — deliberately.** The publish
+tooling exists: `packages/record/package.json` carries a real `exports` map (`.` and
+`./probes`), `types`, `files`, and a `build` script; `pnpm build` compiles `dist/`; and
+every CI run packs the tarball and installs it into a scratch consumer project
+(`pnpm smoke`). But the package stays `private: true` until the 0.1 cut, so
+`npm install @vidimera/record` does not exist as an option yet — you can read it, run it,
+fork it, and build on it from source in this workspace. Publish tooling is row 1 of
+[the deferral register](docs/process/deferral-register.md), held open until the release
+workflow is exercised at the cut; the pre-0.1 API review (row 6) completed 2026-08-19, so
+the exported names are review-ratified.
 
 For the record itself rather than a summary of it, read
 [`docs/process/implementation-status.md`](docs/process/implementation-status.md) — the

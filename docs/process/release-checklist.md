@@ -1,5 +1,27 @@
 # The 0.1 release-day checklist
 
+> **PAUSED — 2026-08-19.** The cut was prepared and run to the owner-action boundary,
+> then deliberately paused and reverted so main carries no published-state claim while
+> parked. What exists: the complete release commit — versions bumped, `private` dropped,
+> the CHANGELOG's `[0.1.0]` section cut, every docset caveat flipped — is preserved in
+> history as commit `8be3fce` ("The 0.1 cut: ..."), reverted whole by the commit that
+> added this notice. The floor rule was evaluated at the pause (Node 24 LTS still emits
+> the `node:sqlite` ExperimentalWarning, measured on 24.12.0 → ship-as-is); re-evaluate
+> at pickup. The clean-machine precondition was owner-waived at the paused attempt; that
+> waiver does not carry — re-decide it at pickup.
+>
+> **To pick the cut back up:** `git cherry-pick 8be3fce` (or revert the reverting
+> commit), refresh every `2026-08-19` release date in it to the actual cut date
+> (CHANGELOG's `[0.1.0]` heading and body, README's status paragraph, CLAUDE.md's honest
+> bound, the guide's four flips), re-run all gates, commit, tag `v<version>`, push with
+> the tag — then resume at "Repository and registry settings" below. The owner-side items
+> that stopped the paused attempt, all still open: the npm `vidimera` org and a granular
+> `NPM_TOKEN` secret, the repository visibility flip (blocked from automation by design —
+> run `gh repo edit allafta/vidimera --visibility public
+> --accept-visibility-change-consequences` yourself), private vulnerability reporting,
+> and the code-owner branch protection. If the remote tag `v0.1.0` from the paused
+> attempt still exists, delete it: `git push origin :refs/tags/v0.1.0`.
+
 The one list release day runs from, collected across the release plan's phase records
 (`docs/analysis/2026-08-19-phase-0-decisions.md` asked for it; the phase 2, 3, and 5
 records each contributed items). Ordered: preconditions, the rule to evaluate, file

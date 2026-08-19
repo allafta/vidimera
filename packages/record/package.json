@@ -1,6 +1,7 @@
 {
   "name": "@vidimera/record",
-  "version": "0.1.0",
+  "version": "0.0.0",
+  "private": true,
   "type": "module",
   "description": "Durable, content-bound, hash-chained, operator-replayable records of human confirmations over AI-drafted actions.",
   "license": "Apache-2.0",

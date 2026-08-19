@@ -28,13 +28,14 @@ field the feature-guard era installed has lifted behind real behavior at its own
 (`governedUnavailable` survives only for two generic unknown-option-key throws, in
 `finalize()` and `open()`, neither naming a not-yet-enforceable field).
 
-**The honest bound, in the same breath.** Published at 0.1.0 (2026-08-19): both packages
-are on npm, provenance-attested, released through the dispatch-only
-`.github/workflows/release.yml`. The 0.x bounds: the store contract's method signatures
-stay explicitly provisional pre-1.0 (the sealed set's own declaration, OPEN-QUESTIONS §9),
-and `node:sqlite`'s ExperimentalWarning greets every import on Node lines where the module
-is still experimental — the floor rule's evaluation and the ship-as-is ruling are in
-`docs/process/release-checklist.md` and the release record.
+**The honest bound, in the same breath.** The package is not yet published — deliberately:
+the manifest carries the full publish shape (`exports` with `.` and `./probes`, `types`,
+`files`, a `build` script), `pnpm build` emits `dist/`, and `pnpm smoke` packs and
+consumer-tests the tarball in CI, but `private: true` stays as the one publish block until
+the 0.1 cut. Register row 1 stays open until the release workflow
+(`.github/workflows/release.yml`, dispatch-only) is exercised at that cut; the pre-0.1 API
+review (row 6) completed and retired 2026-08-19
+(`docs/analysis/2026-08-19-phase-1-api-review.md`).
 
 **Read these, not this file, for the record and the plan.**
 `docs/process/implementation-status.md` is the authoritative account of what this build
@@ -153,8 +154,8 @@ smoke test on the exact declared Node floor (ubuntu @ 22.16.0), current Node
 (ubuntu @ 24), and Windows/macOS @ 22 — with pnpm caching, read-only token permissions,
 and one cancel-on-supersede concurrency group per ref. `.github/workflows/release.yml` is
 the dispatch-only, provenance-attested publish workflow (both packages, record first),
-first exercised at the 0.1 cut (2026-08-19); `docs/process/release-checklist.md` is the
-release-day list it ran under.
+unexercised until the 0.1 cut; `docs/process/release-checklist.md` is release day's
+authoritative list.
 `.github/dependabot.yml` groups weekly npm and actions updates; `.github/CODEOWNERS`
 guards `docs/concept/` and the frozen byte-stability test (binding once the
 require-review-from-code-owners branch protection is enabled — a release-day checklist
