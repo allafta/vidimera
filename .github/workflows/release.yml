@@ -1,0 +1,43 @@
+# The 0.1-cut release workflow (phase-2 packaging ruling: manual version, dispatch
+# publish). Deliberately manual-only: publishing is the release event the phase-0 record
+# gates on readiness, never on a push. Release day, in order: bump the version off 0.0.0,
+# drop `private: true`, commit, tag v<version>, then dispatch this workflow — the guard
+# step refuses to publish a package that skipped any of that. Requires the NPM_TOKEN
+# repository secret (an npm automation token for the @vidimera scope).
+name: Release
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write # npm provenance attestation
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      # The release-day guard: refuse a package still carrying the pre-release shape.
+      - name: guard — version bumped and private dropped
+        run: |
+          node -e "
+            const p = require('./packages/record/package.json');
+            if (p.private) { console.error('refusing to publish: private is still true'); process.exit(1); }
+            if (p.version === '0.0.0') { console.error('refusing to publish: version is still 0.0.0'); process.exit(1); }
+          "
+      # Every gate the repository has, then the artifact gates.
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm smoke
+      - run: pnpm lint:strict
+      - run: pnpm contract-scan
+      - name: publish (provenance, public)
+        run: npm publish --provenance --access public
+        working-directory: packages/record
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

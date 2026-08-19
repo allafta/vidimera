@@ -51,13 +51,24 @@ is the summary, and that file wins on conflict.
 - Repository-level: CI (typecheck, lint, strict lint, tests, contract scan), the
   standalone-contract scan with citation resolution over tracked code, and the public
   documentation set (`README.md`, `docs/guide/`, contributor and security policies).
+- **The pre-0.1 API review** (2026-08-19, retiring deferral register row 6): every
+  signature-reachable type exported (no unspellable names), the signing tier and the pure
+  `replay`/`verifyChain` audit functions moved onto the root entry, `Surfaces` naming
+  `create()`'s handle pair, all prior names ratified unchanged, and `terminalRefusals`
+  members validated at construction (a non-registry code now throws instead of silently
+  never matching).
+- **Publish tooling** (2026-08-19, deferral register row 1's tooling half): the full
+  manifest shape (`exports` with `.` and `./probes`, `types`, `files`, `sideEffects`,
+  `license`, `engines`, `repository`), a tsc build to `dist/`, a packed-tarball smoke test
+  on every CI run (`pnpm smoke` — installs the tarball into a scratch project and drives a
+  confirm loop through the exports map), and a dispatch-only, provenance-attested release
+  workflow. The package stays `private: true` until the 0.1 cut by design.
 
 ### Known not-done
 
-- No publish tooling: no `exports`/`main`/`types`/`files` fields, no build — the package is
-  not installable (deferral register row 1).
-- The pre-0.1 API naming review over the whole public surface is open (row 6); exported
-  names may change before 0.1.
+- The release itself: the package is `private: true` and unpublished by design until the
+  0.1 cut — the publish tooling landed 2026-08-19, and deferral register row 1 stays open
+  until the release workflow is exercised once at that cut.
 - Server-SQL backing (row 15), token-seam `tx?` (row 16), workspace-shape generalization
   (row 4), and the Biome config migration (row 5) are consciously deferred, each with a
   recorded trigger.

@@ -20,7 +20,7 @@ any one exit.
   (`docs/concept/SCOPING-GUIDE.md` §7) are exited; the last, step 8, settled at the
   self-test-tier increment's own fix wave, commit `84484ba`.
 - **Measured against the current tree**: `pnpm test` — 46 test files, 625 tests, zero skips;
-  `pnpm lint` (`biome check .`) — 98 files checked, 14 infos, zero warnings or errors;
+  `pnpm lint` (`biome check .`) — 100 files checked, 14 infos, zero warnings or errors;
   `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 24 refusal codes, the twenty-fourth and
@@ -976,6 +976,21 @@ own test runner. That is enough to prove the kernel's behavior and not enough fo
 else to use it. Publish tooling is **deferral register row 1**, triggered by the first
 external consumer or the 0.1 cut; the pre-0.1 API naming review over what `index.ts`
 exports is row 6, triggered at the 0.1 cut.
+
+**Updated 2026-08-19 (the phase-2 packaging increment):** the paragraphs above record the
+five-field era and stay as the exit record; against the current tree they are superseded.
+The manifest now carries the full publish shape — `exports` (`.` and the decided
+`./probes`), `types`, `files`, `sideEffects`, `license`, `author`, `repository`, `engines`,
+and a `build` script — `pnpm build` emits `dist/` (tsc, `tsconfig.build.json`), and
+`pnpm smoke` (`scripts/smoke-pack.mjs`) packs the tarball and installs it into a scratch
+consumer project on every CI run, driving a confirm loop through both entry points and
+both audit-function forms. What remains is the release itself, **by design**:
+`private: true` stays as the one deliberate publish block until the 0.1 cut
+(`docs/analysis/2026-08-19-phase-0-decisions.md`), `version` stays `0.0.0` until then, and
+the dispatch-only, provenance-attested release workflow
+(`.github/workflows/release.yml`, guarded against publishing the pre-release shape) is
+authored but unexercised until that day. Row 1 stays open until the publish it exists for
+has actually run once. The full account: `docs/analysis/2026-08-19-phase-2-packaging.md`.
 
 ### Still outstanding
 

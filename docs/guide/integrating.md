@@ -248,9 +248,10 @@ review moved them there) — no deep import needed.
 
 ## The probe tier in your CI
 
-`packages/record/src/probes/` (the decided `./probes` subpath — importable as such once
-the exports map lands, register row 1; a deep import until then) runs seventeen
-operator-assurance probes against *your* configuration via a driver you supply:
+`packages/record/src/probes/` (the `./probes` subpath — real in the exports map and
+exercised by CI's packed-tarball smoke test; inside this workspace, where you run from
+source, the deep import below still applies) runs seventeen operator-assurance probes
+against *your* configuration via a driver you supply:
 
 ```ts
 import { runProbes, assertSatisfied } from '.../src/probes/index.js';

@@ -129,14 +129,16 @@ duties, the effect seam with single-use redemption, required consultations, elig
 policy-drift gating, findings and acknowledgments, recovery, live capture, AL2 detached
 signing, and an operator-assurance self-test tier are all built and tested.
 
-**The package is not consumable by a host today, in the same breath.**
-`packages/record/package.json` declares no `exports`, `main`, `types`, `files`, or
-`scripts` field, and nothing here is compiled — `npm install @vidimera/record` does not yet
-exist as an option. You can read it, run it, fork it, and build on it from source in this
-workspace. Publish tooling is row 1 of
-[the deferral register](docs/process/deferral-register.md) and un-defers at the first
-external consumer or the 0.1 cut; the pre-0.1 naming review over the public API surface
-(row 6) is also still open, so exported names may change before 0.1.
+**The package is not yet published, in the same breath — deliberately.** The publish
+tooling exists: `packages/record/package.json` carries a real `exports` map (`.` and
+`./probes`), `types`, `files`, and a `build` script; `pnpm build` compiles `dist/`; and
+every CI run packs the tarball and installs it into a scratch consumer project
+(`pnpm smoke`). But the package stays `private: true` until the 0.1 cut, so
+`npm install @vidimera/record` does not exist as an option yet — you can read it, run it,
+fork it, and build on it from source in this workspace. Publish tooling is row 1 of
+[the deferral register](docs/process/deferral-register.md), held open until the release
+workflow is exercised at the cut; the pre-0.1 API review (row 6) completed 2026-08-19, so
+the exported names are review-ratified.
 
 For the record itself rather than a summary of it, read
 [`docs/process/implementation-status.md`](docs/process/implementation-status.md) — the

@@ -3,11 +3,13 @@
 This walks you from a clean clone to your first verified decision record — including your
 first *refused* one, which is half the point of the library.
 
-**The honest precondition:** `@vidimera/record` is not published. There is no npm install,
-no built artifact, and no `exports` map yet (deferral register row 1 — publish tooling —
-un-defers at the first external consumer or the 0.1 cut). Today you run it from source,
-inside this repository's workspace, which is exactly how its own 600-plus tests run. The
-code below was executed against this tree before being written down.
+**The honest precondition:** `@vidimera/record` is not published — there is no npm install
+yet. The package now builds (`pnpm build` → `dist/`), carries its `exports` map, and CI
+smoke-tests the packed tarball in a scratch consumer on every run, but it stays
+`private: true` until the 0.1 cut (deferral register row 1 carries the release itself).
+Today you run it from source, inside this repository's workspace, which is exactly how its
+own 600-plus tests run. The code below was executed against this tree before being written
+down.
 
 ## Setup
 

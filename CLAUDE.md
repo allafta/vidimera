@@ -25,10 +25,13 @@ field the feature-guard era installed has lifted behind real behavior at its own
 (`governedUnavailable` survives only for two generic unknown-option-key throws, in
 `finalize()` and `open()`, neither naming a not-yet-enforceable field).
 
-**The honest bound, in the same breath.** The package is still not consumable by a host:
-`packages/record/package.json` carries no `exports`, `main`, `types`, `files`, or
-`scripts` field, and nothing here is compiled. Publish tooling (deferral register row 1)
-is still open; the pre-0.1 API review (row 6) completed and retired 2026-08-19
+**The honest bound, in the same breath.** The package is not yet published — deliberately:
+the manifest carries the full publish shape (`exports` with `.` and `./probes`, `types`,
+`files`, a `build` script), `pnpm build` emits `dist/`, and `pnpm smoke` packs and
+consumer-tests the tarball in CI, but `private: true` stays as the one publish block until
+the 0.1 cut. Register row 1 stays open until the release workflow
+(`.github/workflows/release.yml`, dispatch-only) is exercised at that cut; the pre-0.1 API
+review (row 6) completed and retired 2026-08-19
 (`docs/analysis/2026-08-19-phase-1-api-review.md`).
 
 **Read these, not this file, for the record and the plan.**
@@ -98,6 +101,10 @@ pnpm workspace (Node 22.16+, pnpm via corepack):
 
 - `pnpm install` — install dev dependencies
 - `pnpm typecheck` — tsc strict, no emit
+- `pnpm build` — compile `packages/record` to `dist/` (tsc, `tsconfig.build.json`)
+- `pnpm smoke` — the packed-tarball smoke test: builds, `npm pack`s, installs the tarball
+  into a scratch project, and drives a confirm loop through the exports map
+  (`scripts/smoke-pack.mjs`)
 - `pnpm lint` — Biome (`pnpm lint:fix` to apply safe fixes)
 - `pnpm test` — vitest, all packages
 - `pnpm contract-scan` — the **standalone contract scan**: run before any commit that
@@ -132,10 +139,12 @@ pnpm workspace (Node 22.16+, pnpm via corepack):
   treating any red result as a regression — a scan total moving has hidden an equal-sized
   regression in the opposite direction here before.
 
-CI (`.github/workflows/ci.yml`) runs typecheck, test, lint, contract-scan, and the
-stricter `lint:strict` (`biome check --error-on-warnings`) on every push to `main` and
-every pull request, with read-only token permissions and one cancel-on-supersede
-concurrency group per ref.
+CI (`.github/workflows/ci.yml`) runs typecheck, test, build, the packed-tarball smoke
+test, lint, contract-scan, and the stricter `lint:strict`
+(`biome check --error-on-warnings`) on every push to `main` and every pull request, with
+read-only token permissions and one cancel-on-supersede concurrency group per ref.
+`.github/workflows/release.yml` is the dispatch-only, provenance-attested publish
+workflow, unexercised until the 0.1 cut.
 
 ## Process disciplines (inherited from the concept)
 

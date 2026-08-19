@@ -42,11 +42,13 @@ distinction). Each item below names its row and quotes its trigger verbatim.
   `Surfaces` naming `create()`'s handle pair; and the `terminalRefusals` footgun closed at
   construction. `./probes` is the one decided subpath (OPEN-QUESTIONS §5's own tail),
   landing with row 1's exports map.
-- **What done would look like (row 1):** `packages/record/package.json` gains a real
-  `exports` map — today it carries exactly five fields (`name`, `version`, `private: true`,
-  `type`, `description`; no `exports`, `main`, `types`, `files`, or `scripts`) — with the
-  decided `./probes` subpath, pointing at a built artifact, and a build step that produces
-  that artifact.
+- **Row 1 status (2026-08-19, the phase-2 packaging increment): the tooling has landed.**
+  The manifest carries the full publish shape with the decided `./probes` subpath;
+  `pnpm build` emits `dist/`; `pnpm smoke` packs the tarball and consumer-tests it on
+  every CI run; and the dispatch-only, provenance-attested release workflow exists,
+  guarded against publishing the pre-release shape. The row stays open until the 0.1 cut
+  exercises that workflow once — release day is: bump the version off `0.0.0`, drop
+  `private: true`, commit, tag, dispatch.
 
 ### The server-SQL backing — register row 15
 

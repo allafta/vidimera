@@ -7,9 +7,11 @@ either, this page is stale — file it as a bug. Two standing caveats: the pre-0
 review (deferral register row 6) completed 2026-08-19 — every name below is
 review-ratified (`docs/analysis/2026-08-19-phase-1-api-review.md`), the store contract's
 method signatures staying explicitly provisional pre-1.0 by the sealed set's own
-declaration; and the package has no `exports` map yet, so inside the workspace you import
-from `packages/record/src/index.js` (the `@vidimera/record` form is the eventual published
-one).
+declaration; and the package builds to `dist/` behind a real `exports` map (`.` and
+`./probes`; CI packs and consumer-tests the tarball on every run) but stays `private: true`
+and unpublished until the 0.1 cut — inside this workspace you still import from
+`packages/record/src/index.js`, and the `@vidimera/record` forms shown here resolve from
+the packed tarball.
 
 ## `create(config)`
 
