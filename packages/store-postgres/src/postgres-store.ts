@@ -45,7 +45,10 @@ export interface PostgresStoreOptions {
 
 /** The subset of a pg client this store needs — Pool and Client both satisfy it. */
 interface Queryable {
-  query(text: string, values?: unknown[]): Promise<{ rows: Record<string, unknown>[] }>;
+  query(
+    text: string,
+    values?: unknown[],
+  ): Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }>;
 }
 
 interface RecordRow {
@@ -85,11 +88,22 @@ export class PostgresStore implements Store {
   }
 
   /** Lazy DDL behind a memoized promise — construction stays synchronous (the
-   * conformance suite's `() => Store` factory), and every public method awaits this. */
+   * conformance suite's `() => Store` factory), and every public method awaits this.
+   * A REJECTED run resets the memo before surfacing the original error, so a transient
+   * failure (the database still coming up, a network blip) fails that one call loudly
+   * and the next call retries — a cached rejection would brick the instance for its
+   * lifetime, against the backing's own production posture. */
   #ensureReady(): Promise<void> {
-    this.#ready ??= (async () => {
-      await this.#pool.query(`CREATE SCHEMA IF NOT EXISTS "${this.#schema}"`);
-      await this.#pool.query(`
+    this.#ready ??= this.#runDdl().catch((err) => {
+      this.#ready = undefined;
+      throw err;
+    });
+    return this.#ready;
+  }
+
+  async #runDdl(): Promise<void> {
+    await this.#pool.query(`CREATE SCHEMA IF NOT EXISTS "${this.#schema}"`);
+    await this.#pool.query(`
         CREATE TABLE IF NOT EXISTS ${this.#t('staged')} (
           id         text PRIMARY KEY,
           draft_json text NOT NULL
@@ -112,8 +126,6 @@ export class PostgresStore implements Store {
           PRIMARY KEY (record_id, seq)
         );
       `);
-    })();
-    return this.#ready;
   }
 
   /**
@@ -289,9 +301,16 @@ export class PostgresStore implements Store {
       return { appended: false, conflict: 'seq' };
     }
     const digest = transitionDigest(transition);
-    await c.query(
+    // ON CONFLICT (id) DO NOTHING closes the one race the advisory lock does not cover:
+    // two concurrent geneses sharing a recordId but NOT a (profile, subject) pair take
+    // different pair locks, and FOR UPDATE locks nothing when no row exists — so the
+    // loser must land on the records PK as the contract's state-mismatch conflict, never
+    // as a thrown constraint violation (the shape SqliteStore's single-connection
+    // serialization returns for the same interleaving).
+    const inserted = await c.query(
       `INSERT INTO ${this.#t('records')} (id, profile_id, subject_ref, state, non_terminal, due_at, sealed)
-       VALUES ($1, $2, $3, 'open', $4, $5, false)`,
+       VALUES ($1, $2, $3, 'open', $4, $5, false)
+       ON CONFLICT (id) DO NOTHING`,
       [
         transition.recordId,
         payload.profileId,
@@ -300,6 +319,9 @@ export class PostgresStore implements Store {
         meta.dueAt ?? null,
       ],
     );
+    if (inserted.rowCount === 0) {
+      return { appended: false, conflict: 'state-mismatch' };
+    }
     await this.#insertTransition(c, transition);
     return { appended: true, seq: transition.seq, transitionDigest: digest };
   }

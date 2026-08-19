@@ -50,8 +50,13 @@ as a list rather than as code.
 
 ## Repository and registry settings (no commit can land these)
 
-- [ ] The npm `@vidimera` scope exists and the `NPM_TOKEN` repository secret carries an
-      automation token for it.
+- [ ] **The repository is public BEFORE the dispatch.** `npm publish --provenance`
+      rejects publishes whose source repository is private — flipping visibility is the
+      phase-0 release event anyway, but the ORDER matters: public first, then dispatch.
+- [ ] The npm `@vidimera` scope exists and the `NPM_TOKEN` repository secret carries a
+      **live granular access token** with publish rights for the scope — classic
+      automation tokens can no longer be created, and granular tokens expire, so verify
+      the token's validity near the dispatch, not weeks before.
 - [ ] GitHub **private vulnerability reporting** is enabled — `SECURITY.md` and
       `.github/ISSUE_TEMPLATE/config.yml` both route reporters there and are asserting a
       setting only this checkbox makes true.

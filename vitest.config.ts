@@ -21,13 +21,19 @@ export default defineConfig({
       {
         // The alias resolves the adapter's runtime imports of @vidimera/record to
         // source, preserving the workspace's run-from-source discipline (record's own
-        // exports map points at dist, which only exists when built).
+        // exports map points at dist, which only exists when built). Anchored as a
+        // regex on the EXACT specifier: a bare-string alias prefix-matches, which would
+        // silently rewrite a subpath import like '@vidimera/record/probes' to
+        // '.../src/index.ts/probes'.
         resolve: {
-          alias: {
-            '@vidimera/record': fileURLToPath(
-              new URL('./packages/record/src/index.ts', import.meta.url),
-            ),
-          },
+          alias: [
+            {
+              find: /^@vidimera\/record$/,
+              replacement: fileURLToPath(
+                new URL('./packages/record/src/index.ts', import.meta.url),
+              ),
+            },
+          ],
         },
         test: {
           name: 'store-postgres',

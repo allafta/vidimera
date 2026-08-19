@@ -42,6 +42,7 @@ jobs:
       - run: pnpm smoke
       - run: pnpm lint:strict
       - run: pnpm contract-scan
+      - run: pnpm api-sync
       # Tarball-first so pnpm rewrites workspace: ranges; record publishes before the
       # adapter that peer-depends on it.
       - name: publish @vidimera/record (provenance, public)

@@ -19,10 +19,10 @@ any one exit.
 - **The build order is complete.** All eight build-order steps
   (`docs/concept/SCOPING-GUIDE.md` §7) are exited; the last, step 8, settled at the
   self-test-tier increment's own fix wave, commit `84484ba`.
-- **Measured against the current tree**: `pnpm test` — 50 test files, 691 tests, zero skips
+- **Measured against the current tree**: `pnpm test` — 51 test files, 695 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
-  `pnpm lint` (`biome check .`) — 112 files checked, 13 infos, zero warnings or errors;
+  `pnpm lint` (`biome check .`) — 114 files checked, 13 infos, zero warnings or errors;
   `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 24 refusal codes, the twenty-fourth and
@@ -146,7 +146,10 @@ than restated here: row 1, publish tooling; row 4, generalizing the root `typech
 beyond `packages/record` and declaring per-package test-runner devDependencies — this one
 a workspace-SHAPE gate rather than a pre-0.1/1.0 one, its own trigger being the second
 workspace package landing, not any 0.1/1.0 cut; and row 16, the token-shape seams' missing
-`tx?`.) (This sentence's earlier "no store adapter" and "no redemption"
+`tx?`.) (**Updated 2026-08-19:** every row this paragraph names as surviving has since
+retired except row 1 — the "Current state" block above and the "Still outstanding"
+accounts below carry the retirements; the paragraph stays as the step-8 exit narrative it
+was, its present tense true at its own writing.) (This sentence's earlier "no store adapter" and "no redemption"
 were pre-existing drift — the former stale since step 2's own exit, the latter since the
 first step-3 increment — missed by their own increments' sweeps; fixed here. This
 paragraph's own earlier "two governed profile fields throw at construction" was a second
@@ -1063,6 +1066,11 @@ them rather than adjudicated again:
   review found.
 - A `terminalRefusals` member that is not a real refusal code constructs without error and
   then never matches, so a leg the operator believes is configured terminal is not.
+  **RESOLVED at the 2026-08-19 phase-1 API review** (its ruling 7): `validateLeg`
+  (`config.ts`) now throws at construction on any member absent from the registry, under
+  SPEC §9.1's own "inert or contradictory feature combinations are construction errors";
+  the two legal-but-inert registry members SPEC §8 names stay constructible. Kept here as
+  the record of what the review found.
 - **2026-08-12**: an enlisted `redeem()` over a tampered chain called rung (1)'s
   `appendChainCompromise` with no `tx`, so its own no-tx fallback's `BEGIN IMMEDIATE`
   collided with the host's already-open transaction on the same connection and threw

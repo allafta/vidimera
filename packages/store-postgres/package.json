@@ -28,13 +28,14 @@
     "NOTICE"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json"
+    "build": "tsc -p tsconfig.build.json",
+    "prepack": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
     "pg": "^8.23.0"
   },
   "peerDependencies": {
-    "@vidimera/record": "workspace:*"
+    "@vidimera/record": "workspace:^"
   },
   "devDependencies": {
     "@types/pg": "^8.23.1",

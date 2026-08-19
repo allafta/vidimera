@@ -124,8 +124,10 @@ test the floor.
 
 1. Open an issue (or a draft PR) describing the problem before investing in a large change —
    especially anything touching the spec's semantics, the store contract, or the public
-   surface. The pre-0.1 naming review (deferral register row 6) is still open, so surface
-   naming is deliberately unsettled.
+   surface. The pre-0.1 API review completed 2026-08-19
+   (`docs/analysis/2026-08-19-phase-1-api-review.md`), so the exported names are
+   review-ratified; the store contract's method signatures stay explicitly provisional
+   pre-1.0 by the sealed set's own declaration.
 2. Write the test first where practical; the suite is the repository's memory.
 3. Keep increments small and focused — this repository was built one cluster per increment,
    and reviews assume that shape.
@@ -142,8 +144,9 @@ test the floor.
 | `docs/guide/` | The public usage guide — derived from source; source wins on conflict |
 | `docs/process/` | Living records: implementation status, deferral register, next phases, provenance |
 | `docs/superpowers/` | The increment record: design specs and implementation plans per increment (a few plans carry no spec) |
-| `packages/record/` | The implementation and its test suite |
-| `scripts/` | Repo tooling, including the contract scan and its own test |
+| `packages/record/` | The core implementation and its test suite |
+| `packages/store-postgres/` | The server-SQL Store backing (its suite runs against a real embedded Postgres) |
+| `scripts/` | Repo tooling: the contract scan, the api-reference drift gate, the tarball smoke test — each with its own test where it has logic |
 
 ## Conduct and security
 

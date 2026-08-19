@@ -144,3 +144,27 @@ test('enlisted rollback across connections: an uncommitted edge is invisible, a 
   assert.equal(retry.appended, true, 'an un-enlisted retry lands cleanly');
   assert.equal((await store.readChain('rec-enlist-race')).length, 2);
 });
+
+test('genesis race on ONE recordId across DIFFERENT (profile, subject) pairs: the loser gets state-mismatch, never a thrown constraint violation', async () => {
+  // The review finding this pins shut: the pair-keyed advisory lock does not serialize
+  // two geneses that share a recordId but not a pair, and FOR UPDATE locks nothing when
+  // no row exists — so the loser's INSERT hit the records PK and THREW 23505 where the
+  // Store contract (and SqliteStore, serialized by its single connection) returns
+  // { conflict: 'state-mismatch' }. Repeated rounds because the race needs both to pass
+  // the existence check before either inserts.
+  const store = newStore();
+  for (let round = 0; round < 10; round += 1) {
+    const id = `rec-dup-${round}`;
+    const a = storeGenesis(id, 'profile.p1', `subject:dup-a-${round}`);
+    const b = storeGenesis(id, 'profile.p2', `subject:dup-b-${round}`);
+    const [ra, rb] = await Promise.all([
+      store.appendTransition(null, a, { nonTerminal: true }),
+      store.appendTransition(null, b, { nonTerminal: true }),
+    ]);
+    assert.equal(ra.appended !== rb.appended, true, 'exactly one genesis lands');
+    const loser = ra.appended ? rb : ra;
+    assert.ok(!loser.appended);
+    assert.equal(loser.conflict, 'state-mismatch', 'the loser reports the conflict, never throws');
+    assert.equal((await store.readChain(id)).length, 1);
+  }
+});

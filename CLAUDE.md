@@ -22,7 +22,7 @@ settling at the self-test-tier increment, commit `84484ba`. The workspace holds 
 packages: `@vidimera/record` and `@vidimera/store-postgres` (the server-SQL third
 reference backing, tested against a real embedded Postgres the suite starts per run).
 Measured against the current
-tree: `pnpm test` — 50 test files, 691 tests, zero skips; `packages/record/src/refusal-codes.ts`
+tree: `pnpm test` — 51 test files, 695 tests, zero skips; `packages/record/src/refusal-codes.ts`
 carries 24 refusal codes; zero GOVERNED construction guards remain in `config.ts` — every
 field the feature-guard era installed has lifted behind real behavior at its own seam
 (`governedUnavailable` survives only for two generic unknown-option-key throws, in
@@ -41,9 +41,10 @@ review (row 6) completed and retired 2026-08-19
 `docs/process/implementation-status.md` is the authoritative account of what this build
 does and does not implement, step by step, with gate outputs and the outstanding list —
 read it rather than trusting any count here, which is a claim with a shelf life and no way
-to fail loudly. `docs/process/next-phases.md` names what gates the next cut (five live
-deferral-register rows, each with its own trigger) and what stays deliberately out of
-scope.
+to fail loudly. `docs/process/next-phases.md` names what gates the next cut (one live
+deferral-register row — publish tooling, held open until the release workflow runs once)
+and what stays deliberately out of scope; `docs/process/release-checklist.md` is release
+day's authoritative list.
 
 **The public docset.** The repo carries a public-repo documentation set beyond the concept
 and process docs: root `README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`,
@@ -104,7 +105,7 @@ pnpm workspace (Node 22.16+, pnpm via corepack):
 
 - `pnpm install` — install dev dependencies
 - `pnpm typecheck` — tsc strict, no emit
-- `pnpm build` — compile `packages/record` to `dist/` (tsc, `tsconfig.build.json`)
+- `pnpm build` — compile both packages to `dist/` (tsc, each package's `tsconfig.build.json`)
 - `pnpm smoke` — the packed-tarball smoke test: builds, `npm pack`s, installs the tarball
   into a scratch project, and drives a confirm loop through the exports map
   (`scripts/smoke-pack.mjs`)

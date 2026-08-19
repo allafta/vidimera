@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { storeGenesis } from '../../record/test/helpers/chain.js';
-import { newStore, sharedPool } from './helpers/pg.js';
+import { newStore, nextSchemaName, sharedPool } from './helpers/pg.js';
 
 test('tx validation: a foreign object is refused loudly (not a pg client)', async () => {
   const store = newStore();
@@ -64,4 +64,30 @@ test('enlistment: a host COMMIT persists the enlisted append', async () => {
   const chain = await store.readChain('rec-enlist');
   assert.equal(chain.length, 1);
   assert.equal(await store.findNonTerminal('profile.p1', 'subject:enlist'), 'rec-enlist');
+});
+
+test('recovery: a transient failure during lazy DDL does not brick the store — the next call retries', async () => {
+  // The review finding this pins shut: a memoized #ready promise that caches a REJECTION
+  // replays the stale error forever, so one startup blip permanently bricks the
+  // instance — against the backing's own production posture. The flaky pool fails the
+  // FIRST query (the DDL), then behaves; the store must fail that first call loudly and
+  // then recover on the next.
+  const real = sharedPool();
+  let failed = false;
+  const flaky = {
+    query(text: string, values?: unknown[]) {
+      if (!failed) {
+        failed = true;
+        return Promise.reject(new Error('transient: connection refused'));
+      }
+      return real.query(text, values);
+    },
+    connect: () => real.connect(),
+  };
+  const { PostgresStore } = await import('../src/postgres-store.js');
+  const store = new PostgresStore(flaky as never, { schema: nextSchemaName() });
+
+  await assert.rejects(store.getStaged('s-any'), /transient/);
+  // The blip is over — the same instance must work now, not replay the stale rejection.
+  assert.equal(await store.getStaged('s-any'), null);
 });

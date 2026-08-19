@@ -63,3 +63,4 @@ the plans that followed it.
 | 2026-08-17 | AL2 freshness | Step 8, 3rd item — AL2, 3rd of 3 — guard era ends | [design](specs/2026-08-17-al2-freshness-design.md) | [plan](plans/2026-08-17-al2-freshness.md) |
 | 2026-08-18 | Self-test tier | Step 8, last item — exit; build order complete | [design](specs/2026-08-18-self-test-tier-design.md) | [plan](plans/2026-08-18-self-test-tier.md) |
 | 2026-08-18 | Post-build-order housekeeping | Post-build-order (no step) | no spec | [plan](plans/2026-08-18-post-build-order-housekeeping.md) |
+| 2026-08-19 | The Postgres backing, the token seams' `tx?`, the workspace shape | Post-build-order — release-plan phase 4 (register rows 15/16/4) | [design](specs/2026-08-19-store-postgres-design.md) | [plan](plans/2026-08-19-store-postgres.md) |

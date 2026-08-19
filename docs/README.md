@@ -11,7 +11,8 @@ can be true or false — and says so when they can drift.
 | [`process/`](process/implementation-status.md) | Living records: implementation status, the deferral register, the next-phases roadmap, adopted-source provenance | **Authoritative for what is built.** [`process/implementation-status.md`](process/implementation-status.md) is the step-by-step account of what this build does and does not implement — trust it over any summary, including the README's |
 | [`superpowers/`](superpowers/INDEX.md) | The increment record: design specs and implementation plans per increment (a few plans carry no spec), indexed chronologically | **Historical.** How each increment was designed and executed; useful for archaeology, binding on nothing |
 
-(`analysis/` holds one point-in-time review document and is also historical.)
+(`analysis/` holds the point-in-time review, brainstorm, and phase records — dated
+snapshots, also historical.)
 
 ## Reading orders
 

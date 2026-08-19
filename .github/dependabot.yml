@@ -8,7 +8,7 @@ updates:
     schedule:
       interval: weekly
     groups:
-      dev-dependencies:
+      npm-dependencies:
         patterns:
           - "*"
   - package-ecosystem: github-actions

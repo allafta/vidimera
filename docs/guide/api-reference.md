@@ -397,12 +397,13 @@ All of these names — plus `withSigning` (the store decorator) and the referenc
 `MemorySignatureStore` — are exported from the entry point: the 2026-08-19 review moved
 the whole signing tier onto the root, beside the stores it mirrors.
 
-## Probes — the decided `./probes` subpath, deep import until the exports map lands
+## Probes — the `./probes` subpath
 
 `./probes` is the decided delivery shape (the sealed set's own ruling, OPEN-QUESTIONS §5's
-"a public library subpath", confirmed at the 2026-08-19 review) — it becomes importable
-when publish tooling lands the `exports` map (deferral register row 1). Until then, inside
-the workspace, deep-import `src/probes/index.js`:
+"a public library subpath", confirmed at the 2026-08-19 review), and it is real in the
+exports map — the packed tarball resolves it, and CI's smoke test exercises it on every
+run. Inside this workspace, where everything runs from source, the deep import
+`src/probes/index.js` is still how the tier is reached:
 
 ```ts
 const ALL_PROBES: readonly Probe[];          // seventeen probes against the current tree

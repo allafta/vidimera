@@ -1,8 +1,9 @@
 # Changelog
 
-Notable changes to `@vidimera/record`. The format loosely follows the widely used
-keep-a-changelog shape; versions will follow semantic versioning once a version exists to
-follow it.
+Notable changes to the Vidimera packages — `@vidimera/record` and, since 2026-08-19,
+`@vidimera/store-postgres` (both publish together at the 0.1 cut). The format loosely
+follows the widely used keep-a-changelog shape; versions will follow semantic versioning
+once a version exists to follow it.
 
 **No release has been cut.** The package is pre-0.1 and unpublished — everything below sits
 in `Unreleased`, recorded by build-order step rather than by date. The authoritative,
@@ -48,9 +49,10 @@ is the summary, and that file wins on conflict.
   detached per-transition signing as an operator-enabled upgrade (mint, enforcement at the
   seams' chain-verify gates, and consultation freshness); and the operator-assurance probe
   tier (`runProbes`/`assertSatisfied` over a host-supplied driver).
-- Repository-level: CI (typecheck, lint, strict lint, tests, contract scan), the
-  standalone-contract scan with citation resolution over tracked code, and the public
-  documentation set (`README.md`, `docs/guide/`, contributor and security policies).
+- Repository-level: CI (typecheck, lint, strict lint, tests, build, the tarball smoke
+  test, the contract scan, and the api-reference drift gate), the standalone-contract
+  scan with citation resolution over tracked code, and the public documentation set
+  (`README.md`, `docs/guide/`, contributor and security policies).
 - **The pre-0.1 API review** (2026-08-19, retiring deferral register row 6): every
   signature-reachable type exported (no unspellable names), the signing tier and the pure
   `replay`/`verifyChain` audit functions moved onto the root entry, `Surfaces` naming
@@ -85,6 +87,28 @@ is the summary, and that file wins on conflict.
   `redeem` has — an enlisted issuance or completion commits or rolls back with the host's
   own outbox/effect row, and the enlisted-tampered corner refuses `chain-compromise`
   result-first with no edge.
+- **Release mechanics and the docset gates** (2026-08-19): the api-reference drift gate
+  (`pnpm api-sync`, in CI and the release workflow — its first run caught five
+  undocumented exports, since documented); NOTICE files carrying the copyright (root and
+  both packages); blank issues disabled with security reports routed to private
+  reporting; the release workflow publishing both packages tarball-first with provenance;
+  and `docs/process/release-checklist.md` as release day's one authoritative list. The
+  phase-6 first-use rehearsal consumed both packed tarballs in a scratch project — full
+  confirm loops green on both stores — and recorded that the `node:sqlite`
+  ExperimentalWarning greets every `@vidimera/record` import.
+
+### Fixed
+
+- **A transient database failure no longer bricks a `PostgresStore` instance**
+  (2026-08-19, found by the full-project review): the lazy-DDL memo cached a rejection
+  and replayed the stale error forever; it now resets on failure so the next call
+  retries.
+- **A genesis race on one `recordId` across different `(profile, subject)` pairs now
+  reports the contract's `state-mismatch` conflict** instead of surfacing a thrown
+  unique-constraint violation (same review; pinned by a repeated-round contention test).
+- The adapter's peer range on `@vidimera/record` publishes as a caret range
+  (`workspace:^`), not an exact pin — a record-only patch release no longer breaks fresh
+  adapter installs.
 
 ### Known not-done
 
