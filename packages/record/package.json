@@ -32,5 +32,8 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.10"
   }
 }

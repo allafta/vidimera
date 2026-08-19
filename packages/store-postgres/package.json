@@ -1,0 +1,44 @@
+{
+  "name": "@vidimera/store-postgres",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "PostgreSQL Store backing for @vidimera/record — the server-SQL third reference backing (multi-connection-safe).",
+  "license": "Apache-2.0",
+  "author": "The Vidimera Authors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/allafta/vidimera.git",
+    "directory": "packages/store-postgres"
+  },
+  "engines": {
+    "node": ">=22.16"
+  },
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "pg": "^8.23.0"
+  },
+  "peerDependencies": {
+    "@vidimera/record": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1",
+    "@vidimera/record": "workspace:*",
+    "embedded-postgres": "18.4.0-beta.17",
+    "vitest": "^4.1.10"
+  }
+}
