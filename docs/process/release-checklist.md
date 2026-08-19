@@ -11,7 +11,10 @@ as a list rather than as code.
 
 - [ ] Phase 6 of the release plan (first-use validation) has run: one documented,
       reproduced first-use pass from packed artifact to verified chain on a machine that
-      never held this checkout.
+      never held this checkout. (The same-machine rehearsal ran 2026-08-19 —
+      `docs/analysis/2026-08-19-phase-6-rehearsal.md`: both tarballs, the peer-range
+      rewrite proven, both stores green from the installed artifacts. The clean-machine
+      run is what remains of this box.)
 - [ ] The owner's own bar from the phase-0 record holds: nothing goes public before the
       project is actually ready — this list executes that decision, never substitutes
       for it.
@@ -23,7 +26,9 @@ as a list rather than as code.
       CI matrix's exact-floor job, to that version — the ExperimentalWarning question
       disappears. If no: ship as-is; the warning, why it appears, and the
       `--disable-warning=ExperimentalWarning` flag are already documented in
-      `docs/guide/integrating.md`.
+      `docs/guide/integrating.md`. Weigh it knowing the phase-6 rehearsal's finding: the
+      warning fires on ANY `@vidimera/record` import (the entry point re-exports
+      `SqliteStore`), so every adopter meets it at hello, whatever store they use.
 
 ## File changes (one commit, tagged)
 
