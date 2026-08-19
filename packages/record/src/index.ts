@@ -12,6 +12,13 @@ export type { AgentSurface } from './agent-surface.js';
 export type { DigestAlgorithm } from './canonical.js';
 // --- exported helpers ---
 export { canonicalize, digest } from './canonical.js';
+// --- the adapter-author surface (SPEC §12: "A third-party `Store` adapter implementer
+// MUST honor the contract below") — the helpers a conforming backing needs and cannot
+// re-derive without becoming the drift hazard the store seam exists to prevent: the
+// private transition encoding's digest, and the C3/C4 semantic arms. A deliberate,
+// grouped post-review amendment to the phase-1 surface, argued in the phase-4
+// store-postgres spec under docs/superpowers/specs/ (dated 2026-08-19).
+export { transitionDigest } from './chain/encoding.js';
 export type { ChainVerifyReport } from './chain/replay.js';
 // --- the pure audit functions (SPEC §5) — exposed on the operator handle by recordId,
 // and exported here in their pure `(chain)` forms for the offline-audit case: an
@@ -60,6 +67,8 @@ export type {
 // seam. PUBLIC BUT EXPLICITLY UNSTABLE PRE-1.0 — see `MemoryStore`'s own doc comment
 // and the `Store` interface's (same marking).
 export { MemoryStore } from './store/memory.js';
+export type { GenesisPayload } from './store/semantics.js';
+export { isCompromiseCarveOut, isStateLeaving, stateOf } from './store/semantics.js';
 // --- provisional embedded-SQL Store implementation ---
 // Same rationale as `MemoryStore` above — the seam an adopter wires rather than
 // hand-rolling. PUBLIC BUT EXPLICITLY UNSTABLE PRE-1.0 — see `SqliteStore`'s own doc

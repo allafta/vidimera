@@ -321,6 +321,27 @@ so). `AppendMeta`, `AppendResult`, and `BatchResult` are exported alongside `Sto
 backing proves itself against the conformance suite at
 `packages/record/test/conformance/store-conformance.ts`.
 
+### Adapter authors
+
+SPEC §12 contemplates third-party `Store` adapters directly ("A third-party `Store`
+adapter implementer MUST honor the contract below"), and the helpers a conforming backing
+needs — and cannot re-derive without drifting — are exported for exactly that use:
+
+```ts
+function transitionDigest(transition: Transition): Digest;  // the store recomputes each
+                                                            // appended transition's digest
+                                                            // for its AppendResult
+function stateOf(kind: TransitionKind): RecordState | null; // null = state-preserving kind
+function isStateLeaving(kind: TransitionKind): boolean;     // C3's subject
+function isCompromiseCarveOut(transition: Transition,       // C3's second carve-out
+                              expectedCurrentState: RecordState): boolean;
+interface GenesisPayload { profileId: string; subjectRef: string }  // what a genesis
+                                                            // append's payload carries
+```
+
+`@vidimera/store-postgres` (this workspace's server-SQL backing) is the reference consumer
+of this surface.
+
 ## Signing (AL2) — structural today
 
 `Config.signing` takes `{ signer, verifiers, signatures }`:

@@ -19,6 +19,7 @@ import type {
   ConsultationInput,
   FinalizeOptions,
   FindingInput,
+  GenesisPayload,
   ObtainedConsultation,
   OpenOptions,
   PolicyInput,
@@ -40,10 +41,14 @@ import {
   canonicalize,
   create,
   digest,
+  isCompromiseCarveOut,
+  isStateLeaving,
   MemorySignatureStore,
   MemoryStore,
   replay,
   SqliteStore,
+  stateOf,
+  transitionDigest,
   verifyChain,
   withSigning,
 } from '../src/index.js';
@@ -69,6 +74,9 @@ type RuledTypeExports = [
   RecordedFinding,
   RecordedAck,
   SupersedesRef,
+  // the adapter-author surface (the phase-4 store-postgres spec) — the genesis
+  // payload shape a conforming Store backing reads
+  GenesisPayload,
   // rule 3 — the signing tier
   SigningConfig,
   Signer,
@@ -78,7 +86,20 @@ type RuledTypeExports = [
 ];
 
 test('every ruled value export is reachable from the entry point', () => {
-  const fns = { canonicalize, create, digest, replay, verifyChain, withSigning };
+  const fns = {
+    canonicalize,
+    create,
+    digest,
+    // the adapter-author surface: the transition encoding's digest and the C3/C4
+    // semantic arms a conforming Store backing must express (SPEC §12)
+    isCompromiseCarveOut,
+    isStateLeaving,
+    replay,
+    stateOf,
+    transitionDigest,
+    verifyChain,
+    withSigning,
+  };
   for (const [name, fn] of Object.entries(fns)) {
     assert.equal(typeof fn, 'function', `expected index.ts to export function '${name}'`);
   }
