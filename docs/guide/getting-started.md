@@ -3,13 +3,12 @@
 This walks you from a clean clone to your first verified decision record — including your
 first *refused* one, which is half the point of the library.
 
-**The honest precondition:** `@vidimera/record` is not published — there is no npm install
-yet. The package now builds (`pnpm build` → `dist/`), carries its `exports` map, and CI
-smoke-tests the packed tarball in a scratch consumer on every run, but it stays
-`private: true` until the 0.1 cut (deferral register row 1 carries the release itself).
-Today you run it from source, inside this repository's workspace, which is exactly how its
-own 600-plus tests run. The code below was executed against this tree before being written
-down.
+**Two ways to run this page:** as a consumer, `npm install @vidimera/record` (published
+0.1.0, 2026-08-19) and import from `'@vidimera/record'`; or as a contributor, from source
+inside this repository's workspace — which is exactly how its own 600-plus tests run, and
+what the walkthrough below does (its imports are the workspace-relative form; swap them
+for the package name in your own project). The code below was executed against this tree
+before being written down.
 
 ## Setup
 
@@ -39,8 +38,9 @@ Inside the workspace you import from the source entry point:
 import { create, MemoryStore } from '../src/index.js';
 ```
 
-(`import { create, MemoryStore } from '@vidimera/record'` is the eventual published form;
-it does not resolve today.) Keep scratch files out of `git add` — the contract scan and CI
+(`import { create, MemoryStore } from '@vidimera/record'` is the published form your own
+project uses; inside this workspace, source-relative imports are the path.) Keep scratch
+files out of `git add` — the contract scan and CI
 read every *tracked* TypeScript file, and your scratch file is not written to that bar.
 
 ## First record, end to end

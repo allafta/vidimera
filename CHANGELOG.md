@@ -5,12 +5,22 @@ Notable changes to the Vidimera packages — `@vidimera/record` and, since 2026-
 follows the widely used keep-a-changelog shape; versions will follow semantic versioning
 once a version exists to follow it.
 
-**No release has been cut.** The package is pre-0.1 and unpublished — everything below sits
-in `Unreleased`, recorded by build-order step rather than by date. The authoritative,
-step-by-step account with gate outputs is `docs/process/implementation-status.md`; this file
-is the summary, and that file wins on conflict.
+The authoritative, step-by-step account with gate outputs is
+`docs/process/implementation-status.md`; this file is the summary, and that file wins on
+conflict. Within `[0.1.0]` — the first cut, which carries the whole build — entries are
+recorded by build-order step rather than by date.
 
 ## [Unreleased]
+
+Nothing yet.
+
+## [0.1.0] — 2026-08-19
+
+The first release: both packages, published together with provenance. The 0.x bounds,
+stated with the release: the store contract's method signatures are explicitly
+provisional pre-1.0 (the concept set's own named 1.0 gate), and `node:sqlite`'s
+ExperimentalWarning greets imports on Node lines where the module is still experimental —
+shipped as-is per the release checklist's floor rule, evaluated at the cut.
 
 ### Added
 
@@ -64,7 +74,7 @@ is the summary, and that file wins on conflict.
   `license`, `engines`, `repository`), a tsc build to `dist/`, a packed-tarball smoke test
   on every CI run (`pnpm smoke` — installs the tarball into a scratch project and drives a
   confirm loop through the exports map), and a dispatch-only, provenance-attested release
-  workflow. The package stays `private: true` until the 0.1 cut by design.
+  workflow. The package stayed `private: true` until this cut, by design.
 - **CI hardening** (2026-08-19): a two-tier workflow — the platform-independent gates once
   on Linux; tests, build, and the tarball smoke test on a matrix covering the exact
   declared Node floor (22.16.0), current Node, and all three OSes — plus pnpm caching,
@@ -110,9 +120,9 @@ is the summary, and that file wins on conflict.
   (`workspace:^`), not an exact pin — a record-only patch release no longer breaks fresh
   adapter installs.
 
-### Known not-done
+### Known not-done at 0.1
 
-- The release itself: the package is `private: true` and unpublished by design until the
-  0.1 cut — the publish tooling landed 2026-08-19, and deferral register row 1 (the
-  register's one live row) stays open until the release workflow is exercised once at
-  that cut.
+- The store contract's method signatures are provisional pre-1.0 (open-questions §9's
+  declared 1.0 gate); behaviors are stable, argument lists are not frozen.
+- AL3 anchoring stays a documented-only upgrade, and concurrent legs stay out of scope
+  pre-1.0 — both by the sealed concept set's own declarations.

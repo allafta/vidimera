@@ -1,7 +1,6 @@
 {
   "name": "@vidimera/store-postgres",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "type": "module",
   "description": "PostgreSQL Store backing for @vidimera/record — the server-SQL third reference backing (multi-connection-safe).",
   "license": "Apache-2.0",
