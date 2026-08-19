@@ -355,10 +355,18 @@ export async function redeem(
  * only thing persisted (DECISIONS #30: digest-only custody), and the raw token is
  * returned in the ok value EXACTLY ONCE — generated before the append, returned only
  * after it (a crash between the two strands the record, §11.2's lost-token pricing; the
- * reverse order would hand out a token whose edge never landed, strictly worse). NO tx
- * parameter: the token shape exists where "no transaction is shared" (§11.2), and
- * enlisting an issuance would let a host rollback erase the recorded tokenDigest while
- * the live token is out. NO re-issue: a begin against a `redeeming` record refuses
+ * reverse order would hand out a token whose edge never landed, strictly worse). The
+ * optional trailing `tx?` (register row 16, landed at the phase-4 increment) is the
+ * TWELFTH self-authored inversion — this comment previously argued "NO tx parameter",
+ * on the ground that a host rollback could erase the recorded tokenDigest while the
+ * live token is out. The inverted reading: an enlisted issuance commits or rolls back
+ * with the host's own outbox row, so a rollback erases the edge AND the outbox entry
+ * together — the host declining the issuance whole, never a strand (the token returned
+ * from a rolled-back issuance corresponds to no persisted digest and can never
+ * complete, which is fail-closed, not dangling) — and the crash-strand window between
+ * the append and the token's return shrinks to the host's own transaction. §11.2's "no
+ * transaction is shared" defines the EXECUTOR relationship, not the issuance's own
+ * persistence. NO re-issue: a begin against a `redeeming` record refuses
  * `unredeemable-state` (DECISIONS #30 — this build's mapping; §8's producer enumeration
  * predates the state, recorded in the status doc). Begin-time content correspondence is
  * this build's ADDITION, not spec-granted: §11.2's correspondence sentence reads at the
@@ -375,11 +383,12 @@ export async function beginRedemption(
   ctx: KernelContext,
   recordId: string,
   content: unknown,
+  tx?: unknown,
 ): Promise<
   Outcome<{ recordId: string; state: 'redeeming'; token: string; transitionRef: Digest }>
 > {
   const { store, now, tokenSource } = ctx;
-  const pro = await prologue(ctx, 'beginRedemption', recordId);
+  const pro = await prologue(ctx, 'beginRedemption', recordId, tx);
   if ('refusal' in pro) return pro.refusal;
   const { chain, record, resolved, finalLeg } = pro.gated;
 
@@ -404,7 +413,7 @@ export async function beginRedemption(
   // profile (SPEC §9.2, the live-capture increment), `effect-mismatch` otherwise.
   const recomputed = digest(canonicalize(resolved.canonicalizer(content)));
   if (recomputed !== record.contentDigest) {
-    return refuseCorrespondenceMismatch(store, chain, resolved, 'confirmed', finalLeg, now);
+    return refuseCorrespondenceMismatch(store, chain, resolved, 'confirmed', finalLeg, now, tx);
   }
 
   // --- (6) issue, then append `confirmed → redeeming` -----------------------------------
@@ -435,7 +444,7 @@ export async function beginRedemption(
     nonTerminal: nonTerminal('redeeming', finalLeg, resolved.effectSeam),
     ...(bound === undefined ? {} : { dueAt: bound }),
   };
-  const res = await store.appendTransition('confirmed', redeemingTransition, meta);
+  const res = await store.appendTransition('confirmed', redeemingTransition, meta, tx);
   if (!res.appended) {
     return residualRefusal(store, recordId);
   }
@@ -457,13 +466,17 @@ export async function beginRedemption(
  * other profile keeps `effect-mismatch`, byte-identical to before this increment. The
  * executor's own deduplication, keyed on the token, remains the separated host's MUST
  * (§11.2's Honest bound) — this seam is defense-in-depth beside it, never a substitute.
- * NO tx, deliberately — same argument as beginRedemption's doc comment.
+ * The optional trailing `tx?` (register row 16) inverts this comment's earlier "NO tx,
+ * deliberately" — the same TWELFTH-inversion argument as beginRedemption's doc comment:
+ * an enlisted completion commits or rolls back with the host's own effect row, which is
+ * §11.2's co-located coupling wearing the token shape.
  */
 export async function completeRedemption(
   ctx: KernelContext,
   recordId: string,
   token: string,
   content: unknown,
+  tx?: unknown,
 ): Promise<Outcome<{ recordId: string; state: 'redeemed'; transitionRef: Digest }>> {
   if (typeof token !== 'string') {
     // A caller bug throws at argument intake, ahead of every outcome — the same depth as
@@ -475,7 +488,7 @@ export async function completeRedemption(
     );
   }
   const { store, now } = ctx;
-  const pro = await prologue(ctx, 'completeRedemption', recordId);
+  const pro = await prologue(ctx, 'completeRedemption', recordId, tx);
   if ('refusal' in pro) return pro.refusal;
   const { chain, record, resolved, finalLeg } = pro.gated;
 
@@ -527,7 +540,7 @@ export async function completeRedemption(
   }
   const recomputed = digest(canonicalize(resolved.canonicalizer(content)));
   if (recomputed !== record.contentDigest) {
-    return refuseCorrespondenceMismatch(store, chain, resolved, 'redeeming', finalLeg, now);
+    return refuseCorrespondenceMismatch(store, chain, resolved, 'redeeming', finalLeg, now, tx);
   }
 
   // --- (6) append `redeeming → redeemed { via: 'token', tokenDigest }` ------------------
@@ -550,7 +563,7 @@ export async function completeRedemption(
   const meta: AppendMeta = {
     nonTerminal: nonTerminal('redeemed', finalLeg, resolved.effectSeam),
   };
-  const res = await store.appendTransition('redeeming', redeemedTransition, meta);
+  const res = await store.appendTransition('redeeming', redeemedTransition, meta, tx);
   if (!res.appended) {
     return residualRefusal(store, recordId);
   }

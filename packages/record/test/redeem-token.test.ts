@@ -709,3 +709,101 @@ test('direct-vs-direct race: the loser refuses already-redeemed — the family-w
   if (loser.status !== 'refused') return;
   assert.equal(loser.code, 'already-redeemed');
 });
+
+// === the enlisted token seams (register row 16, the TWELFTH inversion) ================
+// beginRedemption/completeRedemption gain the additive trailing tx? the direct seam has
+// had all along. This INVERTS the seams' own earlier "NO tx, deliberately" doc-comment
+// stance — argued in place at kernel/redeem.ts and recorded as the TWELFTH entry of
+// implementation-status.md's numbered self-authored-inversion sequence: an enlisted
+// issuance/completion commits or rolls back with the host's own outbox row, so a
+// rollback erases the edge AND the outbox entry together — the host declining the
+// issuance whole, never a strand — and the crash-strand window between the append and
+// the token's return shrinks to the host's own transaction.
+
+test('ENLISTED beginRedemption: a host ROLLBACK erases the redeeming edge — the record is back to confirmed, and an un-enlisted retry mints a fresh token', async () => {
+  const sqlite = new SqliteStore(':memory:');
+  const { handles, recordId } = await confirmedEffectRecord(sqlite);
+
+  sqlite.database.exec('BEGIN IMMEDIATE');
+  const enlisted = await handles.operator.beginRedemption(recordId, CONTENT, sqlite.database);
+  assert.equal(enlisted.status, 'ok', 'the enlisted issuance succeeds inside the host tx');
+  assert.equal(sqlite.database.isTransaction, true, "the host's transaction is still open");
+  sqlite.database.exec('ROLLBACK'); // must not throw
+
+  const record = await handles.operator.replay(recordId);
+  assert.equal(record.state, 'confirmed', 'the rollback erased the redeeming edge');
+  assert.equal(
+    await sqlite.findNonTerminal('test.effect.v1', DEFAULT_SUBJECT_REF),
+    recordId,
+    'the pair is still held by the confirmed record',
+  );
+
+  const retry = await handles.operator.beginRedemption(recordId, CONTENT);
+  assert.equal(retry.status, 'ok', 'an un-enlisted retry issues cleanly');
+  if (retry.status !== 'ok' || enlisted.status !== 'ok') return;
+  assert.notEqual(retry.value.token, enlisted.value.token, 'a fresh token, never a reuse');
+});
+
+test('ENLISTED begin + COMMIT, then ENLISTED complete + COMMIT: the full token flow rides two host transactions', async () => {
+  const sqlite = new SqliteStore(':memory:');
+  const { handles, recordId } = await confirmedEffectRecord(sqlite);
+
+  sqlite.database.exec('BEGIN IMMEDIATE');
+  const begun = await handles.operator.beginRedemption(recordId, CONTENT, sqlite.database);
+  assert.equal(begun.status, 'ok');
+  sqlite.database.exec('COMMIT');
+  if (begun.status !== 'ok') return;
+  assert.equal((await handles.operator.replay(recordId)).state, 'redeeming');
+
+  sqlite.database.exec('BEGIN IMMEDIATE');
+  const completed = await handles.operator.completeRedemption(
+    recordId,
+    begun.value.token,
+    CONTENT,
+    sqlite.database,
+  );
+  assert.equal(completed.status, 'ok');
+  sqlite.database.exec('COMMIT');
+  assert.equal((await handles.operator.replay(recordId)).state, 'redeemed');
+});
+
+test('ENLISTED beginRedemption over a tampered chain: chain-compromise result-first, NO edge, host transaction intact (the inherited rung-(1) shape)', async () => {
+  const sqlite = new SqliteStore(':memory:');
+  const { recordId } = await confirmedEffectRecord(sqlite);
+  const tampering = new TamperingStore(sqlite, recordId, tamperNonLast);
+  const handles = create(makeConfig([effectSeamProfile()], { store: tampering }));
+
+  const before = await sqlite.readChain(recordId);
+  sqlite.database.exec('BEGIN IMMEDIATE');
+  const outcome = await handles.operator.beginRedemption(recordId, CONTENT, sqlite.database);
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'chain-compromise');
+  assert.equal(outcome.transitionRef, undefined, 'no edge — the append was never attempted');
+  assert.equal(sqlite.database.isTransaction, true, "the host's transaction is still open");
+  sqlite.database.exec('ROLLBACK'); // must not throw
+  assert.deepEqual(await sqlite.readChain(recordId), before, 'the chain is unchanged');
+});
+
+test('ENLISTED completeRedemption over a tampered chain: chain-compromise result-first, NO edge, host transaction intact', async () => {
+  const sqlite = new SqliteStore(':memory:');
+  const { recordId, token } = await redeemingRecord(sqlite);
+  const tampering = new TamperingStore(sqlite, recordId, tamperNonLast);
+  const handles = create(makeConfig([effectSeamProfile()], { store: tampering }));
+
+  const before = await sqlite.readChain(recordId);
+  sqlite.database.exec('BEGIN IMMEDIATE');
+  const outcome = await handles.operator.completeRedemption(
+    recordId,
+    token,
+    CONTENT,
+    sqlite.database,
+  );
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'chain-compromise');
+  assert.equal(outcome.transitionRef, undefined, 'no edge — the append was never attempted');
+  assert.equal(sqlite.database.isTransaction, true, "the host's transaction is still open");
+  sqlite.database.exec('ROLLBACK'); // must not throw
+  assert.deepEqual(await sqlite.readChain(recordId), before, 'the chain is unchanged');
+});

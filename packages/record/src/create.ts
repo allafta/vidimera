@@ -160,13 +160,13 @@ function makeKernel(ctx: KernelContext): Kernel {
 
     // --- beginRedemption(): kernel/redeem.ts — the TOKEN shape's issuance half (SPEC
     // §11.2, second step-3 increment): `confirmed → redeeming { tokenDigest }` ---
-    beginRedemption: (recordId, content) => beginRedemptionKernel(ctx, recordId, content),
+    beginRedemption: (recordId, content, tx) => beginRedemptionKernel(ctx, recordId, content, tx),
 
     // --- completeRedemption(): kernel/redeem.ts — the TOKEN shape's presentation half
     // (SPEC §11.2, second step-3 increment): `redeeming → redeemed { via: 'token',
     // tokenDigest }` on presenting the issued token ---
-    completeRedemption: (recordId, token, content) =>
-      completeRedemptionKernel(ctx, recordId, token, content),
+    completeRedemption: (recordId, token, content, tx) =>
+      completeRedemptionKernel(ctx, recordId, token, content, tx),
 
     // --- raiseFinding()/acknowledge(): kernel/findings-seams.ts — SPEC §10.2's two
     // operator-only mid-lifecycle seams (second step-7 increment) ---

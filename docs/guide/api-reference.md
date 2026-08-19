@@ -115,9 +115,9 @@ interface OperatorSurface {
   // the effect seam (SPEC §11.2)
   redeem(recordId: string, content: unknown, tx?: unknown):
     Promise<Outcome<{ recordId: string; state: 'redeemed'; transitionRef: Digest }>>;
-  beginRedemption(recordId: string, content: unknown):
+  beginRedemption(recordId: string, content: unknown, tx?: unknown):
     Promise<Outcome<{ recordId: string; state: 'redeeming'; token: string; transitionRef: Digest }>>;
-  completeRedemption(recordId: string, token: string, content: unknown):
+  completeRedemption(recordId: string, token: string, content: unknown, tx?: unknown):
     Promise<Outcome<{ recordId: string; state: 'redeemed'; transitionRef: Digest }>>;
 
   // retirement
@@ -151,6 +151,10 @@ Notes that save debugging time:
   outcome).
 - `beginRedemption`'s `token` is secret material returned exactly once and never
   persisted — the chain and store carry only its digest. Do not log it.
+- All three redemption seams take an optional trailing `tx?` (the driver's own
+  transaction handle): an enlisted issuance or completion commits or rolls back with the
+  host's own outbox/effect row, and the enlisted-tampered corner refuses
+  `chain-compromise` result-first with no edge, same as the direct shape.
 - `verifySignatures` reports and never gates; enforcement is folded into the chain-verify
   arm at every seam on signing profiles. Its report type (`SignatureReport`) is exported
   from the entry point — the review's no-unspellable-names rule.

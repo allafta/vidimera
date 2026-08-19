@@ -70,6 +70,7 @@ export interface OperatorSurface {
   beginRedemption(
     recordId: string,
     content: unknown, // begin-time correspondence: this build's addition, argued at the seam
+    tx?: unknown, // register row 16: the issuance enlisted in the host's transaction (the TWELFTH inversion, argued at kernel/redeem.ts)
   ): Promise<
     // `token` is the single-use redemption token, returned exactly once and never persisted.
     // The `ok` value is secret material — a host MUST NOT log it; the chain and store carry
@@ -80,6 +81,7 @@ export interface OperatorSurface {
     recordId: string,
     token: string, // the single-use token beginRedemption returned — presented, never persisted
     content: unknown,
+    tx?: unknown, // register row 16: the completion enlisted in the host's transaction
   ): Promise<Outcome<{ recordId: string; state: 'redeemed'; transitionRef: Digest }>>;
   seal(
     recordId: string,
