@@ -3,14 +3,32 @@
 // structurally cannot make, because every test there imports `../src/*.js` and so never
 // exercises the built artifact, the exports map, or the shipped declarations.
 //
-// What it does, end to end, in a temp directory it always removes:
-//   1. builds `packages/record` (tsc, `tsconfig.build.json`) into `dist/`;
-//   2. `npm pack`s the package into a scratch dir (works under `private: true` — only
-//      publish is blocked, which is the point of the flag);
-//   3. installs the tarball into a fresh scratch project;
+// Covers BOTH workspace packages since the session-2 posture ruling
+// (`docs/analysis/2026-08-20-artifact-postures.md`). What it does, end to end, in a
+// temp directory it always removes:
+//   1. builds `packages/record` and `packages/store-postgres` (tsc, each package's
+//      `tsconfig.build.json`) into `dist/`;
+//   2. packs both into a scratch dir (works under `private: true` — only publish is
+//      blocked, which is the point of the flag). The record package packs with npm;
+//      the adapter MUST pack with pnpm, because only pnpm's pack rewrites its
+//      `workspace:^` peerDependency to a concrete range — the release workflow's own
+//      tarball-first shape — and npm would ship the workspace protocol verbatim, which
+//      the install below then refuses;
+//   3. installs both tarballs into a fresh scratch project, the record tarball
+//      satisfying the adapter's rewritten peer range;
 //   4. runs a script there that imports `@vidimera/record` AND `@vidimera/record/probes`
 //      through the exports map and drives a stage → open → finalize → verify round trip,
-//      checking both the operator-handle and the pure forms of the audit functions.
+//      checking both the operator-handle and the pure forms of the audit functions —
+//      and, for the adapter, resolves `@vidimera/store-postgres` through its exports
+//      map, asserts the peer-range rewrite in the installed manifest, and constructs
+//      `PostgresStore` over a pool that never connects.
+//
+// THE ADAPTER'S RECORDED BOUND (session-2 ruling): its coverage here is
+// PACKAGING-LEVEL ONLY — no live database, no confirm loop. The adapter's runtime
+// behavior stays suite-side, proven against a real embedded Postgres on every test
+// run; its packed artifact was live-proven once at the phase-6 rehearsal
+// (`docs/analysis/2026-08-19-phase-6-rehearsal.md`), and the release checklist's
+// post-publish registry install re-proves it against the published artifacts.
 //
 // Exits 0 silent-ish on success, 1 with the failing step's output on any failure.
 
@@ -22,6 +40,7 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const pkgDir = join(repoRoot, 'packages', 'record');
+const adapterDir = join(repoRoot, 'packages', 'store-postgres');
 const tscBin = join(repoRoot, 'node_modules', 'typescript', 'bin', 'tsc');
 
 function run(label, cmd, args, opts = {}) {
@@ -45,6 +64,18 @@ for (const artifact of ['index.js', 'index.d.ts', join('probes', 'index.js')]) {
     process.exit(1);
   }
 }
+run('build adapter (tsc)', process.execPath, [
+  tscBin,
+  '-p',
+  join(adapterDir, 'tsconfig.build.json'),
+]);
+for (const artifact of ['index.js', 'index.d.ts']) {
+  const p = join(adapterDir, 'dist', artifact);
+  if (!existsSync(p)) {
+    console.error(`smoke: FAILED — adapter build produced no ${p}`);
+    process.exit(1);
+  }
+}
 
 const scratch = mkdtempSync(join(tmpdir(), 'vidimera-smoke-'));
 try {
@@ -61,6 +92,31 @@ try {
     process.exit(1);
   }
 
+  // (2b) pack the adapter with pnpm, never npm — only pnpm's pack rewrites the
+  // `workspace:^` peerDependency to a concrete range (the header's own reasoning).
+  // Under `pnpm smoke`, npm_execpath IS pnpm, so the rewrite runs through this exact
+  // Node binary; a direct `node scripts/smoke-pack.mjs` falls back to pnpm on PATH.
+  const pnpmExec = process.env.npm_execpath;
+  const adapterPackOut =
+    pnpmExec && /pnpm/.test(pnpmExec)
+      ? run(
+          'pnpm pack (adapter)',
+          process.execPath,
+          [pnpmExec, 'pack', '--pack-destination', scratch],
+          { cwd: adapterDir },
+        )
+      : run('pnpm pack (adapter)', `pnpm pack --pack-destination "${scratch}"`, [], {
+          cwd: adapterDir,
+          shell: true,
+        });
+  const adapterTarballLine = adapterPackOut.trim().split('\n').at(-1)?.trim();
+  if (!adapterTarballLine) {
+    console.error('smoke: FAILED — pnpm pack reported no adapter tarball name');
+    process.exit(1);
+  }
+  // pnpm prints a path (absolute or relative); keep only the file name, joined below.
+  const adapterTarball = adapterTarballLine.split(/[\\/]/).at(-1) ?? adapterTarballLine;
+
   // (3) a fresh consumer project, ESM like the package.
   const app = join(scratch, 'app');
   mkdirSync(app);
@@ -69,8 +125,8 @@ try {
     `${JSON.stringify({ name: 'vidimera-smoke-app', private: true, type: 'module' }, null, 2)}\n`,
   );
   run(
-    'npm install (tarball)',
-    `npm install "${join(scratch, tarball)}" --no-audit --no-fund --loglevel=error`,
+    'npm install (tarballs)',
+    `npm install "${join(scratch, tarball)}" "${join(scratch, adapterTarball)}" --no-audit --no-fund --loglevel=error`,
     [],
     { cwd: app, shell: true },
   );
@@ -80,8 +136,11 @@ try {
   writeFileSync(
     join(app, 'smoke.mjs'),
     `import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { MemoryStore, create, replay, verifyChain } from '@vidimera/record';
 import { ALL_PROBES } from '@vidimera/record/probes';
+import { PostgresStore } from '@vidimera/store-postgres';
+import pg from 'pg';
 
 const profile = {
   id: 'smoke.approval.v1',
@@ -117,12 +176,38 @@ assert.equal(replay(chain).state, 'confirmed'); // the pure form
 assert.equal((await operator.verifyChain(recordId)).intact, true); // the handle form
 assert.ok(ALL_PROBES.length > 0, 'the ./probes subpath resolves and carries probes');
 
+// The adapter, packaging-level only (the recorded bound in this script's header):
+// the import above already proved its exports map and dist; now pin that pnpm's pack
+// actually rewrote the workspace peer range (the install would refuse the workspace
+// protocol, but pin the rewrite as a claim, not a side effect) and that the shipped
+// class constructs — over a pool that never connects (construction is synchronous,
+// DDL is lazy).
+const adapterManifest = JSON.parse(
+  readFileSync('./node_modules/@vidimera/store-postgres/package.json', 'utf8'),
+);
+const peerRange = adapterManifest.peerDependencies['@vidimera/record'];
+assert.ok(
+  !peerRange.startsWith('workspace:'),
+  'adapter peer range rewritten at pack time, got: ' + peerRange,
+);
+const pool = new pg.Pool({ host: '127.0.0.1', port: 9, user: 'never', database: 'never' });
+const pgStore = new PostgresStore(pool, { schema: 'smoke' });
+for (const method of [
+  'putStaged', 'getStaged', 'appendTransition', 'readChain',
+  'chainHead', 'appendBatch', 'listDue', 'findNonTerminal',
+]) {
+  assert.equal(typeof pgStore[method], 'function', 'PostgresStore.' + method + ' shipped');
+}
+await pool.end();
+
 console.log(
   'smoke: OK - ' +
     chain.length +
     ' transitions, confirmed + intact, ' +
     ALL_PROBES.length +
-    ' probes visible through ./probes',
+    ' probes visible through ./probes; adapter resolved, peer range ' +
+    peerRange +
+    ', PostgresStore constructs (packaging-level only, by recorded bound)',
 );
 `,
   );

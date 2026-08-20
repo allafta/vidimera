@@ -40,8 +40,10 @@ protection, so treat the operator handle like you treat your database handle.
 - **`PostgresStore(pool, { schema })`** — the server-SQL backing
   (`@vidimera/store-postgres`, this workspace's second package; landed 2026-08-19,
   retiring deferral register row 15): multi-connection-safe over a `pg.Pool` you own —
-  the store never creates or closes the pool. Its suite runs against a real embedded
-  Postgres and includes real multi-connection contention coverage.
+  the store never creates or closes the pool. Requires PostgreSQL 11 or newer — the
+  oldest server construct it uses is `hashtextextended` — and is exercised in this
+  repository against PostgreSQL 18. Its suite runs against a real embedded Postgres and
+  includes real multi-connection contention coverage.
 - **Writing your own:** the `Store` interface and the adapter-author helpers are exported,
   and the conformance suite that holds the three reference backings equivalent lives at
   `packages/record/test/conformance/store-conformance.ts` — wire your adapter into it. The

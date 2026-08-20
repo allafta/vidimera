@@ -92,7 +92,7 @@ pickup ships or flips, so they land before it.
       straight cherry-pick publishes with two stale claims on `main`. Closing: add both
       files to `docs/process/release-checklist.md`'s flip checkbox so the pickup commit
       flips them with the rest.
-- [ ] **The smoke test consumer-tests only the record tarball.**
+- [x] **The smoke test consumer-tests only the record tarball.**
       `scripts/smoke-pack.mjs` builds, packs, and consumer-tests `packages/record`
       only; the store-postgres artifact (including its rewritten `workspace:^` peer
       range) was consumer-tested exactly once, at the 2026-08-19 same-machine
@@ -101,7 +101,7 @@ pickup ships or flips, so they land before it.
       its own bound. Closing: extend the smoke to pack and consumer-test both tarballs,
       or record the record-only bound in the script's own header — one of the two, on
       record.
-- [ ] **The adapter's supported PostgreSQL range is undeclared.** No manifest field,
+- [x] **The adapter's supported PostgreSQL range is undeclared.** No manifest field,
       doc, or comment states which server versions `@vidimera/store-postgres` supports.
       The code's hardest floor — `hashtextextended`, PostgreSQL 11+ — sits unstated at
       `packages/store-postgres/src/postgres-store.ts` (line 285); the test evidence
