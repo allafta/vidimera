@@ -33,7 +33,7 @@ what preparation — is `docs/process/open-items-sessions.md`.
 Drift fixes only: places where a recorded claim contradicts the current tree. No
 decisions live here; every fix realigns a statement with behavior that already landed.
 
-- [ ] **Two stale "a server-SQL adapter is still future" comments.**
+- [x] **Two stale "a server-SQL adapter is still future" comments.**
       `packages/record/src/store/store.ts` (line 10) and
       `packages/record/src/store/memory.ts` (line 102) both predate
       `@vidimera/store-postgres`, which ships exactly that adapter
@@ -42,14 +42,14 @@ decisions live here; every fix realigns a statement with behavior that already l
       Coupling note: `store.ts`'s same sentence carries the committed-read clause that
       stage 3 rules on — either take that ruling first and land one edit, or fix only
       the server-SQL clause and leave the committed-read clause for its ruling.
-- [ ] **Stale "freshness is the third, still future" header.**
+- [x] **Stale "freshness is the third, still future" header.**
       `packages/record/src/signing/store.ts` (lines 1–3) still describes the AL2
       freshness increment as future; it landed
       (`packages/record/src/refusal-codes.ts`'s `consultation-stale` entry records it,
       and `kernel/finalize.ts`'s rung 5.5 produces it). The header updated its account
       of the second signing increment but never the third. Closing: one-line comment
       edit.
-- [ ] **Stale `terminalRefusals` caveat in the status table.**
+- [x] **Stale `terminalRefusals` caveat in the status table.**
       `docs/process/implementation-status.md`'s §8 row still ends "What remains is a
       caveat, not a gap: a `terminalRefusals` entry that is not a real code is accepted
       at construction and then never matches" — contradicted by the pre-0.1 API
@@ -57,7 +57,7 @@ decisions live here; every fix realigns a statement with behavior that already l
       construction throw on exactly that. The document's own "Still outstanding"
       section records the resolution; the table row was never updated to match.
       Closing: align the row with the resolution the same document already records.
-- [ ] **Stale governed-count parenthetical in the status table.**
+- [x] **Stale governed-count parenthetical in the status table.**
       The same document's §9 row still reads "now one: the per-leg freshness alone",
       predating the AL2 freshness increment's one-to-zero move that the document's own
       current-state block and step-8 row record. Closing: same-document alignment.

@@ -1,6 +1,7 @@
 // @vidimera/record — signing/store.ts: the AL2 mint increment's own types (SPEC §14
-// "AL2 — Signed" — the first of three signing increments; freshness is the third, still
-// future). Detached-signature evidence lives BESIDE the chain, never inside a
+// "AL2 — Signed" — the first of three signing increments; freshness, the third, landed
+// at the AL2 freshness increment: the freshness arm in `kernel/finalize.ts`, refusing
+// `consultation-stale`). Detached-signature evidence lives BESIDE the chain, never inside a
 // transition's own bytes — this file lands the shape and the mint point only, and on
 // its own still enforces nothing. Folding a signing record's bad layer into
 // chain-compromise at the seams is the AL2 enforcement increment's own work, landed

@@ -7,7 +7,8 @@
 // A host may inject its own `Store` implementation today (there is
 // no other way to run the library — `Config.store` is required), but this interface's
 // shape is still provisional, not a frozen contract: a real embedded adapter now exists
-// (`store/sqlite.ts`), a server-SQL adapter is still future, and the shape itself WILL
+// (`store/sqlite.ts`), a server-SQL adapter exists as its own package
+// (`@vidimera/store-postgres`'s `PostgresStore`), and the shape itself WILL
 // change (a committed-read surface is still named-not-built, SPEC §12; the
 // caller-transaction seam `tx?` is on every write as of the fifth step-2 increment) at a
 // later build step. Do not build long-lived external adapters against this exact shape

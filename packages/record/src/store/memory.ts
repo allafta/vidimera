@@ -99,8 +99,9 @@ interface StoredRecord {
  *
  * PUBLIC BUT EXPLICITLY UNSTABLE PRE-1.0 — same marking as the `Store` interface it
  * implements (`store/store.ts`): this class is the reference in-memory backing beside
- * the real embedded adapter (`store/sqlite.ts`); a server-SQL adapter is still future,
- * and neither class is a frozen contract. Chain/encoding internals
+ * the real embedded adapter (`store/sqlite.ts`) and the server-SQL adapter
+ * (`@vidimera/store-postgres`'s `PostgresStore`); none of the three is a frozen
+ * contract. Chain/encoding internals
  * (`chain/encoding.ts`'s `transitionDigest`, etc.) remain unexported; only this class is
  * the seam.
  */
