@@ -62,7 +62,12 @@ as a list rather than as code.
 - [ ] Flip the docset's "unpublished" caveats to the published truth — `README.md`'s
       status paragraph, `docs/guide/getting-started.md`'s honest precondition,
       `docs/guide/api-reference.md`'s header caveat, `docs/guide/faq.md`'s
-      is-it-production-ready answer — and verify the README's headline snippet
+      is-it-production-ready answer, `SECURITY.md`'s supported-versions section,
+      `docs/README.md`'s "not yet published or installable" line, and both package
+      READMEs' status blocks (`packages/record/README.md`,
+      `packages/store-postgres/README.md`; the last four entries added at the
+      open-items plan's stage-2 pass, which found them missing from the paused cut's
+      flip set) — and verify the README's headline snippet
       (`import ... from '@vidimera/record'`) is now literally true.
 - [ ] The `CLAUDE.md` skim (phase-0 ruling 6): remove private-workflow residue; update
       its honest-bound paragraph to the published state.

@@ -76,7 +76,7 @@ Everything that sharpens the parked cut before it is picked back up. The cut com
 `8be3fce` is preserved in history ready to cherry-pick; these items change what that
 pickup ships or flips, so they land before it.
 
-- [ ] **Package-level READMEs.** Neither `packages/record/` nor
+- [x] **Package-level READMEs.** Neither `packages/record/` nor
       `packages/store-postgres/` contains a `README.md`, so both npm registry pages
       would render blank at 0.1 (npm packs a package-directory README regardless of the
       `files` array — the gap is the files' absence, not the manifests). No record
@@ -85,7 +85,7 @@ pickup ships or flips, so they land before it.
       neither the release workflow nor the smoke script copies one. Closing: write both
       READMEs (short — name, one honest paragraph, install line, pointer to the guide),
       and verify via `pnpm smoke` that the record tarball carries its README.
-- [ ] **Two files missing from the cut's flip list.** `SECURITY.md` ("No release …
+- [x] **Two files missing from the cut's flip list.** `SECURITY.md` ("No release …
       has been published — the package is pre-0.1") and `docs/README.md` ("the package
       is not yet published or installable") carry unpublished-state claims, and neither
       appears in `8be3fce`'s file list nor in the release checklist's flip item — a
