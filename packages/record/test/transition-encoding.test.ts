@@ -155,7 +155,7 @@ test('transitionDigest() emits a Digest-shaped value ("sha256:<64-lowercase-hex>
 // --- algorithm derivation: via algorithmOf(prevHash), never a hardcoded 'sha256' ---
 
 test("transitionDigest() DERIVES its algorithm from prevHash rather than hardcoding sha256: an unrecognized algorithm prefix on prevHash propagates algorithmOf()'s own error", () => {
-  const transition = sampleTransition({ prevHash: 'md5:' + '0'.repeat(32) });
+  const transition = sampleTransition({ prevHash: `md5:${'0'.repeat(32)}` });
   // If the algorithm were hardcoded to 'sha256', this would silently succeed
   // (ignoring prevHash's own claimed algorithm) instead of surfacing algorithmOf()'s
   // "unrecognized digest algorithm" guard.

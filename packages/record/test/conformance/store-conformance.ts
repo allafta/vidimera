@@ -40,7 +40,7 @@ export function runStoreConformance(label: string, makeStore: () => Store): void
         profileId: 'p1',
         legId: 'leg-1',
         subjectRef: 'subj-1',
-        contentDigest: 'sha256:' + 'a'.repeat(64),
+        contentDigest: `sha256:${'a'.repeat(64)}`,
       };
       await store.putStaged(draft);
       assert.deepEqual(await store.getStaged('staged-1'), draft);
@@ -58,7 +58,7 @@ export function runStoreConformance(label: string, makeStore: () => Store): void
         profileId: 'p1',
         legId: 'leg-1',
         subjectRef: 'subj-2',
-        contentDigest: 'sha256:' + 'b'.repeat(64),
+        contentDigest: `sha256:${'b'.repeat(64)}`,
       };
       await store.putStaged(draft);
       await store.putStaged(draft); // second call: must not throw
@@ -72,14 +72,14 @@ export function runStoreConformance(label: string, makeStore: () => Store): void
         profileId: 'p1',
         legId: 'leg-1',
         subjectRef: 'subj-first',
-        contentDigest: 'sha256:' + 'c'.repeat(64),
+        contentDigest: `sha256:${'c'.repeat(64)}`,
       };
       const second = {
         id: 'staged-collision', // SAME id as `first`
         profileId: 'p2', // every other field differs
         legId: 'leg-2',
         subjectRef: 'subj-second',
-        contentDigest: 'sha256:' + 'd'.repeat(64),
+        contentDigest: `sha256:${'d'.repeat(64)}`,
       };
       await store.putStaged(first);
       await store.putStaged(second); // a genuine same-id collision — must NOT overwrite
@@ -97,7 +97,7 @@ export function runStoreConformance(label: string, makeStore: () => Store): void
         profileId: 'p1',
         legId: 'leg-1',
         subjectRef: 'subj-fresh',
-        contentDigest: 'sha256:' + 'e'.repeat(64),
+        contentDigest: `sha256:${'e'.repeat(64)}`,
       };
       await store.putStaged(draft);
       // An INDEPENDENT snapshot of the original values, taken before any mutation below and
@@ -492,7 +492,7 @@ export function runStoreConformance(label: string, makeStore: () => Store): void
         profileId: 'p1',
         legId: 'leg-1',
         subjectRef: 'subj-caller-retain',
-        contentDigest: 'sha256:' + 'f'.repeat(64),
+        contentDigest: `sha256:${'f'.repeat(64)}`,
       };
       // Independent snapshot, taken BEFORE the put (and before any mutation) — see the
       // independent-snapshot note on the getStaged freshness test above for why `draft` itself

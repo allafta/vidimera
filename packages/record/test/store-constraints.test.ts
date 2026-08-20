@@ -25,10 +25,10 @@ import { storeGenesis, storeNext } from './helpers/chain.js';
 function openedPayload(profileId: string, subjectRef: string) {
   return {
     profileId,
-    profileDigest: 'sha256:' + '0'.repeat(64),
+    profileDigest: `sha256:${'0'.repeat(64)}`,
     legId: 'approver-decide',
     subjectRef,
-    contentDigest: 'sha256:' + '1'.repeat(64),
+    contentDigest: `sha256:${'1'.repeat(64)}`,
   };
 }
 
@@ -97,7 +97,7 @@ test('putStaged: a StagedDraft carrying an extra FUNCTION-valued property throws
     profileId: 'p1',
     legId: 'leg-1',
     subjectRef: 'subj-dataclone',
-    contentDigest: 'sha256:' + '2'.repeat(64),
+    contentDigest: `sha256:${'2'.repeat(64)}`,
     describe(): string {
       return 'not a plain StagedDraft literal';
     },

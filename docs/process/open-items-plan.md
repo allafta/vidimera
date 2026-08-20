@@ -138,12 +138,12 @@ found.
       trigger (the checklist's "both to 0.1.0" covers only the first cut; the
       CHANGELOG's semver line covers policy, not mechanics). Closing: a recorded
       ruling.
-- [ ] **Coverage posture.** No coverage script, no vitest coverage configuration, and
+- [x] **Coverage posture.** No coverage script, no vitest coverage configuration, and
       no record that a coverage metric was considered and declined — unusual against
       the repo's habit of recording every accepted bound. The already-recorded
       probe-tier can-fail hole (stage 6) is the class of blind spot a number could
       surface. Closing: add the tooling or record the no-metric posture.
-- [ ] **Performance posture.** No benchmark, perf test, or throughput documentation
+- [x] **Performance posture.** No benchmark, perf test, or throughput documentation
       exists, and nothing records performance work as out of scope (the docset's
       "performance" mentions concern reviewer-surveillance ethics, not library
       throughput). Plausible unmeasured hot paths exist: the per-append `FOR UPDATE`
@@ -152,7 +152,7 @@ found.
       verifies. A pre-0.1 embedded library can legitimately skip this — the skip is
       what goes on record. Closing: a recorded posture; if measure, stage 7 holds the
       build candidate.
-- [ ] **Actions pinning: tag vs. commit SHA.** Both workflows pin actions by mutable
+- [x] **Actions pinning: tag vs. commit SHA.** Both workflows pin actions by mutable
       major tag (`actions/checkout@v7` et al.), not SHA; the phase-3 CI record rules on
       the matrix, Dependabot, and CODEOWNERS but is silent on pinning — undecided by
       silence, notable because `release.yml` holds `id-token: write` and the npm
@@ -179,7 +179,7 @@ found.
       is the precedent shape) or to record the drift outside the set, visibly, without
       touching it. Closing: that decision, recorded; the edit itself only under
       sanction.
-- [ ] **(Minor) The 13 standing Biome lint infos.** `pnpm lint:strict` errors on
+- [x] **(Minor) The 13 standing Biome lint infos.** `pnpm lint:strict` errors on
       warnings, so infos pass every gate; no posture on the infos themselves is
       recorded. Closing: clear them or record leaving them — smallest item in this
       stage, listed for completeness.

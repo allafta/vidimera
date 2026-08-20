@@ -241,7 +241,7 @@ test('verifySignatures: verified under the registry; fail-closed on unresolvable
   const entries = await signatures.listByRecord(recordId);
   const victim = entries[0];
   assert.ok(victim !== undefined);
-  await signatures.put({ ...victim, signature: victim.signature.slice(0, -4) + 'AAAA' });
+  await signatures.put({ ...victim, signature: `${victim.signature.slice(0, -4)}AAAA` });
   const tampered = await handles.operator.verifySignatures(recordId);
   const victimRow = tampered.transitions.find(
     (t) => t.transitionDigest === victim.transitionDigest,

@@ -90,7 +90,7 @@ test('refused() omits transitionRef when none is supplied (never-appended refusa
 });
 
 test('refused() carries transitionRef when one is supplied (appended refusal)', () => {
-  const digest = 'sha256:' + 'a'.repeat(64);
+  const digest = `sha256:${'a'.repeat(64)}`;
   const result = refused('chain-compromise', digest);
   assertRefused(result);
   assert.equal(result.transitionRef, digest);
@@ -124,7 +124,7 @@ test('refused() cannot mint the availability code — the class is carried by th
 test('domain refusals are returned values: refused() never throws, for any RefusalCode it can mint', () => {
   for (const code of REFUSABLE_CODES) {
     assert.doesNotThrow(() => refused(code));
-    assert.doesNotThrow(() => refused(code, 'sha256:' + 'b'.repeat(64)));
+    assert.doesNotThrow(() => refused(code, `sha256:${'b'.repeat(64)}`));
   }
 });
 
