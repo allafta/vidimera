@@ -56,7 +56,9 @@ as a list rather than as code.
 
 - [ ] Bump `version` to `0.1.0` in `packages/record/package.json` **and**
       `packages/store-postgres/package.json` (the phase-5 ruling: both packages publish
-      at the cut).
+      at the cut; the 2026-08-20 versioning ruling: lockstep — both packages carry the
+      same version and both publish, at this cut and every later one,
+      `docs/analysis/2026-08-20-versioning-mechanics.md`).
 - [ ] Drop `"private": true` from both manifests — the one deliberate publish block.
 - [ ] `CHANGELOG.md`: cut a `[0.1.0]` section from `[Unreleased]`, dated.
 - [ ] Flip the docset's "unpublished" caveats to the published truth — `README.md`'s

@@ -1,9 +1,12 @@
 # Changelog
 
 Notable changes to the Vidimera packages — `@vidimera/record` and, since 2026-08-19,
-`@vidimera/store-postgres` (both publish together at the 0.1 cut). The format loosely
-follows the widely used keep-a-changelog shape; versions will follow semantic versioning
-once a version exists to follow it.
+`@vidimera/store-postgres` (both publish together at the 0.1 cut, and version in
+lockstep thereafter — the 2026-08-20 versioning ruling,
+`docs/analysis/2026-08-20-versioning-mechanics.md`; a cut with no changes in one
+package says so here plainly rather than silently). The format loosely follows the
+widely used keep-a-changelog shape; versions will follow semantic versioning once a
+version exists to follow it.
 
 **No release has been cut.** The package is pre-0.1 and unpublished — everything below sits
 in `Unreleased`, recorded by build-order step rather than by date. The authoritative,

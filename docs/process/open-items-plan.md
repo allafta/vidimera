@@ -130,7 +130,7 @@ found.
       the question dangles on a fired companion. The suite remains test-side
       (`packages/record/test/conformance/store-conformance.ts`). Closing: rule export
       or not-exported; if export, the build work is stage 6's.
-- [ ] **Multi-package versioning mechanics.** The phase-2 packaging ruling deferred
+- [x] **Multi-package versioning mechanics.** The phase-2 packaging ruling deferred
       versioning tooling with a named trigger — "revisit when the row-15 adapter
       package lands" — and the adapter landed the same day; the trigger has fired and
       no document revisits it. Whether the two packages version in lockstep or
