@@ -8,8 +8,9 @@
 // non-serializable payload differently, so that shape is not contract.
 //
 // TEST-ONLY module (not `.test.ts`): it registers nothing until a per-backing caller file
-// invokes it — memory-store-conformance.test.ts and sqlite-store-conformance.test.ts are
-// today's two callers; a further adapter adds its own caller and inherits every pin below.
+// invokes it — memory-store-conformance.test.ts, sqlite-store-conformance.test.ts, and
+// store-postgres's postgres-store-conformance.test.ts are today's three callers; a further
+// adapter adds its own caller and inherits every pin below.
 
 import assert from 'node:assert/strict';
 import { describe, test } from 'vitest';
@@ -21,8 +22,12 @@ import { APPROVER, fiveElementBatch, openRecord, successBatch } from '../helpers
 
 /**
  * Registers the conformance suite for one backing. `makeStore` must return a FRESH, empty
- * store per call — tests share nothing. Synchronous by design: both present and
- * next-increment backings construct synchronously, and the suite is not public API.
+ * store per call — tests share nothing. Synchronous by design: every reference backing
+ * constructs synchronously, and the suite is not public API — RULED now, not just stated
+ * (docs/analysis/2026-08-20-conformance-export.md): not exported while the Store
+ * signatures are provisional pre-1.0; a host verifying its own adapter vendors this file
+ * (Apache-2.0 — and a vendored copy gone stale fails loudly against a moved interface,
+ * never falsely passes); the 1.0 freeze re-asks the question.
  */
 export function runStoreConformance(label: string, makeStore: () => Store): void {
   describe(`Store conformance: ${label}`, () => {

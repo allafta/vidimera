@@ -48,7 +48,12 @@ protection, so treat the operator handle like you treat your database handle.
   and the conformance suite that holds the three reference backings equivalent lives at
   `packages/record/test/conformance/store-conformance.ts` — wire your adapter into it. The
   contract's *behaviors* are stable; its *method signatures* are explicitly provisional
-  pre-1.0.
+  pre-1.0. The suite is deliberately not part of the published package while that
+  provisionality holds (the 2026-08-20 ruling,
+  `docs/analysis/2026-08-20-conformance-export.md`): working from this repository, add a
+  caller file beside the three existing ones; consuming the published package, vendor the
+  suite file into your own tests — it is Apache-2.0, and a vendored copy gone stale fails
+  loudly against a moved interface rather than passing falsely.
 
 Both exported stores are marked **public but explicitly unstable pre-1.0** in their own
 doc comments. They are exported so hosts wire the reference semantics instead of

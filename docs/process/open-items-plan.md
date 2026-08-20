@@ -123,7 +123,7 @@ Questions with no decision on record. Each closes by a dated ruling (the
 This repo writes down every bound it accepts — these are the exceptions the survey
 found.
 
-- [ ] **Conformance-suite export.** `docs/process/implementation-status.md`'s §12 row
+- [x] **Conformance-suite export.** `docs/process/implementation-status.md`'s §12 row
       states "whether the suite is ever exported as an adapter-author's tool is a
       0.1-cut question alongside register row 6's review, deliberately not decided
       now" — row 6's review completed and retired 2026-08-19 without ruling on it, so
