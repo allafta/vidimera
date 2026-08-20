@@ -165,7 +165,7 @@ found.
       (then it needs a register row with a trigger) or re-record (reword the comment to
       name the surface as unscheduled, or hang it on the 1.0 freeze where OPEN-QUESTIONS
       §9 already lives).
-- [ ] **The sealed set's four stale narrative descriptors.** Four passages describe as
+- [x] **The sealed set's four stale narrative descriptors.** Four passages describe as
       sketched/designed what SPEC now marks `[PROVEN]`: `docs/concept/ASSURANCE.md` §6
       still calls AL2 "operator-enabled upgrade (sketched — enablement design open)";
       `docs/concept/SCOPING-GUIDE.md` §5 says "AL2/AL3 — both sketched" and its §7 calls

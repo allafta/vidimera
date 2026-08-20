@@ -140,7 +140,7 @@ INTAKE   validate host consultations (throw)
  (5)   facts (reviewed-surface)     →  consultation-missing
  (5.5) consultations / eligibility  →  consultation-missing / consultation-failed
                                        / ineligible / availability
- (5.7) ack coverage                 →  ack-missing / ack-stale  (findings-flow only; designed)
+ (5.7) ack coverage                 →  ack-missing / ack-stale  (findings-flow only)
  (6)   success batch                →  ok  (one atomic appendBatch)
 ```
 

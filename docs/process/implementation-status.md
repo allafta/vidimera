@@ -777,18 +777,23 @@ CONTROLS §4's own four maturity cells `[SKETCHED]` → `[PROVEN]` and records
 `[PROVEN]` move this build order makes, per the sealed-edit ruling every prior marker
 move in this document has used: `docs/concept/` un-sealed for exactly that one commit and
 exactly those tokens, re-armed immediately after. **The full `docs/concept/` history,
-verified against `git log --oneline -- docs/concept/` rather than assumed: TWELVE commits
+verified against `git log --oneline -- docs/concept/` rather than assumed: THIRTEEN commits
 touch it, not six.** Six are marker moves (`3f8051e`, `bb30e2e`, `4f93e8b`, `3aea0af`,
 `a55d3b1`, this row's own `07dd900`), each moving tokens/tails for a behavior that had just
-landed. Four more are SANCTIONED CORRECTIVE commits, each its own deliberate,
+landed. Five more are SANCTIONED CORRECTIVE commits, each its own deliberate,
 controller-ruled un-seal, not a marker move itself: `0300feb` (a
 prose-restoration fix, repairing a parenthetical `bb30e2e`'s own marker swap had
 accidentally deleted), `12ca3aa` (a backtick-convention fix, retroactively applying the
 section's own code-identifier convention to prose `4f93e8b` had added), and `8def41b` (an
 accuracy correction under what its own commit message calls "the extended sanction" —
-"every accuracy claim ends true" — fixing a stale contradiction a later review found), and the 2026-08-19
+"every accuracy claim ends true" — fixing a stale contradiction a later review found), the 2026-08-19
 corrective pass — the first after the build order's completion — landing five owner-ruled
-corrections under the sanction recorded in `docs/analysis/2026-08-19-sealed-set-sanction.md`.
+corrections under the sanction recorded in `docs/analysis/2026-08-19-sealed-set-sanction.md`,
+and the 2026-08-20 corrective pass — four stale narrative descriptors (AL2 "sketched" in
+ASSURANCE §6 and SCOPING-GUIDE §5, "steps 7–8 the designed/sketched continuation" in
+SCOPING-GUIDE §7, the ack-coverage rung's "; designed" tag in ARCHITECTURE) aligned with
+markers their own per-increment sanctions had already moved, under the sanction recorded in
+`docs/analysis/2026-08-20-sealed-set-sanction-2.md`.
 The seal re-arms after EVERY sanctioned edit, marker move or corrective alike — it has never
 been edited outside a sanction since the convention began. The remaining two — `c26c179`,
 `a4acfae`, both 2026-08-02 — PREDATE the convention entirely, before the set was sealed.

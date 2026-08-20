@@ -102,8 +102,8 @@ picture cuts both ways:
   four-eyes evidence, verify-by-replay references, and the retry-is-not-self-approval
   false-positive are subtle); **effect-binding redemption** (at-most-once under crashes and
   races is the hardest corner of the model); **portability** (records that mean the same
-  thing across teams and stacks); or the **documented higher-assurance path** (AL2/AL3 —
-  both sketched, `SPEC.md` §14) rather than invented crypto. A **prospective** adopt-win —
+  thing across teams and stacks); or the **documented higher-assurance path** (AL2 proven,
+  AL3 sketched — `SPEC.md` §14) rather than invented crypto. A **prospective** adopt-win —
   live only if independently-verifiable evidence ships (AL2+): proving the property to an
   outside party.
 - **Build is honestly fine** for a single-operator, trusted-infra, one-confirm,
@@ -126,8 +126,8 @@ must say so.
 ## 7. A proven build order
 
 The reference implementation proved this concept buildable in small, individually-reviewed
-increments, each landing green on a full fresh-install test aggregate — steps 1–6 below were
-executed that way; steps 7–8 are the designed/sketched continuation in the same discipline.
+increments, each landing green on a full fresh-install test aggregate — all eight steps
+below were executed that way.
 The generalized sequence, with its logic:
 
 1. **The kernel** — capability split, canonicalization + digests, hash-chained transitions,
