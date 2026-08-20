@@ -158,7 +158,7 @@ found.
       silence, notable because `release.yml` holds `id-token: write` and the npm
       token. Dependabot updates SHA pins too. Closing: pin to SHAs or record
       tag-pinning as the accepted posture.
-- [ ] **The committed-read clause.** `packages/record/src/store/store.ts` (line 11)
+- [x] **The committed-read clause.** `packages/record/src/store/store.ts` (line 11)
       says the Store shape "WILL change (a committed-read surface is still
       named-not-built, SPEC §12 …) at a later build step" — but the eight-step build
       order is complete; no later build step exists to land it. Closing: rule build

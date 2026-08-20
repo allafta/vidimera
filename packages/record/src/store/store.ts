@@ -8,11 +8,13 @@
 // no other way to run the library — `Config.store` is required), but this interface's
 // shape is still provisional, not a frozen contract: a real embedded adapter now exists
 // (`store/sqlite.ts`), a server-SQL adapter exists as its own package
-// (`@vidimera/store-postgres`'s `PostgresStore`), and the shape itself WILL
-// change (a committed-read surface is still named-not-built, SPEC §12; the
-// caller-transaction seam `tx?` is on every write as of the fifth step-2 increment) at a
-// later build step. Do not build long-lived external adapters against this exact shape
-// yet.
+// (`@vidimera/store-postgres`'s `PostgresStore`), and the shape can still move until the
+// 1.0 freeze (the caller-transaction seam `tx?`, on every write as of the fifth step-2
+// increment, is how it last moved). The committed-read surface this header long claimed
+// was named-but-unbuilt in the spec was inherited reference-kernel speculation — SPEC
+// §12's Reads paragraph names four reads, all four built — retired by the 2026-08-20
+// ruling (docs/analysis/2026-08-20-committed-read.md). Do not build long-lived external
+// adapters against this exact shape yet.
 //
 // Placement note: `StagedDraft` lives in `types.ts` alongside the other core shapes;
 // this module RE-EXPORTS the existing `types.ts` definition (so callers can still
