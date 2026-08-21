@@ -25,8 +25,9 @@ on release-day matters, the checklist wins.
   possible, so the behavior and its account never drift apart.
 - Every commit runs the gates (`pnpm typecheck`, `pnpm lint`, `pnpm lint:strict`,
   `pnpm test`, and the contract scan last on the staged tree); `docs/concept/` is
-  read and quoted, never edited — session 8 prepares a sanction case, it does not
-  edit.
+  read and quoted, never edited outside a fresh, explicit sanction — session 8 prepared
+  a sanction case; the owner granted it whole and its four edits landed at commit
+  `ebe69b8`.
 - Preparation measurements below were taken 2026-08-19 against `main` at `1cffe1f`
   (with the open-items documents staged); re-measure at session time — every "prepare"
   list names its sources for exactly that reason.
@@ -245,7 +246,8 @@ on release-day matters, the checklist wins.
   side-effect); the clean-machine precondition as a real two-way — actually run the
   pass on a machine that never held this checkout, or re-waive on record (the banner
   is explicit that the old waiver does not carry); then the owner's own sequence:
-  settings, tag deletion, branch deletion, cherry-pick with the date refresh and the
+  settings, tag deletion, branch deletion, cherry-pick with the date refresh, the fresh
+  `[0.1.0]` re-cut from `[Unreleased]` (the banner's 2026-08-21 amendment), and the
   (session-3-extended) flip list, gates, tag, push.
 - **Output:** the pickup decisions recorded; the pickup commit series per the
   checklist; the owner's settings flipped by the owner.
@@ -290,8 +292,8 @@ machinery, same as session 8's discipline.
 
 ## The sequence at a glance
 
-Sessions 1 → 2 → 3 land the repo-side fixes and artifact polish; 4 → 5 → 6 → 7 → 8
-close the rulings (4, 5, and 7 inform each other — hold their order; 6 and 8 float);
-9 → 10 are gated on the owner's readiness bar and close the register. Stage 6's
-sessions open after 0.1; stage 7's open on selection. Nothing below session 9
+**Sessions 1–8 have run** (commits `05d0b8c`, `868cb3c`, `ffbb14e`, `0c549e9`,
+`3be4e71`, `558623a`, `ddcfeaa`, `ebe69b8` — closing the open-items plan's stages 1–3);
+what remains is 9 → 10, gated on the owner's readiness bar, which close the register.
+Stage 6's sessions open after 0.1; stage 7's open on selection. Nothing below session 9
 requires the owner; everything from session 9 on is theirs to schedule.

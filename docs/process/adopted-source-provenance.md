@@ -668,9 +668,11 @@ them to match the reference project more closely would be a regression, not a co
   this build"). This increment adds a fourth: `kernel/redeem.ts`'s
   `validateRedeemOptions`, one call site in the source shared by all three redemption
   seams (`redeem()`, `beginRedemption()`, `completeRedemption()`, each of which calls it
-  as its own first statement). `governedUnavailable` has four live consumers today —
-  `finalize()`'s `finalizeOptionMessage`, `open()`'s unknown-open-option-key message,
-  `decline()`'s own, and `redeem.ts`'s shared `validateRedeemOptions` — and none is a
+  at argument-intake depth — `redeem()` and `beginRedemption()` as their first statement,
+  `completeRedemption()` immediately after its own token-type throw). `governedUnavailable`
+  has four live consumers today — `finalize()`'s `finalizeOptionMessage`, `open()`'s
+  unknown-open-option-key message, `decline()`'s own, and `redeem.ts`'s shared
+  `validateRedeemOptions` — and none is a
   per-field guard. `docs/process/implementation-status.md` carries the current account.
 - **`redeem()` throws a build-capability error** on a confirmed effect-seam record
   (`kernel/redeem.ts:57-66`), rather than silently returning `unredeemable-state` or attempting

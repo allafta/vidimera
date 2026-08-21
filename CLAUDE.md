@@ -14,15 +14,21 @@ parts:
   operator-assurance tier. The operator is the sole consumer of the records; capabilities
   meaningful only to an outside party are out of scope by design.
 - **The implementation** (`packages/`): a TypeScript pnpm-workspace monorepo implementing
-  the concept in the proven build order (`docs/concept/SCOPING-GUIDE.md` §7).
+  the concept in the proven build order (`docs/concept/SCOPING-GUIDE.md` §7), plus the
+  GOVERNED capabilities promoted past it through §§1–2's own machinery.
 
 **State.** The eight-step build order is complete — all eight steps exited, the last
 (recovery, live capture, AL2 detached signing, and the operator-assurance self-test tier)
-settling at the self-test-tier increment, commit `84484ba`. The workspace holds two
+settling at the self-test-tier increment, commit `84484ba`. Three GOVERNED capabilities have
+since been promoted PAST the build order, each on its own fresh sanction and each exited:
+recorded human decline (SPEC §9's `open → declined` seam), proposal provenance (§9's
+open-time `proposed { stagedRef }`, bound as `proposedDigest`), and effect-result
+notarization (§11.2's `redeem.result`, bound as `resultDigest`), followed by a
+release-readiness reconciliation pass over the publish-facing docset. The workspace holds two
 packages: `@vidimera/record` and `@vidimera/store-postgres` (the server-SQL third
 reference backing, tested against a real embedded Postgres the suite starts per run).
 Measured against the current
-tree: `pnpm test` — 54 test files, 749 tests, zero skips; `packages/record/src/refusal-codes.ts`
+tree: `pnpm test` — 54 test files, 751 tests, zero skips; `packages/record/src/refusal-codes.ts`
 carries 24 refusal codes; zero GOVERNED construction guards remain in `config.ts` — every
 field the feature-guard era installed has lifted behind real behavior at its own seam
 (`governedUnavailable` survives only for four generic unknown-option-key throw sites, in
@@ -108,9 +114,11 @@ pnpm workspace (Node 22.16+, pnpm via corepack):
 - `pnpm install` — install dev dependencies
 - `pnpm typecheck` — tsc strict, no emit
 - `pnpm build` — compile both packages to `dist/` (tsc, each package's `tsconfig.build.json`)
-- `pnpm smoke` — the packed-tarball smoke test: builds, `npm pack`s, installs the tarball
-  into a scratch project, and drives a confirm loop through the exports map
-  (`scripts/smoke-pack.mjs`)
+- `pnpm smoke` — the packed-artifact smoke test: builds both packages, packs record with
+  `npm pack` and store-postgres with `pnpm pack` (only pnpm rewrites the `workspace:^` peer
+  range), installs both tarballs into a scratch project, and drives a confirm loop through
+  record's exports map; the adapter's coverage there is packaging-level only, by recorded
+  bound (`scripts/smoke-pack.mjs`)
 - `pnpm lint` — Biome (`pnpm lint:fix` to apply safe fixes)
 - `pnpm test` — vitest, all packages (the store-postgres project starts a real embedded
   Postgres per run via its globalSetup — no Docker, no external database)
@@ -123,10 +131,14 @@ pnpm workspace (Node 22.16+, pnpm via corepack):
   tracked `*.md` except this file, and all tracked `*.ts`/`*.mts`/`*.cts`: external-link
   and ADR-style checks repo-wide; the escaping-relative-path check on the concept set and
   root README, where self-containment is the contract (a document-only check — a
-  TypeScript relative import stays legal). Tracked code is additionally checked for
-  pointers into a design-document, slice/increment, task and open-question numbering
-  scheme that has no counterpart here (`design §4`, `slice 7`, `Task 5`, `OQ2-10`) — such
-  a reader-unresolvable pointer is an external reference in the contract's sense. A
+  TypeScript relative import stays legal). Tracked code is additionally checked against
+  EIGHT code-only patterns (`scripts/contract-scan.mjs`'s `codeOnlyPatterns`): pointers
+  into a design-document, slice/increment, task and open-question numbering scheme with no
+  counterpart here (`design §4`, `slice 7`, `Task 5`, `OQ2-10`); an abbreviated commit ref;
+  and three BARE-WORD/label traps that need no number — the word `slice`/`pre-slice`, the
+  word `design` (everything but "by design"), and foreign labels (`M-A`, `S-3`, `O11`,
+  `T1.2`). A code comment saying "per the design ruling" fails this gate. Such a
+  reader-unresolvable pointer is an external reference in the contract's sense. A
   maintainer working alongside other private repositories should extend the script's
   patterns with those projects' names, package names, and tooling — the AL2 mint
   increment did exactly this itself: the commit-reference pattern gained two exact
@@ -137,9 +149,11 @@ pnpm workspace (Node 22.16+, pnpm via corepack):
   therefore inert (the trailing guard on each keeps `ed25519abc` still a hit). **Exits 0
   today, zero findings** — the imported kernel's comment scrub that rewrote every reference-project
   pointer is complete. The scan also **resolves** citations in tracked code: a `SPEC §N`
-  must name a section that exists, and a quoted phrase attached to a citation must occur
-  in the document it is attributed to. That resolver ships with a bounds list in the
-  script's citation-integrity section comment naming what it deliberately does **not** check — read it before
+  must name a section that exists, a `DECISIONS.md #N` must name an entry that exists, and
+  a quoted phrase attached to either citation must occur in the document it is attributed
+  to. That resolver ships with a bounds list in the
+  script's citation-integrity section comment naming what it deliberately does **not**
+  check — read it before
   treating a green scan as coverage. **Markdown is not citation-checked at all**, so a
   wrong citation in a process document, plan or README has no gate behind it and must be
   hand-verified against a whitespace-collapsed copy of the source: a quoted SPEC phrase
@@ -173,8 +187,10 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   §10.2's nine `[DESIGNED]` tokens at step 7 (the first such move in this repository),
   then SPEC §2's recovery tokens, SPEC §9.2's live-mode tokens, and SPEC §14's AL2 bullet
   and freshness tail, all at step 8, and finally CONTROLS.md §4's four operator-assurance
-  cells (commit `07dd900`) — the only non-SPEC move, and the concept set's last — six
-  marker-move commits in total, each a separate,
+  cells (commit `07dd900`) — the only non-SPEC move, and the build order's last. Three more
+  followed, one per post-build-order promotion: recorded human decline (`801fe7e`), proposal
+  provenance (`e974242`), and effect-result notarization (`35de662`), each moving SPEC.md,
+  CONTROLS.md and GLOSSARY.md tokens — nine marker-move commits in total, each a separate,
   explicit, per-increment authorization, spent at the increment it covered. A new
   `docs/concept/` edit needs a FRESH sanction through `SCOPING-GUIDE.md` §§1–2's own
   tier-test and promotion-rule machinery, never assumed from a past one.
@@ -182,7 +198,8 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   whose own exit step was vacuous (steps 1–6, whose sections were already `[PROVEN]`); the
   full lineage — which commit moved which token, which commits were sanctioned corrective
   edits rather than moves, which predate the sealing convention — is recorded in its
-  step-7 and step-8 rows, not restated here.
+  step-7 and step-8 rows and its three post-build-order increment sections, not restated
+  here.
 - **Inverting an inherited pinned assertion is authorized explicitly, never slipped in.**
   The kernel arrived with the reference implementation's test corpus; adopting a corpus
   and quietly changing what it pins is how a build drifts while its suite stays green. Two

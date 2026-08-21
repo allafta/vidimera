@@ -14,8 +14,11 @@ has landed — read it for the record; read this document for what comes next.
 The eight-step build order (`docs/concept/SCOPING-GUIDE.md` §7) is complete: all eight steps
 are exited, the last of them — recovery, live capture, AL2 detached signing whole, and the
 operator-assurance self-test tier — settling at the self-test-tier increment's own fix wave,
-commit `84484ba`. `docs/process/implementation-status.md` carries the step-by-step account
-and is this repository's authoritative record of what landed; this document does not restate
+commit `84484ba`. Four increments have landed since, all 2026-08-21: three governed
+capabilities — recorded human decline, proposal provenance, effect-result notarization —
+and a release-readiness reconciliation. `docs/process/implementation-status.md` carries the
+step-by-step account and is this repository's authoritative record of what landed; this
+document does not restate
 it. What landed is bounded exactly where the concept says it should be — the embedded,
 operator-only scope `docs/concept/CONCEPT.md` §3 and `docs/concept/CONTROLS.md` §1 declare —
 and "What is deliberately outside the scope" below says so in the concept's own words.
@@ -46,7 +49,7 @@ distinction). Each item below names its row and quotes its trigger verbatim.
   landing with row 1's exports map.
 - **Row 1 status (2026-08-19, the phase-2 packaging increment): the tooling has landed.**
   The manifest carries the full publish shape with the decided `./probes` subpath;
-  `pnpm build` emits `dist/`; `pnpm smoke` packs the tarball and consumer-tests it on
+  `pnpm build` emits `dist/`; `pnpm smoke` packs both packages' tarballs and consumer-tests them on
   every CI run; and the dispatch-only, provenance-attested release workflow exists,
   guarded against publishing the pre-release shape (and, per the phase-5 ruling,
   publishing BOTH packages — record first). The row stays open until the 0.1 cut
@@ -192,7 +195,7 @@ The recommendation has already been taken in code. `finalize()`'s rung (4.5) ref
 under a resolved profile whose `policySource` is now undefined — and the arm's own comment
 names the question it closes: "THE DECIDED OPEN QUESTION (§10.3 names it; the recommendation
 on record is fail-close, and this build takes it)" (`packages/record/src/kernel/finalize.ts`,
-the guard at line 353 through the refusal at line 361). `docs/process/implementation-status.md`'s
+the guard at line 330 through the refusal at line 338). `docs/process/implementation-status.md`'s
 step-6 account records the same fact in prose: "The cross-drift open decision named at the
 step-6 brainstorm is now DECIDED in code: FAIL-CLOSE, so a bound record finalized under a
 same-id non-declaring instance still refuses `policy-drift` rather than skipping the gate."
@@ -230,8 +233,9 @@ form; the account above stands as the history of the gap.
   "What gates the next cut" above.
 - **Where the increment history lives.** `docs/superpowers/specs/` and
   `docs/superpowers/plans/` carry one spec/plan pair per increment, named by the increment it
-  served; `docs/analysis/2026-08-03-step-1-review.md` is the one historical review artifact
-  outside that pair structure.
+  served; `docs/analysis/` carries the increment-history artifacts outside that pair
+  structure — `2026-08-03-step-1-review.md`, the 2026-08-18/19 release-phase records, and
+  the 2026-08-20 session rulings and sealed-set sanction records.
 - **A new capability moves its own enumerations, in its own increment.** A capability or
   record-model field that adds a conditional field must, in the same increment, move: (1)
   `docs/concept/SPEC.md` §2's enumerations — the record-model field table and the
@@ -246,7 +250,9 @@ form; the account above stands as the history of the gap.
   each landed a capability that left a SPEC §2-adjacent enumeration under-inclusive by
   omission: the first two were caught and fixed within their own increment's review before
   exit; the third escaped its own increment entirely and surfaced only at a later, separate
-  fix wave, recorded rather than fixed for want of an in-scope sanction. The same three
+  fix wave, recorded rather than fixed for want of an in-scope sanction — then closed the
+  same day by a fresh, explicit sanction (SPEC §2's field table and profile-conditional
+  list now name `resultDigest`). The same three
   capabilities also went unrecorded in the publish-facing docset until a later, separate
   increment caught all three at once. `docs/process/implementation-status.md`'s own
   increment sections carry the full account; it is not restated here.

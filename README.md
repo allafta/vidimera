@@ -142,7 +142,9 @@ byte-identity proofs (in-memory, embedded-SQL, and the server-SQL
 `@vidimera/store-postgres`), multi-leg separation of
 duties, the effect seam with single-use redemption, required consultations, eligibility and
 policy-drift gating, findings and acknowledgments, recovery, live capture, AL2 detached
-signing, and an operator-assurance self-test tier are all built and tested.
+signing, and an operator-assurance self-test tier are all built and tested. Three governed
+capabilities have landed since that order closed — recorded human decline, proposal
+provenance, and effect-result notarization, each described above.
 
 **The package is not yet published, in the same breath — deliberately.** The publish
 tooling exists: `packages/record/package.json` carries a real `exports` map (`.` and
@@ -152,8 +154,10 @@ every CI run packs the tarball and installs it into a scratch consumer project
 `npm install @vidimera/record` does not exist as an option yet — you can read it, run it,
 fork it, and build on it from source in this workspace. Publish tooling is row 1 of
 [the deferral register](docs/process/deferral-register.md), held open until the release
-workflow is exercised at the cut; the pre-0.1 API review (row 6) completed 2026-08-19, so
-the exported names are review-ratified.
+workflow is exercised at the cut; the pre-0.1 API review (row 6) completed 2026-08-19,
+ratifying the 52 names exported then; the seven added since — the adapter-author helpers
+and the `DeclineOptions`/`RedeemOptions` bags — landed under the review's own rules rather
+than through it.
 
 For the record itself rather than a summary of it, read
 [`docs/process/implementation-status.md`](docs/process/implementation-status.md) — the

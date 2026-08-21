@@ -191,8 +191,10 @@ record or a named trigger in the deferral register.
 
 `docs/process/release-checklist.md` is the authoritative list here — its PAUSED banner
 carries the exact pickup instructions (cherry-pick `8be3fce`, refresh every 2026-08-19
-release date, re-run all gates, tag, push, resume at "Repository and registry
-settings"). This stage does not restate it; it records what the survey verified live on
+release date, re-cut the CHANGELOG's `[0.1.0]` section fresh from `[Unreleased]` and
+check every other preserved flip against its current source, re-run all gates, tag,
+push, resume at "Repository and registry settings"). This stage does not restate it; it
+records what the survey verified live on
 2026-08-19 so the pickup starts from measured fact:
 
 - The four owner-side items that stopped the paused attempt were all confirmed still
@@ -307,8 +309,9 @@ recorded choice); single-algorithm digest agility (room left, nothing pending); 
 prepared-signing-without-declaring-profile tolerance (stated in `create.ts`); the
 deliberately unfrozen construction and read-convenience surfaces (SPEC's own header);
 the CI matrix's exact-floor-on-ubuntu-only bound (phase-3 ruling 1, deliberate); and
-the two surviving `governedUnavailable` throws (permanent unknown-option-key caller
-guards in `finalize()` and `open()` — not feature guards awaiting a lift). Also
+the four surviving `governedUnavailable` throws (permanent unknown-option-key caller
+guards in `finalize()`, `open()`, `decline()`, and `redeem.ts`'s shared
+`validateRedeemOptions` — not feature guards awaiting a lift). Also
 measured clean at survey time: zero TODO/FIXME markers in tracked code, zero test
 skips, an empty issue and PR tracker, and only dev-only patch drift outstanding, which
 weekly Dependabot already covers.
