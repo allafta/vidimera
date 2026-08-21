@@ -352,7 +352,8 @@ together, the strongest form this takes:
 ```ts
 const outcomeDigest = digest(canonicalize({ transferId: 'xfer-77021', status: 'settled' }));
 const redeemed = await operator.redeem(recordId, content, {
-  tx,                                    // enlists the edge with the effect's own write
+  // tx,                                  // enlists the edge with the effect's own write —
+                                           // see the direct-shape sample above
   result: { digest: outcomeDigest },
 });
 ```
@@ -382,7 +383,9 @@ enforces.
 The honest bound, in the same breath: the digest notarizes that the host asserted this
 outcome at the moment it closed the coupling. The library never observes the effect, never
 verifies the claim (fidelity, not validity — verifying it would make the library the
-business system), and never mirrors business state that moves afterward.
+business system), and never mirrors business state that moves afterward. On a signing
+profile the binding is signature-covered like every transition; at AL1 it carries AL1's
+ordinary insider bounds.
 
 **When the result arrives later.** A separated executor with an async settlement genuinely
 does not know the outcome at redemption time — declining to notarize a guess there is

@@ -124,11 +124,13 @@ export function governedUnavailable(field: string, contract: string): string {
 export const RESERVED_CONSULTATION_KINDS: ReadonlySet<string> = new Set(['facts', 'chain-verify']);
 
 /**
- * The redemption FIELDS: `confirmToRedeem` and `redeemBound` — SPEC §9.1's `redeem`
- * block, which names exactly those two — plus `reverify`, introduced only by SPEC §9.2's
- * live mode (§9.1 never names it; nesting it in the same `redeem` block is this build's
- * structuring), plus `result`, SPEC §11.2's outcome-digest declaration (the
- * effect-result increment). They are only ever valid INSIDE a
+ * The redemption FIELDS: `confirmToRedeem`, `redeemBound`, and `result` — SPEC §9.1's
+ * `redeem` block names all three (the effect-result increment added `result` to that
+ * row's field coverage) — plus `reverify`, introduced only by SPEC §9.2's live mode (§9.1
+ * never names it; nesting it in the same `redeem` block is this build's structuring).
+ * `result`'s own semantics — which seams admit it, its two throw postures, digest-only
+ * custody — are SPEC §11.2's (the effect-result increment); §9.1 names the field, §11.2
+ * defines it. They are only ever valid INSIDE a
  * `redeem` block. Appearing as a direct own-key on the profile or a leg is a
  * misplacement — refused structurally (the former redeem-field guard
  * was logically vacuous, so it is replaced by this real "stray key outside redeem" check).
@@ -760,7 +762,10 @@ export interface DeclineOptions {
  * The redemption seams' options bag (SPEC §11.2, §12; this build's own shape — SPEC
  * states no redemption argument list, and §9 licenses growth through the operator-only
  * bags). `tx` moved in from a trailing positional parameter at the effect-result
- * increment; deferral-register row 16 is its record.
+ * increment — a shape update to deferral-register row 16 (the token-shape seams'
+ * originally-missing `tx?`), which was already retired 2026-08-19, before this increment;
+ * `docs/process/implementation-status.md` and `docs/process/next-phases.md` carry the
+ * retirement and this shape update, not a reopening of the row.
  */
 export interface RedeemOptions {
   /** SPEC §12's caller-transaction seam: the DRIVER'S OWN transaction handle. Typed

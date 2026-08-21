@@ -210,6 +210,8 @@ Notes that save debugging time:
   co-located `redeem()` or a token `completeRedemption()` — never in an un-enlisted
   gate-then-execute flow, where the outcome is unknown at `redeem()` and the library cannot
   tell the difference; that is exactly why this is a stated discipline, not an enforced one.
+  On a signing profile the binding is signature-covered like every transition; at AL1 it
+  carries AL1's ordinary insider bounds.
 - `verifySignatures` reports and never gates; enforcement is folded into the chain-verify
   arm at every seam on signing profiles. Its report type (`SignatureReport`) is exported
   from the entry point — the review's no-unspellable-names rule.

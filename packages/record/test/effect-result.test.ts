@@ -6,6 +6,7 @@ import { test } from 'vitest';
 
 import type { ConfirmProfile } from '../src/config.js';
 import { create } from '../src/create.js';
+import { MemoryStore } from '../src/store/memory.js';
 import {
   captureProfile,
   DEFAULT_SUBJECT_REF,
@@ -14,8 +15,10 @@ import {
   identity,
   makeConfig,
   openRecord,
+  tamperNonLast,
 } from './helpers/profiles.js';
 import { signingSetup } from './helpers/signing.js';
+import { TamperingStore } from './helpers/stores.js';
 
 const CONTENT = { subject: 'week-1', total: 42 };
 const RESULT = `sha256:${'c'.repeat(64)}`;
@@ -200,6 +203,57 @@ test('gate order: the intake throw beats the admission throw; both sit behind th
     assert.equal(res.status, 'refused');
     assert.equal(res.status === 'refused' && res.code, 'unredeemable-state');
   }
+});
+
+// Two further gate-order pins: `kernel/redeem.ts`'s own admission-gate comment ("chain-
+// compromise, unknown-profile and the effect-seam/final-leg gate all outrank it, matching
+// finalize's own presence-contract depth") names two more codes that must outrank the
+// admission throw, beyond the seam gate the pin above already covers. Both are
+// `prologue()`-internal refusals (redeem.ts's rungs (1) and (2)), returned via
+// `if ('refusal' in pro) return pro.refusal;` — strictly before the admission gate at line
+// ~350 is ever reached, exactly like the seam-gate pin above.
+
+test('gate order: a tampered chain on a result-declaring profile refuses chain-compromise before the admission throw can fire', async () => {
+  // The established tampered-chain shape (redeem.test.ts's own (1)->(3)/(1)->(5) pins):
+  // confirm under a real store, then redeem through a SECOND handle wrapping that same
+  // store in a chain-tampering Store double.
+  const inner = new MemoryStore();
+  const profile = resultProfile();
+  const handles0 = create(makeConfig([profile], { store: inner }));
+  const recordId = await openRecord(handles0, CONTENT, profile.id, DEFAULT_SUBJECT_REF);
+  const done = await handles0.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(done.status, 'ok', 'fixture: the record must confirm');
+
+  const tampering = new TamperingStore(inner, recordId, tamperNonLast);
+  const handles = create(makeConfig([profile], { store: tampering }));
+  const outcome = await handles.operator.redeem(recordId, CONTENT, {
+    result: { digest: RESULT },
+  });
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'chain-compromise');
+});
+
+test('gate order: an unresolvable profile refuses unknown-profile before the admission throw can fire', async () => {
+  // The established two-instance shape (multi-leg.test.ts's own unknown-leg gate-order
+  // pin, "the established two-instance shape"): open/confirm under one create() instance,
+  // then call the seam under a SECOND instance sharing the same store whose profile
+  // catalog never registered this profileId — `profiles.get(record.profileId)` resolves
+  // to nothing for it, the defensive fail-closed branch in `prologue()`.
+  const store = new MemoryStore();
+  const profile = resultProfile();
+  const openingSide = create(makeConfig([profile], { store }));
+  const recordId = await openRecord(openingSide, CONTENT, profile.id, DEFAULT_SUBJECT_REF);
+  const done = await openingSide.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(done.status, 'ok', 'fixture: the record must confirm');
+
+  const unaware = create(makeConfig([captureProfile({ id: 'test.unrelated.v1' })], { store }));
+  const outcome = await unaware.operator.redeem(recordId, CONTENT, {
+    result: { digest: RESULT },
+  });
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'unknown-profile');
 });
 
 test('construction: a stray result key outside the redeem block throws', async () => {

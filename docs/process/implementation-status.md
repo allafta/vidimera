@@ -1685,3 +1685,35 @@ frozen at the moment it was written; `docs/process/open-items-plan.md`'s own cou
 likewise left untouched — that document explicitly disclaims currency ("Measurements
 below … drift from that moment … this plan is stale") and defers to this document as
 authoritative.
+
+**A further finding, raised at a final fix wave outside this increment's own grant —
+recorded, not fixed.** `docs/concept/SPEC.md` §2's conditional-fields enumeration
+("**Profile-conditional fields** … `priorRecordRefs`/`priorLegActors` … `findings` and
+`acks` … **Flow-conditional fields:** `supersedes` … and `proposedDigest` …", SPEC.md
+lines ~127-133) is false-by-omission against this increment's own field:
+`DecisionRecord.resultDigest` (`types.ts`) is a real record-model field, present only
+under a `redeem.result` declaration plus a seam supply — profile-conditional, by the
+sentence's own test, exactly like `priorRecordRefs`/`findings` — and the sentence does not
+name it; §2's own unconditional field table (lines 111-125) likewise carries no
+`resultDigest` row (as it carries none for `supersedes`/`findings`/`acks` either — only
+`policyDigest` and `proposedDigest` earned dedicated rows). This is the **third
+consecutive** post-build-order increment whose own landed capability left a §2-adjacent
+enumeration under-inclusive by omission: recorded human decline's own two §2 sites were
+caught and fixed within that increment's own grant (the recorded-human-decline section
+above records it: "Task 1 landed the sanctioned sealed-set text as `[DESIGNED]` (SPEC §2
+×2 sites, …)"); proposal provenance's own "Flow-conditional field" under-inclusion was
+likewise caught and fixed within that increment's own grant (the proposal-provenance
+section above records it: "One
+further sentence moves under the SAME grant, by a recorded controller ruling taken during
+Task 1's own review… SPEC §2's 'Flow-conditional field: `supersedes`' sentence
+under-included `proposedDigest`… spliced minimally to name both"); this increment's own
+design doc
+(`docs/superpowers/specs/2026-08-21-effect-result-design.md` §7, "Sanction requested")
+never named §2 at all — not requested, and not among the sites its "Explicitly NOT
+requested" clause names either — so the gap surfaces only now, at this final fix wave,
+with no in-scope grant to close it. Per the sealed-set authority governing this fix wave
+(SPEC §§4/9.1/11.2, CONTROLS §§3/5, GLOSSARY only), §2 is OUTSIDE the grant, so this
+finding is recorded here rather than fixed: closing it needs a fresh, explicit sanction
+through `docs/concept/SCOPING-GUIDE.md` §§1-2's own tier-test and promotion-rule
+machinery, naming §2's conditional-fields sentence and field table as the sites to
+touch — never assumed from this or any past grant.

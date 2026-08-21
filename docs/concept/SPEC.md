@@ -691,7 +691,7 @@ a one-line applicability note, not through a separate tier system.
 | `requiredConsultations` | Per-leg consultation kinds that must be present and passing at finalize (§11.1) |
 | `freshness` | Per-leg max consultation ages (§11.1). **[PROVEN]** — meaningful only with AL2 authority timestamps (§14); at AL1 the staleness gate cannot fire |
 | `policySource` | Per-profile opaque label naming the operator's policy authority; declaring it binds a `policyDigest` at `open()` and gates finalize on drift (`policy-drift`). Never fetched or evaluated by the library (§10.3) |
-| `redeem` | Effect-seam configuration: the redemption bounds (`confirmToRedeem`, `redeemBound`), and `result` — a per-profile literal-`true` declaration admitting a result digest at the redemption seams (§11.2) **[PROVEN]**; declaring anything other than the literal `true` is a construction error (the `signing` rule's class). Its presence declares an **effect seam** (§11.2) |
+| `redeem` | Effect-seam configuration: the redemption bounds (`confirmToRedeem`, `redeemBound`), and `result` — a per-profile literal-`true` declaration admitting a result digest at the two seams (§11.2) **[PROVEN]**; declaring anything other than the literal `true` is a construction error (the `signing` rule's class). Its presence declares an **effect seam** (§11.2) |
 | `sod.notActorOf`, `proposer` | Per-leg separation-of-duties controls (§10.1) |
 | `ackMode`, `requiredAcks` | Per-leg findings-flow controls (§10.2) **[PROVEN]** — declared both-or-neither |
 | `eligibility` | Per-leg opaque authority-to-decide reference; declaring it makes an implicit-first required `eligibility` consultation whose `fail` verdict gates finalize and decline (`ineligible`) (§9, §10.4) |
@@ -1086,7 +1086,9 @@ fidelity, not validity; verifying it would make the library the business system)
 does not mirror later business state (a result true at completion may be reversed
 afterward). It is meaningful only where the outcome is genuinely known at the call; in a
 gate-then-execute flow the outcome is unknown at redemption time, and the library cannot
-tell the difference — which is why that discipline is stated rather than enforced.
+tell the difference — which is why that discipline is stated rather than enforced. On a
+signing profile the binding is signature-covered like every transition; at AL1 it carries
+AL1's ordinary insider bounds.
 
 **Honest bound.** Redemption makes orphaned, duplicated, premature, or mismatched effects
 **refusable at the seam given an idempotent executor** — the **separated** host's executor

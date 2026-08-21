@@ -1,15 +1,33 @@
 // @vidimera/record — kernel/redeem.ts: the operator-only redemption seam, DIRECT shape
 // (SPEC §11.2): the single-use coupling of a confirmed final-leg decision to its effect —
-// `confirmed → redeemed { via: 'direct' }`. Exported on every profile (SPEC §8:
+// `confirmed → redeemed { via: 'direct', resultDigest? }`. Exported on every profile (SPEC §8:
 // "`redeem()` and `seal()` are calls on every profile, with fail-closed domain outcomes in
 // every deployment"); on a pure-capture profile the domain outcome is `unredeemable-state`.
 //
-// The gate ladder, and why:
+// The gate ladder, and why. Two rungs sit outside the (1)-(6) numbering proper — one
+// pre-ladder, one inserted mid-ladder by the effect-result increment — each documented at
+// its own depth, the convention `kernel/finalize.ts`'s header uses for its own two
+// pre-ladder throws:
+//   (0) intake validate   -> THROWS               — `validateRedeemOptions` below: the
+//                            options bag's SHAPE (only `tx`/`result` keys; `result`'s
+//                            `{ digest }` shape; `beginRedemption`'s unconditional
+//                            rejection of `result`), checked at ARGUMENT depth, before any
+//                            chain loads (SPEC §11.2/§12; finalize's own consultation-shape
+//                            intake precedent) — a caller bug throws identically regardless
+//                            of record state, ahead of every rung below including
+//                            chain-compromise
 //   (1) chain-verify      -> chain-compromise    — §5: "Every operator-side mutating seam
 //                            verifies the chain before acting"; the AL2 enforcement
 //                            increment folds the signature layer into this same arm
 //   (2) resolve profile   -> unknown-profile     — defensive; fail-closed
 //   (3) effect seam?      -> unredeemable-state  — §11.2: "on-iff-effects"
+//   (3.5) result admission -> THROWS              — the effect-result increment's admission
+//                            gate (`redeem`/`completeRedemption` only; SPEC §9.1/§11.2):
+//                            `opts.result` supplied but the resolved profile does not
+//                            declare `redeem.result` throws, PROFILE-RESOLUTION depth, so it
+//                            sits after (1)/(2)/(3) — chain-compromise, unknown-profile and
+//                            the effect-seam/final-leg gate all outrank it, matching
+//                            finalize's own policy-presence-contract depth
 //   (4) state gate        -> already-redeemed on 'redeemed' (at-most-once, replay half);
 //                            unredeemable-state otherwise-not-confirmed
 //   (5) correspondence    -> effect-mismatch     — re-digest vs the bound contentDigest;
@@ -520,8 +538,8 @@ export async function beginRedemption(
 
 /**
  * completeRedemption — SPEC §11.2's token shape, the PRESENTATION half (second step-3
- * increment): `redeeming → redeemed { via: 'token', tokenDigest }` on presenting the
- * issued token. At-most-once's replay half is the state gate (`already-redeemed`,
+ * increment): `redeeming → redeemed { via: 'token', tokenDigest, resultDigest? }` on
+ * presenting the issued token. At-most-once's replay half is the state gate (`already-redeemed`,
  * checked BEFORE correspondence — outranks mismatch reporting); the correspondence rung
  * checks the token first (digest of the presented token vs the chain-recorded
  * tokenDigest), always refusing `effect-mismatch` on a miss — a wrong token is never
@@ -625,7 +643,7 @@ export async function completeRedemption(
     return refuseCorrespondenceMismatch(store, chain, resolved, 'redeeming', finalLeg, now, tx);
   }
 
-  // --- (6) append `redeeming → redeemed { via: 'token', tokenDigest }` ------------------
+  // --- (6) append `redeeming → redeemed { via: 'token', tokenDigest, resultDigest? }` ---
   const last = chain.at(-1);
   if (last === undefined) {
     throw new Error('completeRedemption: empty chain — the prologue length check holds');

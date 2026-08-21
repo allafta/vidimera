@@ -14,7 +14,7 @@
 // sharing `finalize()`'s own `sodViolated`/`refuseMaybeAppend`/`isValidFacts` helpers rather
 // than a drifting copy; `redeem` delegates to `kernel/redeem.ts`,
 // the DIRECT-shape redemption seam (SPEC §11.2): a confirmed effect-seam record's final leg
-// is coupled to its effect via `confirmed → redeemed { via: 'direct' }`, enlisted in the
+// is coupled to its effect via `confirmed → redeemed { via: 'direct', resultDigest? }`, enlisted in the
 // caller's own transaction when one is passed through; `unredeemable-state` on every
 // profile/state with no redeemable seam; `raiseFinding`/`acknowledge` delegate to
 // `kernel/findings-seams.ts`, SPEC §10.2's two operator-only mid-lifecycle seams (second
@@ -142,7 +142,7 @@ export interface Kernel {
  * Assembles the shared kernel closures over `ctx`. All eight transitioning/read closures
  * (`stage`/`open`/`review`/`finalize`/`redeem`/`raiseFinding`/`acknowledge`/`seal`) delegate
  * to `kernel/*.ts`; `redeem` is real: the DIRECT shape (SPEC §11.2) couples a confirmed
- * effect-seam record's final leg to its effect via `confirmed → redeemed { via: 'direct' }`,
+ * effect-seam record's final leg to its effect via `confirmed → redeemed { via: 'direct', resultDigest? }`,
  * `unredeemable-state` on every profile/state with no redeemable seam. `raiseFinding`/
  * `acknowledge` are real: SPEC §10.2's two operator-only mid-lifecycle seams. `seal` is
  * real: it caps a verified derived-terminal record with a `sealed` transition and reports
@@ -176,7 +176,7 @@ function makeKernel(ctx: KernelContext): Kernel {
 
     // --- completeRedemption(): kernel/redeem.ts — the TOKEN shape's presentation half
     // (SPEC §11.2, second step-3 increment): `redeeming → redeemed { via: 'token',
-    // tokenDigest }` on presenting the issued token ---
+    // tokenDigest, resultDigest? }` on presenting the issued token ---
     completeRedemption: (recordId, token, content, opts) =>
       completeRedemptionKernel(ctx, recordId, token, content, opts),
 

@@ -11,12 +11,12 @@
 // recorded-human-decline increment) — finalize's ladder with the evidence rungs absent,
 // never on the agent surface; `redeem` to `kernel/redeem.ts`, the DIRECT-shape redemption seam — SPEC §11.2: a
 // confirmed effect-seam record's final leg is coupled to its effect via
-// `confirmed → redeemed { via: 'direct' }`, `unredeemable-state` on every profile/state
-// that has no redeemable seam; `beginRedemption`/`completeRedemption`, also
+// `confirmed → redeemed { via: 'direct', resultDigest? }`, `unredeemable-state` on every
+// profile/state that has no redeemable seam; `beginRedemption`/`completeRedemption`, also
 // `kernel/redeem.ts` (second step-3 increment), the TOKEN shape's two halves — issuance
 // (`confirmed → redeeming { tokenDigest }`, the single-use token returned exactly once
 // and never persisted) and presentation (`redeeming → redeemed { via: 'token',
-// tokenDigest }` on presenting that token); `raiseFinding`/`acknowledge` to
+// tokenDigest, resultDigest? }` on presenting that token); `raiseFinding`/`acknowledge` to
 // `kernel/findings-seams.ts` (SPEC §10.2, second step-7 increment), the two operator-only
 // mid-lifecycle seams — the only appends between `opened` and the decision; `seal` to
 // `kernel/seal.ts`, the operator-only chain-retirement seam — a verified derived-terminal
