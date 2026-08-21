@@ -114,7 +114,7 @@ const codeOnlyPatterns = [
 // Citation integrity (per-file, code-only)
 // ---------------------------------------------------------------------------
 //
-// The four patterns above are syntactic: they say a citation is not shaped like
+// The eight patterns above are syntactic: they say a citation is not shaped like
 // a pointer into some other project's documents. They say nothing about whether
 // a citation RESOLVES. A bulk comment scrub that rewrote foreign pointers into
 // `SPEC §N` / `DECISIONS.md` form passed all of them while carrying foreign

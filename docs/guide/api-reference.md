@@ -4,10 +4,11 @@
 `packages/record/src/index.ts` exports it against the current tree. The source and
 [`../concept/SPEC.md`](../concept/SPEC.md) are authoritative; if this page disagrees with
 either, this page is stale — file it as a bug. Two standing caveats: the pre-0.1 API
-review (deferral register row 6) completed 2026-08-19 — every name below that predates it
-is review-ratified (`docs/analysis/2026-08-19-phase-1-api-review.md`), while `decline`/
-`DeclineOptions`, `open`'s `proposed`, `RedeemOptions` and `redeem.result` landed after that
-pass and are this build's own unreviewed names — the store contract's
+review (deferral register row 6) completed 2026-08-19, ratifying the 52 names exported then
+(`docs/analysis/2026-08-19-phase-1-api-review.md`); the seven added since — the
+adapter-author helpers below (`transitionDigest`, `GenesisPayload`, `isCompromiseCarveOut`,
+`isStateLeaving`, `stateOf`) and the `DeclineOptions`/`RedeemOptions` bags — landed under
+the review's own rules rather than through it — the store contract's
 method signatures staying explicitly provisional pre-1.0 by the sealed set's own
 declaration; and the package builds to `dist/` behind a real `exports` map (`.` and
 `./probes`; CI packs and consumer-tests the tarball on every run) but stays `private: true`

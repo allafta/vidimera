@@ -14,7 +14,7 @@ has landed — read it for the record; read this document for what comes next.
 The eight-step build order (`docs/concept/SCOPING-GUIDE.md` §7) is complete: all eight steps
 are exited, the last of them — recovery, live capture, AL2 detached signing whole, and the
 operator-assurance self-test tier — settling at the self-test-tier increment's own fix wave,
-commit `84484ba`. Four increments have landed since, all 2026-08-21: three governed
+commit `84484ba`. Four increments have landed since, all landing 2026-08-21: three governed
 capabilities — recorded human decline, proposal provenance, effect-result notarization —
 and a release-readiness reconciliation. `docs/process/implementation-status.md` carries the
 step-by-step account and is this repository's authoritative record of what landed; this
@@ -234,8 +234,9 @@ form; the account above stands as the history of the gap.
 - **Where the increment history lives.** `docs/superpowers/specs/` and
   `docs/superpowers/plans/` carry one spec/plan pair per increment, named by the increment it
   served; `docs/analysis/` carries the increment-history artifacts outside that pair
-  structure — `2026-08-03-step-1-review.md`, the 2026-08-18/19 release-phase records, and
-  the 2026-08-20 session rulings and sealed-set sanction records.
+  structure — `2026-08-03-step-1-review.md`, the 2026-08-18/19 release-phase records, the
+  two sealed-set sanction records (2026-08-19 and 2026-08-20), and the 2026-08-20
+  session-ruling / posture-decision records.
 - **A new capability moves its own enumerations, in its own increment.** A capability or
   record-model field that adds a conditional field must, in the same increment, move: (1)
   `docs/concept/SPEC.md` §2's enumerations — the record-model field table and the
