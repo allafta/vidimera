@@ -87,6 +87,11 @@ distinction). Each item below names its row and quotes its trigger verbatim.
   inverting the seams' own recorded "NO tx, deliberately" comments — the TWELFTH entry of
   `docs/process/implementation-status.md`'s numbered inversion sequence, argued at the
   seam and pinned by four enlisted-token tests. The row is retired.
+- **Shape update, 2026-08-21 (the effect-result increment's Task 1):** that trailing
+  `tx?` — by then present on all three redemption seams, not only the token pair this row
+  named — moved into `RedeemOptions.tx`, one options bag `redeem`, `beginRedemption`, and
+  `completeRedemption` now share. Behavior-preserving, gated by the existing suite; the
+  row stays retired.
 
 ### The Biome migration — register row 5, retired 2026-08-19
 

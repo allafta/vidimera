@@ -61,6 +61,7 @@
 import { canonicalize, digest } from '../canonical.js';
 import { transitionDigest } from '../chain/encoding.js';
 import { replay, verifyChain } from '../chain/replay.js';
+import type { RedeemOptions } from '../config.js';
 import type { KernelContext, ResolvedProfile } from '../create.js';
 import { isFinalLeg, nonTerminal } from '../nonterminal.js';
 import type { Outcome } from '../outcome.js';
@@ -286,9 +287,10 @@ export async function redeem(
   ctx: KernelContext,
   recordId: string,
   content: unknown,
-  tx?: unknown,
+  opts?: RedeemOptions,
 ): Promise<Outcome<{ recordId: string; state: 'redeemed'; transitionRef: Digest }>> {
   const { store, now } = ctx;
+  const tx = opts?.tx;
   const pro = await prologue(ctx, 'redeem', recordId, tx);
   if ('refusal' in pro) return pro.refusal;
   const { chain, record, resolved, finalLeg } = pro.gated;
@@ -356,8 +358,10 @@ export async function redeem(
  * returned in the ok value EXACTLY ONCE — generated before the append, returned only
  * after it (a crash between the two strands the record, §11.2's lost-token pricing; the
  * reverse order would hand out a token whose edge never landed, strictly worse). The
- * optional trailing `tx?` (register row 16, landed at the phase-4 increment) is the
- * TWELFTH self-authored inversion — this comment previously argued "NO tx parameter",
+ * optional `tx` (register row 16, landed at the phase-4 increment as a trailing
+ * positional parameter; riding `opts.tx` since the effect-result increment moved the
+ * whole redemption family onto one options bag) is the TWELFTH self-authored inversion —
+ * this comment previously argued "NO tx parameter",
  * on the ground that a host rollback could erase the recorded tokenDigest while the
  * live token is out. The inverted reading: an enlisted issuance commits or rolls back
  * with the host's own outbox row, so a rollback erases the edge AND the outbox entry
@@ -383,11 +387,12 @@ export async function beginRedemption(
   ctx: KernelContext,
   recordId: string,
   content: unknown,
-  tx?: unknown,
+  opts?: RedeemOptions,
 ): Promise<
   Outcome<{ recordId: string; state: 'redeeming'; token: string; transitionRef: Digest }>
 > {
   const { store, now, tokenSource } = ctx;
+  const tx = opts?.tx;
   const pro = await prologue(ctx, 'beginRedemption', recordId, tx);
   if ('refusal' in pro) return pro.refusal;
   const { chain, record, resolved, finalLeg } = pro.gated;
@@ -466,17 +471,18 @@ export async function beginRedemption(
  * other profile keeps `effect-mismatch`, byte-identical to before this increment. The
  * executor's own deduplication, keyed on the token, remains the separated host's MUST
  * (§11.2's Honest bound) — this seam is defense-in-depth beside it, never a substitute.
- * The optional trailing `tx?` (register row 16) inverts this comment's earlier "NO tx,
- * deliberately" — the same TWELFTH-inversion argument as beginRedemption's doc comment:
- * an enlisted completion commits or rolls back with the host's own effect row, which is
- * §11.2's co-located coupling wearing the token shape.
+ * The optional `tx` (register row 16; riding `opts.tx` since the effect-result increment
+ * moved the whole redemption family onto one options bag) inverts this comment's earlier
+ * "NO tx, deliberately" — the same TWELFTH-inversion argument as beginRedemption's doc
+ * comment: an enlisted completion commits or rolls back with the host's own effect row,
+ * which is §11.2's co-located coupling wearing the token shape.
  */
 export async function completeRedemption(
   ctx: KernelContext,
   recordId: string,
   token: string,
   content: unknown,
-  tx?: unknown,
+  opts?: RedeemOptions,
 ): Promise<Outcome<{ recordId: string; state: 'redeemed'; transitionRef: Digest }>> {
   if (typeof token !== 'string') {
     // A caller bug throws at argument intake, ahead of every outcome — the same depth as
@@ -488,6 +494,7 @@ export async function completeRedemption(
     );
   }
   const { store, now } = ctx;
+  const tx = opts?.tx;
   const pro = await prologue(ctx, 'completeRedemption', recordId, tx);
   if ('refusal' in pro) return pro.refusal;
   const { chain, record, resolved, finalLeg } = pro.gated;

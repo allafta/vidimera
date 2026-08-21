@@ -213,7 +213,7 @@ test('ENLISTED: redeem(recordId, content, tx) against a due-confirmed record on 
 
   const before = await store.readChain(recordId);
   store.database.exec('BEGIN IMMEDIATE');
-  const outcome = await handles.operator.redeem(recordId, CONTENT, store.database);
+  const outcome = await handles.operator.redeem(recordId, CONTENT, { tx: store.database });
   assert.equal(store.database.isTransaction, true, "the host's transaction is still open");
   store.database.exec('COMMIT'); // nothing was appended — an empty commit either way
 

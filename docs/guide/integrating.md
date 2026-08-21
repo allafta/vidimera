@@ -302,10 +302,9 @@ awaits the host coupling the real effect to it, at most once.
 const confirmed = await operator.finalize(recordId, identity, content, facts);
 if (confirmed.status !== 'ok') return handle(confirmed);
 
-// Perform the effect and redeem, passing your transaction so the redeemed edge is
-// atomic with the effect's own write (the optional third argument threads through
-// to the store):
-const redeemed = await operator.redeem(recordId, content /*, tx */);
+// Perform the effect and redeem, passing your transaction on the options bag so the
+// redeemed edge is atomic with the effect's own write:
+const redeemed = await operator.redeem(recordId, content /*, { tx } */);
 // A second redeem refuses 'already-redeemed'. Different content refuses 'effect-mismatch'.
 ```
 

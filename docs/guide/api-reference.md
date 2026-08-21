@@ -121,11 +121,11 @@ interface OperatorSurface {
     Promise<Outcome<{ recordId: string; state: 'open'; transitionRef: Digest }>>;
 
   // the effect seam (SPEC §11.2)
-  redeem(recordId: string, content: unknown, tx?: unknown):
+  redeem(recordId: string, content: unknown, opts?: RedeemOptions):
     Promise<Outcome<{ recordId: string; state: 'redeemed'; transitionRef: Digest }>>;
-  beginRedemption(recordId: string, content: unknown, tx?: unknown):
+  beginRedemption(recordId: string, content: unknown, opts?: RedeemOptions):
     Promise<Outcome<{ recordId: string; state: 'redeeming'; token: string; transitionRef: Digest }>>;
-  completeRedemption(recordId: string, token: string, content: unknown, tx?: unknown):
+  completeRedemption(recordId: string, token: string, content: unknown, opts?: RedeemOptions):
     Promise<Outcome<{ recordId: string; state: 'redeemed'; transitionRef: Digest }>>;
 
   // retirement
@@ -188,9 +188,9 @@ Notes that save debugging time:
   not exist in the record.
 - `beginRedemption`'s `token` is secret material returned exactly once and never
   persisted — the chain and store carry only its digest. Do not log it.
-- All three redemption seams take an optional trailing `tx?` (the driver's own
-  transaction handle): an enlisted issuance or completion commits or rolls back with the
-  host's own outbox/effect row, and the enlisted-tampered corner refuses
+- All three redemption seams take an optional `opts: RedeemOptions`, whose `tx` field is
+  the driver's own transaction handle: an enlisted issuance or completion commits or rolls
+  back with the host's own outbox/effect row, and the enlisted-tampered corner refuses
   `chain-compromise` result-first with no edge, same as the direct shape.
 - `verifySignatures` reports and never gates; enforcement is folded into the chain-verify
   arm at every seam on signing profiles. Its report type (`SignatureReport`) is exported
@@ -217,6 +217,10 @@ interface FinalizeOptions {
 interface DeclineOptions {
   consultations?: ConsultationInput[];       // same attach-form as FinalizeOptions.consultations;
                                               // no policy member — the seam takes no policy input
+}
+interface RedeemOptions {
+  tx?: unknown;                              // the driver's own transaction handle (SPEC §12) —
+                                              // never a library-owned transaction interface
 }
 type ConsultationInput = ObtainedConsultation | UnreachableMarker;
 interface ObtainedConsultation {

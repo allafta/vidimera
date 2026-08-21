@@ -719,3 +719,20 @@ export interface DeclineOptions {
    * `FinalizeOptions.consultations` declares; the decline seam takes no policy input. */
   consultations?: ConsultationInput[];
 }
+
+// --- redeem()/beginRedemption()/completeRedemption() options bag (SPEC §11.2, §12) ---
+
+/**
+ * The redemption seams' options bag (SPEC §11.2, §12; this build's own shape — SPEC
+ * states no redemption argument list, and §9 licenses growth through the operator-only
+ * bags). `tx` moved in from a trailing positional parameter at the effect-result
+ * increment; deferral-register row 16 is its record.
+ */
+export interface RedeemOptions {
+  /** SPEC §12's caller-transaction seam: the DRIVER'S OWN transaction handle. Typed
+   * `unknown` deliberately — §12 requires the concrete type stay the driver's, "never
+   * abstracted behind a library-owned transaction interface", so this field must never
+   * become a library transaction type. When supplied, the append is enlisted and
+   * commits or rolls back with the host's own write. */
+  tx?: unknown;
+}

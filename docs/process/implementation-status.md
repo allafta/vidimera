@@ -1060,7 +1060,12 @@ Carried in the deferral register, with triggers:
   back with the host's own outbox row, so a rollback declines the issuance whole, never a
   strand; §11.2's "no transaction is shared" defines the executor relationship, not the
   issuance's persistence) and pinned by four new enlisted-token tests in
-  `redeem-token.test.ts`.
+  `redeem-token.test.ts`. **Shape update, 2026-08-21 (the effect-result increment's Task
+  1):** that trailing `tx?` — on all three redemption seams, not only the two token
+  halves — moved into `RedeemOptions.tx`, one options bag shared by `redeem`,
+  `beginRedemption`, and `completeRedemption`; behavior-preserving, gated by the existing
+  suite, no new deferral. This is a shape correction to the already-retired row, not a
+  reopening.
 
 Rows 17 and 18 both retired at the self-test-tier increment — step 8's own fourth and
 last tail item landed (see the CONTROLS §4 row and the boundary above for the full

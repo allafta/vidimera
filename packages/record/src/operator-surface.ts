@@ -34,7 +34,7 @@
 // `docs/process/implementation-status.md` and flagged to the pre-0.1 naming review.
 
 import type { ChainVerifyReport } from './chain/replay.js';
-import type { DeclineOptions, FinalizeOptions, OpenOptions } from './config.js';
+import type { DeclineOptions, FinalizeOptions, OpenOptions, RedeemOptions } from './config.js';
 import type { Kernel } from './create.js';
 import type { AckInput, FindingInput } from './kernel/findings-seams.js';
 import type { SignatureReport } from './kernel/verify-signatures.js';
@@ -76,12 +76,12 @@ export interface OperatorSurface {
   redeem(
     recordId: string,
     content: unknown,
-    tx?: unknown, // SPEC §11.2's direct shape: the edge is enlisted in the host's transaction
+    opts?: RedeemOptions, // SPEC §11.2's direct shape: opts.tx enlists the edge in the host's transaction
   ): Promise<Outcome<{ recordId: string; state: 'redeemed'; transitionRef: Digest }>>;
   beginRedemption(
     recordId: string,
     content: unknown, // begin-time correspondence: this build's addition, argued at the seam
-    tx?: unknown, // register row 16: the issuance enlisted in the host's transaction (the TWELFTH inversion, argued at kernel/redeem.ts)
+    opts?: RedeemOptions, // register row 16: opts.tx enlists the issuance in the host's transaction (the TWELFTH inversion, argued at kernel/redeem.ts)
   ): Promise<
     // `token` is the single-use redemption token, returned exactly once and never persisted.
     // The `ok` value is secret material — a host MUST NOT log it; the chain and store carry
@@ -92,7 +92,7 @@ export interface OperatorSurface {
     recordId: string,
     token: string, // the single-use token beginRedemption returned — presented, never persisted
     content: unknown,
-    tx?: unknown, // register row 16: the completion enlisted in the host's transaction
+    opts?: RedeemOptions, // register row 16: opts.tx enlists the completion in the host's transaction
   ): Promise<Outcome<{ recordId: string; state: 'redeemed'; transitionRef: Digest }>>;
   seal(
     recordId: string,

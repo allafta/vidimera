@@ -725,7 +725,9 @@ test('ENLISTED beginRedemption: a host ROLLBACK erases the redeeming edge — th
   const { handles, recordId } = await confirmedEffectRecord(sqlite);
 
   sqlite.database.exec('BEGIN IMMEDIATE');
-  const enlisted = await handles.operator.beginRedemption(recordId, CONTENT, sqlite.database);
+  const enlisted = await handles.operator.beginRedemption(recordId, CONTENT, {
+    tx: sqlite.database,
+  });
   assert.equal(enlisted.status, 'ok', 'the enlisted issuance succeeds inside the host tx');
   assert.equal(sqlite.database.isTransaction, true, "the host's transaction is still open");
   sqlite.database.exec('ROLLBACK'); // must not throw
@@ -749,7 +751,9 @@ test('ENLISTED begin + COMMIT, then ENLISTED complete + COMMIT: the full token f
   const { handles, recordId } = await confirmedEffectRecord(sqlite);
 
   sqlite.database.exec('BEGIN IMMEDIATE');
-  const begun = await handles.operator.beginRedemption(recordId, CONTENT, sqlite.database);
+  const begun = await handles.operator.beginRedemption(recordId, CONTENT, {
+    tx: sqlite.database,
+  });
   assert.equal(begun.status, 'ok');
   sqlite.database.exec('COMMIT');
   if (begun.status !== 'ok') return;
@@ -760,7 +764,7 @@ test('ENLISTED begin + COMMIT, then ENLISTED complete + COMMIT: the full token f
     recordId,
     begun.value.token,
     CONTENT,
-    sqlite.database,
+    { tx: sqlite.database },
   );
   assert.equal(completed.status, 'ok');
   sqlite.database.exec('COMMIT');
@@ -775,7 +779,9 @@ test('ENLISTED beginRedemption over a tampered chain: chain-compromise result-fi
 
   const before = await sqlite.readChain(recordId);
   sqlite.database.exec('BEGIN IMMEDIATE');
-  const outcome = await handles.operator.beginRedemption(recordId, CONTENT, sqlite.database);
+  const outcome = await handles.operator.beginRedemption(recordId, CONTENT, {
+    tx: sqlite.database,
+  });
   assert.equal(outcome.status, 'refused');
   if (outcome.status !== 'refused') return;
   assert.equal(outcome.code, 'chain-compromise');
@@ -793,12 +799,9 @@ test('ENLISTED completeRedemption over a tampered chain: chain-compromise result
 
   const before = await sqlite.readChain(recordId);
   sqlite.database.exec('BEGIN IMMEDIATE');
-  const outcome = await handles.operator.completeRedemption(
-    recordId,
-    token,
-    CONTENT,
-    sqlite.database,
-  );
+  const outcome = await handles.operator.completeRedemption(recordId, token, CONTENT, {
+    tx: sqlite.database,
+  });
   assert.equal(outcome.status, 'refused');
   if (outcome.status !== 'refused') return;
   assert.equal(outcome.code, 'chain-compromise');

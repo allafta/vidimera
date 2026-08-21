@@ -137,7 +137,7 @@ test('ENLISTMENT: a host ROLLBACK erases the redeemed edge, and a known-rollback
   const { handles, recordId } = await confirmedEffectRecord(store);
 
   store.database.exec('BEGIN IMMEDIATE');
-  const enlisted = await handles.operator.redeem(recordId, CONTENT, store.database);
+  const enlisted = await handles.operator.redeem(recordId, CONTENT, { tx: store.database });
   assert.equal(enlisted.status, 'ok', 'the enlisted redemption reports success inside the txn');
   store.database.exec('ROLLBACK');
 
@@ -180,7 +180,7 @@ test('ENLISTED SIGNING: a signing effect-seam profile signs the enlisted redeem(
   assert.equal(done.status, 'ok', 'fixture: the record must confirm');
 
   sqlite.database.exec('BEGIN IMMEDIATE');
-  const enlisted = await handles.operator.redeem(recordId, CONTENT, sqlite.database);
+  const enlisted = await handles.operator.redeem(recordId, CONTENT, { tx: sqlite.database });
   assert.equal(enlisted.status, 'ok', 'the enlisted redemption reports success inside the txn');
   sqlite.database.exec('COMMIT');
 
@@ -230,7 +230,7 @@ test('ENLISTED SIGNATURE-BROKEN (the AL2 enforcement increment): a signature-bro
 
   const before = await sqlite.readChain(recordId);
   sqlite.database.exec('BEGIN IMMEDIATE');
-  const outcome = await handles.operator.redeem(recordId, CONTENT, sqlite.database);
+  const outcome = await handles.operator.redeem(recordId, CONTENT, { tx: sqlite.database });
   assert.equal(sqlite.database.isTransaction, true, "the host's transaction is still open");
   sqlite.database.exec('ROLLBACK'); // must not throw — the connection is clean and usable
 
@@ -261,7 +261,7 @@ test('ENLISTED CHAIN-COMPROMISE: a tampered chain over an enlisted redeem() refu
   const handles = create(makeConfig([effectSeamProfile()], { store: tampering }));
 
   sqlite.database.exec('BEGIN IMMEDIATE');
-  const outcome = await handles.operator.redeem(recordId, CONTENT, sqlite.database);
+  const outcome = await handles.operator.redeem(recordId, CONTENT, { tx: sqlite.database });
   assert.equal(outcome.status, 'refused');
   if (outcome.status !== 'refused') return;
   assert.equal(outcome.code, 'chain-compromise');
@@ -298,7 +298,7 @@ test('enlisted reverify drift refuses result-first WITHOUT appending (the family
   const outcome = await handles.operator.redeem(
     recordId,
     { subject: 'week-1', total: 43 },
-    sqlite.database,
+    { tx: sqlite.database },
   );
   assert.equal(sqlite.database.isTransaction, true, "the host's transaction is still open");
   sqlite.database.exec('ROLLBACK'); // must not throw — the connection is clean and usable

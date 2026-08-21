@@ -38,6 +38,7 @@ export type {
   OpenOptions,
   PolicyInput,
   PriorRecordRef,
+  RedeemOptions,
   UnreachableMarker,
 } from './config.js';
 export type { Surfaces } from './create.js';

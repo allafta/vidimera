@@ -167,17 +167,18 @@ function makeKernel(ctx: KernelContext): Kernel {
       declineKernel(ctx, recordId, identity, content, facts, opts),
 
     // --- redeem(): kernel/redeem.ts — the DIRECT-shape redemption seam (SPEC §11.2) ---
-    redeem: (recordId, content, tx) => redeemKernel(ctx, recordId, content, tx),
+    redeem: (recordId, content, opts) => redeemKernel(ctx, recordId, content, opts),
 
     // --- beginRedemption(): kernel/redeem.ts — the TOKEN shape's issuance half (SPEC
     // §11.2, second step-3 increment): `confirmed → redeeming { tokenDigest }` ---
-    beginRedemption: (recordId, content, tx) => beginRedemptionKernel(ctx, recordId, content, tx),
+    beginRedemption: (recordId, content, opts) =>
+      beginRedemptionKernel(ctx, recordId, content, opts),
 
     // --- completeRedemption(): kernel/redeem.ts — the TOKEN shape's presentation half
     // (SPEC §11.2, second step-3 increment): `redeeming → redeemed { via: 'token',
     // tokenDigest }` on presenting the issued token ---
-    completeRedemption: (recordId, token, content, tx) =>
-      completeRedemptionKernel(ctx, recordId, token, content, tx),
+    completeRedemption: (recordId, token, content, opts) =>
+      completeRedemptionKernel(ctx, recordId, token, content, opts),
 
     // --- raiseFinding()/acknowledge(): kernel/findings-seams.ts — SPEC §10.2's two
     // operator-only mid-lifecycle seams (second step-7 increment) ---
