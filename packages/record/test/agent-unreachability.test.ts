@@ -1,9 +1,9 @@
 // @vidimera/record — agent-unreachability.test.ts: the
 // object-capability freeze-enumerate-attack. The `agent` handle exposes ONLY
 // `stage` + the three pure reads; the record-transitioning calls (`open`/`review`/
-// `finalize`/`redeem`/`seal`) live SOLELY on `operator`. This is in-process discipline, not
-// sandbox confinement (SPEC §9: "in-process object-capability discipline, not a
-// sandbox") — asserted here by:
+// `finalize`/`decline`/`redeem`/`seal`) live SOLELY on `operator`. This is in-process
+// discipline, not sandbox confinement (SPEC §9: "in-process object-capability discipline,
+// not a sandbox") — asserted here by:
 //   (1) the agent handle's own+inherited key set is EXACTLY {stage, getRecord, readChain,
 //       chainHead} (no open/review/finalize/redeem anywhere reachable),
 //   (2) the handle is FROZEN (mutation attempts throw under ESM strict mode),
@@ -24,6 +24,7 @@ const TRANSITIONING = [
   'open',
   'review',
   'finalize',
+  'decline',
   'redeem',
   'beginRedemption',
   'completeRedemption',
@@ -40,9 +41,25 @@ function agentHandle() {
 
 // === (1) key-set enumeration ==========================================================
 
+// The recorded-human-decline increment added `decline` to the OPERATOR surface only
+// (operator-surface.ts) — `captureProfile()` here never declares `decline` on its leg,
+// and even a declaring profile's agent handle would still resolve to this SAME frozen
+// {stage, getRecord, readChain, chainHead} literal (agent-surface.ts selects a fixed key
+// set, never profile-conditional). So the assertion right below already proves `decline`
+// absent from the agent handle's own keys — a dedicated `'decline' in agent === false`
+// test would be redundant with it; `decline` joins TRANSITIONING above instead, so the
+// "no transitioning method reachable" and "calling throws TypeError" loops below name it
+// explicitly too. Its presence on the OPERATOR handle is the counterpart pinned in its
+// own test right below.
 test('agent handle own keys are EXACTLY {stage, getRecord, readChain, chainHead}', () => {
   const agent = agentHandle();
   assert.deepEqual(Object.keys(agent).sort(), ALLOWED_AGENT_KEYS);
+});
+
+test('decline lives on the operator handle — the counterpart to its absence from the agent handle above', () => {
+  const { operator } = create(makeConfig([captureProfile({ decline: true })]));
+  assert.equal('decline' in operator, true);
+  assert.equal(typeof (operator as unknown as Record<string, unknown>).decline, 'function');
 });
 
 test('agent handle is a plain object (prototype is Object.prototype) — no class instance leaking methods', () => {

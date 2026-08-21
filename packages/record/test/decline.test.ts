@@ -275,6 +275,32 @@ const ELIGIBLE = {
   verdict: 'pass' as const,
 };
 
+/**
+ * The AL2 signing rig shared by this file's two signing tests (the eligibility-freshness
+ * refusal below and the happy-path decline further down): a real Ed25519 keypair
+ * (`node:crypto`), a `MemorySignatureStore` sidecar, and a fixed clock
+ * (`2026-08-21T00:00:00Z` — arbitrary but shared, so a freshness-bound fixture's
+ * `observedAt` offsets stay meaningful). Extracted so both tests build the SAME rig
+ * rather than each hand-rolling its own signer/verifier — no behavioral change from the
+ * inline version this replaces.
+ */
+function signingSetup(profile: ConfirmProfile) {
+  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+  const signer: Signer = async (bytes) => ({
+    keyRef: 'key-1',
+    signature: edSign(null, bytes, privateKey).toString('base64'),
+  });
+  const verifier: Verifier = async (bytes, signature) =>
+    edVerify(null, bytes, publicKey, Buffer.from(signature, 'base64'));
+  const config = {
+    ...makeConfig([profile]),
+    signing: { signer, verifiers: { 'key-1': verifier }, signatures: new MemorySignatureStore() },
+  };
+  const nowMs = Date.parse('2026-08-21T00:00:00Z');
+  const handles = createWithClock(config, () => new Date(nowMs));
+  return { handles };
+}
+
 test('decline (5.5): eligibility trip mapping — missing, fail, unreachable, pass', async () => {
   const setup = () => declinable({ eligibility: 'hr.decliner-check' });
 
@@ -306,6 +332,14 @@ test('decline (5.5): eligibility trip mapping — missing, fail, unreachable, pa
     assert.equal(res.status, 'unavailable');
     assert.equal(res.status === 'unavailable' && res.authority, 'svc:hr');
     assert.equal((await handles.operator.getRecord(recordId))?.state, 'open');
+
+    // the re-arm proof: the SAME record, retried with a pass-verdict eligibility
+    // consultation, declines cleanly — mirroring the fail branch's own retry above.
+    const retry = await handles.operator.decline(recordId, identity(), CONTENT, facts(), {
+      consultations: [ELIGIBLE],
+    });
+    assert.equal(retry.status, 'ok');
+    assert.equal(retry.status === 'ok' && retry.value.state, 'declined');
   }
   {
     // pass → declined, the eligibility consultation recorded in the batch
@@ -381,13 +415,6 @@ test('decline: observedAt on a non-signing profile throws — the AL2 presence c
 });
 
 test('decline (5.5), AL2: a signing profile with an eligibility freshness bound refuses a stale claim consultation-stale', async () => {
-  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
-  const signer: Signer = async (bytes) => ({
-    keyRef: 'key-1',
-    signature: edSign(null, bytes, privateKey).toString('base64'),
-  });
-  const verifier: Verifier = async (bytes, signature) =>
-    edVerify(null, bytes, publicKey, Buffer.from(signature, 'base64'));
   const base = captureProfile({ decline: true, eligibility: 'hr.decliner-check' });
   const leg = base.legs[0];
   if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
@@ -396,17 +423,36 @@ test('decline (5.5), AL2: a signing profile with an eligibility freshness bound 
     signing: true,
     legs: [{ ...leg, freshness: { eligibility: 60 } }],
   };
-  const config = {
-    ...makeConfig([profile]),
-    signing: { signer, verifiers: { 'key-1': verifier }, signatures: new MemorySignatureStore() },
-  };
-  const nowMs = Date.parse('2026-08-21T00:00:00Z');
-  const handles = createWithClock(config, () => new Date(nowMs));
+  const { handles } = signingSetup(profile);
   const recordId = await openRecord(handles, CONTENT, profile.id, DEFAULT_SUBJECT_REF);
   const res = await handles.operator.decline(recordId, identity(), CONTENT, facts(), {
     consultations: [{ ...ELIGIBLE, observedAt: '2026-08-20T22:00:00Z' }], // 2h old vs 60s bound
   });
   assert.equal(res.status === 'refused' && res.code, 'consultation-stale');
+});
+
+test('decline (AL2): a signing profile with decline declared — signed happy path, every transition signed and verified', async () => {
+  const profile: ConfirmProfile = { ...captureProfile({ decline: true }), signing: true };
+  const { handles } = signingSetup(profile);
+  const recordId = await openRecord(handles, CONTENT, profile.id, DEFAULT_SUBJECT_REF);
+  const res = await handles.operator.decline(recordId, identity(), CONTENT, facts(), {
+    consultations: [
+      { kind: 'decline-reason', checker: CHECKER, payloadDigest: DIGEST, verdict: 'pass' },
+    ],
+  });
+  assert.equal(res.status, 'ok');
+  assert.equal(res.status === 'ok' && res.value.state, 'declined');
+  const record = await handles.operator.getRecord(recordId);
+  assert.equal(record?.state, 'declined');
+
+  const report = await handles.operator.verifySignatures(recordId);
+  assert.equal(report.signingDeclared, true);
+  const chain = await handles.operator.readChain(recordId);
+  assert.equal(report.transitions.length, chain.length);
+  assert.ok(
+    report.transitions.every((t) => t.signed === true && t.verified === true),
+    'every transition in the declined chain is signed and verified',
+  );
 });
 
 // --- interaction pins (this task): decline against the other kernel seams -------------
