@@ -128,8 +128,8 @@ acknowledgments, prior-leg evidence, consultation results) only in process memor
 **Profile-conditional fields** (present only when the profile switches the feature on):
 `priorRecordRefs` and `priorLegActors`, carried on a multi-leg successor record (§10.1)
 **[PROVEN]**; `findings` and `acks` (a findings flow, §10.2) **[PROVEN]**; `resultDigest`
-(result notarization, §11.2), present when a `redeem.result`-declaring profile's
-redemption call supplies one. **Flow-conditional fields:** `supersedes` (recovery of a
+(result notarization, §11.2) **[PROVEN]**, present when a `redeem.result`-declaring
+profile's redemption call supplies one. **Flow-conditional fields:** `supersedes` (recovery of a
 terminal predecessor, below) **[PROVEN]** and `proposedDigest` (provenance, below)
 **[PROVEN]** — each present only when the corresponding `open()` option was supplied; no
 profile field declares either, and §9.1's table carries neither.

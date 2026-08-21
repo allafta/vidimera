@@ -1739,7 +1739,11 @@ category's own "present only when the profile switches the feature on" wording i
 necessary-condition test, not a sufficiency claim, so it already covered `findings`/`acks`
 correctly without ever promising the field is present whenever the profile declares the
 feature — and it covers `resultDigest` the same way; a new category would have sorted two
-structurally identical fields differently in the same sentence for no stated reason. No
-maturity marker moved: the field was already `[PROVEN]` at §11.2 before this fix, so this
-closure adds no entry to the marker-move lineage CLAUDE.md and this document's own
-step-7/step-8 accounts track.
+structurally identical fields differently in the same sentence for no stated reason. The
+`resultDigest` list entry was initially left unmarked on a controller instruction that
+reasoned any marker addition here would be a marker-move; that instruction was corrected
+on a further review: writing `**[PROVEN]**` at this entry restates a promotion already
+settled at the field's two home sites (SPEC §4's `redeemed` transitions-table row and
+§11.2's own subsection lead), not a fresh DESIGNED→PROVEN move, so the entry now carries
+`**[PROVEN]**` exactly as its four list-mates do, and no entry is added to the marker-move
+lineage CLAUDE.md and this document's own step-7/step-8 accounts track.
