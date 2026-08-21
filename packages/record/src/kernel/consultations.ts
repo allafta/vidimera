@@ -48,6 +48,7 @@ function isNonEmptyString(value: unknown): value is string {
 
 export function validateConsultations(
   inputs: ConsultationInput[] | undefined,
+  seam: 'finalize' | 'decline',
 ): PartitionedConsultations {
   const obtained: ObtainedConsultation[] = [];
   const unreachable: UnreachableMarker[] = [];
@@ -61,32 +62,32 @@ export function validateConsultations(
     // that is not itself an array (SPEC §9's "throws at argument intake" applies to the whole
     // bag, not just its elements).
     throw new Error(
-      'finalize: consultations must be an array when supplied — a malformed options bag is a caller error (SPEC §11.1)',
+      `${seam}: consultations must be an array when supplied — a malformed options bag is a caller error (SPEC §11.1)`,
     );
   }
   const seenKinds = new Set<string>();
   for (const [index, input] of inputs.entries()) {
     if (typeof input !== 'object' || input === null || Array.isArray(input)) {
       throw new Error(
-        `finalize: consultations[${index}] is not a plain object (arrays and primitives are malformed entries) — a caller error (SPEC §11.1)`,
+        `${seam}: consultations[${index}] is not a plain object (arrays and primitives are malformed entries) — a caller error (SPEC §11.1)`,
       );
     }
     const record = input as unknown as Record<string, unknown>;
     if (!isNonEmptyString(record.kind)) {
       throw new Error(
-        `finalize: consultations[${index}] has a missing or empty kind — a malformed entry is a caller error (SPEC §11.1)`,
+        `${seam}: consultations[${index}] has a missing or empty kind — a malformed entry is a caller error (SPEC §11.1)`,
       );
     }
     const kind = record.kind;
     if (RESERVED_CONSULTATION_KINDS.has(kind)) {
       throw new Error(
-        `finalize: consultations[${index}] names the reserved library-emitted kind '${kind}' — ` +
+        `${seam}: consultations[${index}] names the reserved library-emitted kind '${kind}' — ` +
           'SPEC §11.1: forging a library control is a caller error',
       );
     }
     if (seenKinds.has(kind)) {
       throw new Error(
-        `finalize: consultations[${index}] duplicates kind '${kind}' — SPEC §11.1 admits at most one consultation per kind per finalize`,
+        `${seam}: consultations[${index}] duplicates kind '${kind}' — SPEC §11.1 admits at most one consultation per kind per ${seam}`,
       );
     }
     seenKinds.add(kind);
@@ -96,18 +97,18 @@ export function validateConsultations(
       for (const key of Object.keys(record)) {
         if (!MARKER_KEYS.has(key)) {
           throw new Error(
-            `finalize: consultations[${index}] (unreachable marker '${kind}') carries the unknown key '${key}' — the shape is exact (SPEC §11.1)`,
+            `${seam}: consultations[${index}] (unreachable marker '${kind}') carries the unknown key '${key}' — the shape is exact (SPEC §11.1)`,
           );
         }
       }
       if (record.unreachable !== true) {
         throw new Error(
-          `finalize: consultations[${index}] has unreachable: ${String(record.unreachable)} — a marker declares unreachable: true or is not a marker (SPEC §11.1)`,
+          `${seam}: consultations[${index}] has unreachable: ${String(record.unreachable)} — a marker declares unreachable: true or is not a marker (SPEC §11.1)`,
         );
       }
       if (!isNonEmptyString(record.authority)) {
         throw new Error(
-          `finalize: consultations[${index}] (unreachable marker '${kind}') has a missing or empty authority — the marker names the party that was down (SPEC §11.1)`,
+          `${seam}: consultations[${index}] (unreachable marker '${kind}') has a missing or empty authority — the marker names the party that was down (SPEC §11.1)`,
         );
       }
       unreachable.push({ kind, unreachable: true, authority: record.authority });
@@ -127,7 +128,7 @@ export function validateConsultations(
     for (const key of Object.keys(record)) {
       if (!OBTAINED_KEYS.has(key)) {
         throw new Error(
-          `finalize: consultations[${index}] (obtained '${kind}') carries the unknown key '${key}' — the shape is exact, and a host-supplied at is never accepted (SPEC §11.1)`,
+          `${seam}: consultations[${index}] (obtained '${kind}') carries the unknown key '${key}' — the shape is exact, and a host-supplied at is never accepted (SPEC §11.1)`,
         );
       }
     }
@@ -139,22 +140,22 @@ export function validateConsultations(
     // payload as host attestation, not as anything this validator itself vouches for.
     if (!isValidIdentity(record.checker as never)) {
       throw new Error(
-        `finalize: consultations[${index}] (obtained '${kind}') has a malformed checker identity — a caller error (SPEC §11.1)`,
+        `${seam}: consultations[${index}] (obtained '${kind}') has a malformed checker identity — a caller error (SPEC §11.1)`,
       );
     }
     if (!isNonEmptyString(record.payloadDigest)) {
       throw new Error(
-        `finalize: consultations[${index}] (obtained '${kind}') has a missing or empty payloadDigest — digest-only custody needs the digest (SPEC §11.1)`,
+        `${seam}: consultations[${index}] (obtained '${kind}') has a missing or empty payloadDigest — digest-only custody needs the digest (SPEC §11.1)`,
       );
     }
     if (record.verdict !== 'pass' && record.verdict !== 'fail') {
       throw new Error(
-        `finalize: consultations[${index}] (obtained '${kind}') has verdict '${String(record.verdict)}' — a Consultation verdict is 'pass' or 'fail' (SPEC §2)`,
+        `${seam}: consultations[${index}] (obtained '${kind}') has verdict '${String(record.verdict)}' — a Consultation verdict is 'pass' or 'fail' (SPEC §2)`,
       );
     }
     if (record.proofRef !== undefined && typeof record.proofRef !== 'string') {
       throw new Error(
-        `finalize: consultations[${index}] (obtained '${kind}') has a non-string proofRef — a caller error (SPEC §11.1)`,
+        `${seam}: consultations[${index}] (obtained '${kind}') has a non-string proofRef — a caller error (SPEC §11.1)`,
       );
     }
     if (record.observedAt !== undefined) {
@@ -164,7 +165,7 @@ export function validateConsultations(
         Number.isNaN(Date.parse(record.observedAt))
       ) {
         throw new Error(
-          `finalize: consultations[${index}] (obtained '${kind}') has a malformed observedAt — ` +
+          `${seam}: consultations[${index}] (obtained '${kind}') has a malformed observedAt — ` +
             'the authority-claimed observation time is an RFC 3339 date-time with an explicit ' +
             'offset — a caller error (SPEC §14, §11.1)',
         );

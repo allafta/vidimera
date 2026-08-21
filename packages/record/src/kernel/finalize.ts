@@ -128,7 +128,7 @@ import { signatureLayerHolds } from './verify-signatures.js';
  * The finalize `facts` arg (SPEC §3's "Reviewed-surface (`facts`) binding"): the
  * reviewed-surface figures + the review-surface checker.
  *
- * EXPORTED for kernel/decline.ts, the second caller landing later in this increment.
+ * EXPORTED for kernel/decline.ts, the second caller (the recorded-human-decline increment).
  */
 export type Facts = { figures: unknown; checker: IdentityAssertion };
 
@@ -178,7 +178,7 @@ export async function finalize(
       throw new Error(finalizeOptionMessage(key));
     }
   }
-  const supplied = validateConsultations(opts?.consultations);
+  const supplied = validateConsultations(opts?.consultations, 'finalize');
   validatePolicyInput(opts?.policy);
 
   // --- load the chain ------------------------------------------------------------------
@@ -736,7 +736,7 @@ export async function appendChainCompromise(
  * refusal/compromise-class literal; the second step-5 increment's narrowing of `refused()`
  * made the exclusion compile-time, so this parameter follows it.
  *
- * EXPORTED for kernel/decline.ts, the second caller landing later in this increment.
+ * EXPORTED for kernel/decline.ts, the second caller (the recorded-human-decline increment).
  */
 export async function refuseMaybeAppend(
   store: Store,
@@ -846,7 +846,7 @@ export function isValidIdentity(identity: IdentityAssertion): boolean {
  * ok the carried `canonical` bytes are digested directly at the call site, so
  * `canonicalize(figures)` runs exactly once.
  *
- * EXPORTED for kernel/decline.ts, the second caller landing later in this increment.
+ * EXPORTED for kernel/decline.ts, the second caller (the recorded-human-decline increment).
  */
 export function isValidFacts(facts: Facts): { ok: true; canonical: Uint8Array } | { ok: false } {
   const f = facts as unknown as { figures?: unknown; checker?: unknown } | null | undefined;

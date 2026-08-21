@@ -150,7 +150,11 @@ decline refusal appends the terminal `{ code }`-only edge iff the leg's
 Zero new codes. Every decline refusal reuses an existing code and producer style:
 `chain-compromise`, `leg-expired`, `record-not-open`, `sod-violation`, `content-drift`,
 `consultation-missing` (absent facts or absent eligibility input), `ineligible`,
-`consultation-stale`, `availability`. SPEC §8 is untouched by this increment.
+`consultation-stale`, `availability`. SPEC §8 is untouched by this increment. (Amended at
+exit: under the controller ruling recorded in the increment ledger, SPEC §8's
+`unredeemable-state` enumeration and §5's chain-admission sentence each gained `declined`
+— consistency edits under the same grant; the registry's codes themselves stand at 24,
+untouched.)
 
 ## 5. Interactions, all falling out of existing machinery
 

@@ -62,7 +62,7 @@ export async function decline(
       );
     }
   }
-  const supplied = validateConsultations(opts?.consultations);
+  const supplied = validateConsultations(opts?.consultations, 'decline');
 
   // --- load the chain -------------------------------------------------------------------
   const chain = await store.readChain(recordId);

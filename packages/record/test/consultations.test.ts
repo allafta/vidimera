@@ -35,14 +35,17 @@ function obtained(kind: string, extra?: Record<string, unknown>): ConsultationIn
 }
 
 test('validateConsultations: undefined and empty partition to nothing; order is preserved', () => {
-  assert.deepEqual(validateConsultations(undefined), { obtained: [], unreachable: [] });
-  assert.deepEqual(validateConsultations([]), { obtained: [], unreachable: [] });
+  assert.deepEqual(validateConsultations(undefined, 'finalize'), { obtained: [], unreachable: [] });
+  assert.deepEqual(validateConsultations([], 'finalize'), { obtained: [], unreachable: [] });
 
-  const parted = validateConsultations([
-    obtained('risk-check'),
-    { kind: 'sanctions', unreachable: true, authority: 'svc:sanctions' },
-    { ...obtained('llm-judge'), verdict: 'fail' } as ConsultationInput,
-  ]);
+  const parted = validateConsultations(
+    [
+      obtained('risk-check'),
+      { kind: 'sanctions', unreachable: true, authority: 'svc:sanctions' },
+      { ...obtained('llm-judge'), verdict: 'fail' } as ConsultationInput,
+    ],
+    'finalize',
+  );
   assert.deepEqual(
     parted.obtained.map((entry) => entry.kind),
     ['risk-check', 'llm-judge'],
@@ -58,22 +61,22 @@ test('validateConsultations: a non-array consultations value throws — the opti
   // reached `inputs.entries()` directly and threw a raw, unnamed TypeError instead of a
   // caller error naming the fault (distinct from the per-entry non-object pin below, which
   // covers a malformed ELEMENT inside an already-array consultations list).
-  assert.throws(() => validateConsultations('nope' as never), /array/i);
-  assert.throws(() => validateConsultations(null as never), /array/i);
-  assert.throws(() => validateConsultations({ kind: 'x' } as never), /array/i);
+  assert.throws(() => validateConsultations('nope' as never, 'finalize'), /array/i);
+  assert.throws(() => validateConsultations(null as never, 'finalize'), /array/i);
+  assert.throws(() => validateConsultations({ kind: 'x' } as never, 'finalize'), /array/i);
 });
 
 test('validateConsultations: duplicate kinds throw — obtained+obtained AND obtained+marker', () => {
   assert.throws(
-    () => validateConsultations([obtained('risk-check'), obtained('risk-check')]),
+    () => validateConsultations([obtained('risk-check'), obtained('risk-check')], 'finalize'),
     /duplicate/i,
   );
   assert.throws(
     () =>
-      validateConsultations([
-        obtained('risk-check'),
-        { kind: 'risk-check', unreachable: true, authority: 'svc:risk' },
-      ]),
+      validateConsultations(
+        [obtained('risk-check'), { kind: 'risk-check', unreachable: true, authority: 'svc:risk' }],
+        'finalize',
+      ),
     /duplicate/i,
   );
 });
@@ -82,9 +85,9 @@ test('validateConsultations: reserved kinds throw on BOTH shapes — a library c
   // SPEC §11.1: an input naming a reserved library-emitted kind (`facts` or
   // `chain-verify`) "would forge a library control" — a caller error, thrown loud.
   for (const kind of ['facts', 'chain-verify']) {
-    assert.throws(() => validateConsultations([obtained(kind)]), /reserved/i);
+    assert.throws(() => validateConsultations([obtained(kind)], 'finalize'), /reserved/i);
     assert.throws(
-      () => validateConsultations([{ kind, unreachable: true, authority: 'svc:x' }]),
+      () => validateConsultations([{ kind, unreachable: true, authority: 'svc:x' }], 'finalize'),
       /reserved/i,
     );
   }
@@ -94,73 +97,87 @@ test('validateConsultations: malformed entries throw — shape is exact, unknown
   // A host-supplied `at` is an UNKNOWN KEY: SPEC §11.1's "A consultation's `at` is
   // never accepted from the host" is enforced structurally — the shape has no at field.
   assert.throws(
-    () => validateConsultations([obtained('k1', { at: '2026-01-01T00:00:00.000Z' })]),
+    () => validateConsultations([obtained('k1', { at: '2026-01-01T00:00:00.000Z' })], 'finalize'),
     /unknown key|at/i,
   );
   // missing field:
   assert.throws(
     () =>
-      validateConsultations([
-        { kind: 'k1', checker: CHECKER, verdict: 'pass' } as unknown as ConsultationInput,
-      ]),
+      validateConsultations(
+        [{ kind: 'k1', checker: CHECKER, verdict: 'pass' } as unknown as ConsultationInput],
+        'finalize',
+      ),
     /payloadDigest|malformed/i,
   );
   // bad verdict:
-  assert.throws(() => validateConsultations([obtained('k1', { verdict: 'maybe' })]), /verdict/i);
+  assert.throws(
+    () => validateConsultations([obtained('k1', { verdict: 'maybe' })], 'finalize'),
+    /verdict/i,
+  );
   // invalid checker:
   assert.throws(
     () =>
-      validateConsultations([
-        {
-          kind: 'k1',
-          checker: { principal: '', authority: '' },
-          payloadDigest: DIGEST,
-          verdict: 'pass',
-        } as ConsultationInput,
-      ]),
+      validateConsultations(
+        [
+          {
+            kind: 'k1',
+            checker: { principal: '', authority: '' },
+            payloadDigest: DIGEST,
+            verdict: 'pass',
+          } as ConsultationInput,
+        ],
+        'finalize',
+      ),
     /checker/i,
   );
   // present-but-empty payloadDigest (distinct from the missing-field pin above):
   assert.throws(
-    () => validateConsultations([obtained('k1', { payloadDigest: '' })]),
+    () => validateConsultations([obtained('k1', { payloadDigest: '' })], 'finalize'),
     /payloadDigest/i,
   );
   // empty kind, both shapes:
-  assert.throws(() => validateConsultations([obtained('')]), /kind/i);
+  assert.throws(() => validateConsultations([obtained('')], 'finalize'), /kind/i);
   assert.throws(
-    () => validateConsultations([{ kind: '', unreachable: true, authority: 'svc:x' }]),
+    () => validateConsultations([{ kind: '', unreachable: true, authority: 'svc:x' }], 'finalize'),
     /kind/i,
   );
   // marker with empty authority, marker with unknown key, marker with unreachable !== true:
   assert.throws(
-    () => validateConsultations([{ kind: 'k1', unreachable: true, authority: '' }]),
+    () => validateConsultations([{ kind: 'k1', unreachable: true, authority: '' }], 'finalize'),
     /authority/i,
   );
   assert.throws(
     () =>
-      validateConsultations([
-        {
-          kind: 'k1',
-          unreachable: true,
-          authority: 'svc:x',
-          extra: 1,
-        } as unknown as ConsultationInput,
-      ]),
+      validateConsultations(
+        [
+          {
+            kind: 'k1',
+            unreachable: true,
+            authority: 'svc:x',
+            extra: 1,
+          } as unknown as ConsultationInput,
+        ],
+        'finalize',
+      ),
     /unknown key/i,
   );
   assert.throws(
     () =>
-      validateConsultations([
-        { kind: 'k1', unreachable: false, authority: 'svc:x' } as unknown as ConsultationInput,
-      ]),
+      validateConsultations(
+        [{ kind: 'k1', unreachable: false, authority: 'svc:x' } as unknown as ConsultationInput],
+        'finalize',
+      ),
     /unreachable|malformed/i,
   );
   // non-object entry, non-string proofRef:
   assert.throws(
-    () => validateConsultations(['nope' as unknown as ConsultationInput]),
+    () => validateConsultations(['nope' as unknown as ConsultationInput], 'finalize'),
     /malformed|entry/i,
   );
-  assert.throws(() => validateConsultations([obtained('k1', { proofRef: 7 })]), /proofRef/i);
+  assert.throws(
+    () => validateConsultations([obtained('k1', { proofRef: 7 })], 'finalize'),
+    /proofRef/i,
+  );
 });
 
 test('validateConsultations: observedAt must be RFC 3339 WITH an explicit offset — offset-less and date-only strings throw at intake (the AL2 freshness increment, final review)', () => {
@@ -169,17 +186,19 @@ test('validateConsultations: observedAt must be RFC 3339 WITH an explicit offset
   // timezone rather than the claimed instant. The shape check runs BEFORE Date.parse,
   // so both throw here instead of reaching the freshness gate at all.
   assert.throws(
-    () => validateConsultations([obtained('k1', { observedAt: '2026-08-17T09:45:00' })]),
+    () =>
+      validateConsultations([obtained('k1', { observedAt: '2026-08-17T09:45:00' })], 'finalize'),
     /observedAt/i,
   );
   assert.throws(
-    () => validateConsultations([obtained('k1', { observedAt: '2026-08-17' })]),
+    () => validateConsultations([obtained('k1', { observedAt: '2026-08-17' })], 'finalize'),
     /observedAt/i,
   );
   // An explicit non-Z offset is accepted structurally and records verbatim.
-  const parted = validateConsultations([
-    obtained('k1', { observedAt: '2026-08-17T09:45:00+02:00' }),
-  ]);
+  const parted = validateConsultations(
+    [obtained('k1', { observedAt: '2026-08-17T09:45:00+02:00' })],
+    'finalize',
+  );
   assert.equal(parted.obtained[0]?.observedAt, '2026-08-17T09:45:00+02:00');
 });
 
