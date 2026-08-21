@@ -131,13 +131,13 @@ when a recovering `open()` supplied the verified reference; no profile field dec
 §9.1's table carries none.
 
 **Recovery (`supersedes`) [PROVEN].** `supersedes` names the terminal predecessor record (a
-`refused` or `expired` record, or an earlier superseded attempt) that a fresh record recovers
-from. The reference is **verified by replay** at the recovering record's `open()` — the host
-supplies `{ recordId, chainHead }`, the library replays the predecessor's chain, requires it
-intact and **terminal**, and records the verified reference in the new record's genesis
-snapshot — the same verify-by-replay discipline as §10.1's prior-leg references. Remaining
-recovery-flow details (the non-terminal-predecessor refusal shape, the exclusivity
-interaction) are enumerated in `OPEN-QUESTIONS.md`.
+`refused`, `expired`, or `declined` record, or an earlier superseded attempt) that a fresh
+record recovers from. The reference is **verified by replay** at the recovering record's
+`open()` — the host supplies `{ recordId, chainHead }`, the library replays the
+predecessor's chain, requires it intact and **terminal**, and records the verified
+reference in the new record's genesis snapshot — the same verify-by-replay discipline as
+§10.1's prior-leg references. Remaining recovery-flow details (the non-terminal-predecessor
+refusal shape, the exclusivity interaction) are enumerated in `OPEN-QUESTIONS.md`.
 
 Auxiliary structures: **IdentityAssertion** `{ principal, authority, proofRef? }` (§6);
 **Consultation** `{ kind, checker, at, payloadDigest, verdict, proofRef? }` where `checker` is
@@ -150,9 +150,9 @@ reviewers — including AI agents — never hold a leg; their assessments enter 
 Consultations carrying the automated checker's identity (§11.1). The final leg of every flow
 is therefore always a human's.
 
-**States and terminality.** `open` is the only pre-decision state. `refused` and `expired` are
-terminal. **Whether a final-leg `confirmed` is terminal depends on the profile** — the
-derivation the library reads throughout:
+**States and terminality.** `open` is the only pre-decision state. `refused`, `expired`, and
+`declined` **[DESIGNED]** are terminal. **Whether a final-leg `confirmed` is terminal depends
+on the profile** — the derivation the library reads throughout:
 
 - On a **pure-capture profile** (no effect seam declared, §9.1), a final-leg `confirmed` is
   **terminal**: the decision is captured and the record is complete.
@@ -161,6 +161,8 @@ derivation the library reads throughout:
   effect unresolved); `redeemed` and `redemption-failed` are terminal (§11.2).
 
 A `confirmed` on a *non-final* leg is terminal for that leg but admits the next leg (§10.1).
+`declined` — the recorded human decline (§9's `decline`) — is terminal under every
+leg/effect-seam combination. **[DESIGNED]**
 
 ### 2.1 Worked example (single-leg confirm)
 
@@ -322,6 +324,7 @@ except `opened`, which snapshots the record's immutable header.
 | `consultation-recorded` | the Consultation object (§2), including the always-present `facts` binding | delta |
 | `confirmed` | `{ actor }` — the deciding IdentityAssertion (§6) | delta |
 | `refused` | `{ code }` — a §8 registry code; class derivable from the registry | delta |
+| `declined` | `{ actor }` — the deciding IdentityAssertion (§6); the recorded human decline (§9) **[DESIGNED]** | delta |
 | `expired` | `{ bound }` — the elapsed deadline timestamp; the transitioned-from state, not the payload, distinguishes the `expiry` clause from `confirmToRedeem` | delta |
 | `sealed` | `{ chainHead }` — end-of-life metadata (§5) | delta |
 | `finding-raised` / `acknowledged` | the Finding / Ack object (profile-conditional, §10.2) **[PROVEN]** | delta |
@@ -592,6 +595,24 @@ and the sweep — §12).
   `opts.policy` field — the current live-source digest, or an `{ unreachable, authority }`
   marker — drives the policy-drift gate (§10.3); a non-declaring profile must not supply
   `opts.policy`, which throws.
+- **`decline(recordId, identity, content, facts, opts?)` [DESIGNED]** — the operator-only
+  `open → declined` seam: the recorded human "no", with the same evidentiary treatment as
+  confirm. It runs finalize's ladder with the evidence rungs absent — chain-verify,
+  state/expiry, identity + `allowedAuthorities`, separation of duties, content-drift, the
+  reviewed-surface (`facts`) binding, and eligibility (including its AL2 freshness bound)
+  all gate; `requiredConsultations`, evidence-kind freshness, and ack coverage (§10.2) do
+  not — a "no" is never blockable by a missing or dead evidence source. It takes no policy
+  input and rung (4.5) does not run: the policy gate exists to prevent approving under
+  stale rules; a decline disposes the record either way, and the bound `policyDigest`
+  stays on the record as the context the decline was made under. The success batch is
+  `[chain-verify, facts, …obtained consultations, declined]` — one atomic append; reasons
+  ride as ordinary consultations (§11.1's attach form; e.g. a host `decline-reason` kind),
+  never as payload fields. Declared per leg (`decline: true`, §9.1); calling the seam on a
+  non-declaring leg throws (the §10.2 seams' posture), so non-declaring chains stay
+  byte-identical. A declined record proves the named actor declined this exact content
+  having seen this surface — never that the decline was justified (fidelity, not
+  validity). Every refusal reuses an existing §8 code through the `terminalRefusals` rule;
+  the registry does not grow.
 
 **The finalize gate ladder.** Finalize's check order is fixed, and every refusal path wins
 over the ones after it: **(1)** pre-seam chain-verify → **(2)** state/expiry (en-passant
@@ -646,6 +667,7 @@ a one-line applicability note, not through a separate tier system.
 | `sod.notActorOf`, `proposer` | Per-leg separation-of-duties controls (§10.1) |
 | `ackMode`, `requiredAcks` | Per-leg findings-flow controls (§10.2) **[PROVEN]** — declared both-or-neither |
 | `eligibility` | Per-leg opaque authority-to-decide reference; declaring it makes an implicit-first required `eligibility` consultation whose `fail` verdict gates finalize (`ineligible`) (§10.4) |
+| `decline` | Per-leg literal `true` switching on §9's `decline` seam **[DESIGNED]**; declaring anything other than the literal `true` is a construction error (the `signing` rule's class) |
 | `allowedAuthorities` | Per-leg identity authorities that may vouch for a leg's actor (§6) |
 | `terminalRefusals` | Per-leg list of refusal codes the profile marks **terminal** for that leg — a matching `refusal`-classed code (§8) ends the leg instead of leaving the record `open` for retry |
 
@@ -723,7 +745,9 @@ recorded actor of any named prior leg; the lookup keys the record's own recorded
 their `legId`, so a later profile edit that reorders or renames legs cannot silently re-index
 an already-opened record's evidence. A leg declaring a `proposer` refuses `sod-violation` when
 the finalizing principal equals that proposer: **the designated proposer may not decide their
-own leg.** Both controls raise the single `sod-violation` code and are `refusal`-class — a
+own leg.** Both SoD rules gate `decline` (§9) identically — deciding includes declining; a
+proposer therefore cannot withdraw their own draft through this seam. **[DESIGNED]** Both
+controls raise the single `sod-violation` code and are `refusal`-class — a
 leg's `terminalRefusals` may mark it terminal, but by default the record stays `open` so a
 **different** approver may decide it.
 

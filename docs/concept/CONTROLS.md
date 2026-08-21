@@ -40,6 +40,7 @@ are **out of scope by design**: the operator is the records' sole consumer (`CON
 | Effect-binding single-use redemption | `redeem` block (the PROVEN live mode also declares the seam — row below) | At-most-once coupling of a confirmed final-leg decision to its effect; direct and token shapes | PROVEN | Refusable at the seam **given an idempotent executor**; never executes; blind to seam-bypassing effects |
 | Required-consultation gating | `requiredConsultations` | Missing/failed required kinds refuse; unreachable yields `availability`, never a pass | PROVEN | Gates and fails closed; does not prove genuineness (that proof is OPERATOR-ASSURANCE) |
 | Eligibility gating | `eligibility` (per leg) | Implicit-first required consultation; `fail` → `ineligible`, open-by-default | PROVEN | Gates the supplied verdict; does not run or verify the check |
+| Recorded human decline | `decline` (per leg) | §9's `open → declined` seam: the human "no" with confirm's evidentiary treatment — facts binding, authority rungs, atomic batch | DESIGNED | Proves who declined what they saw; never that the decline was sound; a "no" never routed to the seam does not exist |
 | Policy-drift notarization | `policySource` | Operator-bound `policyDigest` at open; live-source comparison at finalize | PROVEN | Notarizes, never evaluates; reverse cross-instance direction is a named open decision; genesis-head AL1 window |
 | Findings & acknowledgments | `ackMode` + `requiredAcks` (per leg, both-or-neither) | Review-time findings with digest coverage; named-magnitude acks; `ack-missing`/`ack-stale` gate | PROVEN | Coverage of raised findings; does not require findings to exist; records non-counting acks faithfully |
 | Live capture + `reverify` | `captureMode: 'live'` | Decide-what-exists; independent re-derivation gated as a required consultation; redemption-time re-verify | PROVEN | No pre-decision immutability — catches change at the decision |
@@ -86,6 +87,7 @@ The controls are generic governance controls; industries are examples, not the s
 | Findings / named-magnitude acks *(GOVERNED)* | accepted variance on a reconciliation | acknowledged contraindication override | documented exception to a rule | acknowledged deviation from banding |
 | Reviewed-surface / `facts` *(KERNEL)* | dynamic-linking of amount/payee | "sign what the chart showed" | record of what was decided on | offer terms as shown |
 | Recorded refusals *(KERNEL)* | declined trade / payment | declined order / escalation | denied benefit / permit | rejected requisition |
+| Recorded human decline *(GOVERNED)* | rejected trade ticket | declined order with reason | denied application by named reviewer | rejected requisition with rework note |
 
 Reviewed-surface binding is the tell that the model was always domain-agnostic: payment-
 services dynamic linking is just the finance instance of the general "bind what the human

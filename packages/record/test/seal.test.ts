@@ -97,7 +97,7 @@ test("seal()'s `sealed` payload carries the chain head it caps", async () => {
 
 test('seal() on a terminal EXPIRED record retires it', async () => {
   // PINS: gate (4) reads §2's terminality derivation, not `state === 'confirmed'` — `expired` is
-  // terminal outright (SPEC §2: "`refused` and `expired` are terminal"), so it seals.
+  // terminal outright (SPEC §2: "`refused`, `expired`, and `declined`... are terminal"), so it seals.
   // Discriminating: an inverted gate (4) refuses `unsealable-state` here instead of appending.
   // §13's end-of-life framing makes this the archetypal seal target, not a corner case.
   // `confirmedRecord()` above cannot serve as the fixture — it produces a `confirmed` record —

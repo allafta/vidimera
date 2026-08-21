@@ -77,12 +77,15 @@ Operator-only:
 ```ts
 decline(
   recordId: string,
-  content: unknown,
   identity: IdentityAssertion,
+  content: unknown,
   facts: { figures: unknown; checker: IdentityAssertion },
   opts?: { consultations?: /* FinalizeOptions.consultations' exact shape, shared intake */ },
 ): Promise<Outcome<{ recordId: string; state: 'declined'; transitionRef: Digest }>>
 ```
+
+Parameter order mirrors finalize's (recordId, identity, content, facts, opts?) exactly —
+corrected at plan time against the real seam.
 
 Never on the agent surface (the standing rule: no gate baseline or transition through
 the agent handle). Consultation intake is finalize's own (shared validator: shape

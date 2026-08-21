@@ -43,6 +43,8 @@ The concept's vocabulary, in one place. Where a term is normative, the defining 
   (`content-drift`) (SPEC §3).
 - **DecisionRecord (record)** — the durable, chained evidence of one human decision at one
   leg over one subject (SPEC §2).
+- **Decline** — the recorded human "no": the operator-only `open → declined` seam giving a
+  rejection the same bindings as a confirmation (SPEC §9). **[DESIGNED]**
 - **Digest-only custody** — the library sees digests; the host retains bodies (content,
   consultation payloads, finding content, policy documents) (SPEC §3).
 - **`dueAt`** — the store's pending-clock listing index; never authoritative (SPEC §12).
