@@ -69,6 +69,7 @@ interface LegSpec {
   requiredConsultations?: string[];          // consultation kinds required, in order
   freshness?: Record<string, number>;        // per-kind max age (seconds) of observedAt claims
   eligibility?: string;                      // eligibility authority — implicit-first consultation
+  decline?: true;                            // literal true — opts this leg into operator.decline()
   terminalRefusals?: RefusalCode[];          // codes that append open → refused; a member
                                              // that is not a registry code throws at construction
 }
@@ -105,6 +106,13 @@ interface OperatorSurface {
     facts: { figures: unknown; checker: IdentityAssertion },
     opts?: FinalizeOptions,
   ): Promise<Outcome<{ recordId: string; state: 'confirmed'; transitionRef: Digest }>>;
+  decline(
+    recordId: string,
+    identity: IdentityAssertion,
+    content: unknown,
+    facts: { figures: unknown; checker: IdentityAssertion },
+    opts?: DeclineOptions,
+  ): Promise<Outcome<{ recordId: string; state: 'declined'; transitionRef: Digest }>>;
 
   // findings flow (SPEC §10.2) — the only appends between opened and the decision
   raiseFinding(recordId: string, finding: FindingInput, identity: IdentityAssertion):
@@ -149,6 +157,21 @@ Notes that save debugging time:
   per-kind unreachable markers) and `policy` (the live policy digest for the drift gate,
   or an unreachable marker — either unreachable form surfaces as the `unavailable`
   outcome).
+- `decline` runs finalize's ladder with the evidence rungs removed: the authority rungs
+  gate exactly as they do at finalize (chain-verify, state/expiry, identity +
+  `allowedAuthorities`, separation of duties including the declared proposer,
+  content-drift, `facts`, eligibility including its AL2 freshness bound), while
+  `requiredConsultations` iteration and ack coverage are skipped — a "no" is never
+  blockable by a missing or dead evidence source — and the seam takes no policy input at
+  all (`DeclineOptions` carries only `consultations`; the presence contract there is the
+  same attach form `FinalizeOptions.consultations` uses, so a reason rides as an ordinary
+  consultation, e.g. a `decline-reason` kind). The recorded `declined { actor }` payload
+  mirrors `confirmed`'s. Calling `decline` against a leg that does not declare
+  `decline: true` **throws** — a non-declaring chain stays byte-identical to a
+  pre-decline implementation, so this is a caller/config error, never a domain refusal.
+  The honest bound, in the same breath: a decline proves who declined what they saw —
+  never that the decline was sound, and a "no" that never routed through this seam does
+  not exist in the record.
 - `beginRedemption`'s `token` is secret material returned exactly once and never
   persisted — the chain and store carry only its digest. Do not log it.
 - All three redemption seams take an optional trailing `tx?` (the driver's own
@@ -175,6 +198,10 @@ interface PriorRecordRef { recordId: string; chainHead: Digest }
 interface FinalizeOptions {
   consultations?: ConsultationInput[];       // the host's obtained consultations, attach-form
   policy?: PolicyInput;                      // required iff the profile declares policySource
+}
+interface DeclineOptions {
+  consultations?: ConsultationInput[];       // same attach-form as FinalizeOptions.consultations;
+                                              // no policy member — the seam takes no policy input
 }
 type ConsultationInput = ObtainedConsultation | UnreachableMarker;
 interface ObtainedConsultation {
@@ -254,11 +281,12 @@ interface Transition {
 }
 
 type RecordState =
-  | 'open' | 'confirmed' | 'refused' | 'expired'
+  | 'open' | 'confirmed' | 'refused' | 'expired' | 'declined'
   | 'redeeming' | 'redeemed' | 'redemption-failed';   // last three: effect-seam profiles
+                                                       // 'declined': terminal always
 
 type TransitionKind =
-  | 'opened' | 'consultation-recorded' | 'confirmed' | 'refused' | 'expired' | 'sealed'
+  | 'opened' | 'consultation-recorded' | 'confirmed' | 'refused' | 'expired' | 'declined' | 'sealed'
   | 'finding-raised' | 'acknowledged'
   | 'redeeming' | 'redeemed' | 'redemption-failed';
 

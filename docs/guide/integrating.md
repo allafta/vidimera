@@ -141,6 +141,81 @@ Exceptions still happen — for *your* bugs: unknown ids, malformed inputs, cons
 contract violations, storage faults. Let them crash into your normal error handling; do not
 catch them into refusal handling.
 
+## Recording a human decline
+
+A leg that opts in (`decline: true`) gets a second decision call beside `finalize`:
+`operator.decline(recordId, identity, content, facts, opts?)`. It runs finalize's ladder
+with the **evidence** rungs removed — every **authority** rung still gates (chain-verify,
+state/expiry, identity + `allowedAuthorities`, separation of duties including the declared
+proposer, content-drift, `facts`, eligibility including its AL2 freshness bound) — but
+`requiredConsultations` is not iterated, ack coverage does not run, and the seam takes no
+policy input at all. A "no" is never blockable by a missing or dead evidence source:
+
+```ts
+const profile: ConfirmProfile = {
+  id: 'hr.leave-request.v1',
+  subject: { canonicalizerRef: 'hr.leave-request.v1' },
+  legs: [
+    {
+      id: 'manager-decide',
+      allowedAuthorities: ['session:hr-console'],
+      decline: true,                     // opts this leg into the decline seam (SPEC §9.1)
+      terminalRefusals: ['content-drift'], // a drifted decline lands ON the chain too
+    },
+  ],
+  captureMode: 'staged',
+  expiry: { ttl: 3600 },
+};
+
+// … stage and open as usual, then:
+const declined = await operator.decline(recordId, identity, content, facts, {
+  // decline has no reason field of its own — a reason rides as an ordinary consultation,
+  // via the same attach form finalize's consultations use (SPEC §11.1).
+  consultations: [
+    {
+      kind: 'decline-reason',
+      checker: { principal: 'svc:hr-review-surface', authority: 'mtls:hr-review-surface' },
+      payloadDigest: reasonDigest, // digest the reason text yourself; the library never sees it
+      verdict: 'pass',
+    },
+  ],
+});
+// declined.value.state === 'declined'; the chain's `declined { actor }` payload mirrors
+// `confirmed`'s.
+```
+
+A non-declaring leg's `decline` call **throws** rather than refusing — a leg that never
+declared `decline: true` keeps a chain byte-identical to a pre-decline implementation, so
+reaching the seam on it is a caller/config error, not a domain outcome.
+
+`terminalRefusals` interacts with decline exactly as it does with finalize: content-drift
+during a decline — the reviewer said no to bytes that are not what is bound to the record —
+refuses `content-drift`, and if the leg lists that code, the refusal is terminal
+(`open → refused`) rather than leaving the record open for a retry.
+
+**The rework recipe.** `declined` is always terminal, which releases the (profile, subject)
+slot (C1) for a fresh `open`. A corrected re-submission can leave that implicit, or cite the
+declined chain explicitly for an audit trail that shows *why* a new record exists:
+
+```ts
+const declinedHead = await operator.chainHead(recordId);
+const reopened = await operator.open(revisedStagedRef, {
+  supersedes: { recordId, chainHead: declinedHead }, // verified by replay, not trusted blind
+});
+```
+
+`supersedes` verification is same-subject/any-profile: the predecessor must have decided
+*this* `subjectRef`, but the successor is free to open under a different profile —
+escalation is exactly that: re-open the same subject under a stricter profile (an added
+leg, a narrower `allowedAuthorities`, an eligibility check) instead of the one that was
+declined. There is no separate escalation call; it is the ordinary `open` + `supersedes`
+recipe with a different profile id.
+
+The honest bound, in the same breath: `decline` proves who declined what they saw — never
+that the decline was *sound*. And a "no" that is never routed through this seam does not
+exist in the record — a reviewer who says no out of band, or a UI that swallows the
+rejection instead of calling `decline`, leaves nothing for anyone to audit later.
+
 ## The effect seam
 
 When a profile declares a `redeem` block, `confirmed` is **not terminal** — the record
