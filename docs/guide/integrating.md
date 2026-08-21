@@ -199,6 +199,8 @@ declined chain explicitly for an audit trail that shows *why* a new record exist
 
 ```ts
 const declinedHead = await operator.chainHead(recordId);
+if (declinedHead === null) throw new Error('declined record has a chain head'); // narrows
+                                                          // Digest | null to Digest for supersedes
 const reopened = await operator.open(revisedStagedRef, {
   supersedes: { recordId, chainHead: declinedHead }, // verified by replay, not trusted blind
 });
