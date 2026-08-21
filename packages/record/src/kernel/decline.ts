@@ -6,7 +6,7 @@
 //   → (2) state/expiry gate → (3) identity → (3.5) separation of duties →
 //   (4) content-drift → (5) facts → (5.5) eligibility ONLY → (6) success append batch.
 //
-// Deliberately absent, per the design ruling "authority yes, evidence no":
+// Deliberately absent, per the "authority yes, evidence no" ruling recorded for this increment:
 // requiredConsultations iteration, evidence-kind freshness, rung (5.7) ack coverage —
 // a "no" is never blockable by a missing or dead evidence source — and rung (4.5): the
 // seam takes NO policy input (the policy gate exists to prevent approving under stale
