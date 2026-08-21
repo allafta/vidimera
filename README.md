@@ -90,6 +90,19 @@ duties, single-use effect redemption, required consultations, eligibility and po
 gating, findings with acknowledgments, live capture, detached signing — plus verified
 recovery linkage between records at open time.
 
+Three further controls layer onto the same model, each governed — off unless a profile or
+call declares it, and a non-declaring chain stays byte-identical either way. A **recorded
+human decline** (the operator-only `open → declined` seam) binds a rejection with
+confirmation's own evidentiary weight: it proves who declined what they saw, never that
+the decline was sound — a "no" never routed to the seam does not exist. **Proposal
+provenance** binds the agent's original staged draft's digest into the genesis at open,
+proving a draft existed for the same decision and, by comparing digests, whether it
+changed — never who authored either draft, never that the revision was sound.
+**Effect-result notarization** binds a host-claimed outcome digest into the `redeemed`
+payload at redemption: it notarizes that the host asserted an outcome when the coupling
+closed, never observing or verifying the effect, never mirroring business state that
+moves afterward.
+
 ## What it deliberately does not promise
 
 Stated here rather than buried, because the honesty discipline is part of the product:

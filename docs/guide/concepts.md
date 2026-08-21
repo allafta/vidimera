@@ -181,12 +181,25 @@ The other governed controls, one line each — the catalog with tiers and honest
   under a changed policy refuses.
 - **Eligibility** (§10.4): a host-checked eligibility verdict as an implicit-first
   consultation, refusing `ineligible`.
+- **Recorded human decline** (§9): the operator-only `open → declined` seam, giving a
+  rejection confirmation's own evidentiary treatment — the authority rungs
+  (chain-verify, state/expiry, identity, separation of duties, content-drift, `facts`,
+  eligibility) gate exactly as finalize's do, while required consultations and ack
+  coverage are deliberately skipped and the seam takes no policy input. Proves who
+  declined what they saw, never that the decline was sound — a "no" never routed to the
+  seam does not exist.
 - **Redemption — the effect seam** (§11.2): a confirmed effect-seam record is *not
   terminal* until the host couples the effect to it, at most once — direct shape
   (enlistable in the host's transaction) or token shape (a single-use token returned
   exactly once, only its digest ever recorded). Refusable-at-the-seam, not standalone
   prevention: the library never executes effects and cannot see effects that bypass the
   seam.
+- **Effect-result notarization** (§11.2): a profile declaring `redeem.result` admits an
+  optional host-claimed outcome digest at `redeem()` and `completeRedemption()` — never
+  at issuance — bound as `resultDigest` inside the `redeemed` payload. Notarizes that the
+  host asserted this outcome when it closed the coupling; the library never observes the
+  effect, never verifies the claim, and never mirrors business state that moves
+  afterward.
 - **Recovery** (`supersedes`, §2): a new record verifiably linked to the terminal
   predecessor it replaces.
 - **Live capture** (§9.2): decide-what-exists mode for content that cannot be staged

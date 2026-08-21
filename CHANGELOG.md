@@ -99,6 +99,35 @@ is the summary, and that file wins on conflict.
   phase-6 first-use rehearsal consumed both packed tarballs in a scratch project — full
   confirm loops green on both stores — and recorded that the `node:sqlite`
   ExperimentalWarning greets every `@vidimera/record` import.
+- **Recorded human decline** (2026-08-21, the first post-build-order promotion): the
+  operator-only `open → declined` seam (`decline()`, switched on by a leg's
+  `decline: true`) giving a rejection the same evidentiary treatment as a confirmation —
+  the authority rungs (chain-verify, state/expiry, identity, separation of duties,
+  content-drift, the mandatory `facts` binding, eligibility including its AL2 freshness
+  bound) gate exactly as finalize's do, while the evidence rungs (required
+  consultations, ack coverage) are deliberately skipped and the seam takes no policy
+  input. `declined { actor }` is terminal under every leg/effect-seam combination; zero
+  new refusal codes, every decline refusal reusing an existing one; a non-declaring
+  leg's chain stays byte-identical. The honest bound: proves who declined what they saw,
+  never that the decline was sound — a "no" never routed to the seam does not exist.
+- **Proposal provenance** (2026-08-21, the second post-build-order promotion): `open()`'s
+  `proposed: { stagedRef }` option resolves the agent's original staged draft through the
+  store, requires it to name the same `(profileId, subjectRef, legId)` as the opened
+  draft (either mismatch throws, the same caller-error posture as an unresolvable
+  `stagedRef`), and binds the resolved draft's digest into the genesis as
+  `proposedDigest`, present-iff-supplied. The honest bound: proves a draft with that
+  digest existed for the same triple at open, and — by comparing digests — whether the
+  decision changed it; never who authored either draft, never that the revision was
+  sound. Nothing gates on it.
+- **Effect-result notarization** (2026-08-21, the third post-build-order promotion): a
+  profile declaring `redeem.result: true` admits an optional host-claimed outcome digest
+  at `redeem()` and `completeRedemption()` — `beginRedemption()` rejects it
+  unconditionally, since issuance precedes execution — binding it as `resultDigest`
+  inside the `redeemed` payload, present-iff-supplied. The honest bound: notarizes that
+  the host asserted this outcome when it closed the coupling — the library never
+  observes the effect, never verifies the claim, never mirrors later business state; the
+  digest lands in the chain head, head-exposed until a `sealed` cap chains over it (AL2
+  signing closes the window early).
 
 ### Fixed
 
