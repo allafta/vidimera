@@ -218,6 +218,79 @@ that the decline was *sound*. And a "no" that is never routed through this seam 
 exist in the record — a reviewer who says no out of band, or a UI that swallows the
 rejection instead of calling `decline`, leaves nothing for anyone to audit later.
 
+## Binding the agent's proposal
+
+An agent drafts, a human reviewer may revise before opening, and today's one content
+binding — `contentDigest`, fixed at open from whichever staged draft you open — captures
+only the revised content. Staging is idempotent by content, so a real revision always
+mints a distinct `stagedRef`; without saying more, the agent's original proposal survives
+nowhere on the chain. Bind it explicitly with `open`'s `proposed: { stagedRef }` option:
+it resolves the agent's original staged draft through the store, exactly as `stagedRef`
+itself is resolved, and binds its digest into the genesis as `proposedDigest`:
+
+```ts
+// The agent drafts and stages a proposal:
+const proposal = await agent.stage(agentDraft, profileId, subjectRef);
+if (proposal.status !== 'ok') return handle(proposal);
+
+// A human reviewer revises it before the operator opens — a NEW staged draft under a new
+// stagedRef:
+const revised = await agent.stage(humanRevision, profileId, subjectRef);
+if (revised.status !== 'ok') return handle(revised);
+
+// Open the REVISED draft, naming the ORIGINAL as its proposal:
+const opened = await operator.open(revised.value.stagedRef, {
+  proposed: { stagedRef: proposal.value.stagedRef },
+});
+if (opened.status !== 'ok') return handle(opened);
+
+const record = await operator.getRecord(opened.value.recordId);
+// record.contentDigest is the revision's digest; record.proposedDigest is the agent's
+// original — different here, because review changed the draft.
+```
+
+Both failure modes are caller errors, thrown rather than refused (`open`'s own
+unknown-`stagedRef` posture): an unresolvable `proposed.stagedRef`, and a resolved draft
+naming a different `(profileId, subjectRef, legId)` than the draft being opened — the
+message names both triples, fail-closed against host wiring bugs. **Same-ref is legal and
+meaningful:** opening a draft with `proposed` naming that very same `stagedRef` records
+unchanged acceptance — `proposedDigest` equal to `contentDigest`, no special case.
+
+`proposedDigest` rides `getRecord`/`replay` only — `review()`'s content-free `ReviewView`
+does not project it (the `supersedes` precedent: linkage and provenance evidence stay off
+the review surface, which shows what is being decided, not its pedigree). Nothing gates
+on the binding, anywhere: finalize and decline confirm or decline exactly as they would
+without it.
+
+**Composes with rework.** The declined-and-reopened record from the rework recipe above
+may carry BOTH `supersedes` (the terminal predecessor) and its own `proposed` (the
+revised round's provenance) — the two options are independent and compose on one `open`:
+
+```ts
+const reopened = await operator.open(revisedStagedRef, {
+  supersedes: { recordId, chainHead: declinedHead }, // the rework recipe, above
+  proposed: { stagedRef: secondRoundProposalRef },   // this round's own provenance
+});
+```
+
+It composes with multi-leg identically — each leg's record opens separately and may
+carry its own `proposed`, keyed to that leg by the same same-triple rule.
+
+**Editor identity is deliberately not a first-class field here.** Staging carries no
+identity, so the library cannot attribute who produced the revision (the agent/operator
+split is in-process object-capability discipline, not a sandbox — a host writing the
+store directly can stage anything). If your host needs that trace, the recorded recipe
+is a `revision` consultation attached at `finalize` or `decline`: `checker` names the
+editor's identity, and `payloadDigest` digests the prior version — an ordinary
+consultation, not a new field.
+
+The honest bound, in the same breath: the binding proves a draft with that digest existed
+in the store for the same `(profile, subject, leg)` when the record opened, and — by
+comparing it against `contentDigest` — whether the decision matched or changed it. It
+never proves who authored either draft, and never that the revision was an improvement.
+Correction analysis over proposed-vs-decided digests stays aggregate control assurance,
+never per-named-reviewer scoring — the same posture the privacy section below states.
+
 ## The effect seam
 
 When a profile declares a `redeem` block, `confirmed` is **not terminal** — the record

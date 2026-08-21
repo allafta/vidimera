@@ -153,6 +153,20 @@ Notes that save debugging time:
   which is presence-checked against the profile's `policySource` declaration (a mismatch
   throws) and bound verbatim as the operator's attestation; the drift comparison happens
   at finalize's own gate.
+- `open`'s `proposed: { stagedRef }` binds the agent's original proposal into the genesis
+  as `proposedDigest`: the ref resolves through the store exactly as `stagedRef` itself
+  does, and the resolved draft's `(profileId, subjectRef, legId)` must equal the opened
+  draft's. Both failure modes THROW, never refuse — an unresolvable ref (the ordinary
+  unknown-`stagedRef` caller-error posture) and a resolved draft naming a different
+  triple (naming both triples in the message) are host wiring bugs, not domain outcomes.
+  Same-ref is legal and meaningful — opening the proposal itself with `proposed` naming
+  that same draft records unchanged acceptance, digests equal. The honest bound, in the
+  same breath: it proves a draft with that digest existed in the store for the same
+  triple at open, and — by comparing it against `contentDigest` — whether the decision
+  matched or changed it; it never proves who authored either draft, and never that the
+  revision was sound. Nothing gates on it, ever; `DecisionRecord.proposedDigest` carries
+  it (present-iff-supplied) and `ReviewView` does not project it (the `supersedes`
+  precedent — provenance rides `getRecord`/`replay`, never the review projection).
 - `finalize`'s options carry `consultations` (the host's obtained domain checks, or
   per-kind unreachable markers) and `policy` (the live policy digest for the drift gate,
   or an unreachable marker — either unreachable form surfaces as the `unavailable`
@@ -192,6 +206,7 @@ interface OpenOptions {
   priorRecordRefs?: PriorRecordRef[];        // multi-leg successor evidence, verified by replay
   policyDigest?: Digest;                     // the operator's open-time policy attestation
   supersedes?: SupersedesRef;                // recovery claim — { recordId, chainHead }
+  proposed?: { stagedRef: string };          // provenance binding — resolved, same-triple-checked
 }
 interface PriorRecordRef { recordId: string; chainHead: Digest }
 
@@ -301,6 +316,9 @@ interface DecisionRecord {                   // the replay fold — derived, nev
   priorLegActors?: IdentityAssertion[];      // (RecordedPriorLegRef, RecordedFinding, RecordedAck,
                                              //  and SupersedesRef are all exported names)
   supersedes?: SupersedesRef;                // { recordId, chainHead }
+  proposedDigest?: Digest;                   // agent-proposed draft's digest, resolved+bound at
+                                             // open()'s `proposed` option — never projected into
+                                             // ReviewView (the supersedes precedent)
   actor?: IdentityAssertion;
   findings?: RecordedFinding[];
   consultations: Consultation[];
