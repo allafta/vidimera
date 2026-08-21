@@ -339,7 +339,7 @@ except `opened`, which snapshots the record's immutable header.
 | `sealed` | `{ chainHead }` — end-of-life metadata (§5) | delta |
 | `finding-raised` / `acknowledged` | the Finding / Ack object (profile-conditional, §10.2) **[PROVEN]** | delta |
 | `redeeming` | `{ tokenDigest, bound? }` — digest of the single-use redemption token (the raw token is never persisted, §11.2); `bound` present only when declared (effect-seam profiles only) | delta |
-| `redeemed` | `{ via: 'direct', resultDigest? }` or `{ via: 'token', tokenDigest, resultDigest? }` — the completed redemption and how it was closed (effect-seam profiles only, §11.2); `resultDigest` present iff supplied under a `result`-declaring profile (§11.2) **[DESIGNED]** | delta |
+| `redeemed` | `{ via: 'direct', resultDigest? }` or `{ via: 'token', tokenDigest, resultDigest? }` — the completed redemption and how it was closed (effect-seam profiles only, §11.2); `resultDigest` present iff supplied under a `result`-declaring profile (§11.2) **[PROVEN]** | delta |
 | `redemption-failed` | `{ bound }` — the elapsed redemption bound; folds `refusalCode: redemption-timeout` on replay (effect-seam profiles only, §11.2) | delta |
 
 **`profileDigest`.** The `opened` snapshot carries `profileDigest`, a digest over a
@@ -691,7 +691,7 @@ a one-line applicability note, not through a separate tier system.
 | `requiredConsultations` | Per-leg consultation kinds that must be present and passing at finalize (§11.1) |
 | `freshness` | Per-leg max consultation ages (§11.1). **[PROVEN]** — meaningful only with AL2 authority timestamps (§14); at AL1 the staleness gate cannot fire |
 | `policySource` | Per-profile opaque label naming the operator's policy authority; declaring it binds a `policyDigest` at `open()` and gates finalize on drift (`policy-drift`). Never fetched or evaluated by the library (§10.3) |
-| `redeem` | Effect-seam configuration: the redemption bounds (`confirmToRedeem`, `redeemBound`), and `result` — a per-profile literal-`true` declaration admitting a result digest at the redemption seams (§11.2) **[DESIGNED]**; declaring anything other than the literal `true` is a construction error (the `signing` rule's class). Its presence declares an **effect seam** (§11.2) |
+| `redeem` | Effect-seam configuration: the redemption bounds (`confirmToRedeem`, `redeemBound`), and `result` — a per-profile literal-`true` declaration admitting a result digest at the redemption seams (§11.2) **[PROVEN]**; declaring anything other than the literal `true` is a construction error (the `signing` rule's class). Its presence declares an **effect seam** (§11.2) |
 | `sod.notActorOf`, `proposer` | Per-leg separation-of-duties controls (§10.1) |
 | `ackMode`, `requiredAcks` | Per-leg findings-flow controls (§10.2) **[PROVEN]** — declared both-or-neither |
 | `eligibility` | Per-leg opaque authority-to-decide reference; declaring it makes an implicit-first required `eligibility` consultation whose `fail` verdict gates finalize and decline (`ineligible`) (§9, §10.4) |
@@ -1060,7 +1060,7 @@ token, on which the executor deduplicates. A lost token cannot be recovered: the
 `redeeming` until its `redeemBound` elapses and resolves it to `redemption-failed` —
 at-most-once is preserved over convenience.
 
-**Result notarization (`resultDigest`) [DESIGNED].** A profile declaring `redeem.result`
+**Result notarization (`resultDigest`) [PROVEN].** A profile declaring `redeem.result`
 (§9.1) admits an optional host-claimed outcome digest at the two seams where the outcome
 is knowable when the coupling closes: the enlisted direct shape, whose edge commits with
 the host's own effect write (§12), and the token shape's completion, which the separated

@@ -101,10 +101,16 @@ export function profileDeclaresEffectSeam(profile: ConfirmProfile): boolean {
  * head through the closing parenthesis — `GOVERNED feature not available in this build
  * (<field>)` — is byte-preserved (pinned by construction-validation.test.ts); the
  * caller-supplied `contract` is the appended tail: what is unavailable, and the SPEC
- * section(s) that lift it. Arity-2 because it serves two consumers: the per-field
- * construction guards below and `kernel/open.ts`'s generic unknown-option-key message
- * (every DOCUMENTED `open()` key — `priorRecordRefs`/`policyDigest`/`supersedes` — is
- * real as of the step-8 recovery increment, so no per-key GOVERNED arm remains there).
+ * section(s) that lift it. Arity-2 originally because it served the per-field
+ * construction guards below (now zero — every field this build once gated has lifted
+ * behind its own behavior, each in the same commit as that behavior) alongside a growing
+ * set of generic unknown-option-key throws: `open()`'s own message (every DOCUMENTED
+ * `open()` key — `priorRecordRefs`/`policyDigest`/`supersedes` — is real as of the step-8
+ * recovery increment, so no per-key GOVERNED arm remains there), `finalize()`'s own,
+ * `decline()`'s own, and `kernel/redeem.ts`'s shared `validateRedeemOptions` — one call
+ * site serving all three redemption seams (`redeem()`/`beginRedemption()`/
+ * `completeRedemption()`, the effect-result increment). None of these four names a
+ * not-yet-enforceable field.
  */
 export function governedUnavailable(field: string, contract: string): string {
   return `GOVERNED feature not available in this build (${field}) — ${contract}`;

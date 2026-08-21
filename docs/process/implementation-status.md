@@ -28,10 +28,15 @@ any one exit.
   original proposal digest into the genesis as `proposedDigest` so a record distinguishes
   what was proposed from what was decided. See the dedicated section at the end of this
   document for the full account; the numbers immediately below already include it.
-- **Measured against the current tree**: `pnpm test` — 53 test files, 734 tests, zero skips
+- **An eleventh increment, past the build order, has landed: effect-result
+  notarization** — SPEC §11.2's `redeem.result` declaration, admitting a host-claimed
+  outcome digest bound into the `redeemed` payload at the enlisted direct seam and token
+  completion. See the dedicated section at the end of this document for the full
+  account; the numbers immediately below already include it.
+- **Measured against the current tree**: `pnpm test` — 54 test files, 749 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
-  `pnpm lint` (`biome check .`) — 118 files checked, zero errors or warnings;
+  `pnpm lint` (`biome check .`) — 119 files checked, zero errors or warnings;
   `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 24 refusal codes, the twenty-fourth and
@@ -1475,3 +1480,208 @@ enumerations in comments (`kernel/open.ts`'s payload literal doc, `chain/replay.
 folding-rules doc), and the `operator-surface.ts`/`create.ts` header enumerations (neither
 names the `open()` option list) — checked out current, landed correctly by Tasks 2–4; the
 sweep found nothing stale and made no additional fix.
+
+## Post-build-order increment — effect-result notarization (SPEC §11.2's `redeem.result`)
+
+**The third post-build-order promotion, exited.** Recorded human decline and proposal
+provenance (above) closed the first two; this is the third GOVERNED capability promoted
+through `docs/concept/SCOPING-GUIDE.md` §§1–2's own tier-test and promotion-rule
+machinery, on a fresh sanction earned for exactly this case. Design and promotion case:
+`docs/superpowers/specs/2026-08-21-effect-result-design.md`; plan:
+`docs/superpowers/plans/2026-08-21-effect-result.md`.
+
+**The gap this closes.** A redeemed record said how redemption closed — `{ via: 'direct'
+}` or `{ via: 'token', tokenDigest }` — never what the effect did. Embedding a result
+inside the redemption `content` is impossible (it is re-digested against the record's
+bound `contentDigest`, so anything added refuses `effect-mismatch`); appending after
+`redeemed` is barred by C3's terminal monotonicity. The one honest slot left open is the
+redemption call itself, in the two shapes where the outcome is knowable at the seam: the
+enlisted co-located `redeem()`, whose edge commits or rolls back with the host's own
+effect write (§12), and token `completeRedemption()`, which the separated executor calls
+when it executes.
+
+**What landed.**
+
+*Task 1 — the surface refactor (sanction-free, commits `603a21e`..`05dcbfc`).* The
+redemption family's three seams — `redeem`, `beginRedemption`, `completeRedemption` —
+move from a trailing positional `tx?` to a trailing `opts?: RedeemOptions` (`{ tx?:
+unknown }` at this point), aligning them with `finalize`/`open`/`decline`'s own
+options-bag shape. Measured blast radius: 11 call sites passing a real `tx` rewritten to
+`{ tx: … }` (5 in `redeem.test.ts`, 5 in `redeem-token.test.ts`, 1 in `clocks.test.ts`);
+91 no-`tx` call sites untouched, including the cross-backing byte-identity flow's own
+redemption driver. `create.ts`'s three delegations and `kernel/redeem.ts`'s nine internal
+positional pass-throughs (three `prologue()` calls, three `refuseCorrespondenceMismatch()`
+calls, three `store.appendTransition()` calls) now read a local `const tx = opts?.tx`
+instead of a parameter — byte-identical downstream. `RedeemOptions` is exported beside
+`FinalizeOptions`/`DeclineOptions`/`OpenOptions`. Behavior-preserving throughout, gated by
+the existing suite (53 files/736 tests at this task's own exit). Verified sanction-free:
+SPEC states parameter lists for `stage`/`open`/`review`/`finalize`/`decline`/`seal` only
+and names redemption solely as the bare verb `redeem()` — no sealed sentence states a
+redemption argument list — and §9 positively licenses the shape ("Feature options … grow
+only the **operator-only** options bags"). Register row 16 — already retired 2026-08-19 —
+was NOT reopened: it gained a "Shape update, 2026-08-21" note in both this document's own
+row-16 bullet and `next-phases.md`'s matching section, recording the new shape (see the
+ruling below).
+
+*Task 2 — the sanctioned sealed-set text, `[DESIGNED]` (commit `7130346`).* Landed the
+five sites named in the sanction's grant record below, verbatim as scoped, with no
+further false-by-omission sentence discovered elsewhere (unlike the two prior
+increments' own exits).
+
+*Task 3 — the capability (commits `7130346`..`78f71c0`).* `ConfirmProfile.redeem` gains
+`result?: true`, guarded structurally by a new `validateResultDeclaration` — the
+literal-`true` class `signing`/`LegSpec.decline` share, wired into `validateProfile`
+beside `validateBounds`'s own redemption checks; `REDEMPTION_KEYS` gains `'result'`, so a
+stray `result` key on a profile or a leg is caught by the existing misplacement sweep
+with no new test needed. `RedeemOptions` gains `result?: { digest: Digest }`. A new
+shared file-local intake validator, `validateRedeemOptions(seam, opts)`
+(`kernel/redeem.ts`), runs as the first statement of all three seams (after
+`completeRedemption`'s pre-existing token-must-be-a-string guard) — one function serving
+three call sites: it throws on any options-bag key beyond `tx`/`result`
+(`governedUnavailable`, "accepts only tx and result in this build"), throws at
+`beginRedemption` unconditionally when `opts.result` is supplied (issuance precedes
+execution — a result at redeeming-minting time would claim an outcome for an unexecuted
+effect), and validates a supplied `result`'s shape (a plain object with exactly `digest`,
+a non-empty string) — all before any chain load. The admission gate — `opts.result`
+supplied but the profile does not declare `redeem.result` throws — lands in `redeem()`
+and `completeRedemption()` only, immediately after `prologue()`'s gated destructuring, so
+`chain-compromise`, `unknown-profile`, and the effect-seam/final-leg refusal all win
+first; `beginRedemption` needs no admission gate at all, since its arity rejection is
+unconditional. Both accepting seams splice `resultDigest` into the `redeemed` payload
+present-iff-supplied, matching `finalize()`'s own `proofRef`/`observedAt` idiom: `{ via:
+'direct', ...(resultDigest === undefined ? {} : { resultDigest }) }` and `{ via: 'token',
+tokenDigest, ...(resultDigest === undefined ? {} : { resultDigest }) }`.
+`DecisionRecord.resultDigest?: Digest` folds from the payload in `chain/replay.ts`'s
+existing `redeemed` arm (added alongside, not restructured) — absent from `ReviewView` by
+the same reasoning as `supersedes`/`proposedDigest` (review shows what is being decided;
+a redeemed record is past review). Zero new refusal codes, kinds, states, or
+Store-interface changes. TDD: 7 tests landed RED against `tsc` (three `TS2353`/`TS2339`
+families — `result` unknown on `profile.redeem` and on `RedeemOptions`, `resultDigest`
+unknown on `DecisionRecord`) then GREEN (`packages/record/test/effect-result.test.ts`).
+
+*Task 4 — pins (commit `5d065e6`).* 6 more pins in the same file (13 total): the
+`redeemed` payload's key set pinned exactly (`['via']` unsupplied; `['resultDigest',
+'via']` direct-supplied; `['resultDigest', 'tokenDigest', 'via']` token-supplied); the
+gate order (intake beats admission; the seam gate outranks admission on a pure-capture
+profile — verified by reading `kernel/redeem.ts` before asserting, no seam defect found);
+the construction-time literal-`true` guard and a stray top-level `result` key throwing;
+correspondence-precedes-binding (a drifted redemption carrying a result binds nothing,
+leaves the record `confirmed`); sealing preserving a bound `resultDigest` across the
+`retired` cap; and a signed, result-declaring effect-seam profile's redemption reporting
+every transition signed and verified.
+
+*Task 5 — the guide (commit `da030e4`).* `docs/guide/api-reference.md` gains the
+`ConfirmProfile.redeem.result`, `RedeemOptions.result`, and `DecisionRecord.resultDigest`
+field entries plus a prose note on the two throw postures and the honest bound;
+`docs/guide/integrating.md` gains a "Notarizing what the effect did" subsection with
+three vitest-verified samples — the enlisted direct shape carrying a result, token
+completion carrying a result, and the late-result recipe (a successor pure-capture
+record whose `subjectRef` names the executed effect, composed entirely from
+`open`/`finalize` over an ordinary profile, no new library mechanism).
+
+Both frozen oracles (`byte-stability.test.ts`, `cross-backing-byte-identity.test.ts`)
+were asserted green and left untouched at every task's own exit — the second confirms
+empirically, not just by the present-iff-supplied idiom's intent, that a non-supplying
+redemption's bytes did not move.
+
+**The ruling set** (taken at the design brainstorm, recorded so a later increment does
+not re-litigate them):
+
+- **The redemption family gains one options bag; `tx` moves into it — verified
+  sanction-free.** No sealed sentence states a redemption argument list, and §9
+  positively licenses operator-only bag growth. Two sealed constraints bind the bag and
+  are honored: §12's handle rule (`tx?: unknown` stays the driver's own handle type,
+  never a library-owned transaction interface) and §11.2's "It carries no identity
+  argument" (the bag never gains an identity field — adding one would be a fork, not an
+  edit).
+- **The declaration ADMITS the field; it does not require it — new normative text, not
+  an inherited pattern**, acknowledged as such at the sanction grant. The only sealed
+  presence rule is §10.3's *mandatory* one; the admission-gate shape existed only as a
+  code pattern (finalize's `observedAt` gate), not sealed vocabulary. Argued on its
+  merits: a result the host does not know cannot be manufactured, so a mandatory
+  contract would force hosts to fabricate a digest or leave the capability undeclared —
+  the opposite of fail-closed; absence here is self-evidently non-evidence, unlike
+  policy, where absence would leave a declared gate unrun.
+- **Accepted at `redeem()` and `completeRedemption()`; rejected at `beginRedemption()`.**
+  Issuance precedes execution, so a result at begin-time would claim an outcome for an
+  effect that has not run.
+- **Declaring `result` declares the effect seam.** `profileDeclaresEffectSeam` keys on
+  the `redeem` block's presence, never its contents, so `redeem: { result: true }` is an
+  effect-seam profile exactly as `redeem: {}` is — correct, not a trap: a result digest
+  exists only on a `redeemed` transition, so there is nothing to notarize without
+  redemption.
+- **`resultDigest` is the payload key; `result: { digest }` is the input shape** —
+  digest only, no structured members; anything else rides inside the host's own digested
+  result content.
+
+**The five cuts, recorded per `docs/concept/CONCEPT.md` §7's anti-goal #4** ("cut in
+writing, never silently... what was cut, why, and how it could be recovered or
+re-derived"):
+
+- **Post-`redeemed` result append, and any C3 carve-out for it — rejected outright.**
+  Recovery path: the late-result recipe above (a successor pure-capture record) — the
+  only path this design leaves open, by construction.
+- **Structured result fields** (`executionId`, `transactionId`, `effectTarget`, `result`)
+  **— cut.** Recovery path: they ride inside the host's digested result content; a
+  future case would have to argue why the library needs to read them.
+- **Library-side result verification — cut permanently.** No recovery path:
+  performing it would make the library the business system.
+- **Result at `beginRedemption()` — cut.** No recovery path while issuance precedes
+  execution — the rationale is structural, not a placeholder.
+- **A mandatory presence contract — cut, in favor of the admission gate argued above.**
+  Recovery path: a future profile field could demand the stricter posture if a real host
+  needs it.
+
+**The sanction's grant record.** Granted by the maintainer 2026-08-21, in-session
+("Granted as scoped", in response to the direct question, explicitly acknowledging the
+grant licenses NEW normative text for the admission-gate shape), for exactly the design
+doc's §7 scope — Tasks 2 and 6 of the increment's plan licensed to touch
+`docs/concept/`, and only for the sites §7 there names. Task 2 landed the sanctioned
+sealed-set text as `[DESIGNED]`/`DESIGNED` at five sites: SPEC §4's `redeemed` payload
+row (`resultDigest?` in both shapes), SPEC §9.1's `redeem` field row (the literal-`true`
+declaration clause), SPEC §11.2's result-notarization block (landed verbatim,
+unsoftened), CONTROLS.md §3's GOVERNED row (plain `DESIGNED`, that table's own
+convention) and its §5 domain-instance row (untagged, per that table's own convention),
+and one GLOSSARY.md entry. This increment's own exit (this section's own commit) is the
+marker-move step spec-moves-to-truth requires: all five `[DESIGNED]`/`DESIGNED` tokens
+Task 2 introduced move to `[PROVEN]`/`PROVEN` in the same commit as this record, and
+`docs/concept/` re-seals immediately after.
+
+**Gate outputs, as measured against this increment's own exit commit**:
+`./node_modules/.bin/vitest run` — 54 test files, 749 tests, zero skips;
+`tsc -p packages/record --noEmit` and `tsc -p packages/store-postgres --noEmit` — both
+clean; `./node_modules/.bin/biome check .` — 119 files checked, zero errors or warnings;
+`node scripts/contract-scan.mjs` — exit 0, no output; `node scripts/api-reference-sync.mjs`
+— exit 0. `docs/process/deferral-register.md` carries no row for this increment and none
+moved — verified by reading the file in full (it holds exactly the one live row,
+publish tooling); register row 16 was already retired 2026-08-19, before this branch,
+and Task 1's "Shape update, 2026-08-21" notes (in this document's own row-16 bullet and
+`next-phases.md`'s matching section) record the options-bag shape against that
+retirement without reopening it.
+
+**The comment-truth sweep.** Every pattern the exit task named — `"accepts only tx and
+result"` (the new intake messages, current everywhere they occur); `"resultDigest"`
+across `packages/` and `docs/` (every tracked hit this increment's own, or a dated
+planning/design artifact under `docs/superpowers/`, adjudicated as such per Task 1's own
+convention); `"redeemed payload"`/`"via: 'direct'"` enumerations in comments (all
+current, or dated artifacts); `"present-iff-supplied"` claims (all true, confirmed
+against the two payload splices and the fold) — checked out current or adjudicated,
+landed correctly by Tasks 1–5. One further finding, outside the named patterns but
+within `governedUnavailable`'s own count-literal family: this document's CLAUDE.md
+enumeration (three throw sites) and a general doc-comment on `governedUnavailable`
+itself (`packages/record/src/config.ts`) both undercounted, and
+`docs/process/adopted-source-provenance.md`'s own running DIVERGENCE-list correction had
+gone stale even before this increment (it never recorded the recorded-human-decline
+increment's own `decline()` guard). All three are fixed in this commit: CLAUDE.md now
+names four throw sites, one of them (`kernel/redeem.ts`'s shared
+`validateRedeemOptions`) serving all three redemption seams; `config.ts`'s own doc
+comment is corrected the same way; `adopted-source-provenance.md` gains a further
+correction bullet recording both the previously-unrecorded `decline()` guard and this
+increment's own addition. Two comments describing a specific PAST increment's own
+snapshot (`packages/record/src/config.ts`'s `validateFreshness` doc comment and
+`construction-validation.test.ts`'s AL2-freshness-titled test) are left untouched,
+consistent with how every other step's own historical account in this document is
+frozen at the moment it was written; `docs/process/open-items-plan.md`'s own count is
+likewise left untouched — that document explicitly disclaims currency ("Measurements
+below … drift from that moment … this plan is stale") and defers to this document as
+authoritative.

@@ -22,11 +22,13 @@ settling at the self-test-tier increment, commit `84484ba`. The workspace holds 
 packages: `@vidimera/record` and `@vidimera/store-postgres` (the server-SQL third
 reference backing, tested against a real embedded Postgres the suite starts per run).
 Measured against the current
-tree: `pnpm test` — 53 test files, 734 tests, zero skips; `packages/record/src/refusal-codes.ts`
+tree: `pnpm test` — 54 test files, 749 tests, zero skips; `packages/record/src/refusal-codes.ts`
 carries 24 refusal codes; zero GOVERNED construction guards remain in `config.ts` — every
 field the feature-guard era installed has lifted behind real behavior at its own seam
-(`governedUnavailable` survives only for three generic unknown-option-key throws, in
-`finalize()`, `open()`, and `decline()`, none naming a not-yet-enforceable field).
+(`governedUnavailable` survives only for four generic unknown-option-key throw sites, in
+`finalize()`, `open()`, `decline()`, and the shared `validateRedeemOptions`
+(`kernel/redeem.ts`) serving all three redemption seams — `redeem()`, `beginRedemption()`,
+`completeRedemption()` — none naming a not-yet-enforceable field).
 
 **The honest bound, in the same breath.** The package is not yet published — deliberately:
 the manifest carries the full publish shape (`exports` with `.` and `./probes`, `types`,
@@ -193,8 +195,10 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   (`config.ts`'s `validateProfile`) until its own seam behavior lands, in the same commit
   as that behavior. Every profile field the kernel increment marked GOVERNED has since
   lifted this way; measured against the current tree, zero fields are governed
-  (`governedUnavailable` survives only for three generic unknown-option-key throws, in
-  `finalize()`, `open()`, and `decline()`, none naming a not-yet-enforceable field). `redeem` was
+  (`governedUnavailable` survives only for four generic unknown-option-key throw sites, in
+  `finalize()`, `open()`, `decline()`, and the shared `validateRedeemOptions`
+  (`kernel/redeem.ts`) serving all three redemption seams — `redeem()`, `beginRedemption()`,
+  `completeRedemption()` — none naming a not-yet-enforceable field). `redeem` was
   the one capability originally guarded at its call seam instead of construction
   (`kernel/redeem.ts`); that throw is gone too, since the first two step-3 increments. The
   field-by-field lineage — which field lifted at which increment, and the

@@ -117,7 +117,7 @@ The concept's vocabulary, in one place. Where a term is normative, the defining 
   authoritative derivation of decision state (SPEC §5).
 - **Result digest** — the effect-result binding: the host's claimed outcome digest,
   notarized inside the `redeemed` payload where the outcome is known when the coupling
-  closes (SPEC §9.1, §11.2). **[DESIGNED]**
+  closes (SPEC §9.1, §11.2). **[PROVEN]**
 - **Seam** — a boundary where the library meets host machinery, exposed as API (SPEC §1).
 - **Scope tiers (KERNEL / GOVERNED / OPERATOR-ASSURANCE)** — the dissection vocabulary: the
   unconditional core; profile-declared features; the operator's self-run verification
