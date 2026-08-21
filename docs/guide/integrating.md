@@ -439,9 +439,11 @@ operated in the probed configuration at probe time — nothing more.
 ## Privacy posture
 
 The store never holds reviewed content — only digests (`contentDigest`, consultation
-`payloadDigest`s, the `facts` figures digest). That is a deliberate retention stance: the
-record proves *what* was confirmed by digest without becoming a second copy of your data.
-Two consequences: keep the digested source material retrievable for as long as you need
-the record to be checkable against it, and treat reviewer-timing metadata with the
-discipline the concept states — aggregate control assurance, never per-named-reviewer
+`payloadDigest`s, the `facts` figures digest, `proposedDigest`). That is a deliberate
+retention stance: the record proves *what* was confirmed by digest without becoming a
+second copy of your data. Two consequences: keep the digested source material retrievable
+for as long as you need the record to be checkable against it, and treat reviewer-timing
+metadata — including any correction-rate vector derived from comparing `proposedDigest`
+against `contentDigest` (how often a named reviewer changed the agent's draft) — with the
+discipline the concept states: aggregate control assurance, never per-named-reviewer
 scoring. Retention rules are SPEC §13.

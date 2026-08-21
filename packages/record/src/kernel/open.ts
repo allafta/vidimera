@@ -41,12 +41,12 @@ export async function open(
   stagedRef: string,
   opts?: OpenOptions,
 ): Promise<Outcome<{ recordId: string }>> {
-  // Every documented `open()` options key is real as of the step-8 recovery increment
+  // Every documented `open()` options key is real, each as of its own increment
   // (`priorRecordRefs` since the first step-4 increment, `policyDigest` since the
-  // second step-6 increment, `supersedes` since that same commit, `proposed` since the
-  // proposal-provenance increment); anything else is a genuinely unknown key and throws
-  // GOVERNED (config.ts's `governedUnavailable`) — a caller/config error, never a
-  // domain refusal.
+  // second step-6 increment, `supersedes` since the step-8 recovery increment,
+  // `proposed` since the proposal-provenance increment); anything else is a genuinely
+  // unknown key and throws GOVERNED (config.ts's `governedUnavailable`) — a
+  // caller/config error, never a domain refusal.
   if (opts !== undefined) {
     for (const key of Object.keys(opts)) {
       if (key === 'priorRecordRefs') continue; // REAL as of the first step-4 increment

@@ -367,7 +367,10 @@ replayed `confirmed` payload — library-derived, never host-supplied — paired
 **Byte-stability (the general invariant).** Every profile-conditional key is
 **present-iff-declared**, so a profile declaring no features produces chains **byte-identical
 to the minimal model** — the general rule the per-field statements above instantiate (§10.2
-states the findings-flow instance).
+states the findings-flow instance). The invariant is over profile-declared features; the
+flow-conditional open-time options (`supersedes`, `proposed`, §2) are a named carve-out —
+present-iff-*supplied*, independent of the profile — so a no-feature profile that supplies
+one at `open()` still departs from the minimal model.
 
 **Clock-driven edges are appended en passant.** The library ships **no scheduler and no public
 `expire()`**. The clock-driven edges — `open → expired`, `confirmed → expired`
@@ -588,6 +591,7 @@ and the sweep — §12).
   (declaring-without and non-declaring-with both throw). It enforces **exclusivity**: if a
   non-terminal record already exists for the `(profile, subject)`, `open` refuses
   `record-exists` rather than opening a second one (§12).
+
   `proposed { stagedRef }` **[PROVEN]** — the provenance option (§2): the library
   resolves the reference through the store exactly as it consumes its own `stagedRef` —
   an unresolvable reference THROWS (the unknown-`stagedRef` posture; §8's caller-error

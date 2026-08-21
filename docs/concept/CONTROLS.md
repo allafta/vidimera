@@ -45,14 +45,15 @@ are **out of scope by design**: the operator is the records' sole consumer (`CON
 | Findings & acknowledgments | `ackMode` + `requiredAcks` (per leg, both-or-neither) | Review-time findings with digest coverage; named-magnitude acks; `ack-missing`/`ack-stale` gate | PROVEN | Coverage of raised findings; does not require findings to exist; records non-counting acks faithfully |
 | Live capture + `reverify` | `captureMode: 'live'` | Decide-what-exists; independent re-derivation gated as a required consultation; redemption-time re-verify | PROVEN | No pre-decision immutability — catches change at the decision |
 | Recovery (`supersedes`) | `supersedes` supplied at the recovering record's `open()` (an open-time option, never a profile field) | Verify-by-replay link from a fresh record to a terminal predecessor | PROVEN | Recovery linkage evidence; open flow details enumerated (`OPEN-QUESTIONS.md` §3) |
-| Proposal provenance | `proposed` (open-time option) | §9's resolved same-triple staged reference bound as `proposedDigest` at genesis; record-only | PROVEN | Proves the draft existed and whether the decision changed it — never who authored it, nor that the change was sound |
+| Proposal provenance | `proposed` (open-time option) | §9's resolved same-triple staged reference bound as `proposedDigest` at genesis; record-only | PROVEN | Proves the draft existed and whether the decision changed it — never who authored it, nor that the change was sound; genesis-head AL1 window on the evidence |
 | Consultation freshness | `freshness` (per leg) | Staleness gate over consultation age | PROVEN (AL2-dependent) | Unfireable at AL1 (recording-time stamps); meaningful only with authority timestamps |
 | AL2 detached signing | operator enablement (granularity decided on record — `OPEN-QUESTIONS.md` §1) | Signatures over canonical transitions + consultations | PROVEN | Closes the recompute + head-edit residuals **when the key is outside the insider boundary** |
 
 The AL2 row sits in GOVERNED by the tier test (a host-declared feature), not by profile
 declaration — its switch is operator enablement, with the granularity decided on record
-— per profile, record-homogeneous (`OPEN-QUESTIONS.md` §1); every other row's switch is
-a profile field.
+— per profile, record-homogeneous (`OPEN-QUESTIONS.md` §1). The Recovery and Proposal
+provenance rows are exceptions of a different kind: each switch is an open-time option
+supplied to `open()`, never a profile field. Every other row's switch is a profile field.
 
 ## 4. OPERATOR-ASSURANCE — self-run verification
 

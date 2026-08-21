@@ -93,9 +93,10 @@ stage (agent)  →  open (operator)  →  review (operator, pure read)  →  fin
   draft — digest only, no record yet, nothing to approve against yet.
 - `open(stagedRef)` mints the record: the genesis transition binds profile, leg, subject,
   and content digest. Options carry multi-leg prior references and the `supersedes`
-  recovery claim — both verified by replay before anything is appended — and a policy
+  recovery claim — both verified by replay before anything is appended — a policy
   digest, which is presence-checked and bound as the operator's attestation (the drift
-  comparison against it happens at finalize).
+  comparison against it happens at finalize), and a `proposed` reference, resolved
+  through the store and bound as `proposedDigest`.
 - `review(recordId)` is the content-free projection a review surface renders from: digests
   and state, never content.
 - `finalize(recordId, identity, content, facts, opts?)` is the decision. `identity` is the

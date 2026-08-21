@@ -128,7 +128,7 @@ test('provenance: a malformed proposed option throws at intake', async () => {
 
 test('provenance composes with recovery: a rework re-open carries supersedes AND proposed', async () => {
   // Also the decline-ungated-by-provenance pin: `first` carries a proposedDigest and its
-  // decline() call below succeeds unconditionally — decline's ladder (SPEC §9.1: state,
+  // decline() call below succeeds unconditionally — decline's ladder (SPEC §9: state,
   // identity, SoD, drift, facts, eligibility) never gates on provenance.
   const profile = captureProfile({ decline: true });
   const handles = create(makeConfig([profile]));
@@ -221,4 +221,52 @@ test('provenance on a live profile: the same seam, identically', async () => {
     opened.status === 'ok' ? opened.value.recordId : '',
   );
   assert.ok(record?.proposedDigest !== undefined);
+});
+
+// --- evidence gaps closed at final review: a supplying-genesis key-set pin (mirrors
+// recovery.test.ts's exact-key-set assertion) and a gate-order pin for the new throw ------
+
+test('genesis key-set pin: an open() WITH proposed adds exactly one key to the base genesis payload', async () => {
+  const { handles, profile } = handlesFor();
+  const { p1, p2 } = await stageBoth(handles, profile.id);
+  const opened = await handles.operator.open(p2, { proposed: { stagedRef: p1 } });
+  assert.equal(opened.status, 'ok');
+  const recordId = opened.status === 'ok' ? opened.value.recordId : '';
+
+  const chain = await handles.operator.readChain(recordId);
+  const genesis = chain[0];
+  assert.ok(genesis !== undefined);
+  const payload = genesis.payload as Record<string, unknown>;
+  assert.deepEqual(
+    Object.keys(payload).sort(),
+    ['contentDigest', 'legId', 'profileDigest', 'profileId', 'proposedDigest', 'subjectRef'],
+    'present-iff-supplied: exactly the base key set plus proposedDigest',
+  );
+});
+
+test('gate order: the provenance throw wins over a later prior-leg-unverified refusal', async () => {
+  // open()'s landed order: intake -> unknown-stagedRef -> unknown-profile -> policy ->
+  // unknown-leg -> PROVENANCE -> prior-leg-unverified -> supersedes-unverified
+  // (kernel/open.ts). The checker leg below carries BOTH a cross-triple `proposed`
+  // (which on its own THROWS at the provenance rung) and no `priorRecordRefs` at all
+  // (which on its own would REFUSE `prior-leg-unverified` at the later rung,
+  // kernel/prior-legs.ts). Provenance runs first, so the throw wins.
+  const profile = twoLegProfile();
+  const handles = create(makeConfig([profile]));
+  const c1 = await handles.agent.stage(P1, profile.id, DEFAULT_SUBJECT_REF, 'checker-decide');
+  assert.equal(c1.status, 'ok');
+  // A maker-leg draft: the wrong legId, so `proposed` mismatches the checker draft's
+  // triple (SPEC §9's same-triple rule).
+  const m1 = await handles.agent.stage(P1, profile.id, DEFAULT_SUBJECT_REF, 'maker-decide');
+  assert.equal(m1.status, 'ok');
+
+  await assert.rejects(
+    () =>
+      handles.operator.open(c1.status === 'ok' ? c1.value.stagedRef : '', {
+        // priorRecordRefs deliberately absent: on a non-first leg this alone would
+        // refuse `prior-leg-unverified` — but never gets the chance to.
+        proposed: { stagedRef: m1.status === 'ok' ? m1.value.stagedRef : '' },
+      }),
+    /same/i,
+  );
 });
