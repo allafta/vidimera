@@ -129,7 +129,7 @@ shape's crash-strand window — a crash between the `redeeming` append and the t
 reaching the executor strands the redemption until its bound lapses and the sweep resolves
 it (`redemption-failed`), after which recovery is a new record that verifiably
 `supersedes` the stranded one. A co-located host can shrink that window to its own
-transaction: the token seams take an optional trailing `tx?` (landed 2026-08-19, retiring
+transaction: the token seams take an optional `opts.tx` (landed 2026-08-19, retiring
 deferral-register row 16), so the `redeeming` append commits or rolls back with the
 host's own outbox row.
 

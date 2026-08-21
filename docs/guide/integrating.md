@@ -325,7 +325,7 @@ The bounds: `confirmToRedeem` (seconds from confirm to redemption start) and `re
 (seconds a `redeeming` record may dangle) — both resolved at the seams and by the sweep.
 
 The token seams enlist too: `beginRedemption` and `completeRedemption` take the same
-optional trailing `tx?` the direct `redeem` has, so a co-located host can commit the
+optional `opts.tx` the direct `redeem` has, so a co-located host can commit the
 `redeeming` edge in the same transaction as its own outbox row, and the completion edge
 with the effect row — a rollback then declines the issuance whole, edge and outbox
 together. Over a tampered chain an enlisted call refuses `chain-compromise` result-first
