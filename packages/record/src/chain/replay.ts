@@ -39,6 +39,7 @@ interface OpenedPayload {
   priorRecordRefs?: RecordedPriorLegRef[];
   priorLegActors?: IdentityAssertion[];
   supersedes?: SupersedesRef;
+  proposedDigest?: Digest;
 }
 interface ConfirmedPayload {
   actor: IdentityAssertion;
@@ -56,10 +57,11 @@ interface RefusedPayload {
  *
  * Folding rules (SPEC §4's payload table):
  *  - `opened` (`{profileId, profileDigest, legId, subjectRef, contentDigest,
- *    policyDigest?, priorRecordRefs?, priorLegActors?, supersedes?}`) seeds `id` (from
- *    `transition.recordId`, NOT a payload field — the payload has no self-identifying
- *    id), `profileId`, `legId`, `subjectRef`, `contentDigest`, `policyDigest`,
- *    `supersedes` (real as of the step-8 recovery increment), and initializes
+ *    policyDigest?, priorRecordRefs?, priorLegActors?, supersedes?, proposedDigest?}`)
+ *    seeds `id` (from `transition.recordId`, NOT a payload field — the payload has no
+ *    self-identifying id), `profileId`, `legId`, `subjectRef`, `contentDigest`,
+ *    `policyDigest`, `supersedes` (real as of the step-8 recovery increment),
+ *    `proposedDigest` (real as of the proposal-provenance increment), and initializes
  *    `consultations: []`, `state: 'open'`. MUST be the first transition — there is no
  *    other source for these required `DecisionRecord` fields.
  *  - `consultation-recorded` payload is itself a `Consultation` — pushed onto
@@ -149,6 +151,11 @@ export function replay(chain: readonly Transition[]): DecisionRecord {
     // referenced chain (that was open()'s job, the same "the reference, not the copy, is
     // the evidence" posture §10.1's priorRecordRefs fold follows just below).
     record.supersedes = opened.supersedes;
+  }
+  if (opened.proposedDigest !== undefined) {
+    // SPEC §2's provenance binding, folded verbatim from the genesis snapshot — replay
+    // surfaces what open() resolved and bound; it never re-resolves the reference.
+    record.proposedDigest = opened.proposedDigest;
   }
   if (opened.priorRecordRefs !== undefined && opened.priorLegActors !== undefined) {
     // SPEC §4: multi-leg successor evidence, present together or not at all; §10.1's

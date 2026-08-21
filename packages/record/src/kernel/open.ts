@@ -43,18 +43,20 @@ export async function open(
 ): Promise<Outcome<{ recordId: string }>> {
   // Every documented `open()` options key is real as of the step-8 recovery increment
   // (`priorRecordRefs` since the first step-4 increment, `policyDigest` since the
-  // second step-6 increment, `supersedes` since this commit); anything else is a
-  // genuinely unknown key and throws GOVERNED (config.ts's `governedUnavailable`) — a
-  // caller/config error, never a domain refusal.
+  // second step-6 increment, `supersedes` since that same commit, `proposed` since the
+  // proposal-provenance increment); anything else is a genuinely unknown key and throws
+  // GOVERNED (config.ts's `governedUnavailable`) — a caller/config error, never a
+  // domain refusal.
   if (opts !== undefined) {
     for (const key of Object.keys(opts)) {
       if (key === 'priorRecordRefs') continue; // REAL as of the first step-4 increment
       if (key === 'policyDigest') continue; // REAL as of the second step-6 increment
       if (key === 'supersedes') continue; // REAL as of the step-8 recovery increment
+      if (key === 'proposed') continue; // REAL as of the proposal-provenance increment
       throw new Error(
         governedUnavailable(
           key,
-          'open() accepts only priorRecordRefs, policyDigest, and supersedes in this build. Contract: §9.',
+          'open() accepts only priorRecordRefs, policyDigest, supersedes, and proposed in this build. Contract: §9.',
         ),
       );
     }
@@ -64,6 +66,11 @@ export async function open(
   // BEFORE any chain loads.
   if (opts?.supersedes !== undefined) {
     validateSupersedesShape(opts.supersedes);
+  }
+  // Argument-depth shape validation for a present proposed claim (SPEC §9's provenance
+  // option): a malformed claim throws here, BEFORE any store read.
+  if (opts?.proposed !== undefined) {
+    validateProposedShape(opts.proposed);
   }
 
   const { store, profiles, now, mintId } = ctx;
@@ -113,6 +120,35 @@ export async function open(
     return refused('unknown-leg');
   }
 
+  // --- SPEC §9's provenance option (the proposal-provenance increment): resolve the
+  // proposed reference BEFORE the record exists. Both failure modes are caller errors
+  // (the unknown-stagedRef posture): the host holds both refs, so an unresolvable or
+  // cross-triple proposal is wiring error, not a domain outcome. Record-only — nothing
+  // downstream gates on the binding (SPEC §2: notarize, never evaluate).
+  let proposedDigestBound: string | null = null;
+  if (opts?.proposed !== undefined) {
+    const proposedDraft = await store.getStaged(opts.proposed.stagedRef);
+    if (proposedDraft === null) {
+      throw new Error(
+        `open: unknown proposed stagedRef '${opts.proposed.stagedRef}' — no staged draft; ` +
+          'a proposed reference that resolves to nothing is a caller error, not a domain refusal (SPEC §9)',
+      );
+    }
+    if (
+      proposedDraft.profileId !== staged.profileId ||
+      proposedDraft.subjectRef !== staged.subjectRef ||
+      proposedDraft.legId !== staged.legId
+    ) {
+      throw new Error(
+        `open: proposed draft '${opts.proposed.stagedRef}' names ` +
+          `('${proposedDraft.profileId}', '${proposedDraft.subjectRef}', '${proposedDraft.legId}') but the opened draft names ` +
+          `('${staged.profileId}', '${staged.subjectRef}', '${staged.legId}') — the proposed reference must name the same ` +
+          '(profileId, subjectRef, legId) as the opened draft (SPEC §9); a cross-triple proposal is a caller error',
+      );
+    }
+    proposedDigestBound = proposedDraft.contentDigest;
+  }
+
   // --- SPEC §10.1 sequencing (first step-4 increment): verify prior-leg references BEFORE
   // the record exists. "open() enforces the sequencing before it creates the successor
   // record" — so a bad reference refuses `prior-leg-unverified` (pre-record, NO append)
@@ -156,6 +192,7 @@ export async function open(
     priorRecordRefs?: RecordedPriorLegRef[];
     priorLegActors?: IdentityAssertion[];
     supersedes?: SupersedesRef;
+    proposedDigest?: string;
   } = {
     profileId: staged.profileId,
     profileDigest: profileDigest(profile),
@@ -177,6 +214,11 @@ export async function open(
     // SPEC §2: the verified reference, recorded in the recovering record's genesis
     // snapshot — present-iff-supplied, so a non-recovery open() stays byte-identical.
     openedPayload.supersedes = supersedesCheck.verified;
+  }
+  if (proposedDigestBound !== null) {
+    // SPEC §2's provenance binding: the resolved proposal digest, present-iff-supplied,
+    // so a non-supplying open() stays byte-identical (the supersedes mechanism).
+    openedPayload.proposedDigest = proposedDigestBound;
   }
   const openedTransition: Transition = {
     recordId,
@@ -258,4 +300,24 @@ export async function open(
   }
   // A second exclusivity (or any) conflict on the single retry -> record-exists, no loop.
   return refused('record-exists');
+}
+
+/** SPEC §9's provenance option shape: a plain object with exactly `stagedRef`, a
+ * non-empty string — the validateSupersedesShape class: malformed claims throw at
+ * argument depth, before any store read. */
+function validateProposedShape(proposed: unknown): asserts proposed is { stagedRef: string } {
+  if (proposed === null || typeof proposed !== 'object' || Array.isArray(proposed)) {
+    throw new Error('open: proposed must be a plain { stagedRef } object (SPEC §9)');
+  }
+  const keys = Object.keys(proposed);
+  if (keys.length !== 1 || keys[0] !== 'stagedRef') {
+    throw new Error(
+      `open: proposed carries unknown keys or is missing stagedRef (found: ${keys.join(', ') || 'none'}) — ` +
+        'exactly { stagedRef } (SPEC §9)',
+    );
+  }
+  const ref = (proposed as { stagedRef: unknown }).stagedRef;
+  if (typeof ref !== 'string' || ref.length === 0) {
+    throw new Error('open: proposed.stagedRef must be a non-empty string (SPEC §9)');
+  }
 }

@@ -621,8 +621,9 @@ export function validateProfile(profile: ConfirmProfile): void {
 }
 
 // --- open() options bag (§9 `open(stagedRef, { priorRecordRefs?, policyDigest?,
-// supersedes? })`) — NOT construction; all three documented open() keys are real,
-// `supersedes` as of the step-8 recovery increment ---------------------------------------
+// supersedes?, proposed? })`) — NOT construction; all four documented open() keys are
+// real: `supersedes` as of the step-8 recovery increment, `proposed` as of the
+// proposal-provenance increment ---------------------------------------------------------
 
 /** A host-supplied prior-leg reference (SPEC §10.1): the claim `open()` verifies by
  * replay — never adopted unchecked. The recorded three-field form (types.ts's
@@ -649,6 +650,13 @@ export interface OpenOptions {
    * of the step-8 recovery increment; any failure refuses `supersedes-unverified`
    * pre-record. */
   supersedes?: SupersedesRef;
+  /** SPEC §9's provenance option (§2's proposedDigest): the staged reference the
+   * proposal arrived as, resolved through the store at open() and required to name the
+   * SAME (profileId, subjectRef, legId) as the opened draft — both failure modes THROW
+   * (the unknown-stagedRef caller-error posture). Binds the resolved draft's
+   * contentDigest into the genesis, present-iff-supplied. Record-only: nothing gates
+   * on it (notarize, never evaluate). Real as of the proposal-provenance increment. */
+  proposed?: { stagedRef: string };
 }
 
 // --- finalize() options bag (SPEC §11.1's consultation input surface) -----------------

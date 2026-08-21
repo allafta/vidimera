@@ -182,6 +182,11 @@ export interface DecisionRecord {
    * NOT projected into ReviewView (the priorRecordRefs precedent: linkage evidence
    * rides getRecord/replay, never the review projection). */
   supersedes?: SupersedesRef;
+  /** SPEC §2's provenance binding: the agent-proposed draft's content digest, resolved
+   * and bound at open() (§9's `proposed` option) — present iff supplied. Deliberately
+   * NOT projected into ReviewView (the supersedes precedent: provenance evidence rides
+   * getRecord/replay, never the review projection). Nothing gates on it. */
+  proposedDigest?: Digest;
   actor?: IdentityAssertion;
   /**
    * SPEC §10.2's findings-flow evidence: present iff the chain carries at least one
