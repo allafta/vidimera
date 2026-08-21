@@ -61,7 +61,7 @@
 import { canonicalize, digest } from '../canonical.js';
 import { transitionDigest } from '../chain/encoding.js';
 import { replay, verifyChain } from '../chain/replay.js';
-import type { RedeemOptions } from '../config.js';
+import { governedUnavailable, type RedeemOptions } from '../config.js';
 import type { KernelContext, ResolvedProfile } from '../create.js';
 import { isFinalLeg, nonTerminal } from '../nonterminal.js';
 import type { Outcome } from '../outcome.js';
@@ -283,17 +283,76 @@ async function prologue(
   return { gated: { chain, record, resolved, finalLeg } };
 }
 
+/**
+ * SPEC §11.2/§12: the redemption options bag's shape, validated at ARGUMENT depth —
+ * before any chain loads — so a caller bug throws identically regardless of record
+ * state (finalize's consultation-intake precedent). The `beginRedemption` rejection
+ * lives here rather than at profile depth because it is arity, not admission: issuance
+ * NEVER accepts a result, declaration notwithstanding.
+ */
+function validateRedeemOptions(
+  seam: 'redeem' | 'beginRedemption' | 'completeRedemption',
+  opts: RedeemOptions | undefined,
+): void {
+  if (opts === undefined) return;
+  for (const key of Object.keys(opts)) {
+    if (key === 'tx' || key === 'result') continue;
+    throw new Error(
+      governedUnavailable(
+        key,
+        `${seam}() accepts only tx and result in this build. Contract: §11.2, §12.`,
+      ),
+    );
+  }
+  if (opts.result === undefined) return;
+  if (seam === 'beginRedemption') {
+    throw new Error(
+      'beginRedemption: opts.result is not admitted at issuance — a result at ' +
+        'redeeming-minting time would claim an outcome for an unexecuted effect; supply it ' +
+        'at completeRedemption, where the executor knows it (SPEC §11.2)',
+    );
+  }
+  const result = opts.result as unknown;
+  if (result === null || typeof result !== 'object' || Array.isArray(result)) {
+    throw new Error(`${seam}: opts.result must be a plain { digest } object (SPEC §11.2)`);
+  }
+  const keys = Object.keys(result);
+  if (keys.length !== 1 || keys[0] !== 'digest') {
+    throw new Error(
+      `${seam}: opts.result carries unknown keys or is missing digest (found: ${keys.join(', ') || 'none'}) — ` +
+        'exactly { digest } (SPEC §11.2)',
+    );
+  }
+  const digestValue = (result as { digest: unknown }).digest;
+  if (typeof digestValue !== 'string' || digestValue.length === 0) {
+    throw new Error(`${seam}: opts.result.digest must be a non-empty string (SPEC §11.2)`);
+  }
+}
+
 export async function redeem(
   ctx: KernelContext,
   recordId: string,
   content: unknown,
   opts?: RedeemOptions,
 ): Promise<Outcome<{ recordId: string; state: 'redeemed'; transitionRef: Digest }>> {
+  validateRedeemOptions('redeem', opts);
   const { store, now } = ctx;
   const tx = opts?.tx;
+  const resultDigest = opts?.result?.digest;
   const pro = await prologue(ctx, 'redeem', recordId, tx);
   if ('refusal' in pro) return pro.refusal;
   const { chain, record, resolved, finalLeg } = pro.gated;
+
+  // SPEC §11.2's admission gate (the effect-result increment): the declaration ADMITS
+  // the field. A non-declaring profile supplying one is a caller error at
+  // profile-resolution depth — chain-compromise, unknown-profile and the seam gate
+  // outrank it, matching finalize's own presence-contract depth.
+  if (opts?.result !== undefined && resolved.profile.redeem?.result !== true) {
+    throw new Error(
+      `redeem: opts.result supplied but profile '${record.profileId}' does not declare ` +
+        'redeem.result — declaring it is what admits an outcome digest (SPEC §9.1, §11.2)',
+    );
+  }
 
   // --- (4) state gate ------------------------------------------------------------------
   if (record.state === 'redeemed') {
@@ -333,7 +392,9 @@ export async function redeem(
     seq: chain.length + 1,
     at: now().toISOString(),
     kind: 'redeemed',
-    payload: { via: 'direct' },
+    // §4's present-iff-supplied rule (the effect-result increment): an absent
+    // resultDigest leaves this payload byte-identical to a pre-increment chain.
+    payload: { via: 'direct', ...(resultDigest === undefined ? {} : { resultDigest }) },
     prevHash: transitionDigest(last),
   };
   // `redeemed` is terminal (§2) — the derivation, never a hardcoded false: THIS is the
@@ -391,6 +452,7 @@ export async function beginRedemption(
 ): Promise<
   Outcome<{ recordId: string; state: 'redeeming'; token: string; transitionRef: Digest }>
 > {
+  validateRedeemOptions('beginRedemption', opts);
   const { store, now, tokenSource } = ctx;
   const tx = opts?.tx;
   const pro = await prologue(ctx, 'beginRedemption', recordId, tx);
@@ -493,11 +555,24 @@ export async function completeRedemption(
       `completeRedemption: token must be a string (got ${typeof token}) — a caller error, not a domain refusal (SPEC §8)`,
     );
   }
+  validateRedeemOptions('completeRedemption', opts);
   const { store, now } = ctx;
   const tx = opts?.tx;
+  const resultDigest = opts?.result?.digest;
   const pro = await prologue(ctx, 'completeRedemption', recordId, tx);
   if ('refusal' in pro) return pro.refusal;
   const { chain, record, resolved, finalLeg } = pro.gated;
+
+  // SPEC §11.2's admission gate (the effect-result increment): the declaration ADMITS
+  // the field. A non-declaring profile supplying one is a caller error at
+  // profile-resolution depth — chain-compromise, unknown-profile and the seam gate
+  // outrank it, matching finalize's own presence-contract depth.
+  if (opts?.result !== undefined && resolved.profile.redeem?.result !== true) {
+    throw new Error(
+      `completeRedemption: opts.result supplied but profile '${record.profileId}' does not declare ` +
+        'redeem.result — declaring it is what admits an outcome digest (SPEC §9.1, §11.2)',
+    );
+  }
 
   // --- (4) state gate ------------------------------------------------------------------
   if (record.state === 'redeemed') {
@@ -560,7 +635,13 @@ export async function completeRedemption(
     seq: chain.length + 1,
     at: now().toISOString(),
     kind: 'redeemed',
-    payload: { via: 'token', tokenDigest: persisted },
+    // §4's present-iff-supplied rule (the effect-result increment): an absent
+    // resultDigest leaves this payload byte-identical to a pre-increment chain.
+    payload: {
+      via: 'token',
+      tokenDigest: persisted,
+      ...(resultDigest === undefined ? {} : { resultDigest }),
+    },
     prevHash: transitionDigest(last),
   };
   // Terminal by the derivation — THE RELEASE via the token path; dueAt omitted here IS

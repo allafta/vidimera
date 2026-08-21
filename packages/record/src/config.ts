@@ -39,7 +39,15 @@ export interface ConfirmProfile {
   captureMode: 'staged' | 'live';
   expiry: { ttl: number } | 'none';
   policySource?: string; // SPEC §10.3
-  redeem?: { confirmToRedeem?: number; redeemBound?: number; reverify?: boolean }; // presence ⇒ effect seam
+  // presence ⇒ effect seam; `result` (the effect-result increment) admits SPEC §11.2's
+  // outcome digest at the redemption seams — declaration alone, never a value, is what
+  // ADMITS the field (the admission gate lives at the redemption seams, kernel/redeem.ts)
+  redeem?: {
+    confirmToRedeem?: number;
+    redeemBound?: number;
+    reverify?: boolean;
+    result?: true;
+  };
   /** SPEC §14's AL2 upgrade, per-profile enablement, record-homogeneous from genesis
    * (the AL2 brainstorm ruling) — the AL2 mint increment (first of three): the
    * declaration alone mints a detached signature over every transition this profile's
@@ -110,15 +118,16 @@ export function governedUnavailable(field: string, contract: string): string {
 export const RESERVED_CONSULTATION_KINDS: ReadonlySet<string> = new Set(['facts', 'chain-verify']);
 
 /**
- * The three redemption FIELDS: `confirmToRedeem` and `redeemBound` — SPEC §9.1's `redeem`
+ * The redemption FIELDS: `confirmToRedeem` and `redeemBound` — SPEC §9.1's `redeem`
  * block, which names exactly those two — plus `reverify`, introduced only by SPEC §9.2's
  * live mode (§9.1 never names it; nesting it in the same `redeem` block is this build's
- * structuring). They are only ever valid INSIDE a
+ * structuring), plus `result`, SPEC §11.2's outcome-digest declaration (the
+ * effect-result increment). They are only ever valid INSIDE a
  * `redeem` block. Appearing as a direct own-key on the profile or a leg is a
  * misplacement — refused structurally (the former redeem-field guard
  * was logically vacuous, so it is replaced by this real "stray key outside redeem" check).
  */
-const REDEMPTION_KEYS = ['confirmToRedeem', 'redeemBound', 'reverify'] as const;
+const REDEMPTION_KEYS = ['confirmToRedeem', 'redeemBound', 'reverify', 'result'] as const;
 
 function assertNoStrayRedemptionKeys(profileId: string, where: string, obj: object): void {
   for (const key of REDEMPTION_KEYS) {
@@ -188,6 +197,24 @@ function validateDecline(profile: ConfirmProfile, leg: LegSpec): void {
       `invalid profile '${profile.id}': leg '${leg.id}' — decline must be the literal true when declared — ` +
         'any other value would construct as a non-declaring leg, silently disabling the seam ' +
         '(the fail-closed structural class; SPEC §9.1)',
+    );
+  }
+}
+
+/**
+ * SPEC §11.2's `redeem.result` declaration (the effect-result increment): literal `true`
+ * only — unlike `decline` (above), `result` sits on the PROFILE's `redeem` block, not a
+ * leg, so this is a profile-level check, not a per-leg one. Any other declared value
+ * would construct as a non-declaring profile, silently disabling the admission gate at
+ * the redemption seams (the same fail-closed structural class as `decline`/`signing`'s
+ * own literal-true guards).
+ */
+function validateResultDeclaration(profile: ConfirmProfile): void {
+  if (Object.hasOwn(profile.redeem ?? {}, 'result') && profile.redeem?.result !== true) {
+    throw new Error(
+      `invalid profile '${profile.id}': redeem.result must be the literal true when declared — ` +
+        'any other value would construct as a non-declaring profile, silently disabling the ' +
+        'admission gate (the fail-closed structural class; SPEC §9.1)',
     );
   }
 }
@@ -580,6 +607,7 @@ export function validateProfile(profile: ConfirmProfile): void {
   }
   validateLiveCapture(profile);
   validateBounds(profile);
+  validateResultDeclaration(profile);
   if (profile.policySource !== undefined && profile.policySource.length === 0) {
     throw new Error(
       `invalid profile '${profile.id}': declares an empty policySource label — ` +
@@ -735,4 +763,10 @@ export interface RedeemOptions {
    * become a library transaction type. When supplied, the append is enlisted and
    * commits or rolls back with the host's own write. */
   tx?: unknown;
+  /** SPEC §11.2's result notarization (the effect-result increment): the host's CLAIMED
+   * outcome digest, admitted iff the profile declares `redeem.result` (§9.1) — supplying
+   * one on a non-declaring profile is a caller error, and issuance (`beginRedemption`)
+   * admits none at all. Digest-only custody: the host digests its own result content and
+   * the library never sees it, never verifies the claim, and never gates on it. */
+  result?: { digest: Digest };
 }

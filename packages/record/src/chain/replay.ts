@@ -47,6 +47,14 @@ interface ConfirmedPayload {
 interface RefusedPayload {
   code: RefusalCode;
 }
+/** Mirrors this file's local reading-convention interfaces (SPEC §4's `redeemed` payload).
+ * `resultDigest` is present iff supplied under a `result`-declaring profile (the
+ * effect-result increment). */
+interface RedeemedPayload {
+  via: 'direct' | 'token';
+  tokenDigest?: Digest;
+  resultDigest?: Digest;
+}
 
 /**
  * `replay(chain)`: folds a `DecisionRecord` by walking `chain`
@@ -79,9 +87,12 @@ interface RefusedPayload {
  *    `state`/`refusalCode` are refusal-owned fields).
  *  - `sealed` (SPEC §5's chain retirement) sets `status: 'retired'` without moving `state`
  *    — a sealed `confirmed` record is still `confirmed`.
- *  - `redeemed` (SPEC §11.2's direct shape; `{via}`) sets `state: 'redeemed'`. The `via`
- *    payload field is EVIDENCE, not state — it records which redemption shape produced the
- *    edge, and `replay` reads nothing from it; only `state` moves.
+ *  - `redeemed` (SPEC §11.2's direct shape; `{via, resultDigest?}`) sets `state: 'redeemed'`.
+ *    The `via` payload field is EVIDENCE, not state — it records which redemption shape
+ *    produced the edge, and `replay` reads nothing from it; only `state` moves. `resultDigest`
+ *    (the effect-result increment), present iff supplied under a `result`-declaring profile,
+ *    folds verbatim onto `DecisionRecord.resultDigest` — the one exception where this arm
+ *    moves a second field, the host's claimed outcome digest rather than state.
  *  - `redeeming` (SPEC §11.2's token shape, second step-3 increment; `{tokenDigest}`) sets
  *    `state: 'redeeming'`. The `tokenDigest` payload field is EVIDENCE, not state — replay
  *    reads nothing from it; only `state` moves.
@@ -213,6 +224,12 @@ export function replay(chain: readonly Transition[]): DecisionRecord {
         // redemption shape produced the edge, not state — replay reads nothing from it; only
         // `state` moves, the same one field a `confirmed`/`refused`/`expired` arm moves.
         record.state = 'redeemed';
+        const payload = transition.payload as RedeemedPayload;
+        if (payload.resultDigest !== undefined) {
+          // SPEC §11.2: the host's claimed outcome digest, folded verbatim — replay
+          // surfaces what the seam recorded and never re-verifies the claim.
+          record.resultDigest = payload.resultDigest;
+        }
         break;
       }
       case 'redeeming': {

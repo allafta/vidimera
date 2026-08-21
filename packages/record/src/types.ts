@@ -188,6 +188,11 @@ export interface DecisionRecord {
    * getRecord/replay, never the review projection). Nothing gates on it. */
   proposedDigest?: Digest;
   actor?: IdentityAssertion;
+  /** SPEC §11.2's result notarization: the host's CLAIMED outcome digest, notarized
+   * inside the `redeemed` payload (§4) — present iff supplied under a `result`-declaring
+   * profile. Deliberately NOT projected into ReviewView (a redeemed record is past
+   * review). Nothing gates on it; the library never verifies the claim. */
+  resultDigest?: Digest;
   /**
    * SPEC §10.2's findings-flow evidence: present iff the chain carries at least one
    * `finding-raised` transition — a non-declaring profile's chain never acquires one, so
