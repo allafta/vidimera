@@ -339,7 +339,7 @@ except `opened`, which snapshots the record's immutable header.
 | `sealed` | `{ chainHead }` — end-of-life metadata (§5) | delta |
 | `finding-raised` / `acknowledged` | the Finding / Ack object (profile-conditional, §10.2) **[PROVEN]** | delta |
 | `redeeming` | `{ tokenDigest, bound? }` — digest of the single-use redemption token (the raw token is never persisted, §11.2); `bound` present only when declared (effect-seam profiles only) | delta |
-| `redeemed` | `{ via: 'direct' }` or `{ via: 'token', tokenDigest }` — the completed redemption and how it was closed (effect-seam profiles only, §11.2) | delta |
+| `redeemed` | `{ via: 'direct', resultDigest? }` or `{ via: 'token', tokenDigest, resultDigest? }` — the completed redemption and how it was closed (effect-seam profiles only, §11.2); `resultDigest` present iff supplied under a `result`-declaring profile (§11.2) **[DESIGNED]** | delta |
 | `redemption-failed` | `{ bound }` — the elapsed redemption bound; folds `refusalCode: redemption-timeout` on replay (effect-seam profiles only, §11.2) | delta |
 
 **`profileDigest`.** The `opened` snapshot carries `profileDigest`, a digest over a
@@ -691,7 +691,7 @@ a one-line applicability note, not through a separate tier system.
 | `requiredConsultations` | Per-leg consultation kinds that must be present and passing at finalize (§11.1) |
 | `freshness` | Per-leg max consultation ages (§11.1). **[PROVEN]** — meaningful only with AL2 authority timestamps (§14); at AL1 the staleness gate cannot fire |
 | `policySource` | Per-profile opaque label naming the operator's policy authority; declaring it binds a `policyDigest` at `open()` and gates finalize on drift (`policy-drift`). Never fetched or evaluated by the library (§10.3) |
-| `redeem` | Effect-seam configuration: the redemption bounds (`confirmToRedeem`, `redeemBound`). Its presence declares an **effect seam** (§11.2) |
+| `redeem` | Effect-seam configuration: the redemption bounds (`confirmToRedeem`, `redeemBound`), and `result` — a per-profile literal-`true` declaration admitting a result digest at the redemption seams (§11.2) **[DESIGNED]**; declaring anything other than the literal `true` is a construction error (the `signing` rule's class). Its presence declares an **effect seam** (§11.2) |
 | `sod.notActorOf`, `proposer` | Per-leg separation-of-duties controls (§10.1) |
 | `ackMode`, `requiredAcks` | Per-leg findings-flow controls (§10.2) **[PROVEN]** — declared both-or-neither |
 | `eligibility` | Per-leg opaque authority-to-decide reference; declaring it makes an implicit-first required `eligibility` consultation whose `fail` verdict gates finalize and decline (`ineligible`) (§9, §10.4) |
@@ -1059,6 +1059,34 @@ chain reader cannot reconstruct a token of that entropy from its digest. Complet
 token, on which the executor deduplicates. A lost token cannot be recovered: the record stays
 `redeeming` until its `redeemBound` elapses and resolves it to `redemption-failed` —
 at-most-once is preserved over convenience.
+
+**Result notarization (`resultDigest`) [DESIGNED].** A profile declaring `redeem.result`
+(§9.1) admits an optional host-claimed outcome digest at the two seams where the outcome
+is knowable when the coupling closes: the enlisted direct shape, whose edge commits with
+the host's own effect write (§12), and the token shape's completion, which the separated
+executor calls when it executes. Issuance admits none — a result at
+`redeeming`-minting time would be a claim about an unexecuted effect, and supplying one
+there is a caller error. The declaration **admits** the field rather than requiring it: a
+declaring profile that supplies nothing records nothing, and supplying one on a
+non-declaring profile is a caller error (deliberately unlike §10.3's mandatory policy
+contract — a result the host does not know cannot be manufactured, and absence here is
+self-evidently non-evidence, where policy absence would leave a declared gate unrun).
+Custody is digest-only: the host digests its own result content and the library never
+sees it. The binding lands inside the `redeemed` payload (§4), never as a later append —
+C3 admits no state-leaving append after a terminal state, and the state-preserving
+`sealed` cap is not a growth point. Declaring `result` declares the effect seam, as any
+`redeem` block does (§9.1's predicate keys on the block's presence): there is nothing to
+notarize without a redemption. Nothing gates on the binding.
+
+Its bound, in the same breath: this notarizes **that the host asserted this outcome,
+digest-bound, when it closed the coupling** — no more. The library does not observe the
+effect (it executes nothing and sees nothing that bypasses the seam), does not verify the
+claim (a host binding a false digest is recorded faithfully binding a false digest —
+fidelity, not validity; verifying it would make the library the business system), and
+does not mirror later business state (a result true at completion may be reversed
+afterward). It is meaningful only where the outcome is genuinely known at the call; in a
+gate-then-execute flow the outcome is unknown at redemption time, and the library cannot
+tell the difference — which is why that discipline is stated rather than enforced.
 
 **Honest bound.** Redemption makes orphaned, duplicated, premature, or mismatched effects
 **refusable at the seam given an idempotent executor** — the **separated** host's executor
