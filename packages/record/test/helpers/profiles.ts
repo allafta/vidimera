@@ -50,6 +50,8 @@ interface ProfileOverrides {
   /** SPEC §9.1's `redeem` block — `liveProfile`'s own override point (the live-capture
    * increment), honored before its own `{ reverify: true }` default. */
   redeem?: ConfirmProfile['redeem'];
+  /** SPEC §9.1's per-leg decline switch — the recorded-human-decline increment's own override point. */
+  decline?: true;
 }
 
 function resolveExpiry(o: ProfileOverrides): { ttl: number } | 'none' {
@@ -65,6 +67,7 @@ function buildLeg(o: ProfileOverrides): LegSpec {
   };
   if (o.terminalRefusals !== undefined) leg.terminalRefusals = o.terminalRefusals;
   if (o.requiredConsultations !== undefined) leg.requiredConsultations = o.requiredConsultations;
+  if (o.decline === true) leg.decline = true;
   return leg;
 }
 

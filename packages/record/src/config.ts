@@ -28,6 +28,7 @@ export interface LegSpec {
   requiredConsultations?: string[];
   freshness?: Record<string, number>;
   eligibility?: string;
+  decline?: true; // SPEC §9.1: per-leg switch for §9's decline seam — literal true, the signing rule's class (this increment)
   terminalRefusals?: RefusalCode[];
 }
 
@@ -177,6 +178,16 @@ function validateEligibility(profile: ConfirmProfile, leg: LegSpec): void {
     throw new Error(
       `invalid profile '${profile.id}': leg '${leg.id}' declares eligibility AND lists ` +
         `'eligibility' in requiredConsultations — SPEC §10.4: declare it once`,
+    );
+  }
+}
+
+function validateDecline(profile: ConfirmProfile, leg: LegSpec): void {
+  if (Object.hasOwn(leg, 'decline') && leg.decline !== true) {
+    throw new Error(
+      `invalid profile '${profile.id}': leg '${leg.id}' — decline must be the literal true when declared — ` +
+        'any other value would construct as a non-declaring leg, silently disabling the seam ' +
+        '(the fail-closed structural class; SPEC §9.1)',
     );
   }
 }
@@ -588,6 +599,7 @@ export function validateProfile(profile: ConfirmProfile): void {
     validateSodShape(profile, index, leg);
     validateRequiredConsultations(profile, leg);
     validateEligibility(profile, leg);
+    validateDecline(profile, leg);
     validateFreshness(profile, leg);
     validateFindingsFlow(profile, leg);
   }
