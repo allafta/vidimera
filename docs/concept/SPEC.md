@@ -116,6 +116,7 @@ acknowledgments, prior-leg evidence, consultation results) only in process memor
 | `subjectRef` | string | Host key naming the decided thing |
 | `contentDigest` | digest | Digest over canonical content (§3, §7) |
 | `policyDigest` | digest or absent | Policy snapshot binding, bound at `open()` where a policy engine contributed (§10.3) |
+| `proposedDigest` | digest or absent | The agent-proposed draft's content digest, bound at `open()` from a resolved same-triple staged reference (§9) **[DESIGNED]** |
 | `actor` | IdentityAssertion | The deciding human (§6); never a bare string |
 | `consultations` | list of Consultation | Evidence attached to the leg, including the reviewed-surface (`facts`) binding (§3, §11.1) |
 | `state` | enum | `open`, `confirmed`, `refused`, `expired`, `declined`, and — on effect-seam profiles — `redeeming`, `redeemed`, `redemption-failed` |
@@ -138,6 +139,14 @@ predecessor's chain, requires it intact and **terminal**, and records the verifi
 reference in the new record's genesis snapshot — the same verify-by-replay discipline as
 §10.1's prior-leg references. Remaining recovery-flow details (the non-terminal-predecessor
 refusal shape, the exclusivity interaction) are enumerated in `OPEN-QUESTIONS.md`.
+
+**Provenance (`proposedDigest`) [DESIGNED].** A record MAY bind, at open, the content
+digest of the staged draft the proposal arrived as — resolved through the store, never
+host-claimed — so the record distinguishes what was proposed from what was decided by
+digest comparison. The binding proves a draft with that digest existed in the store for
+the same (profile, subject, leg) when the record opened — never who authored either
+draft (staging carries no identity; the capability split is in-process discipline, §9),
+and never that the revision was sound. Nothing gates on it: notarize, never evaluate.
 
 Auxiliary structures: **IdentityAssertion** `{ principal, authority, proofRef? }` (§6);
 **Consultation** `{ kind, checker, at, payloadDigest, verdict, proofRef? }` where `checker` is
@@ -320,7 +329,7 @@ except `opened`, which snapshots the record's immutable header.
 
 | `kind` | Payload | Form |
 |---|---|---|
-| `opened` | `{ profileId, profileDigest, legId, subjectRef, contentDigest, policyDigest?, priorRecordRefs?, priorLegActors?, supersedes? }` (`supersedes?` **[PROVEN]**, §2) | snapshot |
+| `opened` | `{ profileId, profileDigest, legId, subjectRef, contentDigest, policyDigest?, priorRecordRefs?, priorLegActors?, supersedes?, proposedDigest? }` (`supersedes?` **[PROVEN]**, §2; `proposedDigest?` provenance, §2 **[DESIGNED]**) | snapshot |
 | `consultation-recorded` | the Consultation object (§2), including the always-present `facts` binding | delta |
 | `confirmed` | `{ actor }` — the deciding IdentityAssertion (§6) | delta |
 | `refused` | `{ code }` — a §8 registry code; class derivable from the registry | delta |
@@ -569,8 +578,8 @@ and the sweep — §12).
   **before any record exists**: a staged draft is not a record and can transition nothing, but
   it does bind the named-or-first leg it will open under. This is what keeps the agent surface
   honest without an asterisk.
-- **`open(stagedRef, { priorRecordRefs?, policyDigest?, supersedes? })`** — **operator-only.**
-  Creates the record from the staged binding and appends the `opened` transition (§4). A
+- **`open(stagedRef, { priorRecordRefs?, policyDigest?, supersedes?, proposed? })`** —
+  **operator-only.** Creates the record from the staged binding and appends the `opened` transition (§4). A
   **successor** leg supplies `priorRecordRefs`, one entry per prior leg in order, each
   verified by replay (§10.1); a **first** leg supplies none. A recovery record supplies
   `supersedes` — the verified terminal-predecessor reference (**[PROVEN]**, §2). A policy-declaring profile (§10.3) binds
@@ -578,6 +587,18 @@ and the sweep — §12).
   (declaring-without and non-declaring-with both throw). It enforces **exclusivity**: if a
   non-terminal record already exists for the `(profile, subject)`, `open` refuses
   `record-exists` rather than opening a second one (§12).
+  `proposed { stagedRef }` **[DESIGNED]** — the provenance option (§2): the library
+  resolves the reference through the store exactly as it consumes its own `stagedRef` —
+  an unresolvable reference THROWS (the unknown-`stagedRef` posture; §8's caller-error
+  class) — requires the resolved draft to name the SAME `(profileId, subjectRef, legId)`
+  as the opened draft (any mismatch THROWS naming both triples: a cross-triple proposal
+  is host wiring error, not a domain outcome), and binds the resolved draft's
+  `contentDigest` into the genesis as `proposedDigest`, present-iff-supplied. Passing
+  the opened draft's own reference is legal and meaningful: it records unchanged
+  acceptance. Nothing gates on the binding at any seam; correction analysis over
+  proposed-vs-decided digests sits under §13's aggregate-only posture. On a signing
+  profile the binding is signature-covered from genesis; at AL1 it carries AL1's
+  ordinary insider bounds.
 - **`review(recordId)`** — **operator-only.** Returns the record's audit metadata and content
   **digest** (a `ReviewView`) — never the content body; rendering the content stays the
   host's, recomputed from content it holds (§3). It is a pure read; it changes no state. On a

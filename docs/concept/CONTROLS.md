@@ -45,6 +45,7 @@ are **out of scope by design**: the operator is the records' sole consumer (`CON
 | Findings & acknowledgments | `ackMode` + `requiredAcks` (per leg, both-or-neither) | Review-time findings with digest coverage; named-magnitude acks; `ack-missing`/`ack-stale` gate | PROVEN | Coverage of raised findings; does not require findings to exist; records non-counting acks faithfully |
 | Live capture + `reverify` | `captureMode: 'live'` | Decide-what-exists; independent re-derivation gated as a required consultation; redemption-time re-verify | PROVEN | No pre-decision immutability — catches change at the decision |
 | Recovery (`supersedes`) | `supersedes` supplied at the recovering record's `open()` (an open-time option, never a profile field) | Verify-by-replay link from a fresh record to a terminal predecessor | PROVEN | Recovery linkage evidence; open flow details enumerated (`OPEN-QUESTIONS.md` §3) |
+| Proposal provenance | `proposed` (open-time option) | §9's resolved same-triple staged reference bound as `proposedDigest` at genesis; record-only | DESIGNED | Proves the draft existed and whether the decision changed it — never who authored it, nor that the change was sound |
 | Consultation freshness | `freshness` (per leg) | Staleness gate over consultation age | PROVEN (AL2-dependent) | Unfireable at AL1 (recording-time stamps); meaningful only with authority timestamps |
 | AL2 detached signing | operator enablement (granularity decided on record — `OPEN-QUESTIONS.md` §1) | Signatures over canonical transitions + consultations | PROVEN | Closes the recompute + head-edit residuals **when the key is outside the insider boundary** |
 
@@ -88,6 +89,7 @@ The controls are generic governance controls; industries are examples, not the s
 | Reviewed-surface / `facts` *(KERNEL)* | dynamic-linking of amount/payee | "sign what the chart showed" | record of what was decided on | offer terms as shown |
 | Recorded refusals *(KERNEL)* | declined trade / payment | declined order / escalation | denied benefit / permit | rejected requisition |
 | Recorded human decline *(GOVERNED)* | rejected trade ticket | declined order with reason | denied application by named reviewer | rejected requisition with rework note |
+| Proposal provenance *(GOVERNED)* | trader-adjusted model order | clinician-revised dosage draft | caseworker-corrected benefit calculation | buyer-amended requisition |
 
 Reviewed-surface binding is the tell that the model was always domain-agnostic: payment-
 services dynamic linking is just the finance instance of the general "bind what the human
