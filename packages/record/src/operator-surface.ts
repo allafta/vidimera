@@ -1,13 +1,15 @@
 // @vidimera/record — operator-surface.ts: the OPERATOR (host/human-only)
-// handle (SPEC §9's four-call split, now joined by `seal`, the token shape's
+// handle (SPEC §9's four-call split, now joined by `decline`, `seal`, the token shape's
 // `beginRedemption`/`completeRedemption`, and the findings seams
-// `raiseFinding`/`acknowledge` — this handle carries `open`/`review`/`finalize`/
+// `raiseFinding`/`acknowledge` — this handle carries `open`/`review`/`finalize`/`decline`/
 // `raiseFinding`/`acknowledge`/`redeem`/`beginRedemption`/`completeRedemption`/`seal`,
 // plus the `replay`/`verifyChain` `recordId` audit wrappers and the four reads). Like
 // agent-surface.ts, this file's job is the CAPABILITY SPLIT — select the
 // operator-reachable subset of the shared kernel closures (assembled in `create.ts`) and
 // FREEZE it. Every transitioning closure delegates to a real `kernel/*.ts` behavior
-// (`redeem` to `kernel/redeem.ts`, the DIRECT-shape redemption seam — SPEC §11.2: a
+// (`decline` to `kernel/decline.ts`, SPEC §9's `open → declined` seam (the
+// recorded-human-decline increment) — finalize's ladder with the evidence rungs absent,
+// never on the agent surface; `redeem` to `kernel/redeem.ts`, the DIRECT-shape redemption seam — SPEC §11.2: a
 // confirmed effect-seam record's final leg is coupled to its effect via
 // `confirmed → redeemed { via: 'direct' }`, `unredeemable-state` on every profile/state
 // that has no redeemable seam; `beginRedemption`/`completeRedemption`, also

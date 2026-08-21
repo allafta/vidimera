@@ -7,8 +7,12 @@
 //
 // The "shared kernel closures" all live here so the capability split
 // (agent-surface.ts / operator-surface.ts) stays a pure select-and-freeze. Every
-// record-transitioning closure (`stage`/`open`/`review`/`finalize`/`redeem`/`raiseFinding`/
-// `acknowledge`/`seal`) calls into `kernel/*.ts` — `redeem` delegates to `kernel/redeem.ts`,
+// record-transitioning closure (`stage`/`open`/`review`/`finalize`/`decline`/`redeem`/
+// `raiseFinding`/`acknowledge`/`seal`) calls into `kernel/*.ts` — `decline` delegates to
+// `kernel/decline.ts`, SPEC §9's operator-only `open → declined` seam (the
+// recorded-human-decline increment): finalize's ladder with the evidence rungs absent,
+// sharing `finalize()`'s own `sodViolated`/`refuseMaybeAppend`/`isValidFacts` helpers rather
+// than a drifting copy; `redeem` delegates to `kernel/redeem.ts`,
 // the DIRECT-shape redemption seam (SPEC §11.2): a confirmed effect-seam record's final leg
 // is coupled to its effect via `confirmed → redeemed { via: 'direct' }`, enlisted in the
 // caller's own transaction when one is passed through; `unredeemable-state` on every

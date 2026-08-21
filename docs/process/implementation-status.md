@@ -19,7 +19,11 @@ any one exit.
 - **The build order is complete.** All eight build-order steps
   (`docs/concept/SCOPING-GUIDE.md` §7) are exited; the last, step 8, settled at the
   self-test-tier increment's own fix wave, commit `84484ba`.
-- **Measured against the current tree**: `pnpm test` — 51 test files, 695 tests, zero skips
+- **A ninth increment, past the build order, has landed: recorded human decline** —
+  SPEC §9's `open → declined` seam, the human "no" with confirm's own evidentiary
+  treatment. See the dedicated section at the end of this document for the full account;
+  the numbers immediately below already include it.
+- **Measured against the current tree**: `pnpm test` — 52 test files, 723 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
   `pnpm lint` (`biome check .`) — 114 files checked, 13 infos, zero warnings or errors;
@@ -1169,3 +1173,146 @@ Full accounts: `docs/analysis/2026-08-03-step-1-review.md` (Class D and "Finding
 need a sealed `docs/concept/` decision"),
 `docs/superpowers/plans/2026-08-03-autonomous-step-1-completion.md`'s "Known-open,
 deliberately" list, and `docs/process/deferral-register.md`.
+
+---
+
+## Post-build-order increment — recorded human decline (SPEC §9's `decline` seam)
+
+**The first post-build-order promotion, exited.** The eight-step build order closed at the
+self-test-tier increment (commit `84484ba`; see the eight-of-eight boundary above). This
+increment is not a ninth build-order step — the build order's own scope is closed — it is a
+GOVERNED capability promoted afterward through `docs/concept/SCOPING-GUIDE.md` §§1–2's own
+tier-test and promotion-rule machinery, on a fresh sanction earned for exactly this case (the
+"disciplines that outlive the build order" `docs/process/next-phases.md` names). Design and
+promotion case:
+`docs/superpowers/specs/2026-08-20-recorded-human-decline-design.md`; plan:
+`docs/superpowers/plans/2026-08-21-recorded-human-decline.md`.
+
+**The gap this closes.** Before this increment a terminal "no" was evidence-free by
+construction: the `refused` payload is `{ code }` and nothing else, so on every refusal
+path the finalize identity, the failing consultation, and the checker who returned the fail
+verdict were all discarded. An approval bound actor + reviewed surface + consultations; a
+rejection bound a machine code. The nearest host workaround — a `terminalRefusals`-listed
+`consultation-failed` carrying a fail-verdict human-review consultation — ended the leg
+without recording who declined, what they saw, or why.
+
+**What landed.** A new operator-only seam, `decline(recordId, identity, content, facts,
+opts?)` (`kernel/decline.ts`), wired through `create.ts` and `operator-surface.ts` exactly
+like `finalize` — never on the agent surface. `TransitionKind` and `RecordState` both gain
+`declined` (`types.ts`); `stateOf('declined')` folds to `'declined'` in the no-default
+exhaustive switch (`store/semantics.ts`); `nonterminal.ts` returns `false` for it
+unconditionally — terminal under every leg/effect-seam combination, with no C3 carve-out
+(parity with `refused`/`expired`); `chain/replay.ts` folds `declined`'s `{ actor }` payload
+one-for-one with `confirmed`'s own projection; `kernel/supersedes.ts`'s terminal-predecessor
+check accepts a declined record. `LegSpec` gains `decline?: true` (`config.ts`) — the
+literal-`true`-guarded structural class (`validateDecline`), the same class `signing` uses,
+never a "not yet available" construction throw: this field carries no GOVERNED-guard history
+at all, because a non-declaring leg's `decline()` call throws at the SEAM instead (the
+findings-seams declaring-check posture), so the governed-guard count this document has
+tracked since the kernel increment is untouched by this increment, staying at zero.
+`config.ts` also gains `DeclineOptions` (consultations only, no `policy` member — an
+unknown-option-key throw covers one), exported from `index.ts` beside `FinalizeOptions`.
+`kernel/finalize.ts` exports three pieces so the new seam shares code rather than forking a
+copy: the `Facts` type, `refuseMaybeAppend`, and `isValidFacts` are now exported, and
+rung (3.5)'s separation-of-duties check is extracted into a new exported predicate,
+`sodViolated(record, leg, identity, recordId, seam)`, called identically from both
+`finalize()` and `decline()`. Zero new refusal codes — the registry stands at 24, the
+twenty-fourth still `consultation-stale` (`packages/record/src/refusal-codes.ts`); every
+decline refusal reuses an existing code (`chain-compromise`, `leg-expired`,
+`record-not-open`, `sod-violation`, `content-drift`, `consultation-missing`, `ineligible`,
+`consultation-stale`, `availability`). Zero encoding changes and zero Store-interface
+changes — the frozen eight methods and `chain/encoding.ts` are untouched, and
+`byte-stability.test.ts`'s pinned minimal chain (which declares no `decline` leg) stays
+green, asserted rather than edited. Tests: 25 in `packages/record/test/decline.test.ts` plus
+one new store-conformance scenario (`test/conformance/store-conformance.ts`, run across all
+three backings — memory, embedded-SQL, and `@vidimera/store-postgres` — via the existing
+one-caller-file wiring) pinning C3 blocking a state-leaving append against a declined
+record, the compromise carve-out excluding `declined` the way it already excludes
+`refused`/`expired`, and C1 releasing the `(profile, subject)` pair so a fresh genesis
+succeeds. The guide moved with the surface in the same increment:
+`docs/guide/api-reference.md` and `docs/guide/integrating.md` both gain `decline` entries,
+kept green by `pnpm api-sync`.
+
+**The ruling set** (taken at the design brainstorm, recorded so a later increment does not
+re-litigate them):
+
+- **Payload is `{ actor }`** — the mirror of `confirmed`'s own payload, and nothing else.
+  Reasons and return/escalate intent are NOT payload fields: they ride as ordinary
+  consultations in the decline's own success batch (e.g. a host `decline-reason` kind —
+  digest-only custody, open vocabulary, at most one per kind per call). No taxonomy enters
+  the sealed set.
+- **The gate ladder: authority rungs gate both verdicts, evidence rungs gate only confirm.**
+  Keeping `finalize()`'s own rung numbering with the evidence rungs absent: **(1)**
+  chain-verify (AL2's `signatureLayerHolds` folded in exactly as `finalize()` folds it);
+  **(2)** state/expiry (a due-open record resolves `expired` first and refuses
+  `leg-expired`; a non-open record refuses `record-not-open`); **(3)** identity +
+  `allowedAuthorities`; **(3.5)** separation of duties (`sod.notActorOf` AND the proposer
+  rule — "deciding includes declining", so a proposer cannot decline their own leg any more
+  than confirm it); **(4)** content-drift (re-canonicalize and re-digest the supplied
+  content against the bound `contentDigest` — the decline is about THIS content or it does
+  not land); **(4.5) does not run** — no `opts.policy` member exists on the seam's options
+  bag at all, an unknown-option-key throw if one is supplied; **(5)** facts binding (no
+  fresh reviewed-surface digest refuses `consultation-missing` — the decline binds what the
+  decider saw when they said no); **(5.5) eligibility ONLY**, with its existing trip mapping
+  (`fail` → `ineligible`, missing → `consultation-missing`, unreachable → the availability
+  outcome) and its AL2 `freshness` bound (`consultation-stale` — stale authority is
+  authority not established); declared `requiredConsultations` are NOT iterated, and rung
+  (5.7)'s ack-coverage gate does not run. **(6)** the success batch,
+  `[chain-verify, facts, …obtained consultations, declined]`, one atomic append exactly
+  like confirm's own. The skipped rungs are deliberate: "a 'no' must never be blockable by a
+  missing or dead evidence source" — required-consultation gating, evidence-kind freshness,
+  and findings-ack coverage all gate only the affirmative path.
+- **No `opts.policy` on decline; rung (4.5) does not run.** The policy gate exists to
+  prevent approving under stale rules; a decline disposes the record either way, and
+  demanding a live policy attestation to say no would recreate the undeclinable-record trap
+  through the policy source instead. The bound `policyDigest` stays on the record as the
+  context the decline was made under — notarized at `open()`, untouched here.
+- **A separate seam, not a `finalize()` verdict flag.** `finalize()`'s pinned return shape
+  (`state: 'confirmed'`) is untouched; §9 gains one symmetric call instead. The ladder core
+  is shared internally (`sodViolated`/`refuseMaybeAppend`/`isValidFacts`), never forked.
+- **Name: `decline`.** `reject` collides with the store's own rejected-append vocabulary;
+  `refuse` collides with the `refused` state itself.
+
+**The four cuts, recorded per `docs/concept/CONCEPT.md` §7's anti-goal #4** ("cut in
+writing, never silently... what was cut, why, and how it could be recovered or re-derived"):
+
+- **DEFER as a verb — cut.** Deferral is already the `open` state plus `expiry`; the host's
+  own workflow layer waits. Recovery path: none needed — the chain already shows the wait.
+- **RETURN / MODIFY / ESCALATE as verbs — cut.** Each is `decline` plus a reason
+  consultation plus a `supersedes` re-open (any-profile re-open covers escalation by
+  design). Recovery path: if real hosts prove the recipes insufficient, a disposition field
+  on the payload is the revisit point — considered and declined at this design's own
+  brainstorm, not foreclosed.
+- **Proposer withdrawal — cut.** The proposer rule gates `decline` identically to
+  `finalize` ("deciding includes declining"), so a proposer cannot decline their own leg;
+  withdrawal stays a host-modeled flow outside the library. Recovery path: a distinct future
+  verb with its own promotion case, if a real host needs it.
+- **Decline-reason as a payload field — cut**, in favor of the consultation vehicle above.
+  Recovery path: the payload can gain an optional digest field later without moving any
+  existing chain (present-iff-present), should the consultation vehicle prove wrong.
+
+**The sanction's grant record.** Granted by the maintainer 2026-08-21, in-session
+("approved", in response to the direct question), for exactly the design doc's §8 scope —
+Tasks 1 and 10 of the increment's plan licensed to touch `docs/concept/`, and only for the
+sites §8 there names. Task 1 landed the sanctioned sealed-set text as `[DESIGNED]` (SPEC §2
+×2 sites, §4's payload row, §9's seam bullet, §9.1's profile-field row, §10.1's SoD
+sentence; CONTROLS.md §3's GOVERNED row and §5's domain-instance row; a GLOSSARY.md entry).
+This increment's own exit (its Task 10) is the marker-move step spec-moves-to-truth
+requires: all eight `[DESIGNED]`/`DESIGNED` tokens Task 1 introduced move to
+`[PROVEN]`/`PROVEN`, in the same commit as this record, and `docs/concept/` re-seals
+immediately after. **Two further sentences move under the SAME grant, by a recorded
+controller ruling taken during Task 1's own review** (`.superpowers/sdd/2026-08-21-recorded-human-decline/progress.md`):
+SPEC §5's chain-admission sentence and §8's `unredeemable-state` registry entry both
+enumerated `open`/`refused`/`expired` — current seam behavior at the time they were
+written — without `declined`; the ruling held that these enumerations must be true when the
+behavior they describe lands, and leaving them false at this exit would be the worse
+sealed-set violation, so both gain `declined` at this same commit, spliced minimally, no
+draft-ahead marker involved (they carried none to begin with — they are stated as current
+fact, now made current fact again).
+
+**Gate outputs, as measured against this increment's own exit commit**: `./node_modules/.bin/vitest run`
+— 52 test files, 723 tests, zero skips; `tsc -p packages/record --noEmit` and
+`tsc -p packages/store-postgres --noEmit` — both clean; `./node_modules/.bin/biome check .`
+— 116 files checked, zero errors or warnings; `node scripts/contract-scan.mjs` — exit 0, no
+output; `node scripts/api-reference-sync.mjs` — exit 0. `docs/process/deferral-register.md`
+carries no row for this increment and none moved — verified, not merely assumed.

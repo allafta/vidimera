@@ -151,7 +151,7 @@ Consultations carrying the automated checker's identity (§11.1). The final leg 
 is therefore always a human's.
 
 **States and terminality.** `open` is the only pre-decision state. `refused`, `expired`, and
-`declined` **[DESIGNED]** are terminal. **Whether a final-leg `confirmed` is terminal depends
+`declined` **[PROVEN]** are terminal. **Whether a final-leg `confirmed` is terminal depends
 on the profile** — the derivation the library reads throughout:
 
 - On a **pure-capture profile** (no effect seam declared, §9.1), a final-leg `confirmed` is
@@ -162,7 +162,7 @@ on the profile** — the derivation the library reads throughout:
 
 A `confirmed` on a *non-final* leg is terminal for that leg but admits the next leg (§10.1).
 `declined` — the recorded human decline (§9's `decline`) — is terminal under every
-leg/effect-seam combination. **[DESIGNED]**
+leg/effect-seam combination. **[PROVEN]**
 
 ### 2.1 Worked example (single-leg confirm)
 
@@ -324,7 +324,7 @@ except `opened`, which snapshots the record's immutable header.
 | `consultation-recorded` | the Consultation object (§2), including the always-present `facts` binding | delta |
 | `confirmed` | `{ actor }` — the deciding IdentityAssertion (§6) | delta |
 | `refused` | `{ code }` — a §8 registry code; class derivable from the registry | delta |
-| `declined` | `{ actor }` — the deciding IdentityAssertion (§6); the recorded human decline (§9) **[DESIGNED]** | delta |
+| `declined` | `{ actor }` — the deciding IdentityAssertion (§6); the recorded human decline (§9) **[PROVEN]** | delta |
 | `expired` | `{ bound }` — the elapsed deadline timestamp; the transitioned-from state, not the payload, distinguishes the `expiry` clause from `confirmToRedeem` | delta |
 | `sealed` | `{ chainHead }` — end-of-life metadata (§5) | delta |
 | `finding-raised` / `acknowledged` | the Finding / Ack object (profile-conditional, §10.2) **[PROVEN]** | delta |
@@ -421,7 +421,7 @@ the upgrade that makes the compromise-refusal independently trustworthy. The edg
 where the current state allows a state-leaving append — `open → refused` and
 `redeeming → refused` directly (both are non-terminal states), and `confirmed → refused`
 through §12's compromise carve-out where that `confirmed` is terminal (§2), directly
-otherwise; against a record already at a terminal `expired` or `refused` state —
+otherwise; against a record already at a terminal `expired`, `refused`, or `declined` state —
 or a `sealed` (retired) record, whose chain admits no further append — no edge is admitted,
 and the compromise is surfaced result-first with no transition reference.
 
@@ -505,7 +505,7 @@ across process boundaries. Each outcome is classed:
 | `consultation-missing` | no fresh reviewed-surface (`facts`) evidence at finalize, or a profile-required consultation kind absent from the finalize inputs (§3, §9, §11.1) |
 | `chain-compromise` (class `compromise`) | chain verification failed (§5) |
 | `unknown-profile` / `unknown-leg` | unknown identifiers fail closed and never append; `unknown-leg` has two producers — a caller-named leg absent from the profile at `stage()`, and a staged draft's leg absent from the profile it resolves under at `open()` |
-| `unredeemable-state` | `redeem()` where no redeemable seam or state applies — the domain outcome on a pure-capture profile for an intact-chain, known-profile, valid-leg call; on an effect-seam profile, a `redeem()` against a non-final leg's record in any state, or on the final leg against an `open`, `refused`, or `expired` record; never appends (§11.2) |
+| `unredeemable-state` | `redeem()` where no redeemable seam or state applies — the domain outcome on a pure-capture profile for an intact-chain, known-profile, valid-leg call; on an effect-seam profile, a `redeem()` against a non-final leg's record in any state, or on the final leg against an `open`, `refused`, `expired`, or `declined` record; never appends (§11.2) |
 | `unsealable-state` | `seal()` against a record that is not derived-terminal or is already sealed; also a racing-seal residual conflict; never appends (§5, §13) |
 
 `consultation-missing` is in the core registry because the reviewed-surface (`facts`) binding
@@ -595,7 +595,7 @@ and the sweep — §12).
   `opts.policy` field — the current live-source digest, or an `{ unreachable, authority }`
   marker — drives the policy-drift gate (§10.3); a non-declaring profile must not supply
   `opts.policy`, which throws.
-- **`decline(recordId, identity, content, facts, opts?)` [DESIGNED]** — the operator-only
+- **`decline(recordId, identity, content, facts, opts?)` [PROVEN]** — the operator-only
   `open → declined` seam: the recorded human "no", with the same evidentiary treatment as
   confirm. It runs finalize's ladder with the evidence rungs absent — chain-verify,
   state/expiry, identity + `allowedAuthorities`, separation of duties, content-drift, the
@@ -667,7 +667,7 @@ a one-line applicability note, not through a separate tier system.
 | `sod.notActorOf`, `proposer` | Per-leg separation-of-duties controls (§10.1) |
 | `ackMode`, `requiredAcks` | Per-leg findings-flow controls (§10.2) **[PROVEN]** — declared both-or-neither |
 | `eligibility` | Per-leg opaque authority-to-decide reference; declaring it makes an implicit-first required `eligibility` consultation whose `fail` verdict gates finalize (`ineligible`) (§10.4) |
-| `decline` | Per-leg literal `true` switching on §9's `decline` seam **[DESIGNED]**; declaring anything other than the literal `true` is a construction error (the `signing` rule's class) |
+| `decline` | Per-leg literal `true` switching on §9's `decline` seam **[PROVEN]**; declaring anything other than the literal `true` is a construction error (the `signing` rule's class) |
 | `allowedAuthorities` | Per-leg identity authorities that may vouch for a leg's actor (§6) |
 | `terminalRefusals` | Per-leg list of refusal codes the profile marks **terminal** for that leg — a matching `refusal`-classed code (§8) ends the leg instead of leaving the record `open` for retry |
 
@@ -746,7 +746,7 @@ their `legId`, so a later profile edit that reorders or renames legs cannot sile
 an already-opened record's evidence. A leg declaring a `proposer` refuses `sod-violation` when
 the finalizing principal equals that proposer: **the designated proposer may not decide their
 own leg.** Both SoD rules gate `decline` (§9) identically — deciding includes declining; a
-proposer therefore cannot withdraw their own draft through this seam. **[DESIGNED]** Both
+proposer therefore cannot withdraw their own draft through this seam. **[PROVEN]** Both
 controls raise the single `sod-violation` code and are `refusal`-class — a
 leg's `terminalRefusals` may mark it terminal, but by default the record stays `open` so a
 **different** approver may decide it.
