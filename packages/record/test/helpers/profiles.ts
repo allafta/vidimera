@@ -52,6 +52,8 @@ interface ProfileOverrides {
   redeem?: ConfirmProfile['redeem'];
   /** SPEC §9.1's per-leg decline switch — the recorded-human-decline increment's own override point. */
   decline?: true;
+  /** SPEC §10.4's per-leg eligibility label — the recorded-human-decline increment's override point. */
+  eligibility?: string;
 }
 
 function resolveExpiry(o: ProfileOverrides): { ttl: number } | 'none' {
@@ -68,6 +70,7 @@ function buildLeg(o: ProfileOverrides): LegSpec {
   if (o.terminalRefusals !== undefined) leg.terminalRefusals = o.terminalRefusals;
   if (o.requiredConsultations !== undefined) leg.requiredConsultations = o.requiredConsultations;
   if (o.decline === true) leg.decline = true;
+  if (o.eligibility !== undefined) leg.eligibility = o.eligibility;
   return leg;
 }
 

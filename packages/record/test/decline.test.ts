@@ -5,7 +5,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
-import { create } from '../src/create.js';
+import type { LegSpec } from '../src/config.js';
+import { create, createWithClock } from '../src/create.js';
 import { isStateLeaving, stateOf } from '../src/store/semantics.js';
 import {
   captureProfile,
@@ -99,4 +100,163 @@ test('decline: unknown recordId throws — caller error, never a refusal', async
     () => handles.operator.decline('rec_none', identity(), CONTENT, facts()),
     /unknown recordId/,
   );
+});
+
+test('decline rung (2): a due-open record resolves expired and refuses leg-expired', async () => {
+  const profile = captureProfile({ decline: true, ttl: 60 });
+  let nowMs = Date.parse('2026-08-21T00:00:00Z');
+  const handles = createWithClock(makeConfig([profile]), () => new Date(nowMs));
+  const recordId = await openRecord(handles, CONTENT, profile.id, DEFAULT_SUBJECT_REF);
+  nowMs += 120_000; // past the 60s ttl
+  const res = await handles.operator.decline(recordId, identity(), CONTENT, facts());
+  assert.equal(res.status, 'refused');
+  assert.equal(res.status === 'refused' && res.code, 'leg-expired');
+  const record = await handles.operator.getRecord(recordId);
+  assert.equal(record?.state, 'expired'); // the en-passant edge landed
+});
+
+test('decline rung (2): a decided record refuses record-not-open', async () => {
+  const { handles, recordId } = await declinable();
+  const confirmed = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(confirmed.status, 'ok');
+  const res = await handles.operator.decline(recordId, identity(), CONTENT, facts());
+  assert.equal(res.status, 'refused');
+  assert.equal(res.status === 'refused' && res.code, 'record-not-open');
+});
+
+test('decline rung (3): a disallowed authority refuses identity-authority-refused', async () => {
+  const { handles, recordId } = await declinable();
+  const res = await handles.operator.decline(
+    recordId,
+    identity({ authority: 'session:other-app' }),
+    CONTENT,
+    facts(),
+  );
+  assert.equal(res.status, 'refused');
+  assert.equal(res.status === 'refused' && res.code, 'identity-authority-refused');
+});
+
+test('decline rung (3.5): the proposer may not decline their own leg', async () => {
+  const profile = captureProfile({ decline: true });
+  // `proposer` is construction-scoped to multi-leg profiles (config.ts's validateSodShape:
+  // "SPEC §10.1 applies when the profile declares more than one leg" — a deliberate,
+  // conservative reading pinned by construction-validation.test.ts's "proposer on a
+  // SINGLE-LEG profile throws" test). The leg under test stays first (no prior-leg refs
+  // needed to open it); a second leg is added only to satisfy that construction guard.
+  profile.legs = [
+    { ...profile.legs[0], proposer: 'agent:writer' } as LegSpec,
+    { id: 'checker-decide', allowedAuthorities: ['session:test-app'] },
+  ];
+  const handles = create(makeConfig([profile]));
+  const recordId = await openRecord(handles, CONTENT, profile.id, DEFAULT_SUBJECT_REF);
+  const res = await handles.operator.decline(
+    recordId,
+    identity({ principal: 'agent:writer' }),
+    CONTENT,
+    facts(),
+  );
+  assert.equal(res.status, 'refused');
+  assert.equal(res.status === 'refused' && res.code, 'sod-violation');
+});
+
+test('decline rung (4): content drift refuses open-by-default, terminal when listed', async () => {
+  const { handles, recordId } = await declinable();
+  const drifted = await handles.operator.decline(recordId, identity(), { amount: 41 }, facts());
+  assert.equal(drifted.status, 'refused');
+  assert.equal(drifted.status === 'refused' && drifted.code, 'content-drift');
+  const stillOpen = await handles.operator.getRecord(recordId);
+  assert.equal(stillOpen?.state, 'open'); // no append by default
+
+  const terminal = await declinable({ terminalRefusals: ['content-drift'] });
+  const drifted2 = await terminal.handles.operator.decline(
+    terminal.recordId,
+    identity(),
+    { amount: 41 },
+    facts(),
+  );
+  assert.equal(drifted2.status, 'refused');
+  const after = await terminal.handles.operator.getRecord(terminal.recordId);
+  assert.equal(after?.state, 'refused'); // the appendsOn rule, unchanged
+});
+
+test('decline rung (5): missing facts refuses consultation-missing', async () => {
+  const { handles, recordId } = await declinable();
+  const res = await handles.operator.decline(recordId, identity(), CONTENT, {
+    figures: undefined,
+    checker: facts().checker,
+  } as never);
+  assert.equal(res.status, 'refused');
+  assert.equal(res.status === 'refused' && res.code, 'consultation-missing');
+});
+
+test('decline ladder order: each rung wins over the one after it (adjacent pairs)', async () => {
+  {
+    // (3) identity beats (3.5) SoD: disallowed authority AND proposer-violating principal
+    const profile = captureProfile({ decline: true });
+    // Two legs, same construction-scoping reason as above — the leg under test stays first.
+    profile.legs = [
+      { ...profile.legs[0], proposer: 'agent:writer' } as LegSpec,
+      { id: 'checker-decide', allowedAuthorities: ['session:test-app'] },
+    ];
+    const handles = create(makeConfig([profile]));
+    const recordId = await openRecord(handles, CONTENT, profile.id, DEFAULT_SUBJECT_REF);
+    const res = await handles.operator.decline(
+      recordId,
+      { principal: 'agent:writer', authority: 'session:other-app' },
+      CONTENT,
+      facts(),
+    );
+    assert.equal(res.status === 'refused' && res.code, 'identity-authority-refused');
+  }
+  {
+    // (3.5) SoD beats (4) drift: proposer-violating principal AND drifted content
+    const profile = captureProfile({ decline: true });
+    // Two legs, same construction-scoping reason as above — the leg under test stays first.
+    profile.legs = [
+      { ...profile.legs[0], proposer: 'agent:writer' } as LegSpec,
+      { id: 'checker-decide', allowedAuthorities: ['session:test-app'] },
+    ];
+    const handles = create(makeConfig([profile]));
+    const recordId = await openRecord(handles, CONTENT, profile.id, DEFAULT_SUBJECT_REF);
+    const res = await handles.operator.decline(
+      recordId,
+      identity({ principal: 'agent:writer' }),
+      { amount: 41 },
+      facts(),
+    );
+    assert.equal(res.status === 'refused' && res.code, 'sod-violation');
+  }
+  {
+    // (4) drift beats (5) facts: drifted content AND missing facts
+    const { handles, recordId } = await declinable();
+    const res = await handles.operator.decline(recordId, identity(), { amount: 41 }, {
+      figures: undefined,
+      checker: facts().checker,
+    } as never);
+    assert.equal(res.status === 'refused' && res.code, 'content-drift');
+  }
+  {
+    // (5) facts beats (5.5) eligibility: missing facts AND missing eligibility input
+    const { handles, recordId } = await declinable({ eligibility: 'hr.decliner-check' });
+    const res = await handles.operator.decline(recordId, identity(), CONTENT, {
+      figures: undefined,
+      checker: facts().checker,
+    } as never);
+    assert.equal(res.status === 'refused' && res.code, 'consultation-missing');
+    // Distinguishable from eligibility's own consultation-missing only by the rung — this
+    // pair pins that a facts-less call refuses at (5) BEFORE (5.5) is consulted: supply the
+    // eligibility consultation and the SAME facts-less call still refuses consultation-missing.
+    const res2 = await handles.operator.decline(
+      recordId,
+      identity(),
+      CONTENT,
+      { figures: undefined, checker: facts().checker } as never,
+      {
+        consultations: [
+          { kind: 'eligibility', checker: CHECKER, payloadDigest: DIGEST, verdict: 'pass' },
+        ],
+      },
+    );
+    assert.equal(res2.status === 'refused' && res2.code, 'consultation-missing');
+  }
 });
