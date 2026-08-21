@@ -1717,3 +1717,17 @@ finding is recorded here rather than fixed: closing it needs a fresh, explicit s
 through `docs/concept/SCOPING-GUIDE.md` §§1-2's own tier-test and promotion-rule
 machinery, naming §2's conditional-fields sentence and field table as the sites to
 touch — never assumed from this or any past grant.
+
+**CLOSED 2026-08-21 — release-readiness increment, Task 3 (the sanctioned enumeration
+closures).** The fresh, explicit sanction this finding named as its own precondition was
+granted the same day, in-session ("All three tasks, sanction granted"), naming this exact
+site among exactly two. `docs/concept/SPEC.md` §2's field table now carries a
+`resultDigest` row, and its conditional-fields sentence gains a third, minimal clause
+distinguishing this field from both categories already named there: `resultDigest` is
+present only when BOTH hold — the profile declares `redeem.result` (§9.1) AND the
+redemption call that closed the record supplied a result digest (`kernel/redeem.ts`'s
+admission gate) — never on either alone, unlike the profile-conditional fields (profile
+switch only) or the flow-conditional fields (`open()` option only, no profile field
+involved). No maturity marker moved: the field was already `[PROVEN]` at §11.2 before this
+fix, so this closure adds no entry to the marker-move lineage CLAUDE.md and this
+document's own step-7/step-8 accounts track.

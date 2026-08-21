@@ -122,6 +122,7 @@ acknowledgments, prior-leg evidence, consultation results) only in process memor
 | `state` | enum | `open`, `confirmed`, `refused`, `expired`, `declined`, and — on effect-seam profiles — `redeeming`, `redeemed`, `redemption-failed` |
 | `status` | enum | Per-record report: `active`, or `retired` once sealed (§5, §12, §13) — distinct from `state`, which the seal preserves |
 | `refusalCode` | string or absent | Registry code (§8) when the state is a refusal, or `redemption-timeout` on a `redemption-failed` record (§11.2) |
+| `resultDigest` | digest or absent | The host's claimed outcome digest, bound at redemption when the profile declares `redeem.result` and the closing redemption call supplied one (§11.2) |
 | *(chain)* | — | Every state-bearing change is a chained transition (§4) |
 
 **Profile-conditional fields** (present only when the profile switches the feature on):
@@ -130,7 +131,10 @@ acknowledgments, prior-leg evidence, consultation results) only in process memor
 fields:** `supersedes` (recovery of a terminal predecessor, below) **[PROVEN]** and
 `proposedDigest` (provenance, below) **[PROVEN]** — each present only when the corresponding
 `open()` option was supplied; no profile field declares either, and §9.1's table carries
-neither.
+neither. **Doubly-conditional field:** `resultDigest` (result notarization, §11.2) is
+present only when both hold — the profile declares `redeem.result` (§9.1) and the
+redemption call that closed the record supplied a result digest; the profile field admits
+the possibility, the call binds the value.
 
 **Recovery (`supersedes`) [PROVEN].** `supersedes` names the terminal predecessor record (a
 `refused`, `expired`, or `declined` record, or an earlier superseded attempt) that a fresh
@@ -1251,10 +1255,12 @@ of identified humans, in a tamper-evident chain.
   unopenable; a successor already opened is unaffected.
 - **Purpose limitation (surveillance-data guard).** Records evidence *decisions*. Their
   timestamps also make reviewer performance analysis — approval latency, refusal rates per
-  named person — technically trivial, and that is **surveillance data**: it carries its own
-  legal regime and is out of the library's purpose. Defensible use is **aggregate
-  control-assurance, never per-named-reviewer scoring**. Hosts are warned not to repurpose
-  the record as an employee monitor.
+  named person — technically trivial, and comparing a record's `proposedDigest` against its
+  `contentDigest` (§2, §9) makes a per-named-reviewer correction rate — how often that human
+  changed the agent's proposed draft — equally trivial; all of it is **surveillance data**: it
+  carries its own legal regime and is out of the library's purpose. Defensible use is
+  **aggregate control-assurance, never per-named-reviewer scoring**. Hosts are warned not to
+  repurpose the record as an employee monitor.
 - **Scope disclaimer.** As stated up front (§0), a record is not a legal conformity assessment
   and asserts nothing about any human's competence, attention, or independence.
 
