@@ -104,9 +104,11 @@ interface RefusedPayload {
  *  - Every `TransitionKind` is emitted by this build's kernel: opened, consultation-recorded,
  *    confirmed, refused, expired, sealed, redeemed, redeeming (since the second step-3
  *    increment's `beginRedemption`), redemption-failed (since the third step-3 increment's
- *    clock resolution), and finding-raised/acknowledged (since the second step-7
+ *    clock resolution), finding-raised/acknowledged (since the second step-7
  *    increment's `kernel/findings-seams.ts` — `raiseFinding`/`acknowledge` — folded as of
- *    the first step-7 increment above, minted by a seam as of the second). `replay` still
+ *    the first step-7 increment above, minted by a seam as of the second), and declined
+ *    (SPEC §9's decline seam, produced by `kernel/decline.ts` at the
+ *    recorded-human-decline increment). `replay` still
  *    THROWS on any genuinely unhandled kind rather than silently ignoring it, matching the
  *    codebase's fail-closed posture (an unhandled kind reaching this fold is either a
  *    not-yet-wired future capability or chain corruption; both should be loud, not

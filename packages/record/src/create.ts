@@ -33,6 +33,7 @@ import {
   validateProfile,
 } from './config.js';
 import { mintRecordId } from './id.js';
+import { decline as declineKernel } from './kernel/decline.js';
 import { finalize as finalizeKernel } from './kernel/finalize.js';
 import {
   acknowledge as acknowledgeKernel,
@@ -120,6 +121,7 @@ export interface Kernel {
   open: OperatorSurface['open'];
   review: OperatorSurface['review'];
   finalize: OperatorSurface['finalize'];
+  decline: OperatorSurface['decline'];
   redeem: OperatorSurface['redeem'];
   beginRedemption: OperatorSurface['beginRedemption'];
   completeRedemption: OperatorSurface['completeRedemption'];
@@ -154,6 +156,11 @@ function makeKernel(ctx: KernelContext): Kernel {
     review: (recordId) => reviewKernel(ctx, recordId),
     finalize: (recordId, identity, content, facts, opts) =>
       finalizeKernel(ctx, recordId, identity, content, facts, opts),
+
+    // --- decline(): kernel/decline.ts — the recorded-human-decline increment's
+    // operator-only `open → declined` seam (SPEC §9) ---
+    decline: (recordId, identity, content, facts, opts) =>
+      declineKernel(ctx, recordId, identity, content, facts, opts),
 
     // --- redeem(): kernel/redeem.ts — the DIRECT-shape redemption seam (SPEC §11.2) ---
     redeem: (recordId, content, tx) => redeemKernel(ctx, recordId, content, tx),

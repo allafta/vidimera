@@ -32,7 +32,7 @@
 // `docs/process/implementation-status.md` and flagged to the pre-0.1 naming review.
 
 import type { ChainVerifyReport } from './chain/replay.js';
-import type { FinalizeOptions, OpenOptions } from './config.js';
+import type { DeclineOptions, FinalizeOptions, OpenOptions } from './config.js';
 import type { Kernel } from './create.js';
 import type { AckInput, FindingInput } from './kernel/findings-seams.js';
 import type { SignatureReport } from './kernel/verify-signatures.js';
@@ -52,6 +52,15 @@ export interface OperatorSurface {
     // (§10.3) is real as of the second step-6 increment (the presence contract + rung (4.5)).
     opts?: FinalizeOptions,
   ): Promise<Outcome<{ recordId: string; state: 'confirmed'; transitionRef: Digest }>>;
+  decline(
+    recordId: string,
+    identity: IdentityAssertion,
+    content: unknown,
+    facts: { figures: unknown; checker: IdentityAssertion },
+    // SPEC §9's decline seam (the recorded-human-decline increment): consultations only —
+    // reasons ride §11.1's attach form; the seam takes no policy input by design.
+    opts?: DeclineOptions,
+  ): Promise<Outcome<{ recordId: string; state: 'declined'; transitionRef: Digest }>>;
   raiseFinding(
     recordId: string,
     finding: FindingInput, // SPEC §10.2: { findingId, kind, findingDigest, magnitude? }
@@ -114,6 +123,7 @@ export function makeOperatorSurface(kernel: Kernel): OperatorSurface {
     open: kernel.open,
     review: kernel.review,
     finalize: kernel.finalize,
+    decline: kernel.decline,
     raiseFinding: kernel.raiseFinding,
     acknowledge: kernel.acknowledge,
     redeem: kernel.redeem,

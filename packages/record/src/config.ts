@@ -704,3 +704,10 @@ export interface FinalizeOptions {
    * one (the presence contract; `kernel/finalize.ts`). */
   policy?: PolicyInput;
 }
+
+// SPEC §9's decline seam: consultations only — no policy member, by design (this increment).
+export interface DeclineOptions {
+  /** SPEC §11.1: the host's supplied consultations, attach-form — the same shape
+   * `FinalizeOptions.consultations` declares; the decline seam takes no policy input. */
+  consultations?: ConsultationInput[];
+}

@@ -151,8 +151,7 @@ export type TransitionKind =
 // sealed, redeemed, redeeming, redemption-failed (the third step-3 increment's clock
 // resolution), finding-raised, acknowledged (§10.2, the second step-7 increment's
 // `kernel/findings-seams.ts`) — every kind in the union above is a real producer now
-// 'declined' joins ahead of its producer — kernel/decline.ts lands later in this increment
-// (the nonterminal.ts ahead-of-producer precedent)
+// 'declined': produced by kernel/decline.ts (the recorded-human-decline increment)
 
 export interface Transition {
   recordId: string;
