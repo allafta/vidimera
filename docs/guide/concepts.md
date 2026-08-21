@@ -35,8 +35,8 @@ re-canonicalizes and re-digests it, and a mismatch is refused as `content-drift`
 
 - `agent` — what the drafting side may hold: `stage()` plus three pure reads
   (`getRecord`, `readChain`, `chainHead`). Nothing on this handle transitions a record.
-- `operator` — what the host/human side holds: `open`, `review`, `finalize`, the
-  redemption seams, `raiseFinding`/`acknowledge`, `seal`, the reads, and the audit
+- `operator` — what the host/human side holds: `open`, `review`, `finalize`, `decline`,
+  the redemption seams, `raiseFinding`/`acknowledge`, `seal`, the reads, and the audit
   functions.
 
 This is in-process object-capability discipline, not a sandbox: the agent handle simply
@@ -60,9 +60,11 @@ A `ConfirmProfile` declares, per kind of decision, what confirmation requires:
 
 Everything beyond the kernel is **feature-conditional on declared fields** — there is no
 separate tier system in the code. Declare more than one leg and separation of duties
-switches on; declare a `redeem` block and the effect seam switches on; declare
-`policySource`, `requiredConsultations`, `eligibility`, `freshness`, or `signing: true`
-and those controls attach. Declare nothing and you have the base confirm loop.
+switches on; declare a `redeem` block and the effect seam switches on, and `redeem.result`
+inside it admits the effect's outcome digest; declare `decline: true` on a leg and the
+human-decline seam switches on; declare `policySource`, `requiredConsultations`,
+`eligibility`, `freshness`, or `signing: true` and those controls attach. Declare nothing
+and you have the base confirm loop.
 
 **Construction is loud.** `create()` validates every profile fail-closed and throws on
 anything it cannot honor — a bad shape, an unresolvable canonicalizer reference, a
@@ -105,8 +107,8 @@ stage (agent)  →  open (operator)  →  review (operator, pure read)  →  fin
   actually rendered, attested by the review surface's own identity, so the record can
   later show not just *what* was approved but *what the approver saw*.
 
-Record states: `open`, `confirmed`, `refused`, `expired`, and — on effect-seam profiles —
-`redeeming`, `redeemed`, `redemption-failed`. Once a record is terminal, its chain can be
+Record states: `open`, `confirmed`, `refused`, `expired`, `declined`, and — on effect-seam
+profiles — `redeeming`, `redeemed`, `redemption-failed`. Once a record is terminal, its chain can be
 capped with a `sealed` transition (`seal()` refuses `unsealable-state` against anything
 still live), after which the record reports `status: 'retired'` and admits no further
 append.
@@ -202,6 +204,11 @@ The other governed controls, one line each — the catalog with tiers and honest
   afterward.
 - **Recovery** (`supersedes`, §2): a new record verifiably linked to the terminal
   predecessor it replaces.
+- **Proposal provenance** (`proposed`, §9/§2): the agent's original staged draft, resolved
+  at `open()` and bound as `proposedDigest`, so the record shows whether the decision
+  matched or changed what was proposed. Record-only — nothing gates on it; it proves the
+  draft existed for that same (profile, subject, leg), never who authored either draft nor
+  that the revision was sound.
 - **Live capture** (§9.2): decide-what-exists mode for content that cannot be staged
   inert, with mandatory re-derivation consultation and redemption tail.
 

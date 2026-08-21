@@ -8,7 +8,7 @@ yet. The package now builds (`pnpm build` → `dist/`), carries its `exports` ma
 smoke-tests the packed tarball in a scratch consumer on every run, but it stays
 `private: true` until the 0.1 cut (deferral register row 1 carries the release itself).
 Today you run it from source, inside this repository's workspace, which is exactly how its
-own 600-plus tests run. The code below was executed against this tree before being written
+own 750-plus tests run. The code below was executed against this tree before being written
 down.
 
 ## Setup
@@ -222,6 +222,6 @@ Both tests above pass against this tree, verbatim.
 ## Where next
 
 - The whole model in ten minutes: [`concepts.md`](concepts.md)
-- Real stores, real identity, the effect seam, signing, probes:
-  [`integrating.md`](integrating.md)
+- Real stores, real identity, the decline seam, proposal provenance, the effect seam and
+  result notarization, signing, probes: [`integrating.md`](integrating.md)
 - Every call and type: [`api-reference.md`](api-reference.md)

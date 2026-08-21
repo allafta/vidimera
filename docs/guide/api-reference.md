@@ -1,11 +1,13 @@
 # API reference
 
-**Derived from source, 2026-08-19.** This page enumerates the public surface as
+**Derived from source, 2026-08-21.** This page enumerates the public surface as
 `packages/record/src/index.ts` exports it against the current tree. The source and
 [`../concept/SPEC.md`](../concept/SPEC.md) are authoritative; if this page disagrees with
 either, this page is stale — file it as a bug. Two standing caveats: the pre-0.1 API
-review (deferral register row 6) completed 2026-08-19 — every name below is
-review-ratified (`docs/analysis/2026-08-19-phase-1-api-review.md`), the store contract's
+review (deferral register row 6) completed 2026-08-19 — every name below that predates it
+is review-ratified (`docs/analysis/2026-08-19-phase-1-api-review.md`), while `decline`/
+`DeclineOptions`, `open`'s `proposed`, `RedeemOptions` and `redeem.result` landed after that
+pass and are this build's own unreviewed names — the store contract's
 method signatures staying explicitly provisional pre-1.0 by the sealed set's own
 declaration; and the package builds to `dist/` behind a real `exports` map (`.` and
 `./probes`; CI packs and consumer-tests the tarball on every run) but stays `private: true`
@@ -279,14 +281,14 @@ the refusal actually appended a transition.
 | `leg-expired` | The record is expired, or a lapsed expiry window just resolved it en passant at the seam |
 | `consultation-missing` | Missing/malformed `facts`, or a required consultation absent |
 | `chain-compromise` | Chain verification failed — class **`compromise`**; records itself wherever the record's state still admits an append |
-| `record-not-open` | Finalize against a record not in `open` (never appends) |
+| `record-not-open` | Finalize or decline against a record not in `open` (never appends) |
 | `unknown-profile` / `unknown-leg` | Pre-record resolution failures (never append) |
 | `unredeemable-state` / `unsealable-state` | The seam's state gate: nothing redeemable/sealable there (never append) |
 | `effect-mismatch` | Redemption content differs from the confirmed content (never appends) |
 | `already-redeemed` | The at-most-once gate (never appends) |
 | `redemption-timeout` | A redeeming record's bound lapsed — the resolution edge is `redemption-failed`; this code itself never appends a refused edge |
 | `prior-leg-unverified` / `supersedes-unverified` | A multi-leg or recovery reference failed verification at `open` (pre-record, never append) |
-| `sod-violation` | The finalizer is a recorded prior-leg actor or the declared proposer |
+| `sod-violation` | The finalizing or declining actor is a recorded prior-leg actor or the declared proposer |
 | `consultation-failed` | A required consultation's verdict is `fail` |
 | `availability` | Class **`availability`** — a required authority unreachable; carried by the `unavailable` status, never a refused edge |
 | `ineligible` | The eligibility check refused this actor |
@@ -440,8 +442,9 @@ function stateOf(kind: TransitionKind): RecordState | null; // null = state-pres
 function isStateLeaving(kind: TransitionKind): boolean;     // C3's subject
 function isCompromiseCarveOut(transition: Transition,       // C3's second carve-out
                               expectedCurrentState: RecordState): boolean;
-interface GenesisPayload { profileId: string; subjectRef: string }  // what a genesis
-                                                            // append's payload carries
+interface GenesisPayload { profileId: string; subjectRef: string }  // the two genesis-payload
+                                                            // fields C1 exclusivity reads
+                                                            // (the payload itself carries more)
 ```
 
 `@vidimera/store-postgres` (this workspace's server-SQL backing) is the reference consumer

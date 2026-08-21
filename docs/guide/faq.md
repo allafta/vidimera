@@ -107,8 +107,10 @@ package is deliberately `private: true` and unpublished until the 0.1 cut (the b
 `exports` map, and a CI-exercised tarball smoke test exist; the release workflow is
 dispatch-only and unexercised — deferral-register row 1, the register's one live row); and
 the store contract's signatures are explicitly provisional pre-1.0, the concept set's own
-named 1.0 gate (open-questions §9). The pre-0.1 API review completed 2026-08-19 (names are
-review-ratified), and the server-SQL backing exists (`@vidimera/store-postgres`), so
+named 1.0 gate (open-questions §9). The pre-0.1 API review completed 2026-08-19 (every name
+that predates it is review-ratified; the post-review additions — `decline`, `proposed`,
+`RedeemOptions`, `redeem.result` — are not), and the server-SQL backing exists
+(`@vidimera/store-postgres`), so
 multi-process deployment has a supported store. "First external consumer" is literally
 row 1's trigger, so saying hello in an issue moves the register.
 

@@ -4,7 +4,9 @@ This page is for wiring the library into a real application. It assumes you have
 [`getting-started.md`](getting-started.md) and hold the model from
 [`concepts.md`](concepts.md). Every code shape below was executed against this tree before
 being written down. The pre-0.1 API review (deferral register row 6) completed 2026-08-19,
-so the names below are review-ratified; the store contract's method signatures stay
+so every name below that predates it is review-ratified — `decline`/`DeclineOptions`,
+`open`'s `proposed`, and `RedeemOptions`/`redeem.result` landed after that pass and are
+unreviewed by it; the store contract's method signatures stay
 explicitly provisional pre-1.0 by the sealed set's own declaration.
 
 ## The division of labor
@@ -318,7 +320,7 @@ const token = begun.value.token;
 // carries only its digest. Do NOT log it. Hand it to the executor out-of-band.
 
 // The executor presents it back to complete:
-const done = await operator.completeRedemption(recordId, token, begun-time-content);
+const done = await operator.completeRedemption(recordId, token, content); // the same content begun with
 ```
 
 The bounds: `confirmToRedeem` (seconds from confirm to redemption start) and `redeemBound`
@@ -533,7 +535,7 @@ operated in the probed configuration at probe time — nothing more.
 ## Privacy posture
 
 The store never holds reviewed content — only digests (`contentDigest`, consultation
-`payloadDigest`s, the `facts` figures digest, `proposedDigest`). That is a deliberate
+`payloadDigest`s, the `facts` figures digest, `proposedDigest`, `resultDigest`). That is a deliberate
 retention stance: the record proves *what* was confirmed by digest without becoming a
 second copy of your data. Two consequences: keep the digested source material retrievable
 for as long as you need the record to be checkable against it, and treat reviewer-timing
