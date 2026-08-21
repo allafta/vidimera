@@ -3,10 +3,13 @@
 // seam's ladder pins, and the interaction pins.
 
 import assert from 'node:assert/strict';
+import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';
 import { test } from 'vitest';
 
-import type { LegSpec } from '../src/config.js';
+import type { ConfirmProfile, LegSpec } from '../src/config.js';
 import { create, createWithClock } from '../src/create.js';
+import { MemorySignatureStore } from '../src/signing/memory.js';
+import type { Signer, Verifier } from '../src/signing/store.js';
 import { isStateLeaving, stateOf } from '../src/store/semantics.js';
 import {
   captureProfile,
@@ -259,4 +262,145 @@ test('decline ladder order: each rung wins over the one after it (adjacent pairs
     );
     assert.equal(res2.status === 'refused' && res2.code, 'consultation-missing');
   }
+});
+
+const ELIGIBLE = {
+  kind: 'eligibility',
+  checker: CHECKER,
+  payloadDigest: DIGEST,
+  verdict: 'pass' as const,
+};
+
+test('decline (5.5): eligibility trip mapping — missing, fail, unreachable, pass', async () => {
+  const setup = () => declinable({ eligibility: 'hr.decliner-check' });
+
+  {
+    // missing → consultation-missing, record stays open
+    const { handles, recordId } = await setup();
+    const res = await handles.operator.decline(recordId, identity(), CONTENT, facts());
+    assert.equal(res.status === 'refused' && res.code, 'consultation-missing');
+    assert.equal((await handles.operator.getRecord(recordId))?.state, 'open');
+  }
+  {
+    // fail → ineligible, open-by-default; a different eligible actor may still decline
+    const { handles, recordId } = await setup();
+    const res = await handles.operator.decline(recordId, identity(), CONTENT, facts(), {
+      consultations: [{ ...ELIGIBLE, verdict: 'fail' }],
+    });
+    assert.equal(res.status === 'refused' && res.code, 'ineligible');
+    const retry = await handles.operator.decline(recordId, identity(), CONTENT, facts(), {
+      consultations: [ELIGIBLE],
+    });
+    assert.equal(retry.status, 'ok');
+  }
+  {
+    // unreachable → the availability outcome, no append, seam re-arms
+    const { handles, recordId } = await setup();
+    const res = await handles.operator.decline(recordId, identity(), CONTENT, facts(), {
+      consultations: [{ kind: 'eligibility', unreachable: true, authority: 'svc:hr' }],
+    });
+    assert.equal(res.status, 'unavailable');
+    assert.equal(res.status === 'unavailable' && res.authority, 'svc:hr');
+    assert.equal((await handles.operator.getRecord(recordId))?.state, 'open');
+  }
+  {
+    // pass → declined, the eligibility consultation recorded in the batch
+    const { handles, recordId } = await setup();
+    const res = await handles.operator.decline(recordId, identity(), CONTENT, facts(), {
+      consultations: [ELIGIBLE],
+    });
+    assert.equal(res.status, 'ok');
+    const record = await handles.operator.getRecord(recordId);
+    assert.ok(record?.consultations.some((c) => c.kind === 'eligibility'));
+  }
+});
+
+test('decline: evidence rungs are SKIPPED — a failing required consultation, an un-acked required finding, and a policy profile all still decline', async () => {
+  {
+    // requiredConsultations not iterated: no risk-check supplied, decline succeeds
+    const { handles, recordId } = await declinable({ requiredConsultations: ['risk-check'] });
+    const res = await handles.operator.decline(recordId, identity(), CONTENT, facts());
+    assert.equal(res.status, 'ok');
+  }
+  {
+    // ack coverage (5.7) skipped: an un-acked requiredAcks finding blocks finalize, not decline
+    const profile = captureProfile({ decline: true });
+    profile.legs[0] = { ...profile.legs[0], ackMode: 'any', requiredAcks: ['variance'] } as LegSpec;
+    const handles = create(makeConfig([profile]));
+    const recordId = await openRecord(handles, CONTENT, profile.id, DEFAULT_SUBJECT_REF);
+    const raised = await handles.operator.raiseFinding(
+      recordId,
+      { findingId: 'f1', kind: 'variance', findingDigest: DIGEST },
+      identity(),
+    );
+    assert.equal(raised.status, 'ok');
+    const res = await handles.operator.decline(recordId, identity(), CONTENT, facts());
+    assert.equal(res.status, 'ok'); // the finding stays visible on the declined chain
+    const record = await handles.operator.getRecord(recordId);
+    assert.equal(record?.findings?.length, 1);
+  }
+  {
+    // policy: a declaring profile's decline takes no policy input and does not drift-gate
+    const profile = captureProfile({ decline: true });
+    profile.policySource = 'spend-limits';
+    const handles = create(makeConfig([profile]));
+    const staged = await handles.agent.stage(CONTENT, profile.id, DEFAULT_SUBJECT_REF);
+    assert.equal(staged.status, 'ok');
+    const opened = await handles.operator.open(
+      staged.status === 'ok' ? staged.value.stagedRef : '',
+      { policyDigest: DIGEST },
+    );
+    assert.equal(opened.status, 'ok');
+    const recordId = opened.status === 'ok' ? opened.value.recordId : '';
+    const res = await handles.operator.decline(recordId, identity(), CONTENT, facts());
+    assert.equal(res.status, 'ok'); // no policy option required, none accepted
+  }
+});
+
+test('decline: observedAt on a non-signing profile throws — the AL2 presence contract shared with finalize', async () => {
+  const { handles, recordId } = await declinable();
+  await assert.rejects(
+    () =>
+      handles.operator.decline(recordId, identity(), CONTENT, facts(), {
+        consultations: [
+          {
+            kind: 'decline-reason',
+            checker: CHECKER,
+            payloadDigest: DIGEST,
+            verdict: 'pass',
+            observedAt: '2026-08-21T00:00:00Z',
+          },
+        ],
+      } as never),
+    /observedAt/,
+  );
+});
+
+test('decline (5.5), AL2: a signing profile with an eligibility freshness bound refuses a stale claim consultation-stale', async () => {
+  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+  const signer: Signer = async (bytes) => ({
+    keyRef: 'key-1',
+    signature: edSign(null, bytes, privateKey).toString('base64'),
+  });
+  const verifier: Verifier = async (bytes, signature) =>
+    edVerify(null, bytes, publicKey, Buffer.from(signature, 'base64'));
+  const base = captureProfile({ decline: true, eligibility: 'hr.decliner-check' });
+  const leg = base.legs[0];
+  if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
+  const profile: ConfirmProfile = {
+    ...base,
+    signing: true,
+    legs: [{ ...leg, freshness: { eligibility: 60 } }],
+  };
+  const config = {
+    ...makeConfig([profile]),
+    signing: { signer, verifiers: { 'key-1': verifier }, signatures: new MemorySignatureStore() },
+  };
+  const nowMs = Date.parse('2026-08-21T00:00:00Z');
+  const handles = createWithClock(config, () => new Date(nowMs));
+  const recordId = await openRecord(handles, CONTENT, profile.id, DEFAULT_SUBJECT_REF);
+  const res = await handles.operator.decline(recordId, identity(), CONTENT, facts(), {
+    consultations: [{ ...ELIGIBLE, observedAt: '2026-08-20T22:00:00Z' }], // 2h old vs 60s bound
+  });
+  assert.equal(res.status === 'refused' && res.code, 'consultation-stale');
 });
