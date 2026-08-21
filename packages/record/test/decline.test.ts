@@ -3,14 +3,11 @@
 // seam's ladder pins, and the interaction pins.
 
 import assert from 'node:assert/strict';
-import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';
 import { test } from 'vitest';
 
 import { transitionDigest } from '../src/chain/encoding.js';
 import type { ConfirmProfile, LegSpec } from '../src/config.js';
 import { create, createWithClock } from '../src/create.js';
-import { MemorySignatureStore } from '../src/signing/memory.js';
-import type { Signer, Verifier } from '../src/signing/store.js';
 import { isStateLeaving, stateOf } from '../src/store/semantics.js';
 import {
   captureProfile,
@@ -23,6 +20,7 @@ import {
   openRecord,
   twoLegProfile,
 } from './helpers/profiles.js';
+import { signingSetup } from './helpers/signing.js';
 
 test('stateOf: declined maps to the declined state and is state-leaving', () => {
   assert.equal(stateOf('declined'), 'declined');
@@ -274,32 +272,6 @@ const ELIGIBLE = {
   payloadDigest: DIGEST,
   verdict: 'pass' as const,
 };
-
-/**
- * The AL2 signing rig shared by this file's two signing tests (the eligibility-freshness
- * refusal below and the happy-path decline further down): a real Ed25519 keypair
- * (`node:crypto`), a `MemorySignatureStore` sidecar, and a fixed clock
- * (`2026-08-21T00:00:00Z` — arbitrary but shared, so a freshness-bound fixture's
- * `observedAt` offsets stay meaningful). Extracted so both tests build the SAME rig
- * rather than each hand-rolling its own signer/verifier — no behavioral change from the
- * inline version this replaces.
- */
-function signingSetup(profile: ConfirmProfile) {
-  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
-  const signer: Signer = async (bytes) => ({
-    keyRef: 'key-1',
-    signature: edSign(null, bytes, privateKey).toString('base64'),
-  });
-  const verifier: Verifier = async (bytes, signature) =>
-    edVerify(null, bytes, publicKey, Buffer.from(signature, 'base64'));
-  const config = {
-    ...makeConfig([profile]),
-    signing: { signer, verifiers: { 'key-1': verifier }, signatures: new MemorySignatureStore() },
-  };
-  const nowMs = Date.parse('2026-08-21T00:00:00Z');
-  const handles = createWithClock(config, () => new Date(nowMs));
-  return { handles };
-}
 
 test('decline (5.5): eligibility trip mapping — missing, fail, unreachable, pass', async () => {
   const setup = () => declinable({ eligibility: 'hr.decliner-check' });
