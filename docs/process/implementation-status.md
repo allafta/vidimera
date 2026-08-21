@@ -1722,12 +1722,24 @@ touch — never assumed from this or any past grant.
 closures).** The fresh, explicit sanction this finding named as its own precondition was
 granted the same day, in-session ("All three tasks, sanction granted"), naming this exact
 site among exactly two. `docs/concept/SPEC.md` §2's field table now carries a
-`resultDigest` row, and its conditional-fields sentence gains a third, minimal clause
-distinguishing this field from both categories already named there: `resultDigest` is
-present only when BOTH hold — the profile declares `redeem.result` (§9.1) AND the
-redemption call that closed the record supplied a result digest (`kernel/redeem.ts`'s
-admission gate) — never on either alone, unlike the profile-conditional fields (profile
-switch only) or the flow-conditional fields (`open()` option only, no profile field
-involved). No maturity marker moved: the field was already `[PROVEN]` at §11.2 before this
-fix, so this closure adds no entry to the marker-move lineage CLAUDE.md and this
-document's own step-7/step-8 accounts track.
+`resultDigest` row, and its conditional-fields sentence's existing **Profile-conditional
+fields** list now names `resultDigest` alongside `priorRecordRefs`/`priorLegActors` and
+`findings`/`acks` — the classification this finding's own text above already used
+("profile-conditional, by the sentence's own test, exactly like
+`priorRecordRefs`/`findings`"). A separate "doubly-conditional" category was drafted for
+this field during the fix and then RETIRED during this same task's own review:
+`findings`/`acks` carry the identical admits-not-requires shape — a profile declaration
+ADMITS the capability (`requiredAcks`'s findings flow; `redeem.result` for
+`resultDigest`) and a voluntary per-call action alone PRODUCES the value (a raised
+finding — `types.ts`'s `findings?` doc comment: "present iff the chain carries at least
+one `finding-raised` transition"; SPEC §10.2: "Zero raised findings of a required kind
+pass vacuously — `requiredAcks` gates *raised* findings; it does not require findings to
+exist" — for `resultDigest`, a supplied result digest at the closing redemption call). The
+category's own "present only when the profile switches the feature on" wording is a
+necessary-condition test, not a sufficiency claim, so it already covered `findings`/`acks`
+correctly without ever promising the field is present whenever the profile declares the
+feature — and it covers `resultDigest` the same way; a new category would have sorted two
+structurally identical fields differently in the same sentence for no stated reason. No
+maturity marker moved: the field was already `[PROVEN]` at §11.2 before this fix, so this
+closure adds no entry to the marker-move lineage CLAUDE.md and this document's own
+step-7/step-8 accounts track.
