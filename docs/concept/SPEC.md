@@ -116,7 +116,7 @@ acknowledgments, prior-leg evidence, consultation results) only in process memor
 | `subjectRef` | string | Host key naming the decided thing |
 | `contentDigest` | digest | Digest over canonical content (§3, §7) |
 | `policyDigest` | digest or absent | Policy snapshot binding, bound at `open()` where a policy engine contributed (§10.3) |
-| `proposedDigest` | digest or absent | The agent-proposed draft's content digest, bound at `open()` from a resolved same-triple staged reference (§9) **[DESIGNED]** |
+| `proposedDigest` | digest or absent | The agent-proposed draft's content digest, bound at `open()` from a resolved same-triple staged reference (§9) **[PROVEN]** |
 | `actor` | IdentityAssertion | The deciding human (§6); never a bare string |
 | `consultations` | list of Consultation | Evidence attached to the leg, including the reviewed-surface (`facts`) binding (§3, §11.1) |
 | `state` | enum | `open`, `confirmed`, `refused`, `expired`, `declined`, and — on effect-seam profiles — `redeeming`, `redeemed`, `redemption-failed` |
@@ -127,9 +127,10 @@ acknowledgments, prior-leg evidence, consultation results) only in process memor
 **Profile-conditional fields** (present only when the profile switches the feature on):
 `priorRecordRefs` and `priorLegActors`, carried on a multi-leg successor record (§10.1)
 **[PROVEN]**; `findings` and `acks` (a findings flow, §10.2) **[PROVEN]**. **Flow-conditional
-field:** `supersedes` (recovery of a terminal predecessor, below) **[PROVEN]** — present only
-when a recovering `open()` supplied the verified reference; no profile field declares it, and
-§9.1's table carries none.
+fields:** `supersedes` (recovery of a terminal predecessor, below) **[PROVEN]** and
+`proposedDigest` (provenance, below) **[PROVEN]** — each present only when the corresponding
+`open()` option was supplied; no profile field declares either, and §9.1's table carries
+neither.
 
 **Recovery (`supersedes`) [PROVEN].** `supersedes` names the terminal predecessor record (a
 `refused`, `expired`, or `declined` record, or an earlier superseded attempt) that a fresh
@@ -140,7 +141,7 @@ reference in the new record's genesis snapshot — the same verify-by-replay dis
 §10.1's prior-leg references. Remaining recovery-flow details (the non-terminal-predecessor
 refusal shape, the exclusivity interaction) are enumerated in `OPEN-QUESTIONS.md`.
 
-**Provenance (`proposedDigest`) [DESIGNED].** A record MAY bind, at open, the content
+**Provenance (`proposedDigest`) [PROVEN].** A record MAY bind, at open, the content
 digest of the staged draft the proposal arrived as — resolved through the store, never
 host-claimed — so the record distinguishes what was proposed from what was decided by
 digest comparison. The binding proves a draft with that digest existed in the store for
@@ -329,7 +330,7 @@ except `opened`, which snapshots the record's immutable header.
 
 | `kind` | Payload | Form |
 |---|---|---|
-| `opened` | `{ profileId, profileDigest, legId, subjectRef, contentDigest, policyDigest?, priorRecordRefs?, priorLegActors?, supersedes?, proposedDigest? }` (`supersedes?` **[PROVEN]**, §2; `proposedDigest?` provenance, §2 **[DESIGNED]**) | snapshot |
+| `opened` | `{ profileId, profileDigest, legId, subjectRef, contentDigest, policyDigest?, priorRecordRefs?, priorLegActors?, supersedes?, proposedDigest? }` (`supersedes?` **[PROVEN]**, §2; `proposedDigest?` provenance, §2 **[PROVEN]**) | snapshot |
 | `consultation-recorded` | the Consultation object (§2), including the always-present `facts` binding | delta |
 | `confirmed` | `{ actor }` — the deciding IdentityAssertion (§6) | delta |
 | `refused` | `{ code }` — a §8 registry code; class derivable from the registry | delta |
@@ -587,7 +588,7 @@ and the sweep — §12).
   (declaring-without and non-declaring-with both throw). It enforces **exclusivity**: if a
   non-terminal record already exists for the `(profile, subject)`, `open` refuses
   `record-exists` rather than opening a second one (§12).
-  `proposed { stagedRef }` **[DESIGNED]** — the provenance option (§2): the library
+  `proposed { stagedRef }` **[PROVEN]** — the provenance option (§2): the library
   resolves the reference through the store exactly as it consumes its own `stagedRef` —
   an unresolvable reference THROWS (the unknown-`stagedRef` posture; §8's caller-error
   class) — requires the resolved draft to name the SAME `(profileId, subjectRef, legId)`

@@ -104,7 +104,7 @@ The concept's vocabulary, in one place. Where a term is normative, the defining 
   detectable on replay (SPEC §4).
 - **Proposed digest** — the provenance binding: the agent-proposed draft's content digest,
   resolved and bound at open, distinguishing what was proposed from what was decided
-  (SPEC §2, §9). **[DESIGNED]**
+  (SPEC §2, §9). **[PROVEN]**
 - **Proposer** — the actor or origin a profile names as the source of the content under
   decision; a designated proposer may not decide their own leg (SPEC §1, §10.1).
 - **Pseudonymous principal** — a stable reference resolved through an identity map held

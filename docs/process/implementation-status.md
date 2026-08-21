@@ -23,10 +23,15 @@ any one exit.
   SPEC §9's `open → declined` seam, the human "no" with confirm's own evidentiary
   treatment. See the dedicated section at the end of this document for the full account;
   the numbers immediately below already include it.
-- **Measured against the current tree**: `pnpm test` — 52 test files, 723 tests, zero skips
+- **A tenth increment, past the build order, has landed: proposal provenance** — SPEC
+  §9's `open`-time `proposed { stagedRef }` option, resolving and binding an agent's
+  original proposal digest into the genesis as `proposedDigest` so a record distinguishes
+  what was proposed from what was decided. See the dedicated section at the end of this
+  document for the full account; the numbers immediately below already include it.
+- **Measured against the current tree**: `pnpm test` — 53 test files, 734 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
-  `pnpm lint` (`biome check .`) — 114 files checked, 13 infos, zero warnings or errors;
+  `pnpm lint` (`biome check .`) — 118 files checked, zero errors or warnings;
   `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 24 refusal codes, the twenty-fourth and
@@ -1334,3 +1339,134 @@ refusal codes (`leg-expired`, `record-not-open`, `chain-compromise`) route throu
 §8 postures instead. `docs/concept/` re-seals immediately after, as it does at every
 marker-move and consistency-pass commit; §6's identity prose and §13A's honesty restatements
 were explicitly out of the grant and are untouched.
+
+## Post-build-order increment — proposal provenance (SPEC §9's `proposed` option)
+
+**The second post-build-order promotion, exited.** Recorded human decline (above) closed
+the first; this is the second GOVERNED capability promoted through
+`docs/concept/SCOPING-GUIDE.md` §§1–2's own tier-test and promotion-rule machinery, on a
+fresh sanction earned for exactly this case. Design and promotion case:
+`docs/superpowers/specs/2026-08-21-proposal-provenance-design.md`; plan:
+`docs/superpowers/plans/2026-08-21-proposal-provenance.md`.
+
+**The gap this closes.** Before this increment the record's one content binding —
+`contentDigest`, fixed at `open()` from whichever staged draft the operator opens —
+captured only the content that was actually decided. Staging is idempotent by content, so
+when a human revises an agent's draft before opening, the revision mints a distinct
+`stagedRef`; the agent's original proposal survives nowhere on the chain, and "the human
+changed the draft before approving it" — the evidence effective-challenge review is
+supposed to leave — was unrecoverable from the record. The nearest host workaround embeds
+the proposed digest inside the decided content itself, polluting the domain content schema
+with process metadata and binding an unverified self-claim.
+
+**What landed.** `OpenOptions` (`config.ts`) gains one member beside
+`priorRecordRefs`/`policyDigest`/`supersedes`: `proposed?: { stagedRef: string }`. At
+`open()` (`kernel/open.ts`), after the opened draft resolves and before the genesis is
+built, a present `proposed` claim is shape-validated at intake (a new file-local
+`validateProposedShape`, the `validateSupersedesShape` class: a plain object with exactly
+`stagedRef`, a non-empty string), then its `stagedRef` is resolved via `store.getStaged` —
+an unresolvable reference THROWS naming it (the unknown-`stagedRef` caller-error posture),
+and a resolved draft naming a different `(profileId, subjectRef, legId)` than the opened
+draft ALSO throws, naming both triples (strict same-triple, fail-closed against host
+wiring bugs). The resolved draft's `contentDigest` binds into the genesis `opened` payload
+as `proposedDigest`, present-iff-supplied — the `supersedes` mechanism exactly, so a
+non-supplying chain stays byte-identical to today's and the frozen byte-stability oracle
+does not move. `open()`'s unknown-key allowlist and its throw message both gain `proposed`
+(the message text changed; its caller-error posture did not). `types.ts`'s
+`DecisionRecord` gains `proposedDigest?: Digest`, folded from the genesis snapshot by
+`chain/replay.ts` (`OpenedPayload` gains the field; the folding-rules doc comment's
+`opened` line and its prose both name it) — present-iff-present, deliberately absent from
+`ReviewView`. Zero new refusal codes (the registry stays at 24, still ending
+`consultation-stale`), zero new `TransitionKind`s or `RecordState`s, zero encoding or
+Store-interface changes. Tests: 9 in the new `packages/record/test/provenance.test.ts`
+(happy path with digest inequality; unchanged acceptance with digest equality; the
+unresolvable-reference throw; the cross-triple throw's subject and profile arms; the
+malformed-shape throw; composition with recovery — `supersedes` AND `proposed` on one
+re-open; per-leg behavior and a cross-leg throw on a two-leg profile; a signed-genesis pin;
+a live-profile pin), plus the ed25519 signing setup `decline.test.ts` held as a file-local
+helper extracted verbatim into `packages/record/test/helpers/signing.ts` and re-pointed
+from both files — a behavior-preserving move, zero test-count change from the extraction
+itself. The guide moved with the surface in the same increment: `docs/guide/api-reference.md`
+(the `OpenOptions`/`DecisionRecord` entries) and `docs/guide/integrating.md` (a "Binding
+the agent's proposal" subsection, its sample vitest-verified before being written down)
+both gain `proposed`/`proposedDigest` entries, kept green by `pnpm api-sync`.
+
+**The ruling set** (taken at the design brainstorm, recorded so a later increment does not
+re-litigate them):
+
+- **Resolved-ref binding, not a bare digest.** `open(stagedRef, { proposed: { stagedRef }
+  })` resolves the proposed reference through the store exactly as it consumes its own
+  `stagedRef`. A bare host-claimed digest was considered and declined: resolution buys the
+  existence check, the same-triple check below, and the ergonomics of a ref the host
+  already holds.
+- **Throw, never refuse.** An unresolvable proposed ref is a caller error (`open`'s own
+  unknown-`stagedRef` posture; SPEC §8's throw-rather-than-refuse class) — not a domain
+  outcome, so it never touches the refusal registry.
+- **Strict same-triple.** A resolved draft naming a different `(profileId, subjectRef,
+  legId)` than the opened draft throws, naming both triples — fail-closed against host
+  wiring bugs, never loosened by a "just the subject" or "just the profile" partial check.
+- **Open-time option, no profile field.** The `supersedes` precedent exactly: presence
+  switches it, byte-stability rides present-iff-supplied, and a host wanting it mandatory
+  enforces at its own `open` call site.
+- **ReviewView does NOT project it.** The `supersedes`/`priorRecordRefs` precedent:
+  provenance and linkage evidence ride `getRecord`/`replay`, never the review projection —
+  review shows what is being decided, not its pedigree.
+- **Same-ref is legal and meaningful.** Opening the proposal itself with `proposed: {
+  stagedRef }` naming that same draft records unchanged acceptance — digests equal,
+  deliberately representable, no special case.
+
+**The four cuts, recorded per `docs/concept/CONCEPT.md` §7's anti-goal #4** ("cut in
+writing, never silently... what was cut, why, and how it could be recovered or
+re-derived"):
+
+- **Multi-hop draft lineage (P1→P2→P3 inside one record) — cut.** Staged drafts are
+  store-side and unchained; linking them would mint unverifiable lineage. Recovery path:
+  multi-round rework as records (decline/refuse + `supersedes`), each round carrying its
+  own `proposed`.
+- **Editor identity on the revision — cut.** Staging carries no identity, so the library
+  cannot attribute who produced a revision. Recovery path: a host `revision` consultation
+  convention, documented in the guide (`checker` names the editor's identity,
+  `payloadDigest` digests the prior version) — an ordinary consultation, not a new field; a
+  first-class field is a later case if hosts prove the recipe insufficient.
+- **A mandatory-provenance profile switch — cut.** Recovery path: a leg-level requirement
+  field with its own promotion case, if a real host needs enforcement the call site cannot
+  give.
+- **Cross-subject/profile/leg proposed refs — cut** (strict same-triple). Recovery path:
+  loosen on a demonstrated real-host need, argued at the seam.
+
+**The sanction's grant record.** Granted by the maintainer 2026-08-21, in-session ("all
+approved", in response to the direct question), for exactly the design doc's §7 scope —
+Tasks 1 and 5 of the increment's plan licensed to touch `docs/concept/`, and only for the
+sites §7 there names. Task 1 landed the sanctioned sealed-set text as `[DESIGNED]` (SPEC §2's
+field-table row and provenance sentence, §4's opened-row gloss, §9's options block;
+CONTROLS.md §3's GOVERNED row and §5's domain-instance row; a GLOSSARY.md entry). This
+increment's own exit (this section's own commit) is the marker-move step
+spec-moves-to-truth requires: all six `[DESIGNED]`/`DESIGNED` tokens Task 1 introduced move
+to `[PROVEN]`/`PROVEN`, in the same commit as this record, and `docs/concept/` re-seals
+immediately after. **One further sentence moves under the SAME grant, by a recorded
+controller ruling taken during Task 1's own review**
+(`.superpowers/sdd/2026-08-21-proposal-provenance/progress.md`): SPEC §2's
+"Flow-conditional field: `supersedes`" sentence under-included `proposedDigest` — also an
+open-time-conditional field, declared by no profile field, exactly like `supersedes` — so
+it is spliced minimally to name both ("Flow-conditional fields: `supersedes` … and
+`proposedDigest` …"), no draft-ahead marker involved (the sentence carried none to begin
+with — it is stated as current fact, now made current fact again for both fields it
+describes).
+
+**Gate outputs, as measured against this increment's own exit commit**:
+`./node_modules/.bin/vitest run` — 53 test files, 734 tests, zero skips;
+`tsc -p packages/record --noEmit` and `tsc -p packages/store-postgres --noEmit` — both
+clean; `./node_modules/.bin/biome check .` — 118 files checked, zero errors or warnings;
+`node scripts/contract-scan.mjs` — exit 0, no output; `node scripts/api-reference-sync.mjs`
+— exit 0. `docs/process/deferral-register.md` carries no row for this increment and none
+moved — verified, not merely assumed.
+
+**The comment-truth sweep.** Every pattern the exit task named — `"accepts only
+priorRecordRefs"` (`open()`'s updated allowlist message), `"proposed"` across `packages/`
+(every hit this increment's own or an adjudicated pre-existing unrelated use of the plain
+word — `store/memory.ts` and `store/store.ts`'s "the proposed `transition.seq`" sequencing
+prose, unrelated to this increment's option), `"opened snapshot"` and the genesis-key
+enumerations in comments (`kernel/open.ts`'s payload literal doc, `chain/replay.ts`'s
+folding-rules doc), and the `operator-surface.ts`/`create.ts` header enumerations (neither
+names the `open()` option list) — checked out current, landed correctly by Tasks 2–4; the
+sweep found nothing stale and made no additional fix.
