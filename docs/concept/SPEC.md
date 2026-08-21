@@ -118,7 +118,7 @@ acknowledgments, prior-leg evidence, consultation results) only in process memor
 | `policyDigest` | digest or absent | Policy snapshot binding, bound at `open()` where a policy engine contributed (§10.3) |
 | `actor` | IdentityAssertion | The deciding human (§6); never a bare string |
 | `consultations` | list of Consultation | Evidence attached to the leg, including the reviewed-surface (`facts`) binding (§3, §11.1) |
-| `state` | enum | `open`, `confirmed`, `refused`, `expired`, and — on effect-seam profiles — `redeeming`, `redeemed`, `redemption-failed` |
+| `state` | enum | `open`, `confirmed`, `refused`, `expired`, `declined`, and — on effect-seam profiles — `redeeming`, `redeemed`, `redemption-failed` |
 | `status` | enum | Per-record report: `active`, or `retired` once sealed (§5, §12, §13) — distinct from `state`, which the seal preserves |
 | `refusalCode` | string or absent | Registry code (§8) when the state is a refusal, or `redemption-timeout` on a `redemption-failed` record (§11.2) |
 | *(chain)* | — | Every state-bearing change is a chained transition (§4) |
