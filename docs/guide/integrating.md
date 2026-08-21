@@ -334,6 +334,98 @@ The honest bound on the whole seam: given an idempotent executor, orphaned, dupl
 premature, and mismatched effects are *refusable at the seam*; the library never executes
 effects and cannot see effects that bypass the seam.
 
+### Notarizing what the effect did
+
+Add `result: true` to the `redeem` block and either redemption seam gains a place to
+notarize what the effect reported — a digest, bound inside the same `redeemed` transition:
+
+```ts
+const profile: ConfirmProfile = {
+  // ...as above, plus:
+  redeem: { result: true }, // declares the effect seam AND admits a result digest
+};
+```
+
+Direct shape, enlisted, carrying a result — the effect row and the notarization commit
+together, the strongest form this takes:
+
+```ts
+const outcomeDigest = digest(canonicalize({ transferId: 'xfer-77021', status: 'settled' }));
+const redeemed = await operator.redeem(recordId, content, {
+  tx,                                    // enlists the edge with the effect's own write
+  result: { digest: outcomeDigest },
+});
+```
+
+Token completion, carrying a result — the executor supplies it once it actually knows:
+
+```ts
+const done = await operator.completeRedemption(recordId, token, content, {
+  result: { digest: outcomeDigest },
+});
+```
+
+A declaring profile that redeems without supplying `result` records nothing —
+`resultDigest` stays absent, byte-identical to a pre-increment chain. Two throws guard
+misuse: supplying `result` on a profile that never declared `redeem.result` throws, and
+supplying it at `beginRedemption` throws unconditionally, declared or not — issuance
+precedes execution, so a result at issuance time would claim an outcome for an effect that
+has not run.
+
+**Supply it only where the outcome is genuinely known at the call** — the enlisted
+co-located `redeem()` above, or a token `completeRedemption()` the executor calls once it
+has actually executed. Not in a gate-then-execute flow: there the outcome is unknown when
+`redeem()` runs, and the library cannot tell a caller who genuinely knows from one that is
+guessing — which is exactly why this is a discipline you keep, not one the library
+enforces.
+
+The honest bound, in the same breath: the digest notarizes that the host asserted this
+outcome at the moment it closed the coupling. The library never observes the effect, never
+verifies the claim (fidelity, not validity — verifying it would make the library the
+business system), and never mirrors business state that moves afterward.
+
+**When the result arrives later.** A separated executor with an async settlement genuinely
+does not know the outcome at redemption time — declining to notarize a guess there is
+correct, not incomplete. The recorded recipe is a successor **pure-capture** record (no
+`redeem` block at all, registered alongside the decision profile in your `profiles: [...]`
+array) whose `subjectRef` names the executed effect and whose content carries the outcome,
+citing the decision's `recordId`:
+
+```ts
+const outcomeProfile: ConfirmProfile = {
+  id: 'finance.payout-outcome.v1',
+  subject: { canonicalizerRef: 'finance.payout-outcome.v1' },
+  legs: [{ id: 'system-record', allowedAuthorities: ['mtls:payout-executor'] }],
+  captureMode: 'staged',
+  expiry: { ttl: 3600 },
+  // no redeem block: pure capture
+};
+
+const outcomeContent = {
+  decisionRecordId: recordId,             // cites the decision this outcome belongs to
+  transferId: 'xfer-77023',
+  status: 'settled',
+};
+const stagedOutcome = await agent.stage(outcomeContent, outcomeProfile.id, 'effect:xfer-77023');
+if (stagedOutcome.status !== 'ok') return handle(stagedOutcome);
+const openedOutcome = await operator.open(stagedOutcome.value.stagedRef);
+if (openedOutcome.status !== 'ok') return handle(openedOutcome);
+await operator.finalize(
+  openedOutcome.value.recordId,
+  { principal: 'svc:payout-executor', authority: 'mtls:payout-executor' },
+  outcomeContent,
+  {
+    figures: outcomeContent,
+    checker: { principal: 'svc:payout-executor', authority: 'mtls:payout-executor' },
+  },
+);
+```
+
+This composes entirely from `open`/`finalize` over an ordinary pure-capture profile — no
+new library mechanism. Post-`redeemed` appends stay barred (terminal monotonicity, C3), so
+the decision's own record never gains the late result; a reader reconciles the two records
+by `decisionRecordId`.
+
 ## Clocks, the sweep, and retirement
 
 The library ships no scheduler and no public `expire()`. Clock edges (`open → expired`,

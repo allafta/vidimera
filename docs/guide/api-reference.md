@@ -55,6 +55,8 @@ interface ConfirmProfile {
     confirmToRedeem?: number;                // seconds: confirm → redemption start
     redeemBound?: number;                    // seconds: a redeeming record may dangle
     reverify?: boolean;                      // live mode's re-verification tail
+    result?: true;                           // literal true — admits a result digest at
+                                             // redeem()/completeRedemption() (below)
   };
   signing?: true;                            // literal true — AL2 per-profile enablement
 }
@@ -192,6 +194,22 @@ Notes that save debugging time:
   the driver's own transaction handle: an enlisted issuance or completion commits or rolls
   back with the host's own outbox/effect row, and the enlisted-tampered corner refuses
   `chain-compromise` result-first with no edge, same as the direct shape.
+- `opts.result`'s `digest` is admitted only where `redeem.result: true` is declared on the
+  profile — declaring the field is what admits it, never a value; a declaring profile that
+  redeems without supplying one records nothing (`resultDigest` stays absent). Two throw
+  postures guard it: supplying `result` on a profile that does not declare `redeem.result`
+  throws (a caller error at profile-resolution depth), and supplying `result` at
+  `beginRedemption` throws unconditionally, declared or not — issuance precedes execution,
+  so a result at issuance time would claim an outcome for an effect that has not run yet;
+  supply it at `redeem()` or `completeRedemption()`, where the executor actually knows it.
+  The honest bound, in the same breath: the digest notarizes that the host asserted this
+  outcome at the moment it closed the coupling — the library never observes the effect,
+  never verifies the claim (fidelity, not validity; verifying it would make the library the
+  business system), and never mirrors business state that moves afterward. It is
+  meaningful only where the outcome is genuinely known at the call — the enlisted
+  co-located `redeem()` or a token `completeRedemption()` — never in an un-enlisted
+  gate-then-execute flow, where the outcome is unknown at `redeem()` and the library cannot
+  tell the difference; that is exactly why this is a stated discipline, not an enforced one.
 - `verifySignatures` reports and never gates; enforcement is folded into the chain-verify
   arm at every seam on signing profiles. Its report type (`SignatureReport`) is exported
   from the entry point — the review's no-unspellable-names rule.
@@ -221,6 +239,8 @@ interface DeclineOptions {
 interface RedeemOptions {
   tx?: unknown;                              // the driver's own transaction handle (SPEC §12) —
                                               // never a library-owned transaction interface
+  result?: { digest: Digest };               // the host's CLAIMED outcome digest, admitted iff the
+                                              // profile declares redeem.result — see below
 }
 type ConsultationInput = ObtainedConsultation | UnreachableMarker;
 interface ObtainedConsultation {
@@ -324,6 +344,10 @@ interface DecisionRecord {                   // the replay fold — derived, nev
                                              // open()'s `proposed` option — never projected into
                                              // ReviewView (the supersedes precedent)
   actor?: IdentityAssertion;
+  resultDigest?: Digest;                     // the host's CLAIMED effect-outcome digest, folded
+                                             // from the redeemed payload — present iff supplied
+                                             // under a result-declaring profile; never projected
+                                             // into ReviewView (a redeemed record is past review)
   findings?: RecordedFinding[];
   consultations: Consultation[];
   state: RecordState;
