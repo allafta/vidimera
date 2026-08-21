@@ -129,11 +129,10 @@ export type RecordState =
   | 'declined'
   | 'redeeming'
   | 'redeemed'
-  | 'redemption-failed'; // last four: effect-seam and decline-seam states (SPEC §2); 'redeemed' produced
+  | 'redemption-failed'; // last three: effect-seam states (SPEC §2); 'redeemed' produced
 // since the first step-3 increment, 'redeeming' since the second, 'redemption-failed'
-// since the third (kernel/expiry.ts's clock resolution), 'declined' since the ninth
-// (recorded-human-decline increment) — all four reachable now. 'declined': the recorded human decline
-// (SPEC §9's decline seam) — terminal always
+// since the third (kernel/expiry.ts's clock resolution) — all three reachable now
+// 'declined': the recorded human decline (SPEC §9's decline seam) — terminal always
 
 export type TransitionKind =
   | 'opened'
@@ -149,10 +148,11 @@ export type TransitionKind =
   | 'redeemed'
   | 'redemption-failed';
 // this build's kernel emits: opened, consultation-recorded, confirmed, refused, expired,
-// declined (producer: kernel/decline.ts, recorded-human-decline increment), sealed, redeemed,
-// redeeming, redemption-failed (the third step-3 increment's clock resolution), finding-raised,
-// acknowledged (§10.2, the second step-7 increment's `kernel/findings-seams.ts`) — every kind
-// in the union above is a real producer now
+// sealed, redeemed, redeeming, redemption-failed (the third step-3 increment's clock
+// resolution), finding-raised, acknowledged (§10.2, the second step-7 increment's
+// `kernel/findings-seams.ts`) — every kind in the union above is a real producer now
+// 'declined' joins ahead of its producer — kernel/decline.ts lands later in this increment
+// (the nonterminal.ts ahead-of-producer precedent)
 
 export interface Transition {
   recordId: string;
