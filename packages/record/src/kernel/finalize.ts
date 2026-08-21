@@ -111,14 +111,26 @@ import type { Outcome } from '../outcome.js';
 import { ok, refused, unavailable } from '../outcome.js';
 import { appendsOn, type RefusalCode } from '../refusal-codes.js';
 import type { AppendMeta, Store } from '../store/store.js';
-import type { Consultation, Digest, IdentityAssertion, RecordState, Transition } from '../types.js';
+import type {
+  Consultation,
+  DecisionRecord,
+  Digest,
+  IdentityAssertion,
+  RecordState,
+  Transition,
+} from '../types.js';
 import { validateConsultations, validatePolicyInput } from './consultations.js';
 import { deadlineIso, resolveDueClock } from './expiry.js';
 import { findingCoverage } from './findings.js';
 import { signatureLayerHolds } from './verify-signatures.js';
 
-/** The finalize `facts` arg (SPEC §3's "Reviewed-surface (`facts`) binding"): the reviewed-surface figures + the review-surface checker. */
-type Facts = { figures: unknown; checker: IdentityAssertion };
+/**
+ * The finalize `facts` arg (SPEC §3's "Reviewed-surface (`facts`) binding"): the
+ * reviewed-surface figures + the review-surface checker.
+ *
+ * EXPORTED for kernel/decline.ts, the second caller landing later in this increment.
+ */
+export type Facts = { figures: unknown; checker: IdentityAssertion };
 
 /**
  * The well-known SYSTEM_CHECKER (SPEC §5 "Mandatory pre-seam chain-verify"): the identity the
@@ -304,42 +316,7 @@ export async function finalize(
   }
 
   // --- (3.5) separation of duties (SPEC §10.1; second step-4 increment) ----------------
-  if (leg.sod !== undefined) {
-    for (const namedLegId of leg.sod.notActorOf) {
-      const refIndex = (record.priorRecordRefs ?? []).findIndex((ref) => ref.legId === namedLegId);
-      if (refIndex === -1) {
-        // Lookup miss — the record's own evidence carries no entry for the named leg
-        // (profile reconfigured between open() and finalize(); construction validates
-        // the static case). Fail-closed: distinctness cannot be demonstrated from the
-        // record's own chain, so refuse rather than skip — SPEC §10.1: the lookup keys
-        // the record's evidence precisely so a profile edit "cannot silently re-index
-        // an already-opened record's evidence".
-        return refuseMaybeAppend(store, 'sod-violation', leg, chain, resolved, finalLeg, now);
-      }
-      const priorActor = record.priorLegActors?.[refIndex];
-      if (priorActor === undefined) {
-        // A found reference with no paired actor breaks the recorded paired-by-index
-        // invariant (SPEC §4) — a garbled or foreign chain is a storage/config fault,
-        // not a domain outcome (SPEC §8's loud-throw posture). The boundary, stated so
-        // nobody reads this throw as the universal garbled-evidence posture: a
-        // `priorLegActors` list that is merely SHORTER than `priorRecordRefs` — so a
-        // matched ref at this index has no paired entry — throws here (the paired-by-index
-        // invariant broke), whereas refs with actors ABSENT ENTIRELY never reach this line
-        // at all — replay's both-or-neither rule (`chain/replay.ts`) folds neither field
-        // when only one is present, so the lookup miss above (`refIndex === -1`) catches
-        // that case first and refuses `sod-violation` instead; both directions fail
-        // closed, just through different gates.
-        throw new Error(
-          `finalize: record '${recordId}' carries a prior-leg reference for '${namedLegId}' with no paired actor — a garbled or foreign chain is a storage/config fault (SPEC §8)`,
-        );
-      }
-      if (priorActor.principal === identity.principal) {
-        return refuseMaybeAppend(store, 'sod-violation', leg, chain, resolved, finalLeg, now);
-      }
-    }
-  }
-  if (leg.proposer !== undefined && leg.proposer === identity.principal) {
-    // "the designated proposer may not decide their own leg" (SPEC §10.1).
+  if (sodViolated(record, leg, identity, recordId, 'finalize')) {
     return refuseMaybeAppend(store, 'sod-violation', leg, chain, resolved, finalLeg, now);
   }
 
@@ -758,8 +735,10 @@ export async function appendChainCompromise(
  * class never rides a `refused` edge (SPEC §8), and every call site here passes a
  * refusal/compromise-class literal; the second step-5 increment's narrowing of `refused()`
  * made the exclusion compile-time, so this parameter follows it.
+ *
+ * EXPORTED for kernel/decline.ts, the second caller landing later in this increment.
  */
-async function refuseMaybeAppend(
+export async function refuseMaybeAppend(
   store: Store,
   code: Exclude<RefusalCode, 'availability'>,
   leg: LegSpec,
@@ -791,6 +770,55 @@ async function refuseMaybeAppend(
 }
 
 /**
+ * Rung (3.5)'s shared predicate (SPEC §10.1), extracted at the recorded-human-decline
+ * increment so the decline seam gates SoD from the SAME code, not a drifting copy.
+ * Returns true when the seam must refuse `sod-violation`; THROWS on the garbled
+ * paired-actor invariant (a storage/config fault, SPEC §8) — the boundary comments
+ * from finalize's original rung travel here unchanged.
+ */
+export function sodViolated(
+  record: DecisionRecord,
+  leg: LegSpec,
+  identity: IdentityAssertion,
+  recordId: string,
+  seam: 'finalize' | 'decline',
+): boolean {
+  if (leg.sod !== undefined) {
+    for (const namedLegId of leg.sod.notActorOf) {
+      const refIndex = (record.priorRecordRefs ?? []).findIndex((ref) => ref.legId === namedLegId);
+      if (refIndex === -1) {
+        // Lookup miss — the record's own evidence carries no entry for the named leg
+        // (profile reconfigured between open() and finalize(); construction validates
+        // the static case). Fail-closed: distinctness cannot be demonstrated from the
+        // record's own chain, so refuse rather than skip — SPEC §10.1: the lookup keys
+        // the record's evidence precisely so a profile edit "cannot silently re-index
+        // an already-opened record's evidence".
+        return true;
+      }
+      const priorActor = record.priorLegActors?.[refIndex];
+      if (priorActor === undefined) {
+        // A found reference with no paired actor breaks the recorded paired-by-index
+        // invariant (SPEC §4) — a garbled or foreign chain is a storage/config fault,
+        // not a domain outcome (SPEC §8's loud-throw posture). The boundary, stated so
+        // nobody reads this throw as the universal garbled-evidence posture: a
+        // `priorLegActors` list that is merely SHORTER than `priorRecordRefs` — so a
+        // matched ref at this index has no paired entry — throws here (the paired-by-index
+        // invariant broke), whereas refs with actors ABSENT ENTIRELY never reach this line
+        // at all — replay's both-or-neither rule (`chain/replay.ts`) folds neither field
+        // when only one is present, so the lookup miss above (`refIndex === -1`) catches
+        // that case first and refuses `sod-violation` instead; both directions fail
+        // closed, just through different gates.
+        throw new Error(
+          `${seam}: record '${recordId}' carries a prior-leg reference for '${namedLegId}' with no paired actor — a garbled or foreign chain is a storage/config fault (SPEC §8)`,
+        );
+      }
+      if (priorActor.principal === identity.principal) return true;
+    }
+  }
+  return leg.proposer !== undefined && leg.proposer === identity.principal;
+}
+
+/**
  * A finalize identity is valid iff it is an object carrying a non-empty `principal` AND a
  * non-empty `authority` string. The arg is typed `IdentityAssertion`, but the library must
  * fail closed against a malformed/absent arg supplied at runtime (a payload-carried or empty
@@ -817,8 +845,10 @@ export function isValidIdentity(identity: IdentityAssertion): boolean {
  * at the call site) rather than letting the throw escape mid-batch at the facts-digest step. On
  * ok the carried `canonical` bytes are digested directly at the call site, so
  * `canonicalize(figures)` runs exactly once.
+ *
+ * EXPORTED for kernel/decline.ts, the second caller landing later in this increment.
  */
-function isValidFacts(facts: Facts): { ok: true; canonical: Uint8Array } | { ok: false } {
+export function isValidFacts(facts: Facts): { ok: true; canonical: Uint8Array } | { ok: false } {
   const f = facts as unknown as { figures?: unknown; checker?: unknown } | null | undefined;
   if (f == null || typeof f !== 'object') return { ok: false };
   if (f.figures === undefined) return { ok: false };
