@@ -181,6 +181,14 @@ export function replay(chain: readonly Transition[]): DecisionRecord {
         record.state = 'expired';
         break;
       }
+      case 'declined': {
+        // SPEC §4's `declined` payload is `{ actor }` — the same shape as `confirmed`'s,
+        // deliberately (the decline mirrors the confirm; SPEC §9's decline seam).
+        const payload = transition.payload as ConfirmedPayload;
+        record.actor = payload.actor;
+        record.state = 'declined';
+        break;
+      }
       case 'sealed': {
         // State-PRESERVING (SPEC §4's delta payload; §5's chain retirement): sealing never
         // moves `state` — a sealed `confirmed` record is still `confirmed`. What it changes

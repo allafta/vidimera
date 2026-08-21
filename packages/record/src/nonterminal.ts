@@ -23,7 +23,7 @@ import type { RecordState } from './types.js';
  *  - `redeeming` is always non-terminal — produced by `beginRedemption` since the second
  *    step-3 increment (the disjunction was written complete from step 1, ahead of that
  *    producer).
- *  - Every other `RecordState` (`refused`, `expired`, `redeemed`, `redemption-failed`)
+ *  - Every other `RecordState` (`refused`, `expired`, `declined`, `redeemed`, `redemption-failed`)
  *    is terminal: `false`.
  */
 export function nonTerminal(state: RecordState, isFinalLeg: boolean, effectSeam: boolean): boolean {

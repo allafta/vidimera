@@ -62,6 +62,8 @@ export function stateOf(kind: TransitionKind): RecordState | null {
       return 'refused';
     case 'expired':
       return 'expired';
+    case 'declined':
+      return 'declined';
     case 'sealed':
       return null;
     case 'finding-raised':
