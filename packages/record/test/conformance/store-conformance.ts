@@ -311,6 +311,47 @@ export function runStoreConformance(label: string, makeStore: () => Store): void
       );
     });
 
+    test('appendTransition: C3 — a declined terminal record blocks a state-leaving append, the compromise carve-out excludes declined, and the released pair (C1) admits a fresh genesis', async () => {
+      const store = makeStore();
+      const genesis = storeGenesis('rec-declined', 'profile.p1', 'subject:declined');
+      await store.appendTransition(null, genesis, { nonTerminal: true });
+      const declined = storeNext(genesis, 'declined', { actor: APPROVER });
+      const declineResult = await store.appendTransition('open', declined, { nonTerminal: false }); // declined is terminal
+      assert.equal(declineResult.appended, true);
+
+      // (a) C3: a further state-leaving append whose expectedCurrentState correctly names
+      // the record's actual current state ('declined') is still blocked — declined is
+      // terminal and a plain confirmed edge is not a carve-out.
+      const bogusConfirm = storeNext(declined, 'confirmed', { actor: APPROVER });
+      const blocked = await store.appendTransition('declined', bogusConfirm, {
+        nonTerminal: false,
+      });
+      assert.deepEqual(
+        blocked,
+        { appended: false, conflict: 'state-mismatch' },
+        'C3 must reject a state-leaving append onto a terminal declined record',
+      );
+
+      // (b) The compromise carve-out (SPEC §12's C3 second carve-out) reads
+      // confirmed/redeeming only — a compromise-classed refused edge against a terminal
+      // declined record is ALSO rejected, not admitted the way it would be from confirmed.
+      const compromiseRefusal = storeNext(declined, 'refused', { code: 'chain-compromise' });
+      const compromiseBlocked = await store.appendTransition('declined', compromiseRefusal, {
+        nonTerminal: false,
+      });
+      assert.deepEqual(
+        compromiseBlocked,
+        { appended: false, conflict: 'state-mismatch' },
+        'the compromise carve-out covers confirmed/redeeming only — declined gets no carve-out',
+      );
+
+      // (c) C1: the pair is released — a fresh genesis for the SAME (profileId, subjectRef)
+      // succeeds.
+      const reopened = storeGenesis('rec-declined-reopen', 'profile.p1', 'subject:declined');
+      const result = await store.appendTransition(null, reopened, { nonTerminal: true });
+      assert.equal(result.appended, true, 'a declined record releases the (profile, subject) pair');
+    });
+
     test('appendTransition: C3 does NOT block state-leaving appends while the record is still non-terminal (e.g. open -> confirmed)', async () => {
       const store = makeStore();
       const genesis = storeGenesis('rec-live', 'profile.p1', 'subject:live');

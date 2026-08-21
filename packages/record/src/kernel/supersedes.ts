@@ -86,6 +86,6 @@ export async function verifySupersedes(
     const finalLeg = isFinalLeg(legIndex, resolved.profile.legs.length);
     if (nonTerminal('confirmed', finalLeg, resolved.effectSeam)) return { ok: false };
   }
-  // refused / expired / redeemed / redemption-failed: terminal regardless of profile.
+  // refused / expired / declined / redeemed / redemption-failed: terminal regardless of profile.
   return { ok: true, verified: { recordId: ref.recordId, chainHead: ref.chainHead } };
 }

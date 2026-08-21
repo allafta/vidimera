@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';
 import { test } from 'vitest';
 
+import { transitionDigest } from '../src/chain/encoding.js';
 import type { ConfirmProfile, LegSpec } from '../src/config.js';
 import { create, createWithClock } from '../src/create.js';
 import { MemorySignatureStore } from '../src/signing/memory.js';
@@ -14,10 +15,13 @@ import { isStateLeaving, stateOf } from '../src/store/semantics.js';
 import {
   captureProfile,
   DEFAULT_SUBJECT_REF,
+  effectSeamProfile,
   facts,
   identity,
+  liveProfile,
   makeConfig,
   openRecord,
+  twoLegProfile,
 } from './helpers/profiles.js';
 
 test('stateOf: declined maps to the declined state and is state-leaving', () => {
@@ -403,4 +407,115 @@ test('decline (5.5), AL2: a signing profile with an eligibility freshness bound 
     consultations: [{ ...ELIGIBLE, observedAt: '2026-08-20T22:00:00Z' }], // 2h old vs 60s bound
   });
   assert.equal(res.status === 'refused' && res.code, 'consultation-stale');
+});
+
+// --- interaction pins (this task): decline against the other kernel seams -------------
+
+test('declined releases C1: the same (profile, subject) re-opens', async () => {
+  const { handles, recordId, profile } = await declinable();
+  await handles.operator.decline(recordId, identity(), CONTENT, facts());
+  const again = await openRecord(handles, CONTENT, profile.id, DEFAULT_SUBJECT_REF);
+  assert.notEqual(again, recordId);
+});
+
+test('supersedes accepts a declined predecessor — decline → re-open composes', async () => {
+  const { handles, recordId, profile } = await declinable();
+  await handles.operator.decline(recordId, identity(), CONTENT, facts());
+  const chain = await handles.operator.readChain(recordId);
+  const last = chain.at(-1);
+  assert.ok(last !== undefined);
+  const staged = await handles.agent.stage({ amount: 41 }, profile.id, DEFAULT_SUBJECT_REF);
+  assert.equal(staged.status, 'ok');
+  const reopened = await handles.operator.open(
+    staged.status === 'ok' ? staged.value.stagedRef : '',
+    {
+      supersedes: { recordId, chainHead: transitionDigest(last) },
+    },
+  );
+  assert.equal(reopened.status, 'ok');
+});
+
+test('a declined effect-seam record refuses redemption on state grounds', async () => {
+  const profile = effectSeamProfile();
+  const leg = profile.legs[0];
+  assert.ok(leg !== undefined);
+  profile.legs[0] = { ...leg, decline: true };
+  const handles = create(makeConfig([profile]));
+  const recordId = await openRecord(handles, CONTENT, profile.id, DEFAULT_SUBJECT_REF);
+  await handles.operator.decline(recordId, identity(), CONTENT, facts());
+  const res = await handles.operator.redeem(recordId, CONTENT);
+  assert.equal(res.status === 'refused' && res.code, 'unredeemable-state');
+});
+
+test('the findings seams refuse record-not-open against a declined record', async () => {
+  // findings-seams.ts's declaration gate (rung 2.5) throws BEFORE the state check
+  // (rung 3) on a leg that declares no findings flow — so this pin needs a
+  // findings-declaring leg (ackMode + requiredAcks) for the STATE gate, not the
+  // declaration gate, to be what fires.
+  const profile = captureProfile({ decline: true });
+  const leg = profile.legs[0];
+  assert.ok(leg !== undefined);
+  profile.legs[0] = { ...leg, ackMode: 'any', requiredAcks: ['variance'] };
+  const handles = create(makeConfig([profile]));
+  const recordId = await openRecord(handles, CONTENT, profile.id, DEFAULT_SUBJECT_REF);
+  await handles.operator.decline(recordId, identity(), CONTENT, facts());
+  const res = await handles.operator.raiseFinding(
+    recordId,
+    { findingId: 'f1', kind: 'variance', findingDigest: DIGEST },
+    identity(),
+  );
+  assert.equal(res.status === 'refused' && res.code, 'record-not-open');
+});
+
+test('seal caps a declined chain and reports retired', async () => {
+  const { handles, recordId } = await declinable();
+  await handles.operator.decline(recordId, identity(), CONTENT, facts());
+  const sealed = await handles.operator.seal(recordId);
+  assert.equal(sealed.status, 'ok');
+  assert.equal(sealed.status === 'ok' && sealed.value.status, 'retired');
+});
+
+test('multi-leg: a declined leg blocks the successor open', async () => {
+  const profile = twoLegProfile();
+  const leg = profile.legs[0];
+  assert.ok(leg !== undefined);
+  profile.legs[0] = { ...leg, decline: true };
+  const handles = create(makeConfig([profile]));
+  const leg1 = await openRecord(handles, CONTENT, profile.id, DEFAULT_SUBJECT_REF, 'maker-decide');
+  await handles.operator.decline(leg1, identity(), CONTENT, facts());
+  const chain = await handles.operator.readChain(leg1);
+  const last = chain.at(-1);
+  assert.ok(last !== undefined);
+  const staged = await handles.agent.stage(
+    CONTENT,
+    profile.id,
+    DEFAULT_SUBJECT_REF,
+    'checker-decide',
+  );
+  assert.equal(staged.status, 'ok');
+  const opened = await handles.operator.open(staged.status === 'ok' ? staged.value.stagedRef : '', {
+    priorRecordRefs: [{ recordId: leg1, chainHead: transitionDigest(last) }],
+  });
+  assert.equal(opened.status, 'refused'); // the prior leg did not conclude confirmed
+  assert.equal(opened.status === 'refused' && opened.code, 'prior-leg-unverified');
+});
+
+test('live-mode symmetry: a live profile declines without its required consultation', async () => {
+  // Live mode (SPEC §9.2) falls out of machinery already built: neither finalize.ts nor
+  // open.ts nor stage.ts carries a captureMode-specific branch at any content or clock
+  // rung, confirmed by reading each. decline.ts carries no captureMode reference either
+  // (its rung (4) content-drift check is the same generic canonicalize/digest recompute
+  // finalize's rung (4) uses) — so a live profile's decline is symmetric with the staged
+  // case by construction, with nothing to mirror. This pin drives it end to end: a live
+  // leg's decline succeeds WITHOUT the `rederive` consultation liveProfile() requires for
+  // finalize's rung (5.5) — decline's evidence rungs are skipped (already pinned above
+  // for requiredConsultations generally; this is the live-mode instance).
+  const profile = liveProfile({ decline: true });
+  const handles = create(makeConfig([profile]));
+  const recordId = await openRecord(handles, CONTENT, profile.id, DEFAULT_SUBJECT_REF);
+  const res = await handles.operator.decline(recordId, identity(), CONTENT, facts());
+  assert.equal(res.status, 'ok');
+  assert.equal(res.status === 'ok' && res.value.state, 'declined');
+  const record = await handles.operator.getRecord(recordId);
+  assert.equal(record?.state, 'declined');
 });
