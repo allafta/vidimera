@@ -1316,3 +1316,21 @@ fact, now made current fact again).
 — 116 files checked, zero errors or warnings; `node scripts/contract-scan.mjs` — exit 0, no
 output; `node scripts/api-reference-sync.mjs` — exit 0. `docs/process/deferral-register.md`
 carries no row for this increment and none moved — verified, not merely assumed.
+
+**Two follow-up commits, after this increment's own exit.** Commit `44d23b0` ("Decline
+follow-ups 1/2") landed three pins the exit left implicit rather than asserted: the
+agent-reachable surface's absence of `decline`, a signed decline verified end-to-end, and
+the unreachable-consultation re-arm proof at the decline seam. This commit ("Decline
+follow-ups 2/2, the sanctioned consistency pass") is the second and closing follow-up: the
+maintainer's 2026-08-21 grant ("Class A + authoritative Class B") licensed a sealed-set
+consistency pass over eleven SPEC.md sites that had gone false-by-omission when the decline
+seam landed — three §8 producer-note rows (`content-drift`, `leg-expired`,
+`consultation-missing`); seven authoritative Class B sentences across §3 (content crossing,
+the facts default), §9 (the capability-split sentence), §9.1 (the `eligibility` row), §10.4
+(the per-call and success-batch sentences), and §11.1 (the one-consultation-per-kind rule);
+and one route-accuracy reword of the decline block's own closing refusal-routing sentence,
+which had over-generalized to `terminalRefusals` alone where three of the decline seam's
+refusal codes (`leg-expired`, `record-not-open`, `chain-compromise`) route through their own
+§8 postures instead. `docs/concept/` re-seals immediately after, as it does at every
+marker-move and consistency-pass commit; §6's identity prose and §13A's honesty restatements
+were explicitly out of the grant and are untouched.

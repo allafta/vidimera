@@ -156,6 +156,13 @@ exit: under the controller ruling recorded in the increment ledger, SPEC §8's
 — consistency edits under the same grant; the registry's codes themselves stand at 24,
 untouched.)
 
+(Second amendment, the follow-ups pass: under the maintainer's Class-A-plus-authoritative-B
+grant, eleven finalize-scoped SPEC sentences gained decline where the seam shares the
+behavior — the §8 producer notes for content-drift/leg-expired/consultation-missing, §3's
+content-crossing and facts-default sentences, §9's capability-split sentence and its own
+refusal-routing sentence, §9.1's eligibility row, §10.4's per-call and success-batch
+sentences, §11.1's one-per-kind rule; §6 and §13A restatements deliberately left.)
+
 ## 5. Interactions, all falling out of existing machinery
 
 - **C1**: a declined record's `(profile, subject)` pair releases — terminal.

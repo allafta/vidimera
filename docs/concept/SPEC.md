@@ -248,11 +248,11 @@ control; the upstream threats that produce a bad draft are not ones this binding
 (§13A).
 
 **Content is digested, never persisted.** Content crosses the library's seams as call
-arguments only: `stage()` and `finalize()` receive it, the library canonicalizes and digests
-it in-process, and the record stores the **digest alone**. The library never writes domain
-content to the chain or the store. It exports its `canonicalize()` and `digest()` helpers so a
-host can recompute the digest from content it holds — for example to render a review surface
-from canonical content and confirm it matches the bound digest.
+arguments only: `stage()`, `finalize()`, and `decline()` receive it, the library canonicalizes
+and digests it in-process, and the record stores the **digest alone**. The library never
+writes domain content to the chain or the store. It exports its `canonicalize()` and
+`digest()` helpers so a host can recompute the digest from content it holds — for example to
+render a review surface from canonical content and confirm it matches the bound digest.
 
 **Host content retention (evidential completeness).** Because the record stores the digest
 alone, what a replayed record proves *without more* is that content with this digest was
@@ -268,8 +268,8 @@ digest-only evidence. Retention duty and its interplay with lawful erasure stay 
 the amount, the payee, the figures the review surface consumed — digested and attached to the
 leg as a `facts` consultation. This is the "exact content reviewed" control (WYSIWYS /
 dynamic-linking in the payment-services sense), and it is part of the base model, present in
-every deployment. It is enforced by default at finalize (§9): a finalize with no fresh
-reviewed-surface digest refuses `consultation-missing` (§8).
+every deployment. It is enforced by default at finalize and decline (§9): a deciding call
+with no fresh reviewed-surface digest refuses `consultation-missing` (§8).
 
 ## 4. Transitions & the encoding **[PROVEN]**
 
@@ -497,12 +497,12 @@ across process boundaries. Each outcome is classed:
 
 | Code | Meaning |
 |---|---|
-| `content-drift` | bound content changed between render and finalize (§3, §9); the [PROVEN] live mode also raises it at redemption-time `reverify` (§9.2), whose seam semantics are decided on record (`OPEN-QUESTIONS.md` §7) |
+| `content-drift` | bound content changed between render and finalize or decline (§3, §9); the [PROVEN] live mode also raises it at redemption-time `reverify` (§9.2), whose seam semantics are decided on record (`OPEN-QUESTIONS.md` §7) |
 | `identity-authority-refused` | payload-carried identity, or an authority not allowed for the leg (§6) |
 | `record-exists` | a non-terminal record already exists for this `(profile, subject)` (§9); never appends |
-| `leg-expired` | a decision-progress seam (finalize; the findings seams, §10.2) attempted against an `expired` or due-expired record |
+| `leg-expired` | a decision-progress seam (finalize, decline (§9); the findings seams, §10.2) attempted against an `expired` or due-expired record |
 | `record-not-open` | a decision-progress seam invoked against a non-open, non-expired record (§9); never appends — an expired record at those seams draws `leg-expired` instead |
-| `consultation-missing` | no fresh reviewed-surface (`facts`) evidence at finalize, or a profile-required consultation kind absent from the finalize inputs (§3, §9, §11.1) |
+| `consultation-missing` | no fresh reviewed-surface (`facts`) evidence at finalize or decline, a profile-required consultation kind absent from the finalize inputs, or — at decline — the implicit `eligibility` kind absent (§3, §9, §10.4, §11.1) |
 | `chain-compromise` (class `compromise`) | chain verification failed (§5) |
 | `unknown-profile` / `unknown-leg` | unknown identifiers fail closed and never append; `unknown-leg` has two producers — a caller-named leg absent from the profile at `stage()`, and a staged draft's leg absent from the profile it resolves under at `open()` |
 | `unredeemable-state` | `redeem()` where no redeemable seam or state applies — the domain outcome on a pure-capture profile for an intact-chain, known-profile, valid-leg call; on an effect-seam profile, a `redeem()` against a non-final leg's record in any state, or on the final leg against an `open`, `refused`, `expired`, or `declined` record; never appends (§11.2) |
@@ -611,8 +611,9 @@ and the sweep — §12).
   non-declaring leg throws (the §10.2 seams' posture), so non-declaring chains stay
   byte-identical. A declined record proves the named actor declined this exact content
   having seen this surface — never that the decline was justified (fidelity, not
-  validity). Every refusal reuses an existing §8 code through the `terminalRefusals` rule;
-  the registry does not grow.
+  validity). Every refusal reuses an existing §8 code — the refusal-class arms through the
+  `terminalRefusals` rule, the rest through their own §8 postures; the registry does not
+  grow.
 
 **The finalize gate ladder.** Finalize's check order is fixed, and every refusal path wins
 over the ones after it: **(1)** pre-seam chain-verify → **(2)** state/expiry (en-passant
@@ -633,11 +634,12 @@ orders only the refusal ladder itself.
 holds a leg, or executes effects. The agent-reachable surface is **reads and staging only**;
 everything that transitions a record is operator-only, and because staging happens pre-record
 this holds without exception — a chat or voice "yes" arriving as payload can never open a
-record or finalize one (§6). The restriction is **in-process object-capability discipline,
-not a sandbox**: it holds against an agent that can reach only the agent handle. The host
-**MUST** compose the handles so the agent receives only the agent surface — a host that hands
-its agent the operator handle, the `Store`, or the construction config has stepped outside
-the split. Feature options (policy binding, prior-leg references) grow only the
+record, finalize one, or decline one (§6). The restriction is **in-process
+object-capability discipline, not a sandbox**: it holds against an agent that can reach only
+the agent handle. The host **MUST** compose the handles so the agent receives only the agent
+surface — a host that hands its agent the operator handle, the `Store`, or the construction
+config has stepped outside the split. Feature options (policy binding, prior-leg references)
+grow only the
 **operator-only** options bags; the agent-reachable `stage()` surface does not grow with
 features. Automated reviewers attach evidence as Consultations; they never decide (§2,
 §11.1).
@@ -666,7 +668,7 @@ a one-line applicability note, not through a separate tier system.
 | `redeem` | Effect-seam configuration: the redemption bounds (`confirmToRedeem`, `redeemBound`). Its presence declares an **effect seam** (§11.2) |
 | `sod.notActorOf`, `proposer` | Per-leg separation-of-duties controls (§10.1) |
 | `ackMode`, `requiredAcks` | Per-leg findings-flow controls (§10.2) **[PROVEN]** — declared both-or-neither |
-| `eligibility` | Per-leg opaque authority-to-decide reference; declaring it makes an implicit-first required `eligibility` consultation whose `fail` verdict gates finalize (`ineligible`) (§10.4) |
+| `eligibility` | Per-leg opaque authority-to-decide reference; declaring it makes an implicit-first required `eligibility` consultation whose `fail` verdict gates finalize and decline (`ineligible`) (§9, §10.4) |
 | `decline` | Per-leg literal `true` switching on §9's `decline` seam **[PROVEN]**; declaring anything other than the literal `true` is a construction error (the `signing` rule's class) |
 | `allowedAuthorities` | Per-leg identity authorities that may vouch for a leg's actor (§6) |
 | `terminalRefusals` | Per-leg list of refusal codes the profile marks **terminal** for that leg — a matching `refusal`-classed code (§8) ends the leg instead of leaving the record `open` for retry |
@@ -908,14 +910,15 @@ check; the host supplies its result as an `eligibility` consultation, and the li
 **The trip mapping.** When the leg declares `eligibility` and the tripping kind is
 `'eligibility'`: a **`fail` verdict refuses `ineligible`**; a *missing* input refuses
 `consultation-missing` (generic); an *unreachable* marker yields the availability outcome
-(generic). `ineligible` is **open-by-default** — eligibility is per-finalize, per actor, so a
-*different* eligible actor may decide the same open record; a leg's `terminalRefusals` may
-list `ineligible` to end the leg instead.
+(generic). `ineligible` is **open-by-default** — eligibility is per-call (finalize or
+decline), per actor, so a *different* eligible actor may decide the same open record; a
+leg's `terminalRefusals` may list `ineligible` to end the leg instead.
 
 **Verdict vs. code.** A `Consultation.verdict` is `'pass'` or `'fail'`, so a failed
 eligibility check records verdict `'fail'` — `ineligible` is the refusal **code**, not a
 verdict value. A **`pass`**-verdict eligibility consultation is an obtained required input and
-is recorded in finalize's success batch — the chain's evidence that the check ran and passed.
+is recorded in the deciding call's success batch (finalize's or decline's) — the chain's
+evidence that the check ran and passed.
 A **`fail`** refuses and, like every refusal path, records no consultation; its evidence is
 the outcome code. A leg wanting a chain trace of the refusal lists `ineligible` in
 `terminalRefusals` (a code-bearing `refused` edge, at the cost of ending the leg).
@@ -964,10 +967,11 @@ marker* — `{ kind, unreachable: true, authority }`, whose `authority` names th
 down. Custody is **digest-only**: the host digests its own evidence payload into
 `payloadDigest`; the library never sees the payload, matching every other seam (§3). A
 consultation's `at` is **never accepted from the host** — the library stamps the recording
-moment (§2.1). At most **one consultation per kind** per finalize is admitted; a duplicate
-kind, a malformed input, or an input naming a **reserved** library-emitted kind (`facts` or
-`chain-verify`, which would forge a library control) is a caller error that **throws at
-argument intake**, before the chain is loaded — never a refusal (declaring a reserved kind in
+moment (§2.1). At most **one consultation per kind** per finalize or decline call is
+admitted; a duplicate kind, a malformed input, or an input naming a **reserved**
+library-emitted kind (`facts` or `chain-verify`, which would forge a library control) is a
+caller error that **throws at argument intake**, before the chain is loaded — never a
+refusal (declaring a reserved kind in
 `requiredConsultations` is likewise a profile-construction error, §9.1). The gate reads the
 finalizing record's **own resolved leg** (so on a multi-leg profile one leg's finalize is
 never gated by another leg's `requiredConsultations`) and iterates the declared kinds **in
