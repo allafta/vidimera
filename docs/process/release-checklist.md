@@ -13,8 +13,15 @@
 > **To pick the cut back up:** `git cherry-pick 8be3fce` (or revert the reverting
 > commit), refresh every `2026-08-19` release date in it to the actual cut date
 > (CHANGELOG's `[0.1.0]` heading and body, README's status paragraph, CLAUDE.md's honest
-> bound, the guide's four flips), re-run all gates, commit, tag `v<version>`, push with
-> the tag — then resume at "Repository and registry settings" below. The owner-side items
+> bound, the guide's four flips). The CHANGELOG's `[0.1.0]` section is the one flip a
+> date refresh cannot fix: re-cut it fresh from `[Unreleased]` as it reads at pickup
+> rather than reusing the preserved commit's wording — `[Unreleased]` has grown three
+> post-build-order capabilities since the pause (recorded human decline, proposal
+> provenance, effect-result notarization), none named in the commit being picked up. The
+> same staleness question — has the content, not only the date, moved since the pause? —
+> applies to any other docset flip in that commit; check each against its current source
+> before trusting the preserved wording. Re-run all gates, commit, tag `v<version>`, push
+> with the tag — then resume at "Repository and registry settings" below. The owner-side items
 > that stopped the paused attempt, all still open: the npm `vidimera` org and a granular
 > `NPM_TOKEN` secret, the repository visibility flip (blocked from automation by design —
 > run `gh repo edit allafta/vidimera --visibility public

@@ -232,3 +232,21 @@ form; the account above stands as the history of the gap.
   `docs/superpowers/plans/` carry one spec/plan pair per increment, named by the increment it
   served; `docs/analysis/2026-08-03-step-1-review.md` is the one historical review artifact
   outside that pair structure.
+- **A new capability moves its own enumerations, in its own increment.** A capability or
+  record-model field that adds a conditional field must, in the same increment, move: (1)
+  `docs/concept/SPEC.md` §2's enumerations — the record-model field table and the
+  profile-conditional/flow-conditional sentences — wherever it adds a conditional field;
+  (2) the publish-facing docset (`CHANGELOG.md`'s `[Unreleased]`, `README.md`, and
+  `docs/guide/concepts.md`'s governed-controls list); and (3) any SPEC §8 registry
+  producer-note row or other §-scoped sentence whose enumeration the capability widens.
+  This is a discipline, not a gate, because no scan reads a prose enumeration or a sealed
+  honesty cell — `pnpm contract-scan` and `pnpm api-sync` are both silent on this class of
+  drift — so the increment's own sweep is the only defense there is. The
+  recorded-human-decline, proposal-provenance, and effect-result-notarization increments
+  each landed a capability that left a SPEC §2-adjacent enumeration under-inclusive by
+  omission: the first two were caught and fixed within their own increment's review before
+  exit; the third escaped its own increment entirely and surfaced only at a later, separate
+  fix wave, recorded rather than fixed for want of an in-scope sanction. The same three
+  capabilities also went unrecorded in the publish-facing docset until a later, separate
+  increment caught all three at once. `docs/process/implementation-status.md`'s own
+  increment sections carry the full account; it is not restated here.
