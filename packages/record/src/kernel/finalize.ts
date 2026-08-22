@@ -682,6 +682,13 @@ function batchConflict(conflict: 'seq', index: number): Error {
  * increment, alongside each other) are FURTHER un-enlisted callers of this same append,
  * through the SAME shared `prologue()` chain-verify-first rung the direct shape uses — no
  * copy of this function, and no new shape beyond the `redeeming` candidate named above.
+ *
+ * `kernel/decline.ts`'s `decline()` (the recorded-human-decline increment) and
+ * `kernel/findings-seams.ts`'s shared prologue serving `raiseFinding`/`acknowledge` (the
+ * findings flow) are the remaining callers — five call sites in all, counting this
+ * function's home seam. Both take the ordinary un-enlisted path and add no shape beyond
+ * the ones named above: decline's own CAS candidate set is finalize's, and the findings
+ * seams append only from `open`.
  */
 export async function appendChainCompromise(
   store: Store,

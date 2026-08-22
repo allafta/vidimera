@@ -25,8 +25,11 @@
 // mint increment) joins those wrappers as a fourth pure read: `kernel/verify-signatures.ts`,
 // chain-driven, never a gate — reporting only, permanently: the AL2 enforcement increment
 // (second of three, now landed) folds the signature layer into chain-compromise at the
-// SIX verification sites instead (`signatureLayerHolds`, sharing this read's own
+// SEVEN verification sites instead (`signatureLayerHolds`, sharing this read's own
 // correlation core), never by having this read itself gate.
+// The seventh site is `kernel/decline.ts`, which the recorded-human-decline increment
+// added after the enforcement increment's own six; a count here is a live claim about the
+// current tree, so it moves whenever a seam joins the family.
 //
 // The seam family now has a token half alongside the direct one — SPEC §11.2 names one
 // verb, `redeem()`; the three call names here (`redeem`/`beginRedemption`/
