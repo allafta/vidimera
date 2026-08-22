@@ -5,8 +5,8 @@
 // the entry point. Rule 2 — the pure audit functions (`replay(chain)`,
 // `verifyChain(chain)`; SPEC §5) export beside their operator-handle forms, for the
 // offline-audit case (an archived chain needs no store and no handle). Rule 3 — the
-// signing tier is root-reachable (the `./probes` subpath is publish-tooling work,
-// register row 1: no exports map exists yet, so a subpath cannot).
+// signing tier is root-reachable, and `./probes` is the one decided subpath — the exports
+// map declaring both entries landed at the phase-2 packaging increment.
 //
 // The TYPE half of the pin is the import block below compiling: vitest's transform
 // strips types unchecked, so `pnpm typecheck` (which includes test/) is the gate that

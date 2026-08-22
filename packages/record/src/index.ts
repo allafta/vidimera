@@ -1,4 +1,5 @@
-// @vidimera/record — public entry point: the single `.` export. Re-exports `create` (its
+// @vidimera/record — public entry point: the `.` half of a two-entry exports map (`.` and
+// `./probes`). Re-exports `create` (its
 // handle pair named `Surfaces`), the exported helpers (`canonicalize`/`digest`, and the
 // pure audit functions `replay`/`verifyChain` beside their operator-handle forms, SPEC §5),
 // every public type — including, per the 2026-08-19 phase-1 API review's no-unspellable-
@@ -6,7 +7,8 @@
 // `Store` implementations (see each export's own comment below). The agent/operator split
 // is a runtime capability split (two frozen handles from `create`), not a module split;
 // the one decided subpath, `./probes` (OPEN-QUESTIONS §5's "a public library subpath"),
-// lands with the exports map itself (publish tooling, deferral register row 1).
+// landed with the exports map at the phase-2 packaging increment; the manifest declares
+// both entries today.
 
 export type { AgentSurface } from './agent-surface.js';
 export type { DigestAlgorithm } from './canonical.js';
@@ -65,7 +67,10 @@ export type {
 // Re-exported so adopters wire the library's own reference `Store` instead of
 // hand-rolling a byte-identical copy (an integrating host otherwise risks
 // re-deriving the private transition-encoding internals itself — a drift hazard).
-// Chain/encoding internals stay unexported; the store class is the
+// One chain/encoding internal IS exported — `transitionDigest`, above, part of the
+// adapter-author surface a conforming `Store` needs, and the only route
+// `@vidimera/store-postgres` has to it. The rest of `chain/encoding.ts`
+// (`genesisPrevHash`, `encodeTransition`) stays unexported; the store class is the
 // seam. PUBLIC BUT EXPLICITLY UNSTABLE PRE-1.0 — see `MemoryStore`'s own doc comment
 // and the `Store` interface's (same marking).
 export { MemoryStore } from './store/memory.js';
