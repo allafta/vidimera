@@ -15,7 +15,8 @@
     "test": "vitest run",
     "smoke": "node scripts/smoke-pack.mjs",
     "contract-scan": "node scripts/contract-scan.mjs",
-    "api-sync": "node scripts/api-reference-sync.mjs"
+    "api-sync": "node scripts/api-reference-sync.mjs",
+    "docs-index-sync": "node scripts/docs-index-sync.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.8",

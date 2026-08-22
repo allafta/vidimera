@@ -194,6 +194,7 @@ pnpm build          # compile both packages to dist/
 pnpm smoke          # pack, install into a scratch project, run — the consumability gate
 pnpm contract-scan  # the standalone-contract scan — exit 0, no output, when clean
 pnpm api-sync       # every exported name must appear in the API reference
+pnpm docs-index-sync  # every spec/plan file must have a row in the increment record
 ```
 
 All of these run in CI on every push to `main` and every pull request. `pnpm contract-scan`

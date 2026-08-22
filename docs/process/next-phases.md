@@ -244,9 +244,10 @@ form; the account above stands as the history of the gap.
   (2) the publish-facing docset (`CHANGELOG.md`'s `[Unreleased]`, `README.md`, and
   `docs/guide/concepts.md`'s governed-controls list); and (3) any SPEC §8 registry
   producer-note row or other §-scoped sentence whose enumeration the capability widens.
-  This is a discipline, not a gate, because no scan reads a prose enumeration or a sealed
-  honesty cell — `pnpm contract-scan` and `pnpm api-sync` are both silent on this class of
-  drift — so the increment's own sweep is the only defense there is. The
+  This is a discipline, not a gate, because no scan reads a SPEC §2 enumeration, the
+  publish-facing docset, a §8 registry row, or a sealed honesty cell — `pnpm
+  contract-scan`, `pnpm api-sync`, and `pnpm docs-index-sync` are all silent on this class
+  of drift — so the increment's own sweep is the only defense there is. The
   recorded-human-decline, proposal-provenance, and effect-result-notarization increments
   each landed a capability that left a SPEC §2-adjacent enumeration under-inclusive by
   omission: the first two were caught and fixed within their own increment's review before

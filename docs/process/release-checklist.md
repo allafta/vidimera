@@ -81,8 +81,8 @@ as a list rather than as code.
 - [ ] The `CLAUDE.md` skim (phase-0 ruling 6): remove private-workflow residue; update
       its honest-bound paragraph to the published state.
 - [ ] Run every gate (`pnpm typecheck && pnpm test && pnpm build && pnpm smoke &&
-      pnpm lint:strict && pnpm contract-scan && pnpm api-sync`), commit, tag `v0.1.0`,
-      push the tag.
+      pnpm lint:strict && pnpm contract-scan && pnpm api-sync && pnpm docs-index-sync`),
+      commit, tag `v0.1.0`, push the tag.
 
 ## Repository and registry settings (no commit can land these)
 

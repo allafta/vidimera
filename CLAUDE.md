@@ -125,6 +125,11 @@ pnpm workspace (Node 22.16+, pnpm via corepack):
 - `pnpm api-sync` — the api-reference drift gate: every name `packages/record/src/index.ts`
   exports must occur in `docs/guide/api-reference.md` (`scripts/api-reference-sync.mjs`;
   presence only, never accuracy — read its bounds comment)
+- `pnpm docs-index-sync` — the increment-record drift gate: every tracked file in
+  `docs/superpowers/specs/` and `docs/superpowers/plans/` must be named in
+  `docs/superpowers/INDEX.md`, and its stated counts must match
+  (`scripts/docs-index-sync.mjs`; presence and arithmetic only, never accuracy — read its
+  bounds comment)
 - `pnpm contract-scan` — the **standalone contract scan**: run before any commit that
   touches markdown or TypeScript. Prints nothing and exits 0 when clean; prints
   `path:line:text` and exits 1 on findings (`scripts/contract-scan.mjs`). Scans all
@@ -165,7 +170,7 @@ pnpm workspace (Node 22.16+, pnpm via corepack):
 
 CI (`.github/workflows/ci.yml`) is two-tier on every push to `main` and every pull
 request: a Linux `checks` job runs the platform-independent gates (typecheck, lint,
-contract-scan, `api-sync`, `lint:strict`), and a `test` matrix runs test + build + the packed-tarball
+contract-scan, `api-sync`, `docs-index-sync`, `lint:strict`), and a `test` matrix runs test + build + the packed-tarball
 smoke test on the exact declared Node floor (ubuntu @ 22.16.0), current Node
 (ubuntu @ 24), and Windows/macOS @ 22 — with pnpm caching, read-only token permissions,
 and one cancel-on-supersede concurrency group per ref. `.github/workflows/release.yml` is

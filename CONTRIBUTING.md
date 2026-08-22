@@ -38,6 +38,7 @@ pnpm build          # compile both packages to dist/
 pnpm smoke          # pack the record tarball, install it in a scratch project, run it
 pnpm contract-scan  # the standalone-contract scan (see below)
 pnpm api-sync       # every index.ts export must appear in docs/guide/api-reference.md
+pnpm docs-index-sync  # every spec/plan file must have a row in the increment record
 ```
 
 CI additionally runs `pnpm lint:strict` (`biome check --error-on-warnings`), so a warning
@@ -150,7 +151,7 @@ test the floor.
 | `docs/superpowers/` | The increment record: design specs and implementation plans per increment (a few plans carry no spec) |
 | `packages/record/` | The core implementation and its test suite |
 | `packages/store-postgres/` | The server-SQL Store backing (its suite runs against a real embedded Postgres) |
-| `scripts/` | Repo tooling: the contract scan, the api-reference drift gate, the tarball smoke test — each with its own test where it has logic |
+| `scripts/` | Repo tooling: the contract scan, the api-reference drift gate, the increment-record drift gate, the tarball smoke test — each with its own test where it has logic |
 
 ## Conduct and security
 

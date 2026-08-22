@@ -18,19 +18,20 @@ the increment was written, which the code and the status doc may have since move
 A reader chasing current behavior reads the code and the status doc; a reader chasing how
 a past decision was reached reads the matching row below.
 
-**Counted at write time:** 24 files in `specs/`, 27 in `plans/` — not one-to-one. Three
+**30 files in `specs/`, 33 in `plans/`** — not one-to-one. Three
 plans carry no spec: the two step-1 completion/remediation plans
 (`2026-08-03-autonomous-step-1-completion.md`, `2026-08-03-step-1-remediation.md`) and
 this housekeeping plan's own (`2026-08-18-post-build-order-housekeeping.md`). Each is
 noted "no spec" in its row below rather than paired with a design document that does not
 exist.
 
-**`docs/analysis/`** holds one file,
-[`2026-08-03-step-1-review.md`](../analysis/2026-08-03-step-1-review.md) — the
+**`docs/analysis/`** holds 16 files, the increment-history artifacts outside that pair
+structure — earliest is
+[`2026-08-03-step-1-review.md`](../analysis/2026-08-03-step-1-review.md), the
 whole-branch review of step 1 that the step-1-remediation plan below was written to
-close. It is a point-in-time review artifact, not current guidance; its findings were
+close. Each is a point-in-time artifact, not current guidance; findings from these were
 either fixed (and so live in the code and the status doc today) or recorded as rulings in
-the plans that followed it.
+the plans that followed them.
 
 ## The increments, chronologically
 
@@ -64,3 +65,8 @@ the plans that followed it.
 | 2026-08-18 | Self-test tier | Step 8, last item — exit; build order complete | [design](specs/2026-08-18-self-test-tier-design.md) | [plan](plans/2026-08-18-self-test-tier.md) |
 | 2026-08-18 | Post-build-order housekeeping | Post-build-order (no step) | no spec | [plan](plans/2026-08-18-post-build-order-housekeeping.md) |
 | 2026-08-19 | The Postgres backing, the token seams' `tx?`, the workspace shape | Post-build-order — release-plan phase 4 (register rows 15/16/4) | [design](specs/2026-08-19-store-postgres-design.md) | [plan](plans/2026-08-19-store-postgres.md) |
+| 2026-08-20 | Recorded human decline | Post-build-order (no step) | [design](specs/2026-08-20-recorded-human-decline-design.md) | [plan](plans/2026-08-21-recorded-human-decline.md) |
+| 2026-08-21 | Proposal provenance | Post-build-order (no step) | [design](specs/2026-08-21-proposal-provenance-design.md) | [plan](plans/2026-08-21-proposal-provenance.md) |
+| 2026-08-21 | Effect-result notarization | Post-build-order (no step) | [design](specs/2026-08-21-effect-result-design.md) | [plan](plans/2026-08-21-effect-result.md) |
+| 2026-08-22 | Truth repairs | Post-build-order (no step) | [design](specs/2026-08-22-truth-repairs-design.md) | [plan](plans/2026-08-22-truth-repairs.md) |
+| 2026-08-22 | Byte-regression pins | Post-build-order (no step) | [design](specs/2026-08-22-byte-regression-pins-design.md) | [plan](plans/2026-08-22-byte-regression-pins.md) |
