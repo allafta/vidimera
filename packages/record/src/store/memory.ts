@@ -101,8 +101,10 @@ interface StoredRecord {
  * implements (`store/store.ts`): this class is the reference in-memory backing beside
  * the real embedded adapter (`store/sqlite.ts`) and the server-SQL adapter
  * (`@vidimera/store-postgres`'s `PostgresStore`); none of the three is a frozen
- * contract. Chain/encoding internals
- * (`chain/encoding.ts`'s `transitionDigest`, etc.) remain unexported; only this class is
+ * contract. One chain/encoding internal IS exported — `transitionDigest`, part of the
+ * adapter-author surface a conforming `Store` needs, and the only route
+ * `@vidimera/store-postgres` has to it. The rest of `chain/encoding.ts`
+ * (`genesisPrevHash`, `encodeTransition`) stays unexported; only this class is
  * the seam.
  */
 export class MemoryStore implements Store {

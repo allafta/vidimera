@@ -38,15 +38,18 @@ any one exit.
   the paused cut's stale-CHANGELOG trap recorded, and two sanctioned enumeration closures in
   the sealed set (SPEC §2's `resultDigest` row and list entry; SPEC §13's correction-rate
   vector). See the dedicated section at the end of this document for the full account.
-- **A thirteenth increment, past the build order, has landed: truth repairs** — nine tracked
+- **A thirteenth increment, past the build order, has landed: truth repairs** — ten tracked
   source-comment and test-header claims, plus one stale count in the separate increment
   record (`docs/superpowers/INDEX.md`), that asserted a state the tree had already left
   behind were repaired or corrected in place, and a new gate (`scripts/docs-index-sync.mjs`)
-  now keeps that increment record's own counts from drifting silently again. One further claim (row 4,
-  `packages/record/src/store/memory.ts`) was never assigned to a task by this increment's own
-  plan and remains unrepaired — recorded as an outstanding finding, not silently left. No
-  behavior landed and no maturity marker moved. See the dedicated section at the end of this
-  document for the full account; the numbers immediately below already include it.
+  now keeps that increment record's own counts from drifting silently again. One of the ten
+  (row 4, `packages/record/src/store/memory.ts`) was missed by the plan's own task
+  decomposition — the design enumerated ten rows, the plan's four repair tasks covered nine,
+  and the plan's own self-review note asserted coverage it did not deliver — caught at this
+  increment's own exit review and repaired here, an instance of the same enumeration defect
+  the increment targets, found in the increment's own plan. No behavior landed and no
+  maturity marker moved. See the dedicated section at the end of this document for the full
+  account; the numbers immediately below already include it.
 - **Measured against the current tree**: `pnpm test` — 55 test files, 757 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
@@ -1862,9 +1865,10 @@ radius reaches comments in files the capability itself never touches: the phase-
 packaging increment's `exports` map falsified three comments about a subpath that "does
 not exist yet" (rows 1, 2, 5); the phase-4 store-postgres increment's adapter-author-surface
 export of `transitionDigest` falsified a matching pair of "chain/encoding internals stay
-unexported" claims — one inside `index.ts`'s own `MemoryStore` block (row 3, repaired) and
-one inside `store/memory.ts`'s own `MemoryStore` doc comment (row 4 — not repaired by this
-increment, see below); the recorded-human-decline increment's seventh verification site
+unexported" claims — one inside `index.ts`'s own `MemoryStore` block (row 3) and one inside
+`store/memory.ts`'s own `MemoryStore` doc comment (row 4 — missed by the plan's own task
+decomposition and repaired late, at this increment's own exit review; see below); the
+recorded-human-decline increment's seventh verification site
 outgrew a "six
 verification sites" count in three places (row 6); the findings flow (commit `970d837`)
 added an `appendChainCompromise` caller the doc comment never named (row 8); and the
@@ -1965,29 +1969,34 @@ since three post-build-order marker moves followed it — the sentence's own "si
 marker-move commits in total" count was untouched, being correct in its own explicitly
 build-order-scoped count.
 
-**Row 4 — not repaired: an outstanding gap in this increment's own plan, recorded rather
-than silently closed.** The design document lists row 4 as
-`packages/record/src/store/memory.ts`'s `MemoryStore` doc comment, which says
-chain/encoding internals "remain unexported", naming `transitionDigest` explicitly — false
-for the same reason row 3 was false before Task 1's repair: `index.ts` re-exports
-`transitionDigest`, and `@vidimera/store-postgres`'s `PostgresStore` reaches it only that
-way. Stale since the same phase-4 store-postgres increment's adapter-author-surface
-amendment that produced row 3 (commit `bb87ad0`, per the design document). The design's own
-row table assigns this row to no task's file list: Task 1's own heading and
-file list name rows 1, 2, 3 and 5 only, Task 2 names 6 and 8, Task 3 names 7 and 9, and
-Task 4 names 10 — row 4 sits in none of them, a gap between the implementation plan's own
-self-review notes (which state that design rows 1–5 map to Task 1) and Task 1's actual,
-narrower scope. Confirmed by direct inspection at this increment's exit: `git diff main --
-packages/record/src/store/memory.ts` reports no change on this branch, and the false
-sentence is still present in the tree verbatim. This increment's own design document's exit
-condition calls for every row to be repaired, or recorded row by row as no-longer-
-reproducing — row 4 is neither; it still reproduces and was never repaired. It is recorded
-here as a known, live, unrepaired finding for a follow-up comment-only fix (no sanction
-needed — `store/memory.ts` is ordinary source, not part of the sealed concept set), rather
-than fixed inside this documentation-only task, and rather than left unmentioned.
+**Row 4 — missed by the plan, caught at exit review, repaired here.** The design document
+lists row 4 as `packages/record/src/store/memory.ts`'s `MemoryStore` doc comment, which
+said chain/encoding internals "remain unexported", naming `transitionDigest` explicitly —
+false for the same reason row 3 was, before Task 1's repair: `index.ts` re-exports
+`transitionDigest` (confirmed again at this repair: `grep -n "from './chain/encoding.js'"
+packages/record/src/index.ts` prints exactly that one line), and
+`@vidimera/store-postgres`'s `PostgresStore` reaches it only that way — its only route to
+it. Stale since the same phase-4 store-postgres increment's adapter-author-surface
+amendment that produced row 3 (commit `bb87ad0`, per the design document). **This is not a
+row the plan chose to leave for later — it is a gap in the plan's own coverage**: the
+design document's row table enumerates ten rows, but the plan's four repair tasks name only
+nine of them in their file lists (Task 1's own heading and file list cover rows 1, 2, 3 and
+5; Task 2 covers 6 and 8; Task 3 covers 7 and 9; Task 4 covers 10), while the same plan's
+self-review notes assert "Design rows 1–5 → Task 1" — a coverage claim the task's own,
+narrower scope did not deliver. Row 4 was never touched by any of the four repair tasks'
+commits (`git diff main -- packages/record/src/store/memory.ts` showed no change at this
+increment's first exit-review pass), was caught at that review, and is repaired in this
+same exit commit: the comment now names `transitionDigest` as the one exported
+chain/encoding internal (the adapter-author surface `@vidimera/store-postgres` needs) and
+`genesisPrevHash`/`encodeTransition` as the two that stay unexported, matching `index.ts`'s
+own parallel repair (commit `cd0da5a`) word for word in structure. This is recorded plainly
+as an instance of the very enumeration defect this increment exists to close, found this
+time inside the increment's own plan rather than inside the tree the plan was written to
+fix — not softened to a mere footnote.
 
-**Cuts.** None beyond row 4's own accounting above. This increment closed nine of its ten
-planned repairs and corrected, rather than satisfied, row 7; it introduced one new gate
+**Cuts.** None. This increment repaired all ten of its enumerated rows — nine inside the
+original four tasks' commits, the tenth (row 4) caught at exit review and repaired in this
+same commit — and corrected, rather than satisfied, row 7; it introduced one new gate
 script and cut no capability.
 
 **Four items, parked rather than acted on** (recorded so none is silently discarded):
