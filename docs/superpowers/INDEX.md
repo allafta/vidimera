@@ -29,9 +29,7 @@ exist.
 structure — earliest is
 [`2026-08-03-step-1-review.md`](../analysis/2026-08-03-step-1-review.md), the
 whole-branch review of step 1 that the step-1-remediation plan below was written to
-close. Each is a point-in-time artifact, not current guidance; findings from these were
-either fixed (and so live in the code and the status doc today) or recorded as rulings in
-the plans that followed them.
+close.
 
 ## The increments, chronologically
 
