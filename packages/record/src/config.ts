@@ -99,7 +99,11 @@ export function profileDeclaresEffectSeam(profile: ConfirmProfile): boolean {
  * fails fast with an explicit 'feature not available in this build' error rather than
  * silently degrading"). Guards lift feature-by-feature as build steps add enforcement. The
  * head through the closing parenthesis — `GOVERNED feature not available in this build
- * (<field>)` — is byte-preserved (pinned by construction-validation.test.ts); the
+ * (<field>)` — is NOT pinned by any test. `construction-validation.test.ts` names it in
+ * its own header and in two `assert.doesNotMatch` negatives, which assert that a
+ * STRUCTURAL error is not the governed string; nothing anywhere asserts that a governed
+ * throw MATCHES this head, so rewording it would break no gate. Ordinary prose, not a
+ * byte contract. The
  * caller-supplied `contract` is the appended tail: what is unavailable, and the SPEC
  * section(s) that lift it. Arity-2 originally because it served the per-field
  * construction guards below (now zero — every field this build once gated has lifted
@@ -502,15 +506,22 @@ function validateFindingsFlow(profile: ConfirmProfile, leg: LegSpec): void {
  *     self-test-tier increment — register row 18) — `expiry.ttl` where declared,
  *     `redeem.confirmToRedeem`/`redeem.redeemBound` where present, each a positive
  *     finite integer of seconds;
+ *  4a. structural: the `redeem.result` declaration's shape (`validateResultDeclaration`,
+ *     the effect-result increment) — profile-level, run immediately after the numeric
+ *     bounds and before the policySource label check;
  *  5. structural: an empty `policySource` label (policy drift, SPEC §10.3) — the
  *     malformed-reference rule, the same settled class as `eligibility`'s own empty-label
  *     check;
+ *  5a. structural: `signing` declared as anything but the literal `true` — the
+ *     fail-closed guard that stops a silently-inert `signing: false` from constructing;
+ *     profile-level, run before the leg loop;
  *  6. the stray-redemption-key check (inside `validateLeg` — no per-leg GOVERNED guard
  *     remains there, see below), then structural SoD shape validation
  *     (`validateSodShape`), structural requiredConsultations validation
  *     (`validateRequiredConsultations`), structural eligibility validation
- *     (`validateEligibility`), structural freshness validation (`validateFreshness`),
- *     and structural findings-flow validation (`validateFindingsFlow`), all five after;
+ *     (`validateEligibility`), structural decline validation (`validateDecline`),
+ *     structural freshness validation (`validateFreshness`), and structural
+ *     findings-flow validation (`validateFindingsFlow`), all six after;
  *  7. structural: stray redemption key on the profile itself;
  *  8. structural: `reverify` on a non-live profile — live capture's own control,
  *     misdeclared onto a staged profile (SPEC §9.2's live mode).
@@ -590,10 +601,11 @@ function validateFindingsFlow(profile: ConfirmProfile, leg: LegSpec): void {
  * closes here — every guard that era installed has now lifted behind its own behavior,
  * each in the same commit as that behavior. `governedUnavailable` (above) SURVIVES this
  * lift: it is not itself a per-field guard, and it still serves the generic
- * unknown-option-key throws that are NOT feature guards — `finalize()`'s own
- * `finalizeOptionMessage` (this file's caller in `kernel/finalize.ts`) and
- * `kernel/open.ts`'s generic unknown-open-option-key message, neither of which names a
- * single not-yet-enforceable field the way every guard swept by this sequence did.
+ * unknown-option-key throws that are NOT feature guards — four call sites today
+ * (`kernel/open.ts`, `kernel/finalize.ts`, `kernel/decline.ts`, and `kernel/redeem.ts`'s
+ * shared `validateRedeemOptions` serving all three redemption seams), none of which names
+ * a single not-yet-enforceable field the way every guard swept by this sequence did. This
+ * count is stated once above `governedUnavailable` itself; the two must not diverge again.
  * The sweep is TOTAL: a profile declaring any governed feature throws — the first one
  * reached wins, but none slips through. Canonicalizer resolution + duplicate-id detection
  * are `create.ts`'s (they need the registry / the whole profile list).
