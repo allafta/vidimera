@@ -687,8 +687,11 @@ function batchConflict(conflict: 'seq', index: number): Error {
  * `kernel/findings-seams.ts`'s shared prologue serving `raiseFinding`/`acknowledge` (the
  * findings flow) are the remaining callers — five call sites in all, counting this
  * function's home seam. Both take the ordinary un-enlisted path and add no shape beyond
- * the ones named above: decline's own CAS candidate set is finalize's, and the findings
- * seams append only from `open`.
+ * the ones named above: decline's own CAS candidate set is finalize's; and the findings
+ * seams reach this append at their own chain-verify rung, which precedes their state rung
+ * (SPEC §5: "Verification is first"), so a tampered or signature-broken chain over a
+ * `confirmed` or `redeeming` findings-declaring record arrives here with that state —
+ * already inside this function's own candidate list, adding nothing new.
  */
 export async function appendChainCompromise(
   store: Store,
