@@ -38,10 +38,19 @@ any one exit.
   the paused cut's stale-CHANGELOG trap recorded, and two sanctioned enumeration closures in
   the sealed set (SPEC §2's `resultDigest` row and list entry; SPEC §13's correction-rate
   vector). See the dedicated section at the end of this document for the full account.
-- **Measured against the current tree**: `pnpm test` — 54 test files, 751 tests, zero skips
+- **A thirteenth increment, past the build order, has landed: truth repairs** — nine tracked
+  source-comment and test-header claims, plus one stale count in the separate increment
+  record (`docs/superpowers/INDEX.md`), that asserted a state the tree had already left
+  behind were repaired or corrected in place, and a new gate (`scripts/docs-index-sync.mjs`)
+  now keeps that increment record's own counts from drifting silently again. One further claim (row 4,
+  `packages/record/src/store/memory.ts`) was never assigned to a task by this increment's own
+  plan and remains unrepaired — recorded as an outstanding finding, not silently left. No
+  behavior landed and no maturity marker moved. See the dedicated section at the end of this
+  document for the full account; the numbers immediately below already include it.
+- **Measured against the current tree**: `pnpm test` — 55 test files, 757 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
-  `pnpm lint` (`biome check .`) — 119 files checked, zero errors or warnings;
+  `pnpm lint` (`biome check .`) — 121 files checked, zero errors or warnings;
   `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 24 refusal codes, the twenty-fourth and
@@ -1834,3 +1843,171 @@ clean; `./node_modules/.bin/biome check .` — 119 files checked, zero errors or
 `node scripts/contract-scan.mjs` — exit 0, no output; `node scripts/api-reference-sync.mjs`
 — exit 0. `docs/process/deferral-register.md` carries no row for this increment and none
 moved.
+
+## Post-build-order increment — truth repairs (comment and record accuracy)
+
+**The fifth post-build-order increment, exited.** Unlike the three capability increments
+and the release-readiness reconciliation before it, this increment lands no behavior at
+all: every task is a comment or documentation repair. No maturity marker moves, and none
+could — `docs/concept/SCOPING-GUIDE.md` §7's spec-moves-to-truth rule moves a marker only
+when behavior lands, and no `docs/concept/` file was touched. No sanction was sought and
+none was needed. Design:
+`docs/superpowers/specs/2026-08-22-truth-repairs-design.md`; plan:
+`docs/superpowers/plans/2026-08-22-truth-repairs.md`.
+
+**The gap this closed.** Ten claims in tracked source comments, test headers and this
+repository's own increment record (`docs/superpowers/INDEX.md`) asserted a state the tree
+had already left behind. Nine are one defect wearing nine faces — a capability's blast
+radius reaches comments in files the capability itself never touches: the phase-2
+packaging increment's `exports` map falsified three comments about a subpath that "does
+not exist yet" (rows 1, 2, 5); the phase-4 store-postgres increment's adapter-author-surface
+export of `transitionDigest` falsified a matching pair of "chain/encoding internals stay
+unexported" claims — one inside `index.ts`'s own `MemoryStore` block (row 3, repaired) and
+one inside `store/memory.ts`'s own `MemoryStore` doc comment (row 4 — not repaired by this
+increment, see below); the recorded-human-decline increment's seventh verification site
+outgrew a "six
+verification sites" count in three places (row 6); the findings flow (commit `970d837`)
+added an `appendChainCompromise` caller the doc comment never named (row 8); and the
+effect-result increment's `validateResultDeclaration` landed on top of a numbered
+validation ladder that already stopped short of the body (row 9). Row 7 is a different
+defect, named apart rather than folded into that count: not a claim later falsified, but a
+pin asserted to exist — "byte-preserved (pinned by `construction-validation.test.ts`)" —
+that never did. Row 10, `INDEX.md`'s own "Counted at write time" hedge, was stale since the
+day after it was written; it is the one row among the ten that is countable and therefore
+gatable — unlike rows 1–9, which are prose claims that stay ungated by design (no comment-
+assertion machinery exists here to gate them), `docs/process/next-phases.md` already named
+this class before this increment existed ("no scan reads a prose enumeration").
+
+**Task 1 (`cd0da5a`) — rows 1, 2, 3, 5, the exports-map family.** Four comments in
+`packages/record/src/probes/index.ts`, `packages/record/src/index.ts` (two sites) and
+`packages/record/test/public-surface.test.ts` were rewritten to state what the manifest
+actually declares: an `exports` map carrying both `.` and `./probes`, a `files` array
+whose first entry is `dist` (so no deep import into `src/` survives publication), and
+`transitionDigest` as the one `chain/encoding.ts` name the entry point re-exports, kept for
+`@vidimera/store-postgres`'s own use. The `index.ts` `MemoryStore` block's PRE-1.0
+instability marking was preserved verbatim across the edit — the one trap the task's own
+brief called out by name.
+
+**Task 2 (`ca2fd67`, `28a18d8`) — rows 6, 8, the stale counts.**
+`packages/record/src/operator-surface.ts`'s header, `packages/record/test/signing-enforce.test.ts`'s
+header, and four present-tense sentences across three sites in this document's own step-8
+and row-14 accounts said "six verification sites"; a seventh site — `kernel/decline.ts`,
+added by the recorded-human-decline increment — makes seven. The four sentences here were
+repaired by pinning each to the increment where six was actually true, in the past tense,
+rather than by bumping the number to seven — six was never wrong for the moment those
+sentences describe. `kernel/finalize.ts`'s `appendChainCompromise` doc comment gained the two callers
+it never named (`kernel/decline.ts`'s `decline()`, `kernel/findings-seams.ts`'s shared
+prologue), bringing the stated total to five. A fix round (`28a18d8`) corrected a new
+sentence this same task introduced and got wrong: "the findings seams append only from
+`open`" is false — `findings-seams.ts`'s chain-verify rung runs before its state rung, so a
+signature-broken chain over a `confirmed` or `redeeming` findings-declaring record reaches
+the same append carrying that state, already a member of the function's own candidate
+list. The corrected sentence cites SPEC §5 ("Verification is first") beside the ordering
+claim it supports.
+
+**Task 3 (`b5ea416`) — rows 7, 9, `config.ts`'s two self-contradictions.** Row 7: the
+GOVERNED message's head was never pinned by any test — `construction-validation.test.ts`
+names it only in its own header and in two `assert.doesNotMatch` negatives, which assert
+that a STRUCTURAL error is not the governed string. Per the design's own ruling, the
+comment is corrected to say the head is unpinned; no pin was added, because whether the
+head SHOULD be byte-preserved is a decision about the GOVERNED message contract, out of
+this increment's scope — **row 7 is corrected, not satisfied.** Row 9: `validateProfile`'s
+numbered ladder gained rungs 4a (`validateResultDeclaration`) and 5a (the
+`signing`-must-be-`true` guard), two profile-level steps the list never reached, and rung 6
+gained `validateDecline` in its true position — fourth of six, between eligibility and
+freshness — correcting "all five after" to "all six after". The same comment's
+AL2-freshness tail said `governedUnavailable` serves two throw sites where the comment
+directly above `governedUnavailable` itself already said four; four is correct, and the
+tail now names all four (`kernel/open.ts`, `kernel/finalize.ts`, `kernel/decline.ts`,
+`kernel/redeem.ts`'s shared `validateRedeemOptions`), matching the count stated once
+elsewhere in the same file. **`governedUnavailable` itself was not touched** — no
+construction guard added or removed — and remains live at exactly these four call sites,
+none naming a not-yet-enforceable field.
+
+**Task 4 (`5ed1218`, `144df9e`) — row 10, the gate, and the seven enumerations it
+falsifies.** `scripts/docs-index-sync.mjs` checks two things about
+`docs/superpowers/INDEX.md` and no more: that every tracked file in
+`docs/superpowers/specs/` and `docs/superpowers/plans/` is named somewhere in the index
+(`file-not-indexed`), and that the index's stated counts for `specs/`, `plans/` and
+`docs/analysis/` match the tracked file counts (`count-mismatch`/`count-absent`). Silent
+exit 0 when clean, one finding per line on stderr and exit 1 otherwise, mirroring
+`api-reference-sync.mjs`'s shape. **Its bounds, stated in its own header comment**: it
+proves presence and arithmetic, never accuracy — a row carrying the wrong date, the wrong
+increment name or the wrong build-order step passes; a file named only inside an unrelated
+sentence counts as named. **A further bound stated plainly here rather than left for a
+reader to assume otherwise: `contract-scan` globs only `*.ts`/`*.mts`/`*.cts`, so it never
+reads `.mjs` at all — the gate script and its own test file
+(`scripts/test/docs-index-sync.test.mjs`) are themselves checked by no gate in this
+repository.** The first run against the real tree found ten untracked-in-index files and
+three count mismatches (specs stated 24, tracked 30; plans stated 27, tracked 33; analysis
+stated 1, tracked 16); the repair added five table rows, one per post-build-order
+increment's spec/plan pair (recorded human decline, proposal provenance, effect-result
+notarization, this increment, and the sibling byte-regression-pins increment), retired the
+"Counted at write time" hedge now that the count is gated, and rewrote the
+`docs/analysis/` paragraph to state the measured count rather than name a single file. The
+gate is wired into `package.json`'s scripts, `.github/workflows/ci.yml`'s `checks` job, and
+`.github/workflows/release.yml`'s gate block, in the same commit as the seven prose
+enumerations it would otherwise falsify (`CONTRIBUTING.md`'s fenced gate list and its
+`scripts/` table row; `CLAUDE.md`'s Commands list and its CI-description sentence;
+`README.md`'s dev block; `docs/process/release-checklist.md`'s single-line gate command;
+`.github/workflows/release.yml`'s own "every gate the repository has" block) plus one
+over-broad present-tense sentence in `docs/process/next-phases.md` ("no scan reads a prose
+enumeration or a sealed honesty cell") narrowed to name the class more precisely now that
+`docs-index-sync` reads part of what that sentence used to say nothing read. A fix round
+(`144df9e`) corrected two further over-broad sentences the review caught: `INDEX.md`'s new
+`docs/analysis/` paragraph had claimed of all 16 files what was true of only one — that
+each is superseded, fixed elsewhere, or purely historical — when the two sealed-set
+sanction records ARE the sanction, and `CHANGELOG.md` and `CLAUDE.md` both cite specific
+analysis files as live authority, so the tail sentence was deleted rather than replaced
+with a different sweeping claim; and `next-phases.md`'s "the concept set's last"
+(describing the operator-assurance marker move) was narrowed to "the build order's last",
+since three post-build-order marker moves followed it — the sentence's own "six
+marker-move commits in total" count was untouched, being correct in its own explicitly
+build-order-scoped count.
+
+**Row 4 — not repaired: an outstanding gap in this increment's own plan, recorded rather
+than silently closed.** The design document lists row 4 as
+`packages/record/src/store/memory.ts`'s `MemoryStore` doc comment, which says
+chain/encoding internals "remain unexported", naming `transitionDigest` explicitly — false
+for the same reason row 3 was false before Task 1's repair: `index.ts` re-exports
+`transitionDigest`, and `@vidimera/store-postgres`'s `PostgresStore` reaches it only that
+way. Stale since the same phase-4 store-postgres increment's adapter-author-surface
+amendment that produced row 3 (commit `bb87ad0`, per the design document). The design's own
+row table assigns this row to no task's file list: Task 1's own heading and
+file list name rows 1, 2, 3 and 5 only, Task 2 names 6 and 8, Task 3 names 7 and 9, and
+Task 4 names 10 — row 4 sits in none of them, a gap between the implementation plan's own
+self-review notes (which state that design rows 1–5 map to Task 1) and Task 1's actual,
+narrower scope. Confirmed by direct inspection at this increment's exit: `git diff main --
+packages/record/src/store/memory.ts` reports no change on this branch, and the false
+sentence is still present in the tree verbatim. This increment's own design document's exit
+condition calls for every row to be repaired, or recorded row by row as no-longer-
+reproducing — row 4 is neither; it still reproduces and was never repaired. It is recorded
+here as a known, live, unrepaired finding for a follow-up comment-only fix (no sanction
+needed — `store/memory.ts` is ordinary source, not part of the sealed concept set), rather
+than fixed inside this documentation-only task, and rather than left unmentioned.
+
+**Cuts.** None beyond row 4's own accounting above. This increment closed nine of its ten
+planned repairs and corrected, rather than satisfied, row 7; it introduced one new gate
+script and cut no capability.
+
+**Four items, parked rather than acted on** (recorded so none is silently discarded):
+`.github/PULL_REQUEST_TEMPLATE.md` was deliberately not given the new gate — it lists a
+curated subset of gates and already omitted `api-sync`, `lint`, `build` and `smoke`, so it
+carries no completeness claim; the new fence lines added to `README.md` and
+`CONTRIBUTING.md` break the comment-column alignment of their neighboring lines by two
+characters, a cosmetic effect; `scripts/docs-index-sync.mjs`'s `analysisWordOne` branch
+parses a "holds one file" phrasing that no longer occurs anywhere in the tree — harmless
+today, but it means a future regression back to that exact phrasing would parse as count 1
+rather than firing `count-absent`; and, restated here for completeness alongside the other
+three, `contract-scan` not reading `.mjs` at all, so the new gate script and its test are
+checked by no gate this repository has.
+
+**Gate outputs, as measured against this increment's own exit commit**:
+`./node_modules/.bin/vitest run` — 55 test files, 757 tests, zero skips;
+`tsc -p packages/record --noEmit` and `tsc -p packages/store-postgres --noEmit` — both
+clean; `./node_modules/.bin/biome check .` — 121 files checked, zero errors or warnings;
+`node scripts/contract-scan.mjs` — exit 0, no output; `node scripts/api-reference-sync.mjs`
+— exit 0; `node scripts/docs-index-sync.mjs` — exit 0. `docs/process/deferral-register.md`
+carries no row for this increment and none moved — the design document's own "scope
+bounds, not deferrals" ruling: nothing here is postponed with a trigger that would un-defer
+it.
