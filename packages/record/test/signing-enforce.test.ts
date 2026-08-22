@@ -1,13 +1,17 @@
 // @vidimera/record — signing-enforce.test.ts (SPEC §14, the AL2 enforcement
 // increment, second of three): the mint's layer becomes LOAD-BEARING. Every
-// chain-verification site — the five seam prologues (finalize, decline, seal, the
+// chain-verification site — the four seam prologues then existing (finalize, seal, the
 // redemption family's shared prologue, the findings family's shared prologue) and the two
-// cross-record claims (verifyPriorLegs, verifySupersedes) — requires a signing record's
+// cross-record claims (verifyPriorLegs, verifySupersedes) — required a signing record's
 // every transition to verify under the host
 // registry; failure folds into the code each site already speaks. The reads stay
 // reads: verifyChain remains the AL1 report, verifySignatures the AL2 report,
 // neither gates. Authority timestamps and freshness remain the AL2 freshness
 // increment's own work.
+//
+// A seventh signatureLayerHolds site, kernel/decline.ts's own prologue, joined later
+// with the recorded-human-decline increment; this file's six tests predate it and do
+// not cover it.
 
 import assert from 'node:assert/strict';
 import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';
