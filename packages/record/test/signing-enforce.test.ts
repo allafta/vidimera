@@ -10,8 +10,19 @@
 // increment's own work.
 //
 // A seventh signatureLayerHolds site, kernel/decline.ts's own prologue, joined later
-// with the recorded-human-decline increment; this file's six tests predate it and do
-// not cover it.
+// with the recorded-human-decline increment. The AL2 signature-enforcement coverage
+// increment brought it in here, together with acknowledge (the findings prologue reached
+// through its second seam) and both token seams in either enlistment posture. So this
+// file now drives a signature-broken chain through all seven sites, and asserts what each
+// one did with the evidence edge rather than only which code it spoke — including the two
+// that append NOTHING ANYWHERE (verifyPriorLegs, verifySupersedes), which leave even the
+// prior leg or predecessor whose chain was just found broken unmarked.
+//
+// The bound, in the same breath: every break here is a TAMPERED sidecar entry at the
+// GENESIS transition. A missing entry and an unresolvable keyRef appear in this file too,
+// but only at the sites that already carried them; a break at a non-genesis position is a
+// different input again and appears nowhere. Covering all seven sites is a claim about
+// which seams enforce, never about which corruptions they were shown.
 
 import assert from 'node:assert/strict';
 import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';
