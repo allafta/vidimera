@@ -248,6 +248,43 @@ test('decline rung (5): missing facts refuses consultation-missing', async () =>
 
 test('decline ladder order: each rung wins over the one after it (adjacent pairs)', async () => {
   {
+    // (1) chain-verify beats (2) state/expiry: a BROKEN chain on a record that is also
+    // past its ttl. Rung (2) would refuse leg-expired; rung (1) refuses chain-compromise
+    // first. Every other seam ladder in this package pins its own rung-(1) pair; this is
+    // decline's.
+    const profile = captureProfile({ decline: true, ttl: 60 });
+    let nowMs = Date.parse('2026-08-21T00:00:00Z');
+    const handles = createWithClock(makeConfig([profile]), () => new Date(nowMs));
+    const recordId = await openRecord(handles, CONTENT, profile.id, DEFAULT_SUBJECT_REF);
+    const genesis = (await handles.operator.readChain(recordId))[0];
+    if (genesis === undefined) throw new Error('fixture: genesis exists after openRecord');
+    // tamperNonLast needs >= 2 transitions to tamper a NON-last one; the chain right after
+    // open() has just the genesis, so a second honestly-chained transition is built by hand
+    // onto the real genesis, in this standalone tampered copy only.
+    const good = [
+      genesis,
+      storeNext(genesis, 'consultation-recorded', {
+        kind: 'facts' as const,
+        checker: CHECKER,
+        at: genesis.at,
+        payloadDigest: DIGEST,
+        verdict: 'pass' as const,
+      }),
+    ];
+    const tamperedStore = new MemoryStore();
+    for (const [i, t] of tamperNonLast(good).entries()) {
+      await tamperedStore.appendTransition(i === 0 ? null : 'open', t, { nonTerminal: true });
+    }
+    const h2 = createWithClock(
+      makeConfig([profile], { store: tamperedStore }),
+      () => new Date(nowMs),
+    );
+    nowMs += 120_000; // past the 60s ttl — rung (2) would fire on an intact chain
+    const res = await h2.operator.decline(recordId, identity(), CONTENT, facts());
+    assert.equal(res.status, 'refused');
+    assert.equal(res.status === 'refused' && res.code, 'chain-compromise');
+  }
+  {
     // (3) identity beats (3.5) SoD: disallowed authority AND proposer-violating principal
     const profile = captureProfile({ decline: true });
     // Two legs, same construction-scoping reason as above — the leg under test stays first.
