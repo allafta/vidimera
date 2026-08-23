@@ -99,7 +99,13 @@ test('seal and raiseFinding refuse the same way; a MISSING entry (not just a tam
   await breakOneSignature(a.signatures, sealTarget);
   const sealed = await a.handles.operator.seal(sealTarget);
   assert.equal(sealed.status, 'refused');
-  if (sealed.status === 'refused') assert.equal(sealed.code, 'chain-compromise');
+  if (sealed.status !== 'refused') return;
+  assert.equal(sealed.code, 'chain-compromise');
+  const sealChain = await a.handles.operator.readChain(sealTarget);
+  assert.equal(sealChain.at(-1)?.kind, 'refused', 'seal appends the compromise edge');
+  // Sound only after exactly ONE refusing call — see deferral-register row 22.
+  const sealEntries = await a.signatures.listByRecord(sealTarget);
+  assert.equal(sealEntries.length, sealChain.length, 'the compromise edge is itself signed');
 
   // raiseFinding on a findings-flow signing profile, one entry DELETED: build the
   // profile inline (signing + ackMode/requiredAcks), open, delete the genesis entry —
@@ -127,7 +133,15 @@ test('seal and raiseFinding refuse the same way; a MISSING entry (not just a tam
     identity(),
   );
   assert.equal(raised.status, 'refused');
-  if (raised.status === 'refused') assert.equal(raised.code, 'chain-compromise');
+  if (raised.status !== 'refused') return;
+  assert.equal(raised.code, 'chain-compromise');
+  const raiseChain = await b.handles.operator.readChain(flowId);
+  assert.equal(raiseChain.at(-1)?.kind, 'refused', 'raiseFinding appends the compromise edge');
+  // OFF BY ONE ON PURPOSE. This arm's break DELETED a sidecar entry rather than tampering it,
+  // and the compromise append does not restore the vacated association — so the sidecar
+  // carries one fewer entry than the chain has transitions.
+  const raiseEntries = await b.signatures.listByRecord(flowId);
+  assert.equal(raiseEntries.length, raiseChain.length - 1, 'the deleted entry stays vacated');
 });
 
 test('the redemption prologue refuses; cross-record claims fold into their own codes', async () => {
@@ -145,7 +159,14 @@ test('the redemption prologue refuses; cross-record claims fold into their own c
   await breakOneSignature(a.signatures, redeemId);
   const red = await a.handles.operator.redeem(redeemId, CONTENT);
   assert.equal(red.status, 'refused');
-  if (red.status === 'refused') assert.equal(red.code, 'chain-compromise');
+  if (red.status !== 'refused') return;
+  assert.equal(red.code, 'chain-compromise');
+  assert.notEqual(red.transitionRef, undefined, 'un-enlisted redeem appends the edge');
+  const redChain = await a.handles.operator.readChain(redeemId);
+  assert.equal(redChain.at(-1)?.kind, 'refused');
+  // The un-enlisted twin of redeem.test.ts's ENLISTED signature-broken test, which asserts
+  // the opposite shape. Asserting both is what pins the split; asserting only codes leaves
+  // the two indistinguishable.
 
   // supersedes: a terminal signing predecessor with a broken signature refuses the
   // CLAIM code, not chain-compromise:
@@ -159,11 +180,19 @@ test('the redemption prologue refuses; cross-record claims fold into their own c
   const staged = await b.handles.agent.stage(CONTENT, 'test.enf.v1', 'subject:enf-5');
   assert.equal(staged.status, 'ok');
   if (staged.status !== 'ok') return;
+  const predBefore = await b.handles.operator.readChain(predId);
   const recovered = await b.handles.operator.open(staged.value.stagedRef, {
     supersedes: { recordId: predId, chainHead: head },
   });
   assert.equal(recovered.status, 'refused');
-  if (recovered.status === 'refused') assert.equal(recovered.code, 'supersedes-unverified');
+  if (recovered.status !== 'refused') return;
+  assert.equal(recovered.code, 'supersedes-unverified');
+  assert.equal(recovered.transitionRef, undefined, 'pre-record: nothing to append to');
+  assert.deepEqual(
+    await b.handles.operator.readChain(predId),
+    predBefore,
+    'the superseded predecessor chain is untouched — no edge anywhere',
+  );
 });
 
 test('the layer does not overreach: a NON-signing record with garbage in the sidecar passes every seam; the reads never gate', async () => {
@@ -223,11 +252,22 @@ test('a multi-leg successor whose prior-leg reference is signature-broken refuse
   );
   assert.equal(staged.status, 'ok');
   if (staged.status !== 'ok') return;
+  const makerBefore = await handles.operator.readChain(makerId);
   const successor = await handles.operator.open(staged.value.stagedRef, {
     priorRecordRefs: [{ recordId: makerId, chainHead: head }],
   });
   assert.equal(successor.status, 'refused');
-  if (successor.status === 'refused') assert.equal(successor.code, 'prior-leg-unverified');
+  if (successor.status !== 'refused') return;
+  assert.equal(successor.code, 'prior-leg-unverified');
+  assert.equal(successor.transitionRef, undefined, 'pre-record: nothing to append to');
+  // AND nothing lands on the PRIOR LEG either. A signature-broken prior leg leaves no
+  // evidence edge anywhere in the system — the compromised chain it just rejected is not
+  // marked. That is the shape this assertion exists to state.
+  assert.deepEqual(
+    await handles.operator.readChain(makerId),
+    makerBefore,
+    'the prior leg chain is untouched — no edge anywhere',
+  );
 });
 
 test('order: the verifier is never consulted on a hash-broken chain; an unresolvable keyRef fails closed', async () => {
