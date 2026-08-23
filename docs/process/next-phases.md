@@ -141,8 +141,10 @@ the same distinction). Each item below names its row and quotes its trigger verb
   to `if (false)`), NOT the signature disjunct: exactly five tests failed, every one on
   "cannot start a transaction within a transaction", and the revert was confirmed clean. That
   proves the result-first, no-edge shape is load-bearing at all three redemption seams; it is
-  no witness for the AL2 disjunct, and neither the `acknowledge` pin nor the five deepened
-  sites has one. `docs/process/implementation-status.md`'s increment section carries the full
+  no witness for the AL2 disjunct — and neither the `acknowledge` pin, nor the five deepened
+  sites, nor any of the four token-seam cells has one: the un-enlisted pair was never touched
+  by that mutation at all, and the enlisted pair's contact witnessed the no-edge shape rather
+  than the signature arm. `docs/process/implementation-status.md`'s increment section carries the full
   account of what was and was not mutation-proved. The row is retired.
 
 ### The server-SQL backing — register row 15, retired 2026-08-19

@@ -2441,12 +2441,19 @@ rewritten to `if (false)`), NOT its signature disjunct. That failed exactly five
 new enlisted test, two in `redeem-token.test.ts` and two in `redeem.test.ts` — every one of
 them throwing "cannot start a transaction within a transaction", revert likewise confirmed.
 What it proves is that the result-first, no-edge shape is load-bearing at all three
-redemption seams, which is worth having and is not a claim about AL2: two of those five
-failures are hash-broken fixtures, which no signature disjunct could reach.
+redemption seams, which is worth having and is not a claim about AL2: three of those five
+failures are hash-broken fixtures (`redeem-token.test.ts`'s two enlisted tamper tests and
+`redeem.test.ts`'s enlisted chain-compromise test, each built through `TamperingStore` with
+`tamperNonLast`), which no signature disjunct could reach.
 
 **The pins with no mutation witness, named rather than left to inference:** decline's
-rung-(1)-beats-rung-(2) adjacent pair, the `acknowledge` pin, and all five deepened sites.
-No mutation was run for any of them. They rest on the structural proofs below and on what
+rung-(1)-beats-rung-(2) adjacent pair, the `acknowledge` pin, all five deepened sites, and
+all four token-seam cells. The token cells need their case spelled out, since the third
+mutation did touch two of them: the UN-enlisted `beginRedemption` and `completeRedemption`
+cells had no mutation contact whatever — an `if (false)` on the enlistment branch cannot
+reach a path that carries no transaction — and the two ENLISTED cells' only contact
+witnessed the no-edge shape, never the AL2 arm. So no mutation anywhere in this increment
+witnesses the signature disjunct at the redemption prologue. They rest on the structural proofs below and on what
 they assert, which is weaker evidence than a mutation and is recorded as such.
 
 **The structural proofs, and where they stop.** Each of the seven new signature-broken cells

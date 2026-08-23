@@ -60,9 +60,9 @@ later with the recorded-human-decline increment; this file's six tests predate i
 not cover it." `decline()`'s rung (1) is that seventh site, and no test written since has
 covered it either.
 
-## Finding B — decline's ladder is missing its rung-(1) adjacent pair
+## Finding B — decline's ladder is missing its rung-(1) adjacent pair (closed since — see the dated note at the end of this section)
 
-`packages/record/test/decline.test.ts:197`'s test, `'decline ladder order: each rung wins
+`packages/record/test/decline.test.ts:249`'s test, `'decline ladder order: each rung wins
 over the one after it (adjacent pairs)'`, opens its first case with the comment `// (3)
 identity beats (3.5) SoD` — it begins at rung (3). No `(1) beats (2)` case exists in that
 test, and no other test in the file supplies one.
@@ -82,6 +82,17 @@ Findings A and B are the same underlying gap seen from two angles: A is that run
 own body never runs on a broken chain; B is that the ladder-order suite, whose whole job
 is proving each rung outranks the next, never asked rung (1) to prove it outranks rung
 (2).
+
+**Closed 2026-08-23 (the AL2 signature-enforcement coverage increment).** The ladder-order
+test now opens with a `(1) chain-verify beats (2) state/expiry` block: a record both past
+its expiry and carrying a tampered chain refuses `chain-compromise`, so rung (1) is shown
+outranking rung (2) rather than merely assumed to. The paragraph above is left exactly as
+the audit wrote it — "it begins at rung (3)" and "No `(1) beats (2)` case exists" were true
+of the tree the audit ran against and are not true of the tree now. Register row 20, which
+carried this finding together with Finding A, RETIRED at that same increment and is gone
+from `docs/process/deferral-register.md`; `docs/process/next-phases.md`'s row-20 retirement
+section is where a reader should now look for the trigger text and the account of what
+landed.
 
 ## Finding C — three AL2 caller-input gaps (a different, lesser class; all three closed since — see the dated note at the end of this section)
 
