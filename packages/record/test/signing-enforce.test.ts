@@ -17,13 +17,14 @@ import assert from 'node:assert/strict';
 import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';
 import { test } from 'vitest';
 
+import { verifyChain } from '../src/chain/replay.js';
 import type { ConfirmProfile } from '../src/config.js';
 import { create } from '../src/create.js';
 import { MemorySignatureStore } from '../src/signing/memory.js';
 import type { Signer, Verifier } from '../src/signing/store.js';
 import { MemoryStore } from '../src/store/memory.js';
 import { captureProfile, facts, identity, makeConfig, openRecord } from './helpers/profiles.js';
-import { breakOneSignature } from './helpers/signing.js';
+import { breakOneSignature, enforceableSigningSetup } from './helpers/signing.js';
 
 const CONTENT = { subject: 'week-1', total: 40 };
 const WRONG = { subject: 'week-1', total: 41 };
@@ -258,4 +259,70 @@ test('order: the verifier is never consulted on a hash-broken chain; an unresolv
     0,
     'AL1 refused first; the layer never ran on the hash-broken chain',
   );
+});
+
+test('decline refuses chain-compromise on a signature-broken signing record — the AL2 disjunct of rung (1), and the compromise edge is itself signed', async () => {
+  // The SEVENTH signatureLayerHolds site (kernel/decline.ts), which this file's original six
+  // tests predate and did not cover. Deferral-register row 20's remaining half: the
+  // hash-broken disjunct gained a pin at the Finding E adjudication; this is the AL2 one.
+  const profile: ConfirmProfile = {
+    ...captureProfile({ id: 'test.enf.decline.v1', decline: true }),
+    signing: true,
+  };
+  const { handles, signatures, calls } = enforceableSigningSetup([profile]);
+  const recordId = await openRecord(handles, CONTENT, 'test.enf.decline.v1', 'subject:enf-9');
+  await breakOneSignature(signatures, recordId);
+
+  const before = await handles.operator.readChain(recordId);
+  // AL1 is INTACT. Without this the refusal could be the hash disjunct and the test would
+  // prove nothing about the signature layer.
+  assert.equal(verifyChain(before).intact, true, 'fixture: hash-intact, signature-broken');
+  const callsBefore = calls();
+
+  const out = await handles.operator.decline(recordId, identity(), CONTENT, facts());
+  assert.equal(out.status, 'refused');
+  if (out.status !== 'refused') return;
+  assert.equal(out.code, 'chain-compromise');
+  assert.notEqual(out.transitionRef, undefined, 'an open record admits the edge');
+
+  // The DELTA, never the total: verifySignatures() consults the verifier too.
+  assert.ok(calls() > callsBefore, 'the AL2 disjunct ran — the verifier was consulted');
+
+  const after = await handles.operator.readChain(recordId);
+  assert.equal(after.length, before.length + 1);
+  assert.equal(after.at(-1)?.kind, 'refused');
+  assert.deepEqual(after.at(-1)?.payload, { code: 'chain-compromise' });
+  // Sound only after exactly ONE refusing call — a second would mint another sidecar entry
+  // against a digest that never lands. See deferral-register row 22.
+  const entries = await signatures.listByRecord(recordId);
+  assert.equal(entries.length, after.length, 'the compromise edge is itself signed');
+});
+
+test('decline on a NON-declaring leg over a signature-broken chain appends the compromise edge rather than throwing — rung (1) beats the declaration gate', async () => {
+  // The signature-broken half of the corner the Finding E adjudication pinned hash-broken at
+  // both twins. Over an INTACT chain this call throws (the declaration gate); over a broken
+  // one rung (1) refuses first and control never reaches that gate.
+  const profile: ConfirmProfile = {
+    ...captureProfile({ id: 'test.enf.nodecline.v1' }), // no decline declared
+    signing: true,
+  };
+  const { handles, signatures, calls } = enforceableSigningSetup([profile]);
+  const recordId = await openRecord(handles, CONTENT, 'test.enf.nodecline.v1', 'subject:enf-10');
+  await breakOneSignature(signatures, recordId);
+
+  const before = await handles.operator.readChain(recordId);
+  assert.equal(verifyChain(before).intact, true, 'fixture: hash-intact, signature-broken');
+  const callsBefore = calls();
+
+  // No throw here is the whole point.
+  const out = await handles.operator.decline(recordId, identity(), CONTENT, facts());
+  assert.equal(out.status, 'refused');
+  if (out.status !== 'refused') return;
+  assert.equal(out.code, 'chain-compromise');
+  assert.notEqual(out.transitionRef, undefined);
+  assert.ok(calls() > callsBefore, 'the AL2 disjunct ran');
+
+  const after = await handles.operator.readChain(recordId);
+  assert.equal(after.length, before.length + 1);
+  assert.equal(after.at(-1)?.kind, 'refused');
 });
