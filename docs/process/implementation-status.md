@@ -50,10 +50,10 @@ any one exit.
   the increment targets, found in the increment's own plan. No behavior landed and no
   maturity marker moved. See the dedicated section at the end of this document for the full
   account; the numbers immediately below already include it.
-- **Measured against the current tree**: `pnpm test` — 55 test files, 757 tests, zero skips
+- **Measured against the current tree**: `pnpm test` — 63 test files, 794 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
-  `pnpm lint` (`biome check .`) — 121 files checked, zero errors or warnings;
+  `pnpm lint` (`biome check .`) — 130 files checked, zero errors or warnings;
   `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 24 refusal codes, the twenty-fourth and
@@ -2020,3 +2020,108 @@ clean; `./node_modules/.bin/biome check .` — 121 files checked, zero errors or
 carries no row for this increment and none moved — the design document's own "scope
 bounds, not deferrals" ruling: nothing here is postponed with a trigger that would un-defer
 it.
+
+## Post-build-order increment — byte-regression pins
+
+**The sixth post-build-order increment, exited (commits `87298d1`..`0fde92e`, closed by
+this commit).** Landed no new GOVERNED capability and moved no maturity marker — this
+increment is test-only: no `packages/*/src/` file and no `docs/concept/` file changed by
+any of its own commits (proved below, not merely asserted). No sanction was sought and none
+was needed. Design: `docs/superpowers/specs/2026-08-22-byte-regression-pins-design.md`;
+plan: `docs/superpowers/plans/2026-08-22-byte-regression-pins.md`.
+
+**The gap this closed.** `packages/record/test/byte-stability.test.ts` pins four digest
+literals over exactly one chain — single-leg, `captureMode:'staged'` — covering three of
+`TransitionKind`'s twelve members (`opened`, `consultation-recorded`, `confirmed`) and none
+of the seven conditional payload fields added by increments that landed after that pin was
+written (`policyDigest`, `proposedDigest`, `tokenDigest`, `resultDigest`,
+`priorRecordRefs`, `priorLegActors`, `supersedes`). `deriveStagedRef` — a store key, not a
+transition — had no literal pin at all.
+
+**What landed.** The prior seven commits on this increment created a new directory,
+`packages/record/test/byte-regression/`, holding eight files: `fixtures.ts` (the three
+injectable seams — `now()`, `tokenSource`, and the deterministic actor/subject builders —
+every pin file drives `createWithClock` with; editing it moves every literal in the
+directory at once, deliberately) and seven pin files, one per family:
+
+- `staged-ref.test.ts` — `deriveStagedRef`'s one standalone literal; no transition kind
+  reached.
+- `confirm-declaring.test.ts` — a feature-declaring confirm, pinning `policyDigest` and
+  `proposedDigest` inside a literal; no kind unreached by the frozen oracle.
+- `declined.test.ts` — the recorded human decline, the first pin reaching `declined`.
+- `findings.test.ts` — the findings write side, the first pins reaching `finding-raised`
+  and `acknowledged`.
+- `redemption.test.ts` — both redemption shapes, direct and token, pinning `tokenDigest`
+  and `resultDigest`; the first pins reaching `redeeming` and `redeemed`.
+- `terminal-refusals.test.ts` — three unrelated mechanisms under one header (the gate
+  ladder's refusal, `kernel/expiry.ts`'s clock-driven lazy expiry, provoked by a read past
+  the deadline rather than called directly, and `seal()`'s state-preserving cap); the
+  first pins reaching `refused`, `expired`, `sealed`, `redemption-failed`.
+- `multi-leg.test.ts` — `priorRecordRefs`, `priorLegActors`, and recovery's `supersedes`
+  over a verified terminal predecessor minted locally in the same file; no kind unreached
+  by the six files above.
+
+After those seven pin files, every one of `TransitionKind`'s twelve members appears in at
+least one absolute literal, and `deriveStagedRef` has one. This exit commit adds a ninth
+file, `coverage.test.ts`, which pins no bytes of its own and instead asserts that claim
+executably.
+
+**The coverage proof.** `coverage.test.ts` makes the central claim executable: one test
+concatenates the other eight files' source text (excluding itself) and asserts every
+quoted kind name occurs somewhere in it; a second test asserts its own `ALL_KINDS` list
+matches the `TransitionKind` union in `types.ts`, so a future kind addition fails loudly
+rather than silently passing an out-of-date list. Its own header states the bound plainly:
+it proves MENTION, not coverage and not correctness — a name in a label, a comment, or a
+dead constant satisfies it, and no linkage to any pinned-literal array is checked anywhere.
+It is a tripwire for a newly added kind going unpinned, never evidence that any kind
+reaches a literal, and never evidence that a literal is right.
+
+**The honest limit, stated once for the whole directory.** These pins prove non-drift,
+never correctness: a pin freezes whatever encoding is there today, bug included, and a
+future mismatch is a regression to adjudicate, not necessarily an error in the new code.
+They are also, by construction, a different claim from `byte-stability.test.ts`'s four
+literals: that file pins byte-COMPATIBILITY against the reference implementation this
+kernel was adopted from, verified once and never regenerated; the files in this new
+directory pin SELF-REGRESSION against encodings built entirely inside this repository,
+where no external implementation exists to be compatible with. The two claims are filed in
+separate files for that reason, and `byte-stability.test.ts` is untouched by this
+increment.
+
+**What stays outside, and why.** Combination coverage — the cross-product of declarable
+features inside one chain (a declining, policy-drifting, proposal-provenance-carrying,
+multi-leg record that also redeems with a result) — is a permanent scope bound and takes no
+`docs/process/deferral-register.md` row: nothing could close it at any future date, so
+there is no trigger that would un-defer it, and every register entry carries a trigger by
+the register's own header. AL2 detached-signature sidecars are a different case:
+`transitionDigest`'s input is `{recordId, seq, at, kind, payload, prevHash}` — no signature
+field — so no chain pin here, or anywhere, reaches a sidecar, but a fixed key pair or the
+0.1 cut is a real, nameable trigger, so that one DOES take a row: register row 19. The
+highest row number any tracked document had ever used, before this row, was 18
+(`grep -rnoE "register row [0-9]+|row [0-9]+" docs/process/ docs/superpowers/ CLAUDE.md`),
+so this entry takes 19, the next number never yet used — recorded in the row's own text.
+
+**The frozen oracle, proved rather than asserted.** `git diff main --
+packages/record/test/byte-stability.test.ts` is empty across the whole branch, covering
+both this increment and the sibling truth-repairs increment that landed first on it; no
+file in the new directory imports from `../byte-stability`, and `byte-stability.test.ts`
+carries no reference back to `byte-regression`. `git diff main --stat -- docs/concept` and
+`git diff main --stat -- packages/store-postgres/src` are both empty. `git diff main
+--stat -- packages/record/src` is NOT empty, but every line in it belongs to the sibling
+truth-repairs increment's own recorded comment-only fixes (`config.ts`, `index.ts`,
+`kernel/finalize.ts`, `operator-surface.ts`, `probes/index.ts`, `store/memory.ts`, all
+landed before this increment's first commit): isolating the range from immediately before
+this increment's first commit to its own exit shows zero `packages/record/src` change
+(`git diff 87298d1~1..HEAD --stat -- packages/record/src` is empty).
+
+**Cuts.** None. This increment added one new test directory and one gate-adjacent coverage
+test; it cut no capability and left no family unbuilt.
+
+**Gate outputs, as measured against this increment's own exit commit**:
+`./node_modules/.bin/vitest run` — 63 test files, 794 tests, zero skips;
+`./node_modules/.bin/tsc --noEmit -p packages/record` and
+`./node_modules/.bin/tsc --noEmit -p packages/store-postgres` — both clean;
+`./node_modules/.bin/biome check .` — 130 files checked, zero errors or warnings;
+`node scripts/contract-scan.mjs` — exit 0, no output; `node scripts/api-reference-sync.mjs`
+— exit 0; `node scripts/docs-index-sync.mjs` — exit 0. `docs/process/deferral-register.md`
+gains one row for this increment: row 19, the AL2 detached-signature sidecar pinning
+deferral.
