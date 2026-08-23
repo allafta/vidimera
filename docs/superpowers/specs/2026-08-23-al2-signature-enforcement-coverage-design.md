@@ -114,9 +114,12 @@ implies a `transitionRef`" is false as a blanket claim and must never be written
   with them.
 
 Three near-duplicate break helpers exist today — `signing-enforce.test.ts:63`,
-`redeem.test.ts`, and `signing.test.ts:244`, the last of which breaks the *trailing* four
-characters instead of the leading four. All three import the shared one. The local `signedSetup`
-in `signing-enforce.test.ts` stays where it is; its profile is specialised to that file.
+`redeem.test.ts`, and `signing.test.ts:244`. The first two are byte-identical and both import
+the shared one. The third is **not** a duplicate: it breaks the *trailing* four base64
+characters rather than the leading four, so repointing it would quietly change which bytes that
+test corrupts. It keeps its own break and gains a comment saying why it differs, rather than
+being folded in for symmetry's sake. The local `signedSetup` in `signing-enforce.test.ts` stays
+where it is; its profile is specialised to that file.
 
 **The tests.** `signing-enforce.test.ts` becomes the single home for all seven sites'
 signature-broken pins — it already claims that job, and its header currently disclaims the
