@@ -60,10 +60,13 @@ any one exit.
   `kernel/findings-seams.ts`'s declaring check — are reworded together, since a one-site fix
   would leave the sibling standing. The corner both messages glossed (a non-declaring leg
   over a hash-broken chain) is pinned by a new test at each site, closing the hash-broken
-  half of deferral-register row 20; row 20's text is narrowed to name only the
-  signature-broken half as still unexercised. No behavior changed, no bytes moved, and no
-  maturity marker moved. See the dedicated section at the end of this document for the full
-  account; the numbers immediately below already include it.
+  half of deferral-register row 20; row 20's item text is narrowed to name only the
+  signature-broken half as still unexercised. That same fix's own edit to
+  `kernel/decline.ts` fired row 20's ORIGINAL trigger without closing the row, so it is
+  RETRIGGERED — kept open under its same number but a new trigger text, the house form row
+  5 (`docs/process/next-phases.md`) already uses. No behavior changed, no bytes moved, and
+  no maturity marker moved. See the dedicated section at the end of this document for the
+  full account; the numbers immediately below already include it.
 - **Measured against the current tree**: `pnpm test` — 63 test files, 796 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
@@ -80,9 +83,11 @@ any one exit.
   lands first); row 20 (decline's rung-(1) coverage gap — narrowed by the Finding E
   adjudication's own pin: the hash-broken half of its chain-verify/signature-layer check
   now runs and appends, proved by a corpus test rather than only by mutation, while the
-  AL2 signature-broken half stays unexecuted — held open until the next increment that
-  touches `packages/record/src/kernel/decline.ts`, or the 0.1 cut); and row 21 (three AL2
-  caller-input gaps plus five assertion-depth sites
+  AL2 signature-broken half stays unexecuted — RETRIGGERED, since that same adjudication's
+  edit to `kernel/decline.ts` fired the row's original file-touch trigger without closing
+  it; held open until the next increment that drives a signature-broken chain through
+  `decline()`'s rung (1), or the 0.1 cut); and row 21 (three AL2 caller-input gaps plus five
+  assertion-depth sites
   across the signature-enforcement surface, held open until the next increment that
   touches AL2 signature enforcement, or the 0.1 cut). Rows 20 and 21 were both added by
   the signature-enforcement-coverage findings record
@@ -1123,13 +1128,32 @@ Carried in the deferral register, with triggers:
   the 0.1 cut — whichever lands first".
 - **Row 20** — decline's rung-(1) coverage gap, added by the signature-enforcement-coverage
   findings record: `kernel/decline.ts`'s pre-seam chain-verify and AL2 signature-layer
-  check, and its `chain-compromise` append, are unexecuted by the entire test corpus,
-  proved by deleting the rung wholesale and observing the full suite still pass; its
-  ladder-order test is also missing the rung-(1)-beats-rung-(2) adjacent pair every other
-  seam ladder pins. Full account:
+  check, and its `chain-compromise` append, were unexecuted by the entire test corpus,
+  proved by deleting the rung wholesale and observing the full suite still pass. The
+  Finding E adjudication increment added the rung's first corpus execution — a hash-broken
+  corner test at `decline.test.ts` — so the hash-broken disjunct (`!report.intact`) now
+  executes and appends; the AL2 signature-broken disjunct
+  (`!(await signatureLayerHolds(...))`) is still unexecuted for this seam. Its ladder-order
+  test is also missing the rung-(1)-beats-rung-(2) adjacent pair every other seam ladder
+  pins — untouched by that same increment, since its own pin is rung (1) versus the
+  declaration gate, not rung (1) versus rung (2). Full account:
   `docs/analysis/2026-08-23-signature-enforcement-coverage.md` (Findings A and B).
-  Trigger (verbatim): "The next increment that touches
-  `packages/record/src/kernel/decline.ts`, or the 0.1 cut — whichever lands first".
+  Trigger (verbatim): "The next increment that drives a signature-broken chain through
+  `decline()`'s rung (1) — the fixture sketched, not written, in
+  `docs/analysis/2026-08-23-signature-enforcement-coverage.md`'s own 'Design considered and
+  deferred' section (extending `signing-enforce.test.ts`'s local rig, or
+  `packages/record/test/helpers/signing.ts`'s shared `signingSetup`, to expose the sidecar
+  alongside decline's handles) — or the 0.1 cut, whichever lands first. RETRIGGERED: this
+  said "the next increment that touches `packages/record/src/kernel/decline.ts`", which
+  fired at the Finding E adjudication increment (commit `536fdba`) — that increment touched
+  the file only to scope two throw-message strings and add a hash-broken corner test, not
+  to close the deferred gap; the AL2 signature-broken half of rung (1) is still unexecuted.
+  A trigger naming "touches this file" cannot discriminate substantive coverage work from
+  an unrelated edit — it fires on a comment fix or a message reword as readily as on the
+  real gap closing. (Row 5's own retrigger, `docs/process/next-phases.md`, went the other
+  way: a vague trigger was narrowed TO a specific file; here a specific-file trigger is
+  narrowed instead to the specific remaining behavior, since the file itself was already
+  too broad a target.)".
 - **Row 21** — the AL2 caller-input and assertion-depth gaps, added by the same
   signature-enforcement-coverage findings record: three call paths
   (`acknowledge`'s shared prologue, `beginRedemption`, `completeRedemption`) are exercised
@@ -2253,11 +2277,20 @@ record used).
 the entire rung-(1) condition as unexecuted; after this increment the hash-broken disjunct
 (`!report.intact`) executes and appends, while the AL2 signature-broken disjunct
 (`!(await signatureLayerHolds(...))`) still does not, for this seam. The row keeps its
-number and its trigger (the next increment that touches `kernel/decline.ts`, or the 0.1
-cut).
+number, but its trigger does NOT: this increment's own message-only edit to
+`kernel/decline.ts` fires the original trigger ("the next increment that touches
+`packages/record/src/kernel/decline.ts`") without closing the deferred gap, so the row is
+RETRIGGERED — the same house form row 5 (`docs/process/next-phases.md`) uses for a trigger
+that fired without the deferred work landing. The new trigger names the actual remaining
+event (a signature-broken fixture driving `decline()`'s rung (1), or the 0.1 cut) rather
+than any touch of the file, so an unrelated future edit to `kernel/decline.ts` — a comment
+fix, another message reword — cannot fire it again. Full new trigger text: see the register
+row itself, and its verbatim mirror in `docs/process/next-phases.md`,
+`docs/process/release-checklist.md`, and the "Still outstanding" row 20 bullet above (all
+three moved in the same commit as the register row, so none quotes a stale trigger).
 
-**Cuts.** None. **Register rows.** None added; row 20 narrowed, its number and trigger
-unchanged.
+**Cuts.** None. **Register rows.** None added; row 20 narrowed AND retriggered (number
+unchanged); rows 19 and 21 untouched.
 
 **Gate outputs, as measured against this increment's own exit commit**:
 `./node_modules/.bin/vitest run` — 63 test files, 796 tests, zero skips;

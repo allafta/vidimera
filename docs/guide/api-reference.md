@@ -187,7 +187,11 @@ Notes that save debugging time:
   consultation, e.g. a `decline-reason` kind). The recorded `declined { actor }` payload
   mirrors `confirmed`'s. Calling `decline` against a leg that does not declare
   `decline: true` **throws** — a non-declaring chain stays byte-identical to a
-  pre-decline implementation, so this is a caller/config error, never a domain refusal.
+  pre-decline implementation over decline's own keys and transitions, so this is a
+  caller/config error, never a domain refusal. That guarantee does not cover an
+  already-broken chain: chain-verify runs first, so a leg that never declared
+  `decline: true` can still acquire a `chain-compromise` refusal — with its own appended
+  edge — if the chain itself fails verification before this check ever runs.
   The honest bound, in the same breath: a decline proves who declined what they saw —
   never that the decline was sound, and a "no" that never routed through this seam does
   not exist in the record.

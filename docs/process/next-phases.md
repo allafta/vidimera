@@ -37,10 +37,31 @@ increment ("The first increment that changes signature encoding or key handling,
 the AL2 caller-input and assertion-depth gaps, were both opened by the
 signature-enforcement-coverage findings record
 (`docs/analysis/2026-08-23-signature-enforcement-coverage.md`) — a documentation-only
-record that changed no `packages/*/src/` file and wrote no test: row 20's trigger is "The
-next increment that touches `packages/record/src/kernel/decline.ts`, or the 0.1 cut —
-whichever lands first"; row 21's is "The next increment that touches AL2 signature
-enforcement, or the 0.1 cut — whichever lands first". Every other row retired 2026-08-19,
+record that changed no `packages/*/src/` file and wrote no test. Row 21's trigger is
+unchanged: "The next increment that touches AL2 signature enforcement, or the 0.1 cut —
+whichever lands first". Row 20's ORIGINAL trigger — "The next increment that touches
+`packages/record/src/kernel/decline.ts`, or the 0.1 cut — whichever lands first" — has
+since fired and been RETRIGGERED, at the Finding E adjudication increment (commit
+`536fdba`): that increment touched `kernel/decline.ts` to scope a throw message and pin the
+gap's hash-broken half, without closing the AL2 signature-broken half, so the file-touch
+trigger fired without the deferred work landing. Row 20's current trigger (verbatim): "The
+next increment that drives a signature-broken chain through `decline()`'s rung (1) — the
+fixture sketched, not written, in
+`docs/analysis/2026-08-23-signature-enforcement-coverage.md`'s own 'Design considered and
+deferred' section (extending `signing-enforce.test.ts`'s local rig, or
+`packages/record/test/helpers/signing.ts`'s shared `signingSetup`, to expose the sidecar
+alongside decline's handles) — or the 0.1 cut, whichever lands first. RETRIGGERED: this
+said "the next increment that touches `packages/record/src/kernel/decline.ts`", which
+fired at the Finding E adjudication increment (commit `536fdba`) — that increment touched
+the file only to scope two throw-message strings and add a hash-broken corner test, not to
+close the deferred gap; the AL2 signature-broken half of rung (1) is still unexecuted. A
+trigger naming "touches this file" cannot discriminate substantive coverage work from an
+unrelated edit — it fires on a comment fix or a message reword as readily as on the real
+gap closing. (Row 5's own retrigger, `docs/process/next-phases.md`, went the other way: a
+vague trigger was narrowed TO a specific file; here a specific-file trigger is narrowed
+instead to the specific remaining behavior, since the file itself was already too broad a
+target.)".
+Every other row retired 2026-08-19,
 each with its account in its
 own section below: row 6 (the pre-0.1 API review), row 5 (the Biome migration), row 15
 (the server-SQL backing, landed whole as `@vidimera/store-postgres`), row 16 (the token

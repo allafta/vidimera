@@ -213,6 +213,17 @@ corner is not pinned here. This closes the hash-broken half of deferral-register
 decline's rung (1) now has its first execution in the corpus — and row 20's text is
 narrowed to name only the signature-broken half as still unexercised.
 
+The fix itself edits `kernel/decline.ts`, which is exactly what row 20's original trigger
+(quoted above, "the next increment that touches `packages/record/src/kernel/decline.ts`")
+names — so that trigger fires here without the row's deferred work (the AL2
+signature-broken half) landing. Per the register's own rule that a trigger firing without
+the work landing gets RETRIGGERED rather than silently re-armed (the house form row 5 in
+`docs/process/next-phases.md` already uses), row 20 is retriggered by this same fix: it
+keeps its number and stays open, but its trigger is replaced with one keyed to the actual
+remaining event — a signature-broken fixture driving `decline()`'s rung (1), sketched below
+under "Design considered and deferred" — rather than any touch of the file. See
+`docs/process/deferral-register.md` row 20 for the current trigger text.
+
 ## Design considered and deferred, so a later reader does not redo this analysis
 
 Two tests were sketched, not written, to close Findings A/B:

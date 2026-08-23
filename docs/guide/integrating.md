@@ -187,8 +187,12 @@ const declined = await operator.decline(recordId, identity, content, facts, {
 ```
 
 A non-declaring leg's `decline` call **throws** rather than refusing — a leg that never
-declared `decline: true` keeps a chain byte-identical to a pre-decline implementation, so
-reaching the seam on it is a caller/config error, not a domain outcome.
+declared `decline: true` keeps a chain byte-identical to a pre-decline implementation over
+decline's own keys and transitions, so reaching the seam on it is a caller/config error, not
+a domain outcome. That guarantee is not universal, though: chain-verify runs before this
+check, as it does at every operator-side seam, so a chain that is already broken can still
+acquire the one edge every seam can append no matter what it declares — a
+`chain-compromise` refusal, with its own appended edge — instead of the throw.
 
 `terminalRefusals` interacts with decline exactly as it does with finalize: content-drift
 during a decline — the reviewer said no to bytes that are not what is bound to the record —
