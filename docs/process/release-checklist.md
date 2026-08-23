@@ -114,8 +114,14 @@ as a list rather than as code.
 - [ ] In a scratch project on a clean machine: `npm install @vidimera/record
       @vidimera/store-postgres`, run the getting-started flow against the registry
       artifacts, and confirm the `./probes` subpath resolves.
-- [ ] Retire register row 1 (`docs/process/deferral-register.md` — the table empties),
-      with the retirement note in `docs/process/implementation-status.md` and the
+- [ ] Retire register row 1 (`docs/process/deferral-register.md` — row 1 leaves the
+      table), with the retirement note in `docs/process/implementation-status.md` and the
       roadmap update in `docs/process/next-phases.md`.
+- [ ] Decide register row 19's disposition (`docs/process/deferral-register.md`, the AL2
+      detached-signature sidecar pinning deferral) — its own trigger ("The first increment
+      that changes signature encoding or key handling, or the 0.1 cut — whichever lands
+      first") names this cut too, so release day must retire it or explicitly carry it
+      forward rather than leave it unaddressed; if retired, give it the same
+      retirement-note/roadmap-update treatment as row 1.
 - [ ] Update `docs/process/implementation-status.md`'s measured block (versions,
       published state) — dated, as always.

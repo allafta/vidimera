@@ -15,10 +15,13 @@
 // six private copies would make one fixture edit look like six independent regressions —
 // but it means a change here is never a small one.
 //
-// COMBINATION COVERAGE IS PERMANENTLY OUTSIDE THIS DIRECTORY. Each file pins ONE flow
-// through its own feature set, never the cross-product of features. A drift that
-// manifests only when two capabilities interact is caught by no literal here, and that is
-// a deliberate scope bound, not an omission awaiting a later increment.
+// COMBINATION COVERAGE IS PERMANENTLY OUTSIDE THIS DIRECTORY. Every flow scripted in this
+// directory exercises one feature set on its own, never the cross-product of features — a
+// file may script more than one flow (three of the seven do), but no single flow here
+// combines capabilities the way a declining, policy-drifting, proposal-provenance-carrying,
+// multi-leg record that also redeems with a result would. A drift that manifests only when
+// two capabilities interact is caught by no literal here, and that is a deliberate scope
+// bound, not an omission awaiting a later increment.
 
 /**
  * The three injectable seams `createWithClock` carries. `tokenSource` is not optional

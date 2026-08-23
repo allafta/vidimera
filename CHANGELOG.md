@@ -145,6 +145,5 @@ is the summary, and that file wins on conflict.
 ### Known not-done
 
 - The release itself: the package is `private: true` and unpublished by design until the
-  0.1 cut — the publish tooling landed 2026-08-19, and deferral register row 1 (the
-  register's one live row) stays open until the release workflow is exercised once at
-  that cut.
+  0.1 cut — the publish tooling landed 2026-08-19, and deferral register row 1 stays open
+  until the release workflow is exercised once at that cut.

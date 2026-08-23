@@ -105,7 +105,7 @@ tested (the suite runs with zero skips; the step-by-step account is
 [`../process/implementation-status.md`](../process/implementation-status.md)), but: the
 package is deliberately `private: true` and unpublished until the 0.1 cut (the build,
 `exports` map, and a CI-exercised tarball smoke test exist; the release workflow is
-dispatch-only and unexercised — deferral-register row 1, the register's one live row); and
+dispatch-only and unexercised — deferral-register row 1); and
 the store contract's signatures are explicitly provisional pre-1.0, the concept set's own
 named 1.0 gate (open-questions §9). The pre-0.1 API review completed 2026-08-19 (ratifying
 the 52 names exported then; the seven added since — the adapter-author helpers and the

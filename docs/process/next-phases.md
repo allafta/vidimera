@@ -2,7 +2,7 @@
 
 This document is a **roadmap**: what gates the next cut and why, never how — no
 implementation plan lives here. It is derived from three sources, read whole rather than
-sampled: `docs/process/deferral-register.md`'s one live row, `docs/concept/OPEN-QUESTIONS.md`
+sampled: `docs/process/deferral-register.md`'s two live rows, `docs/concept/OPEN-QUESTIONS.md`
 (sealed, read-only — quoted here, never edited), and `docs/process/implementation-status.md`'s
 "Still outstanding" and "The package is unconsumable today" sections. Nothing below is
 invented; every register row, quote, and section number is checked against those sources at
@@ -25,15 +25,19 @@ and "What is deliberately outside the scope" below says so in the concept's own 
 
 ## What gates the next cut
 
-One deferral-register row survives the build order: row 1, publish tooling — its tooling
-landed at the phase-2 packaging increment, and the row stays open until the release
-workflow is exercised once at the 0.1 cut. Every other row retired 2026-08-19, each with
-its account in its own section below: row 6 (the pre-0.1 API review), row 5 (the Biome
-migration), row 15 (the server-SQL backing, landed whole as `@vidimera/store-postgres`),
-row 16 (the token seams' `tx?`), and row 4 (the workspace shape, its trigger fired
-deliberately by the second package)
-(`docs/process/implementation-status.md`'s own boundary paragraph draws the same
-distinction). Each item below names its row and quotes its trigger verbatim.
+Two deferral-register rows gate the next cut. Row 1, publish tooling, is the one that
+survives from the build order itself — its tooling landed at the phase-2 packaging
+increment, and the row stays open until the release workflow is exercised once at the
+0.1 cut. Row 19, the AL2 detached-signature sidecar pinning deferral, is newer — opened
+by the later, post-build-order byte-regression-pins increment — and its own trigger names
+the 0.1 cut too ("The first increment that changes signature encoding or key handling, or
+the 0.1 cut — whichever lands first"), so it belongs beside row 1 here rather than only in
+a build-order account. Every other row retired 2026-08-19, each with its account in its
+own section below: row 6 (the pre-0.1 API review), row 5 (the Biome migration), row 15
+(the server-SQL backing, landed whole as `@vidimera/store-postgres`), row 16 (the token
+seams' `tx?`), and row 4 (the workspace shape, its trigger fired deliberately by the
+second package) (`docs/process/implementation-status.md`'s own boundary paragraph draws
+the same distinction). Each item below names its row and quotes its trigger verbatim.
 
 ### Consumability — register row 1 (row 6 completed and retired 2026-08-19)
 

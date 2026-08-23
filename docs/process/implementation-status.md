@@ -58,9 +58,12 @@ any one exit.
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 24 refusal codes, the twenty-fourth and
   last being `consultation-stale`; zero GOVERNED construction guards remain in `config.ts`.
-- **The live deferral-register rows**: 1 — one row (publish tooling, whose tooling landed
+- **The live deferral-register rows**: two — row 1 (publish tooling, whose tooling landed
   at the phase-2 packaging increment and which stays open until the release workflow is
-  exercised once at the 0.1 cut). Five rows retired 2026-08-19, each with its account in
+  exercised once at the 0.1 cut) and row 19 (the AL2 detached-signature sidecar pinning
+  deferral, added by the byte-regression-pins increment, held open until the first
+  increment that changes signature encoding or key handling, or the 0.1 cut, whichever
+  lands first). Five rows retired 2026-08-19, each with its account in
   "Still outstanding" below: 6 (the API review), 5 (the Biome migration), and — at the
   phase-4 store-postgres increment — 15 (the server-SQL backing, landed whole as
   `@vidimera/store-postgres`), 16 (the token seams' `tx?`, the TWELFTH self-authored
@@ -1088,14 +1091,23 @@ Carried in the deferral register, with triggers:
   `beginRedemption`, and `completeRedemption`; behavior-preserving, gated by the existing
   suite, no new deferral. This is a shape correction to the already-retired row, not a
   reopening.
+- **Row 19** — the AL2 detached-signature sidecar pinning deferral, added by the
+  byte-regression-pins increment: `transitionDigest`'s input is
+  `{recordId, seq, at, kind, payload, prevHash}` — no signature field — so no chain pin
+  anywhere in this repository reaches an AL2 detached-signature sidecar. Trigger
+  (verbatim): "The first increment that changes signature encoding or key handling, or
+  the 0.1 cut — whichever lands first".
 
 Rows 17 and 18 both retired at the self-test-tier increment — step 8's own fourth and
 last tail item landed (see the CONTROLS §4 row and the boundary above for the full
 account, including the ELEVENTH self-authored inversion row 18 carries), so neither is
 listed here any longer. **The build order is complete: no row above carries any of the
-eight build-order steps as unfinished work** — the one surviving row (row 1,
-publish tooling) is a hygiene gate that outlives the build order by design, held open
-until the release workflow it authored is exercised once at the 0.1 cut.
+eight build-order steps as unfinished work** — of the two surviving rows, row 1 (publish
+tooling) is a hygiene gate that outlives the build order by design, held open until the
+release workflow it authored is exercised once at the 0.1 cut, and row 19 (the AL2
+detached-signature sidecar pinning deferral) is a scope gate opened by a later,
+post-build-order increment, held open until a signature-encoding or key-handling change
+lands, or the 0.1 cut, whichever comes first.
 
 Raised by this step's own review and planning documents and **not in the deferral register** —
 recorded here so the step does not exit with them unstated, and left as their sources state
@@ -2033,16 +2045,21 @@ plan: `docs/superpowers/plans/2026-08-22-byte-regression-pins.md`.
 **The gap this closed.** `packages/record/test/byte-stability.test.ts` pins four digest
 literals over exactly one chain — single-leg, `captureMode:'staged'` — covering three of
 `TransitionKind`'s twelve members (`opened`, `consultation-recorded`, `confirmed`) and none
-of the seven conditional payload fields added by increments that landed after that pin was
+of seven conditional payload fields added by increments that landed after that pin was
 written (`policyDigest`, `proposedDigest`, `tokenDigest`, `resultDigest`,
-`priorRecordRefs`, `priorLegActors`, `supersedes`). `deriveStagedRef` — a store key, not a
-transition — had no literal pin at all.
+`priorRecordRefs`, `priorLegActors`, `supersedes`) — an eighth, `magnitude`
+(`FindingRaisedPayload`/`AcknowledgedPayload`, `types.ts`), also post-dates the pin, but
+`findings.test.ts` in this same directory deliberately asserts its ABSENCE rather than
+pinning a value, so it is named here rather than folded into that count. `deriveStagedRef`
+— a store key, not a transition — had no literal pin at all.
 
 **What landed.** The prior seven commits on this increment created a new directory,
-`packages/record/test/byte-regression/`, holding eight files: `fixtures.ts` (the three
-injectable seams — `now()`, `tokenSource`, and the deterministic actor/subject builders —
-every pin file drives `createWithClock` with; editing it moves every literal in the
-directory at once, deliberately) and seven pin files, one per family:
+`packages/record/test/byte-regression/`, holding eight files: `fixtures.ts` (two
+functions — `deterministicSeams`, the three injectable seams `now`, `mintId`, and
+`tokenSource` every pin file drives `createWithClock` with, and `advanceableSeams`, the
+same three plus a fourth `advance(ms)` knob that `terminal-refusals.test.ts` alone needs to
+cross an expiry deadline; editing either moves every literal in the directory at once,
+deliberately) and seven pin files, one per family:
 
 - `staged-ref.test.ts` — `deriveStagedRef`'s one standalone literal; no transition kind
   reached.

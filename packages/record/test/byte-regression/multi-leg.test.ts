@@ -8,6 +8,12 @@
 // rather than borrowing one: `verifySupersedes` (`kernel/supersedes.ts`) requires the
 // predecessor be intact, head-matching, TERMINAL, and same-subjectRef, so the simplest
 // constructible predecessor here is a `confirmed` record on its own single-leg profile.
+// That predecessor's own four transitions carry no literal of their own — only its
+// `chainHead` reaches this file, folded into the successor's genesis payload — so a
+// regression inside the predecessor's own encoding is caught only transitively (a failing
+// recovery literal, not a failing predecessor literal) and at coarser diagnostic
+// granularity than a direct pin would give; acceptable because the predecessor is a plain
+// single-leg `confirmed` chain carrying no conditional field this directory exists to pin.
 //
 // SELF-REGRESSION PIN. A mismatch means this repository's encoding of these payloads
 // moved; it is not evidence of divergence from any external implementation, and it does
