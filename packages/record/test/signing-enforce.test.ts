@@ -446,14 +446,16 @@ test('beginRedemption and completeRedemption refuse chain-compromise on a signat
   // (b) beginRedemption, enlisted
   {
     const sqlite = new SqliteStore(':memory:');
-    const { handles, signatures } = enforceableSigningSetup([profile], { store: sqlite });
+    const { handles, signatures, calls } = enforceableSigningSetup([profile], { store: sqlite });
     const recordId = await openRecord(handles, CONTENT, 'test.enf.token.tx.v1', 'subject:enf-14');
     const fin = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
     assert.equal(fin.status, 'ok');
     await breakOneSignature(signatures, recordId);
     const before = await sqlite.readChain(recordId);
+    assert.equal(verifyChain(before).intact, true, 'fixture: hash-intact, signature-broken');
 
     sqlite.database.exec('BEGIN IMMEDIATE');
+    const callsBefore = calls();
     const out = await handles.operator.beginRedemption(recordId, CONTENT, { tx: sqlite.database });
     assert.equal(sqlite.database.isTransaction, true, "the host's transaction is still open");
     sqlite.database.exec('ROLLBACK'); // must not throw — the connection is clean and usable
@@ -463,12 +465,13 @@ test('beginRedemption and completeRedemption refuse chain-compromise on a signat
     assert.equal(out.code, 'chain-compromise');
     assert.equal(out.transitionRef, undefined, 'no edge — the append was never attempted');
     assert.deepEqual(await sqlite.readChain(recordId), before, 'the chain is unchanged');
+    assert.ok(calls() > callsBefore, 'the AL2 disjunct ran — the verifier was consulted');
   }
 
   // (d) completeRedemption, enlisted
   {
     const sqlite = new SqliteStore(':memory:');
-    const { handles, signatures } = enforceableSigningSetup([profile], { store: sqlite });
+    const { handles, signatures, calls } = enforceableSigningSetup([profile], { store: sqlite });
     const recordId = await openRecord(handles, CONTENT, 'test.enf.token.tx.v1', 'subject:enf-15');
     const fin = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
     assert.equal(fin.status, 'ok');
@@ -478,8 +481,10 @@ test('beginRedemption and completeRedemption refuse chain-compromise on a signat
     const token = begun.value.token;
     await breakOneSignature(signatures, recordId);
     const before = await sqlite.readChain(recordId);
+    assert.equal(verifyChain(before).intact, true, 'fixture: hash-intact, signature-broken');
 
     sqlite.database.exec('BEGIN IMMEDIATE');
+    const callsBefore = calls();
     const out = await handles.operator.completeRedemption(recordId, token, CONTENT, {
       tx: sqlite.database,
     });
@@ -491,5 +496,6 @@ test('beginRedemption and completeRedemption refuse chain-compromise on a signat
     assert.equal(out.code, 'chain-compromise');
     assert.equal(out.transitionRef, undefined, 'no edge — the append was never attempted');
     assert.deepEqual(await sqlite.readChain(recordId), before, 'the chain is unchanged');
+    assert.ok(calls() > callsBefore, 'the AL2 disjunct ran — the verifier was consulted');
   }
 });
