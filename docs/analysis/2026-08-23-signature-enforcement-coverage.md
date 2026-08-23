@@ -125,7 +125,7 @@ edge" to "refuse result-first with no edge" (or vice versa) would keep all five 
 Only `finalize` and enlisted `redeem` would catch that class of regression at their own
 sites.
 
-## Finding E — a code/spec question for the maintainer, left undecided here
+## Finding E — a code/spec question for the maintainer, raised undecided here, adjudicated 2026-08-23
 
 `decline()`'s rung (1) (lines 76–80, quoted under Finding A) runs **before** the
 leg-declaration gate at `kernel/decline.ts:96–103`:
@@ -183,6 +183,35 @@ records the question, and the length of each case is not a vote.
 
 No adjudication is taken here. Finding E gets no deferral-register row — see "Register
 rows opened by this record" below for why.
+
+**Adjudicated, 2026-08-23 (a later act than the audit above, recorded the same calendar
+day).** The maintainer has ruled: **reading (b)**. The byte-identity promise the
+declaration gate's message asserts is scoped to the feature's own payload keys and
+transitions — the reading `SPEC.md:369-372` already carries: "Every profile-conditional
+key is present-iff-declared … The invariant is over profile-declared features." A
+universal §5 `chain-compromise` edge is neither a profile-conditional key nor a
+decline/findings transition, so it sits outside that promise. The ordering itself is
+required, not merely permitted: `SPEC.md:421-426`'s "Mandatory pre-seam chain-verify"
+binds every operator-side mutating seam to verify its own chain before acting (`open()`'s
+one named exception does not apply to `decline`), and the exact competition between a
+chain-verify refusal and a declaration-conditional throw is adjudicated at decline's own
+section, `SPEC.md:652-658` ("The policy declared-iff-present throw fires at profile
+resolution, which follows the chain load and its verification"). No behavior changes, no
+bytes move, and `docs/concept/` is untouched by this ruling — no marker moves.
+
+What WAS wrong, and is fixed at this same increment: the two throw messages — this one
+(`kernel/decline.ts`) and its twin at `kernel/findings-seams.ts`'s declaring check
+(SPEC §10.2), which states the identical unqualified claim over the identical ordering —
+asserted byte-identity without the qualifier that makes it true. A one-site fix would have
+left the sibling standing, so both are reworded together to scope the claim to the
+feature's own keys/transitions and name the universal §5 edge as the carve-out. The corner
+both messages glossed is pinned, over its **hash-broken** half, by a test at each site
+(`packages/record/test/decline.test.ts`, `packages/record/test/findings-seams.test.ts`),
+each asserting the appended edge itself (code, `transitionRef`, chain growth, and the
+appended kind), not merely the refusal code; the **signature-broken** half of the same
+corner is not pinned here. This closes the hash-broken half of deferral-register row 20 —
+decline's rung (1) now has its first execution in the corpus — and row 20's text is
+narrowed to name only the signature-broken half as still unexercised.
 
 ## Design considered and deferred, so a later reader does not redo this analysis
 

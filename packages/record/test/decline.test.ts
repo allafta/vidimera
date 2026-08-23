@@ -8,7 +8,9 @@ import { test } from 'vitest';
 import { transitionDigest } from '../src/chain/encoding.js';
 import type { ConfirmProfile, LegSpec } from '../src/config.js';
 import { create, createWithClock } from '../src/create.js';
+import { MemoryStore } from '../src/store/memory.js';
 import { isStateLeaving, stateOf } from '../src/store/semantics.js';
+import { storeNext } from './helpers/chain.js';
 import {
   captureProfile,
   DEFAULT_SUBJECT_REF,
@@ -18,6 +20,7 @@ import {
   liveProfile,
   makeConfig,
   openRecord,
+  tamperNonLast,
   twoLegProfile,
 } from './helpers/profiles.js';
 import { signingSetup } from './helpers/signing.js';
@@ -86,6 +89,55 @@ test('decline: a non-declaring leg throws — the findings-seams posture', async
     () => handles.operator.decline(recordId, identity(), CONTENT, facts()),
     /decline/,
   );
+});
+
+test('decline: a non-declaring leg over a HASH-BROKEN chain refuses chain-compromise and APPENDS — rung (1) beats the declaration gate', async () => {
+  // Complements the test immediately above, not a contradiction of it: that test drives an
+  // INTACT chain, where the declaration gate is reachable and throws first; this one drives
+  // a BROKEN chain, where rung (1) (pre-seam chain-verify, SPEC §5) never lets control reach
+  // the declaration gate at all. Chain integrity is the discriminator between the two.
+  //
+  // This is Finding E's corner (docs/analysis/2026-08-23-signature-enforcement-coverage.md),
+  // adjudicated: not a defect — the declaration gate's byte-identity message is scoped to
+  // the decline feature's own keys/transitions (SPEC §4), and a universal §5
+  // chain-compromise edge sits outside that scope. Also closes the hash-broken half of
+  // deferral-register row 20 — the first execution of decline.ts's rung (1) in the corpus.
+  const profile = captureProfile(); // no decline declared
+  const store = new MemoryStore();
+  const handles = create(makeConfig([profile], { store }));
+  const recordId = await openRecord(handles, CONTENT, profile.id, DEFAULT_SUBJECT_REF);
+  const genesis = (await handles.operator.readChain(recordId))[0];
+  if (genesis === undefined) throw new Error('fixture: genesis exists after openRecord');
+  const seeded = {
+    kind: 'facts' as const,
+    checker: CHECKER,
+    at: genesis.at,
+    payloadDigest: DIGEST,
+    verdict: 'pass' as const,
+  };
+  // tamperNonLast needs >= 2 transitions to tamper a NON-last one (the genesis-only chain
+  // right after open() has just one) — a second, honestly-chained transition is built by
+  // hand onto the real genesis, in this standalone tampered copy only (findings-seams.test.ts's
+  // own compromise-fixture idiom).
+  const good = [genesis, storeNext(genesis, 'consultation-recorded', seeded)];
+  const tamperedStore = new MemoryStore();
+  for (const [i, t] of tamperNonLast(good).entries()) {
+    await tamperedStore.appendTransition(i === 0 ? null : 'open', t, { nonTerminal: true });
+  }
+  const h2 = create(makeConfig([profile], { store: tamperedStore }));
+  const before = await h2.operator.readChain(recordId);
+
+  // No throw here is the whole point: had the declaration gate run first, this call would
+  // have thrown (as the test above pins over an intact chain) instead of returning a refusal.
+  const out = await h2.operator.decline(recordId, identity(), CONTENT, facts());
+  assert.equal(out.status, 'refused');
+  if (out.status === 'refused') {
+    assert.equal(out.code, 'chain-compromise');
+    assert.notEqual(out.transitionRef, undefined); // an open record admits the edge
+  }
+  const after = await h2.operator.readChain(recordId);
+  assert.equal(after.length, before.length + 1);
+  assert.equal(after.at(-1)?.kind, 'refused');
 });
 
 test('decline: unknown option keys throw — policy is deliberately not accepted', async () => {

@@ -50,7 +50,21 @@ any one exit.
   the increment targets, found in the increment's own plan. No behavior landed and no
   maturity marker moved. See the dedicated section at the end of this document for the full
   account; the numbers immediately below already include it.
-- **Measured against the current tree**: `pnpm test` — 63 test files, 794 tests, zero skips
+- **A further increment, past the build order, has landed: Finding E adjudicated** — the
+  signature-enforcement-coverage findings record's own Finding E (whether `kernel/decline.ts`'s
+  rung (1) running before its leg-declaration gate is a defect) is resolved: not a defect,
+  by SPEC §4's scoped byte-identity invariant, SPEC §5's mandatory pre-seam chain-verify, and
+  SPEC §9's own adjudicated ordering of the two competing checks. Two throw messages that
+  asserted the byte-identity claim without the scoping qualifier that makes it true —
+  `kernel/decline.ts`'s declaration gate and its identical twin in
+  `kernel/findings-seams.ts`'s declaring check — are reworded together, since a one-site fix
+  would leave the sibling standing. The corner both messages glossed (a non-declaring leg
+  over a hash-broken chain) is pinned by a new test at each site, closing the hash-broken
+  half of deferral-register row 20; row 20's text is narrowed to name only the
+  signature-broken half as still unexercised. No behavior changed, no bytes moved, and no
+  maturity marker moved. See the dedicated section at the end of this document for the full
+  account; the numbers immediately below already include it.
+- **Measured against the current tree**: `pnpm test` — 63 test files, 796 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
   `pnpm lint` (`biome check .`) — 130 files checked, zero errors or warnings;
@@ -63,10 +77,12 @@ any one exit.
   exercised once at the 0.1 cut); row 19 (the AL2 detached-signature sidecar pinning
   deferral, added by the byte-regression-pins increment, held open until the first
   increment that changes signature encoding or key handling, or the 0.1 cut, whichever
-  lands first); row 20 (decline's rung-(1) coverage gap — its chain-verify/signature-layer
-  check and compromise append are unexecuted by the entire corpus, proved by mutation —
-  held open until the next increment that touches `packages/record/src/kernel/decline.ts`,
-  or the 0.1 cut); and row 21 (three AL2 caller-input gaps plus five assertion-depth sites
+  lands first); row 20 (decline's rung-(1) coverage gap — narrowed by the Finding E
+  adjudication's own pin: the hash-broken half of its chain-verify/signature-layer check
+  now runs and appends, proved by a corpus test rather than only by mutation, while the
+  AL2 signature-broken half stays unexecuted — held open until the next increment that
+  touches `packages/record/src/kernel/decline.ts`, or the 0.1 cut); and row 21 (three AL2
+  caller-input gaps plus five assertion-depth sites
   across the signature-enforcement surface, held open until the next increment that
   touches AL2 signature enforcement, or the 0.1 cut). Rows 20 and 21 were both added by
   the signature-enforcement-coverage findings record
@@ -2200,3 +2216,53 @@ name, or the 0.1 cut, whichever lands first. The fifth finding — the code/spec
 — takes no row: it is a decision for the maintainer, not work a future increment closes.
 Gates remained green throughout: this record changed no gate output from the
 byte-regression-pins increment's own exit measurement above.
+
+## Post-build-order increment — Finding E adjudicated (byte-identity claim scoped, corner pinned)
+
+**Adjudicated 2026-08-23, the same calendar day the signature-enforcement-coverage findings
+record above raised it undecided.** Finding E asked whether `kernel/decline.ts`'s rung (1)
+(pre-seam chain-verify) running before its own leg-declaration gate is a defect. The
+maintainer's ruling: **not a defect**. The declaration gate's byte-identity claim is scoped
+to the decline feature's own payload keys and transitions — the reading SPEC §4
+(`SPEC.md:369-372`) already states: "Every profile-conditional key is present-iff-declared …
+The invariant is over profile-declared features." A universal §5 `chain-compromise` edge is
+neither a profile-conditional key nor a decline/findings transition, so it sits outside that
+promise. The ordering itself is required by SPEC §5's "Mandatory pre-seam chain-verify"
+(`SPEC.md:421-426`), and the exact competition between the chain-verify rung and a
+declaration-conditional throw is adjudicated at decline's own section, SPEC §9
+(`SPEC.md:652-658`: "The policy declared-iff-present throw fires at profile resolution,
+which follows the chain load and its verification"). No behavior changes; no bytes move;
+`docs/concept/` is untouched; no maturity marker moves.
+
+**What was genuinely wrong, and is fixed here:** two throw messages — `kernel/decline.ts`'s
+declaration gate and its identical twin, `kernel/findings-seams.ts`'s declaring check
+(SPEC §10.2) — asserted the byte-identity claim without the qualifier that makes it true. A
+one-site fix would leave the sibling standing, so both are reworded together to name the
+scope and the §5 carve-out. The corner both messages glossed — a non-declaring leg over a
+hash-broken chain — is pinned by a new test at each site
+(`packages/record/test/decline.test.ts`, `packages/record/test/findings-seams.test.ts`),
+each asserting the appended edge itself (refusal code, `transitionRef`, chain growth by
+exactly one, the appended transition's `kind`), not merely the refusal code — Finding D of
+the same findings record notes five of seven signature-enforcement sites assert the code
+only, and this increment does not add a sixth. Verified by mutation, the reverse of the
+findings record's own check: neutering `decline.ts`'s rung (1) now fails exactly the new
+decline-side test (made and reverted on the working tree, the same discipline the findings
+record used).
+
+**`docs/process/deferral-register.md` row 20** is narrowed rather than retired: it named
+the entire rung-(1) condition as unexecuted; after this increment the hash-broken disjunct
+(`!report.intact`) executes and appends, while the AL2 signature-broken disjunct
+(`!(await signatureLayerHolds(...))`) still does not, for this seam. The row keeps its
+number and its trigger (the next increment that touches `kernel/decline.ts`, or the 0.1
+cut).
+
+**Cuts.** None. **Register rows.** None added; row 20 narrowed, its number and trigger
+unchanged.
+
+**Gate outputs, as measured against this increment's own exit commit**:
+`./node_modules/.bin/vitest run` — 63 test files, 796 tests, zero skips;
+`./node_modules/.bin/tsc --noEmit -p packages/record` and
+`./node_modules/.bin/tsc --noEmit -p packages/store-postgres` — both clean;
+`./node_modules/.bin/biome check .` — 130 files checked, zero errors or warnings;
+`node scripts/contract-scan.mjs` — exit 0, no output; `node scripts/api-reference-sync.mjs`
+— exit 0; `node scripts/docs-index-sync.mjs` — exit 0.

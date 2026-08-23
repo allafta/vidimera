@@ -169,7 +169,10 @@ async function loadOpenDeclaringRecord(
     throw new Error(
       `${seam}: profile '${record.profileId}' leg '${leg.id}' declares no findings flow — ` +
         'SPEC §10.2: "both seams throw on a record whose resolved leg declares no findings flow", ' +
-        'keeping a non-declaring chain byte-identical to a pre-findings implementation',
+        'keeping a non-declaring chain byte-identical to a pre-findings implementation, scoped ' +
+        'to its own keys and transitions per the SPEC §4 invariant; the universal §5 ' +
+        'chain-compromise edge sits outside that scope, since rung (1) runs before this gate ' +
+        '(SPEC §5)',
     );
   }
   // (3) state/expiry — the finalize rung-(2) arms, adapted (SPEC §10.2: "only `open`

@@ -187,6 +187,79 @@ test('a NON-declaring leg THROWS at both seams and its chain stays byte-identica
   assert.deepEqual(after, before, 'SPEC §10.2: byte-identical to a pre-findings implementation');
 });
 
+test('a NON-declaring leg over a HASH-BROKEN chain refuses chain-compromise at both seams and APPENDS — rung (1) beats the declaring check', async () => {
+  // Complements the test immediately above ('a NON-declaring leg THROWS…'), not a
+  // contradiction of it: that test drives an INTACT chain, where the declaring check (2.5)
+  // is reachable and throws first; this one drives a BROKEN chain, where rung (1)
+  // (chain-verify, SPEC §5) never lets control reach the declaring check at all. Chain
+  // integrity is the discriminator between the two.
+  //
+  // This is Finding E's corner (docs/analysis/2026-08-23-signature-enforcement-coverage.md),
+  // adjudicated: not a defect — the declaring check's byte-identity message is scoped to
+  // the findings feature's own keys/transitions (SPEC §4), and a universal §5
+  // chain-compromise edge sits outside that scope. `kernel/decline.ts` carries the
+  // identical twin, pinned by its own corner test in decline.test.ts.
+  const genesisStore = new MemoryStore();
+  const handles = create(makeConfig([captureProfile()], { store: genesisStore }));
+  const recordId = await openRecord(handles, CONTENT, 'test.capture.v1', SUBJECT);
+  const genesis = (await handles.operator.readChain(recordId))[0];
+  if (genesis === undefined) throw new Error('fixture: genesis exists after openRecord');
+  const seeded: FindingRaisedPayload = {
+    findingId: 'f-seed',
+    kind: 'variance',
+    findingDigest: D2,
+    raiser: RAISER,
+  };
+  // tamperNonLast needs >= 2 transitions to tamper a NON-last one — a second, honestly
+  // chained transition is built by hand onto the real genesis, same idiom the compromise
+  // test below uses for its own (declaring) fixture.
+  const good = [genesis, storeNext(genesis, 'finding-raised', seeded)];
+
+  const store1 = new MemoryStore();
+  for (const [i, t] of tamperNonLast(good).entries()) {
+    await store1.appendTransition(i === 0 ? null : 'open', t, { nonTerminal: true });
+  }
+  const h1 = create(makeConfig([captureProfile()], { store: store1 }));
+  const beforeRaise = await h1.operator.readChain(recordId);
+  // No throw here is the whole point: had the declaring check run first, this call would
+  // have thrown (as the test above pins over an intact chain) instead of returning a refusal.
+  const raise = await h1.operator.raiseFinding(
+    recordId,
+    { findingId: 'f-1', kind: 'variance', findingDigest: D1 },
+    RAISER,
+  );
+  assert.equal(raise.status, 'refused');
+  if (raise.status === 'refused') {
+    assert.equal(raise.code, 'chain-compromise');
+    assert.notEqual(raise.transitionRef, undefined); // an open record admits the edge
+  }
+  const afterRaise = await h1.operator.readChain(recordId);
+  assert.equal(afterRaise.length, beforeRaise.length + 1);
+  assert.equal(afterRaise.at(-1)?.kind, 'refused');
+
+  // A second, independent tampered copy: acknowledge is cheap to pin on the same fixture,
+  // and its OWN findingId-existence check (rung 4) never runs either — rung (1) still wins.
+  const store2 = new MemoryStore();
+  for (const [i, t] of tamperNonLast(good).entries()) {
+    await store2.appendTransition(i === 0 ? null : 'open', t, { nonTerminal: true });
+  }
+  const h2 = create(makeConfig([captureProfile()], { store: store2 }));
+  const beforeAck = await h2.operator.readChain(recordId);
+  const ackOut = await h2.operator.acknowledge(
+    recordId,
+    { findingId: 'f-1', findingDigest: D1 },
+    identity(),
+  );
+  assert.equal(ackOut.status, 'refused');
+  if (ackOut.status === 'refused') {
+    assert.equal(ackOut.code, 'chain-compromise');
+    assert.notEqual(ackOut.transitionRef, undefined); // an open record admits the edge
+  }
+  const afterAck = await h2.operator.readChain(recordId);
+  assert.equal(afterAck.length, beforeAck.length + 1);
+  assert.equal(afterAck.at(-1)?.kind, 'refused');
+});
+
 test('the prologue: chain-compromise outranks everything; expired refuses leg-expired; confirmed refuses record-not-open (never-append)', async () => {
   // Tampered chain -> chain-compromise (both seams). Seed a store with a tampered copy
   // of a valid chain (the seal/finalize compromise-fixture pattern). `tamperNonLast`

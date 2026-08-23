@@ -98,7 +98,9 @@ export async function decline(
     throw new Error(
       `decline: leg '${leg.id}' of profile '${record.profileId}' does not declare the decline ` +
         'seam — declare decline: true on the leg (SPEC §9.1); a non-declaring chain stays ' +
-        'byte-identical to a pre-decline implementation',
+        'byte-identical to a pre-decline implementation, scoped to its own keys and ' +
+        'transitions per the SPEC §4 invariant; the universal §5 chain-compromise edge sits ' +
+        'outside that scope, since rung (1) runs before this gate (SPEC §5)',
     );
   }
 
