@@ -23,7 +23,15 @@ import { create } from '../src/create.js';
 import { MemorySignatureStore } from '../src/signing/memory.js';
 import type { Signer, Verifier } from '../src/signing/store.js';
 import { MemoryStore } from '../src/store/memory.js';
-import { captureProfile, facts, identity, makeConfig, openRecord } from './helpers/profiles.js';
+import { SqliteStore } from '../src/store/sqlite.js';
+import {
+  captureProfile,
+  effectSeamProfile,
+  facts,
+  identity,
+  makeConfig,
+  openRecord,
+} from './helpers/profiles.js';
 import { breakOneSignature, enforceableSigningSetup } from './helpers/signing.js';
 
 const CONTENT = { subject: 'week-1', total: 40 };
@@ -364,4 +372,124 @@ test('acknowledge refuses chain-compromise on a signature-broken signing record 
   // Sound only after exactly ONE refusing call — see deferral-register row 22.
   const entries = await signatures.listByRecord(recordId);
   assert.equal(entries.length, after.length, 'the compromise edge is itself signed');
+});
+
+test('beginRedemption and completeRedemption refuse chain-compromise on a signature-broken signing record, un-enlisted — both append the edge', async () => {
+  // kernel/redeem.ts:224's shared prologue serves all THREE redemption seams. Only direct
+  // redeem() had signature coverage; the two token seams reached this line hash-broken only
+  // (deferral-register row 21).
+  const profile: ConfirmProfile = {
+    ...effectSeamProfile({ id: 'test.enf.token.v1' }),
+    signing: true,
+  };
+
+  // (a) beginRedemption
+  {
+    const { handles, signatures, calls } = enforceableSigningSetup([profile]);
+    const recordId = await openRecord(handles, CONTENT, 'test.enf.token.v1', 'subject:enf-12');
+    const fin = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+    assert.equal(fin.status, 'ok');
+    await breakOneSignature(signatures, recordId);
+    const before = await handles.operator.readChain(recordId);
+    assert.equal(verifyChain(before).intact, true, 'fixture: hash-intact, signature-broken');
+    const callsBefore = calls();
+
+    const out = await handles.operator.beginRedemption(recordId, CONTENT);
+    assert.equal(out.status, 'refused');
+    if (out.status !== 'refused') return;
+    assert.equal(out.code, 'chain-compromise');
+    assert.notEqual(out.transitionRef, undefined, 'un-enlisted: the edge appended');
+    assert.ok(calls() > callsBefore, 'the AL2 disjunct ran');
+    const after = await handles.operator.readChain(recordId);
+    assert.equal(after.length, before.length + 1);
+    assert.equal(after.at(-1)?.kind, 'refused');
+  }
+
+  // (c) completeRedemption — the token is issued CLEAN first, then a signature is broken,
+  // which is what makes the `redeeming` state reachable at all.
+  {
+    const { handles, signatures, calls } = enforceableSigningSetup([profile]);
+    const recordId = await openRecord(handles, CONTENT, 'test.enf.token.v1', 'subject:enf-13');
+    const fin = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+    assert.equal(fin.status, 'ok');
+    const begun = await handles.operator.beginRedemption(recordId, CONTENT);
+    assert.equal(begun.status, 'ok');
+    if (begun.status !== 'ok') return;
+    const token = begun.value.token;
+    await breakOneSignature(signatures, recordId);
+    const before = await handles.operator.readChain(recordId);
+    assert.equal(verifyChain(before).intact, true, 'fixture: hash-intact, signature-broken');
+    const callsBefore = calls();
+
+    const out = await handles.operator.completeRedemption(recordId, token, CONTENT);
+    assert.equal(out.status, 'refused');
+    if (out.status !== 'refused') return;
+    assert.equal(out.code, 'chain-compromise');
+    assert.notEqual(out.transitionRef, undefined, 'un-enlisted: the edge appended');
+    assert.ok(calls() > callsBefore, 'the AL2 disjunct ran');
+    const after = await handles.operator.readChain(recordId);
+    assert.equal(after.length, before.length + 1);
+    assert.equal(after.at(-1)?.kind, 'refused');
+  }
+});
+
+test('beginRedemption and completeRedemption refuse chain-compromise on a signature-broken signing record, ENLISTED — no edge, host transaction intact', async () => {
+  // The enlisted branch (kernel/redeem.ts:225) never routes through appendChainCompromise:
+  // that append would BEGIN a second transaction on the host's own connection, and enlisting
+  // the evidence edge would let a host rollback erase tampering evidence. So the outcome is
+  // result-first with no edge, and the host's transaction must survive intact.
+  const profile: ConfirmProfile = {
+    ...effectSeamProfile({ id: 'test.enf.token.tx.v1' }),
+    signing: true,
+  };
+
+  // (b) beginRedemption, enlisted
+  {
+    const sqlite = new SqliteStore(':memory:');
+    const { handles, signatures } = enforceableSigningSetup([profile], { store: sqlite });
+    const recordId = await openRecord(handles, CONTENT, 'test.enf.token.tx.v1', 'subject:enf-14');
+    const fin = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+    assert.equal(fin.status, 'ok');
+    await breakOneSignature(signatures, recordId);
+    const before = await sqlite.readChain(recordId);
+
+    sqlite.database.exec('BEGIN IMMEDIATE');
+    const out = await handles.operator.beginRedemption(recordId, CONTENT, { tx: sqlite.database });
+    assert.equal(sqlite.database.isTransaction, true, "the host's transaction is still open");
+    sqlite.database.exec('ROLLBACK'); // must not throw — the connection is clean and usable
+
+    assert.equal(out.status, 'refused');
+    if (out.status !== 'refused') return;
+    assert.equal(out.code, 'chain-compromise');
+    assert.equal(out.transitionRef, undefined, 'no edge — the append was never attempted');
+    assert.deepEqual(await sqlite.readChain(recordId), before, 'the chain is unchanged');
+  }
+
+  // (d) completeRedemption, enlisted
+  {
+    const sqlite = new SqliteStore(':memory:');
+    const { handles, signatures } = enforceableSigningSetup([profile], { store: sqlite });
+    const recordId = await openRecord(handles, CONTENT, 'test.enf.token.tx.v1', 'subject:enf-15');
+    const fin = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+    assert.equal(fin.status, 'ok');
+    const begun = await handles.operator.beginRedemption(recordId, CONTENT);
+    assert.equal(begun.status, 'ok');
+    if (begun.status !== 'ok') return;
+    const token = begun.value.token;
+    await breakOneSignature(signatures, recordId);
+    const before = await sqlite.readChain(recordId);
+
+    sqlite.database.exec('BEGIN IMMEDIATE');
+    const out = await handles.operator.completeRedemption(recordId, token, CONTENT, {
+      tx: sqlite.database,
+    });
+    assert.equal(sqlite.database.isTransaction, true, "the host's transaction is still open");
+    sqlite.database.exec('ROLLBACK');
+
+    assert.equal(out.status, 'refused');
+    if (out.status !== 'refused') return;
+    assert.equal(out.code, 'chain-compromise');
+    assert.equal(out.transitionRef, undefined, 'no edge — the append was never attempted');
+    assert.deepEqual(await sqlite.readChain(recordId), before, 'the chain is unchanged');
+  }
 });
