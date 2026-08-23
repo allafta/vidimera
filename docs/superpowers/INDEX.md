@@ -18,12 +18,16 @@ the increment was written, which the code and the status doc may have since move
 A reader chasing current behavior reads the code and the status doc; a reader chasing how
 a past decision was reached reads the matching row below.
 
-**30 files in `specs/`, 33 in `plans/`** — not one-to-one. Three
+**31 files in `specs/`, 33 in `plans/`** — not one-to-one. Three
 plans carry no spec: the two step-1 completion/remediation plans
 (`2026-08-03-autonomous-step-1-completion.md`, `2026-08-03-step-1-remediation.md`) and
 this housekeeping plan's own (`2026-08-18-post-build-order-housekeeping.md`). Each is
 noted "no spec" in its row below rather than paired with a design document that does not
-exist.
+exist. The imbalance runs the other way once, at the foot of the table: the AL2
+signature-enforcement coverage design
+(`2026-08-23-al2-signature-enforcement-coverage-design.md`) is written and its increment is
+not yet planned, so its row reads "plan pending" and the `plans/` count does not move until
+that plan exists.
 
 **`docs/analysis/`** holds 17 files, the increment-history artifacts outside that pair
 structure — earliest is
@@ -68,3 +72,4 @@ close.
 | 2026-08-21 | Effect-result notarization | Post-build-order (no step) | [design](specs/2026-08-21-effect-result-design.md) | [plan](plans/2026-08-21-effect-result.md) |
 | 2026-08-22 | Truth repairs | Post-build-order (no step) | [design](specs/2026-08-22-truth-repairs-design.md) | [plan](plans/2026-08-22-truth-repairs.md) |
 | 2026-08-22 | Byte-regression pins | Post-build-order (no step) | [design](specs/2026-08-22-byte-regression-pins-design.md) | [plan](plans/2026-08-22-byte-regression-pins.md) |
+| 2026-08-23 | AL2 signature-enforcement coverage | Post-build-order (no step) | [design](specs/2026-08-23-al2-signature-enforcement-coverage-design.md) | plan pending |
