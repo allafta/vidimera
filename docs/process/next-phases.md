@@ -2,7 +2,7 @@
 
 This document is a **roadmap**: what gates the next cut and why, never how — no
 implementation plan lives here. It is derived from three sources, read whole rather than
-sampled: `docs/process/deferral-register.md`'s two live rows, `docs/concept/OPEN-QUESTIONS.md`
+sampled: `docs/process/deferral-register.md`'s four live rows, `docs/concept/OPEN-QUESTIONS.md`
 (sealed, read-only — quoted here, never edited), and `docs/process/implementation-status.md`'s
 "Still outstanding" and "The package is unconsumable today" sections. Nothing below is
 invented; every register row, quote, and section number is checked against those sources at
@@ -25,14 +25,23 @@ and "What is deliberately outside the scope" below says so in the concept's own 
 
 ## What gates the next cut
 
-Two deferral-register rows gate the next cut. Row 1, publish tooling, is the one that
+Four deferral-register rows gate the next cut. Row 1, publish tooling, is the one that
 survives from the build order itself — its tooling landed at the phase-2 packaging
 increment, and the row stays open until the release workflow is exercised once at the
-0.1 cut. Row 19, the AL2 detached-signature sidecar pinning deferral, is newer — opened
-by the later, post-build-order byte-regression-pins increment — and its own trigger names
-the 0.1 cut too ("The first increment that changes signature encoding or key handling, or
-the 0.1 cut — whichever lands first"), so it belongs beside row 1 here rather than only in
-a build-order account. Every other row retired 2026-08-19, each with its account in its
+0.1 cut. The other three are all newer, opened by post-build-order findings rather than
+by the build order itself, and each of their own triggers names the 0.1 cut too, so all
+three belong beside row 1 here rather than only in a build-order account. Row 19, the AL2
+detached-signature sidecar pinning deferral, was opened by the byte-regression-pins
+increment ("The first increment that changes signature encoding or key handling, or the
+0.1 cut — whichever lands first"). Row 20, decline's rung-(1) coverage gap, and row 21,
+the AL2 caller-input and assertion-depth gaps, were both opened by the
+signature-enforcement-coverage findings record
+(`docs/analysis/2026-08-23-signature-enforcement-coverage.md`) — a documentation-only
+record that changed no `packages/*/src/` file and wrote no test: row 20's trigger is "The
+next increment that touches `packages/record/src/kernel/decline.ts`, or the 0.1 cut —
+whichever lands first"; row 21's is "The next increment that touches AL2 signature
+enforcement, or the 0.1 cut — whichever lands first". Every other row retired 2026-08-19,
+each with its account in its
 own section below: row 6 (the pre-0.1 API review), row 5 (the Biome migration), row 15
 (the server-SQL backing, landed whole as `@vidimera/store-postgres`), row 16 (the token
 seams' `tx?`), and row 4 (the workspace shape, its trigger fired deliberately by the

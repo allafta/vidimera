@@ -49,11 +49,13 @@ review (row 6) completed and retired 2026-08-19
 `docs/process/implementation-status.md` is the authoritative account of what this build
 does and does not implement, step by step, with gate outputs and the outstanding list —
 read it rather than trusting any count here, which is a claim with a shelf life and no way
-to fail loudly. `docs/process/next-phases.md` names what gates the next cut (two live
+to fail loudly. `docs/process/next-phases.md` names what gates the next cut (four live
 deferral-register rows — row 1, publish tooling, held open until the release workflow runs
-once, and row 19, the AL2 detached-signature sidecar pinning deferral, whose own trigger
-also names the 0.1 cut, so it gates the cut too) and what stays deliberately out of scope;
-`docs/process/release-checklist.md` is release day's authoritative list.
+once; row 19, the AL2 detached-signature sidecar pinning deferral; row 20, decline's
+rung-(1) coverage gap; and row 21, the AL2 caller-input and assertion-depth gaps —
+rows 19–21's own triggers all also name the 0.1 cut, so each gates the cut too) and what
+stays deliberately out of scope; `docs/process/release-checklist.md` is release day's
+authoritative list.
 
 **The public docset.** The repo carries a public-repo documentation set beyond the concept
 and process docs: root `README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`,

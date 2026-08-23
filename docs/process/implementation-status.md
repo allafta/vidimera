@@ -58,14 +58,22 @@ any one exit.
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 24 refusal codes, the twenty-fourth and
   last being `consultation-stale`; zero GOVERNED construction guards remain in `config.ts`.
-- **The live deferral-register rows**: two — row 1 (publish tooling, whose tooling landed
+- **The live deferral-register rows**: four — row 1 (publish tooling, whose tooling landed
   at the phase-2 packaging increment and which stays open until the release workflow is
-  exercised once at the 0.1 cut) and row 19 (the AL2 detached-signature sidecar pinning
+  exercised once at the 0.1 cut); row 19 (the AL2 detached-signature sidecar pinning
   deferral, added by the byte-regression-pins increment, held open until the first
   increment that changes signature encoding or key handling, or the 0.1 cut, whichever
-  lands first). Five rows retired 2026-08-19, each with its account in
-  "Still outstanding" below: 6 (the API review), 5 (the Biome migration), and — at the
-  phase-4 store-postgres increment — 15 (the server-SQL backing, landed whole as
+  lands first); row 20 (decline's rung-(1) coverage gap — its chain-verify/signature-layer
+  check and compromise append are unexecuted by the entire corpus, proved by mutation —
+  held open until the next increment that touches `packages/record/src/kernel/decline.ts`,
+  or the 0.1 cut); and row 21 (three AL2 caller-input gaps plus five assertion-depth sites
+  across the signature-enforcement surface, held open until the next increment that
+  touches AL2 signature enforcement, or the 0.1 cut). Rows 20 and 21 were both added by
+  the signature-enforcement-coverage findings record
+  (`docs/analysis/2026-08-23-signature-enforcement-coverage.md`), which changed no
+  `packages/*/src/` file and wrote no test. Five rows retired 2026-08-19, each with its
+  account in "Still outstanding" below: 6 (the API review), 5 (the Biome migration), and
+  — at the phase-4 store-postgres increment — 15 (the server-SQL backing, landed whole as
   `@vidimera/store-postgres`), 16 (the token seams' `tx?`, the TWELFTH self-authored
   inversion), and 4 (the workspace shape, its trigger fired deliberately by the second
   package). See `docs/process/deferral-register.md` for the rows themselves and
@@ -1097,17 +1105,39 @@ Carried in the deferral register, with triggers:
   anywhere in this repository reaches an AL2 detached-signature sidecar. Trigger
   (verbatim): "The first increment that changes signature encoding or key handling, or
   the 0.1 cut — whichever lands first".
+- **Row 20** — decline's rung-(1) coverage gap, added by the signature-enforcement-coverage
+  findings record: `kernel/decline.ts`'s pre-seam chain-verify and AL2 signature-layer
+  check, and its `chain-compromise` append, are unexecuted by the entire test corpus,
+  proved by deleting the rung wholesale and observing the full suite still pass; its
+  ladder-order test is also missing the rung-(1)-beats-rung-(2) adjacent pair every other
+  seam ladder pins. Full account:
+  `docs/analysis/2026-08-23-signature-enforcement-coverage.md` (Findings A and B).
+  Trigger (verbatim): "The next increment that touches
+  `packages/record/src/kernel/decline.ts`, or the 0.1 cut — whichever lands first".
+- **Row 21** — the AL2 caller-input and assertion-depth gaps, added by the same
+  signature-enforcement-coverage findings record: three call paths
+  (`acknowledge`'s shared prologue, `beginRedemption`, `completeRedemption`) are exercised
+  only over a hash-broken chain, never a signature-broken one, and five of the seven
+  signature-broken sites this package does test assert the refusal code only, never
+  whether the compromise edge appended or was withheld. Full account:
+  `docs/analysis/2026-08-23-signature-enforcement-coverage.md` (Findings C and D).
+  Trigger (verbatim): "The next increment that touches AL2 signature enforcement, or the
+  0.1 cut — whichever lands first".
 
 Rows 17 and 18 both retired at the self-test-tier increment — step 8's own fourth and
 last tail item landed (see the CONTROLS §4 row and the boundary above for the full
 account, including the ELEVENTH self-authored inversion row 18 carries), so neither is
 listed here any longer. **The build order is complete: no row above carries any of the
-eight build-order steps as unfinished work** — of the two surviving rows, row 1 (publish
+eight build-order steps as unfinished work** — of the four surviving rows, row 1 (publish
 tooling) is a hygiene gate that outlives the build order by design, held open until the
-release workflow it authored is exercised once at the 0.1 cut, and row 19 (the AL2
+release workflow it authored is exercised once at the 0.1 cut; row 19 (the AL2
 detached-signature sidecar pinning deferral) is a scope gate opened by a later,
 post-build-order increment, held open until a signature-encoding or key-handling change
-lands, or the 0.1 cut, whichever comes first.
+lands, or the 0.1 cut, whichever comes first; and rows 20 and 21 (decline's rung-(1)
+coverage gap, and the AL2 caller-input/assertion-depth gaps) are coverage gates opened by
+a documentation-only findings record over the signature-enforcement surface, each held
+open until an increment touches the code they name, or the 0.1 cut, whichever comes
+first.
 
 Raised by this step's own review and planning documents and **not in the deferral register** —
 recorded here so the step does not exit with them unstated, and left as their sources state
@@ -2142,3 +2172,31 @@ test; it cut no capability and left no family unbuilt.
 — exit 0; `node scripts/docs-index-sync.mjs` — exit 0. `docs/process/deferral-register.md`
 gains one row for this increment: row 19, the AL2 detached-signature sidecar pinning
 deferral.
+
+## Post-build-order note — signature-enforcement coverage findings (documentation only)
+
+**Not an increment: no `packages/*/src/` file changed, no test was written, and no
+maturity marker moved.** An audit following on from the byte-regression-pins increment's
+own AL2 sidecar work found that `kernel/decline.ts`'s rung (1) — its pre-seam chain-verify
+and AL2 signature-layer check, and the `chain-compromise` append it guards — is
+unexecuted by the entire test corpus: deleting the rung wholesale (reverted immediately
+after) left the full suite at 63 files / 794 tests, 0 failures. Reading outward from that
+finding turned up four further gaps in the same signature-enforcement surface: decline's
+ladder-order test is missing its rung-(1)-beats-rung-(2) adjacent pair; three AL2
+call paths (`acknowledge`'s shared prologue, `beginRedemption`, `completeRedemption`) are
+exercised only hash-broken, never signature-broken; five of the seven signature-broken
+sites this package does test assert the refusal code only, not the appended-or-withheld
+edge shape; and a genuine code/spec question — whether decline's rung (1) running before
+its own leg-declaration gate is a defect against that gate's stated byte-identity comment,
+or SPEC §5's "verification is first" working as intended — is recorded **undecided**,
+left for the maintainer to adjudicate rather than resolved here. The full account, all
+five findings with their verbatim evidence:
+`docs/analysis/2026-08-23-signature-enforcement-coverage.md`.
+
+Two new deferral-register rows carry the four coverage findings forward: **row 20**
+(decline's rung-(1) coverage gap) and **row 21** (the AL2 caller-input and
+assertion-depth gaps), both triggered by the next increment that touches the code they
+name, or the 0.1 cut, whichever lands first. The fifth finding — the code/spec question
+— takes no row: it is a decision for the maintainer, not work a future increment closes.
+Gates remained green throughout: this record changed no gate output from the
+byte-regression-pins increment's own exit measurement above.

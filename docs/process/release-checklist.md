@@ -123,5 +123,17 @@ as a list rather than as code.
       first") names this cut too, so release day must retire it or explicitly carry it
       forward rather than leave it unaddressed; if retired, give it the same
       retirement-note/roadmap-update treatment as row 1.
+- [ ] Decide register row 20's disposition (`docs/process/deferral-register.md`, decline's
+      rung-(1) coverage gap) — its own trigger ("The next increment that touches
+      `packages/record/src/kernel/decline.ts`, or the 0.1 cut — whichever lands first")
+      names this cut too, so release day must retire it or explicitly carry it forward
+      rather than leave it unaddressed; if retired, give it the same
+      retirement-note/roadmap-update treatment as row 1.
+- [ ] Decide register row 21's disposition (`docs/process/deferral-register.md`, the AL2
+      caller-input and assertion-depth gaps) — its own trigger ("The next increment that
+      touches AL2 signature enforcement, or the 0.1 cut — whichever lands first") names
+      this cut too, so release day must retire it or explicitly carry it forward rather
+      than leave it unaddressed; if retired, give it the same
+      retirement-note/roadmap-update treatment as row 1.
 - [ ] Update `docs/process/implementation-status.md`'s measured block (versions,
       published state) — dated, as always.
