@@ -128,7 +128,7 @@ sites.
 ## Finding E — a code/spec question for the maintainer, left undecided here
 
 `decline()`'s rung (1) (lines 76–80, quoted under Finding A) runs **before** the
-leg-declaration gate at `kernel/decline.ts:96–102`:
+leg-declaration gate at `kernel/decline.ts:96–103`:
 
 ```ts
   // --- the declaration gate (the findings-seams posture, SPEC §9.1) --------------------
@@ -141,7 +141,7 @@ leg-declaration gate at `kernel/decline.ts:96–102`:
   }
 ```
 
-That gate's own comment (lines 100–102) asserts a byte-identity property: "a non-declaring
+That gate's own message (lines 99–101) asserts a byte-identity property: "a non-declaring
 chain stays byte-identical to a pre-decline implementation." That holds for an intact
 chain — a non-declaring leg's `decline()` call throws before touching the store, so
 nothing is appended and the chain is untouched. **It does not hold in one corner**: call
@@ -161,19 +161,25 @@ not as "fixed" in passing.** `CLAUDE.md`: "where code and spec differ, one of th
 wrong and the difference is a finding, never silently reconciled." Two readings, stated
 fairly, with neither chosen:
 
-- **(a) A defect.** The declaration gate's own comment states an unqualified
-  byte-identity property ("a non-declaring chain stays byte-identical to a pre-decline
-  implementation") and this corner falsifies it as stated — either the comment is too
-  broad, or the gate is ordered wrong relative to rung (1).
+- **(a) A defect.** The declaration gate states an unqualified byte-identity property —
+  "a non-declaring chain stays byte-identical to a pre-decline implementation" — with no
+  corner carved out, and that property is the stated reason the gate throws rather than
+  refuses. This corner falsifies it as written: a leg that never declared the seam
+  reachable nonetheless acquires an appended `chain-compromise` edge, so its chain is no
+  longer byte-identical to what a pre-decline build would have produced. Under this
+  reading, either the message claims more than the code delivers, or the gate is ordered
+  wrongly relative to rung (1).
 - **(b) SPEC §5 working exactly as intended.** `decline.ts`'s own rung-(1) comment
-  attributes the ordering to "SPEC §5: verification is first" — the same principle SPEC
-  §5 states for `seal()`'s ladder: "Verification is first: a record whose chain fails
+  attributes the ordering to "SPEC §5: verification is first" — the principle SPEC §5
+  states for `seal()`'s ladder: "Verification is first: a record whose chain fails
   verification refuses `chain-compromise` and can never be sealed — so a compromised
   record never reaches `retired`, and its lawful disposal is a host-side act outside the
   library (§13)" (`docs/concept/SPEC.md:446–449`). Under this reading, chain integrity is
-  checked before ANYTHING else, including whether the seam is even declared, by design
-  across every seam in this build — and the declaration gate's comment is simply scoped
-  more broadly than it should be, not evidence the ordering itself is wrong.
+  checked ahead of whether the seam is even declared, and the byte-identity message is
+  simply scoped more broadly than the corner it was written for.
+
+Neither reading is developed further here, and the symmetry is deliberate: this document
+records the question, and the length of each case is not a vote.
 
 No adjudication is taken here. Finding E gets no deferral-register row — see "Register
 rows opened by this record" below for why.
