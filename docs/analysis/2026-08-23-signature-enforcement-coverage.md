@@ -239,7 +239,12 @@ turned out tautological, since a trigger that fires exactly when the work lands 
 nothing; fix round 2 corrects it to a genuine prompting event instead: the next increment
 that touches AL2 signature enforcement at `decline()`'s rung (1), or that extends the
 shared AL2 signing test rig sketched below under "Design considered and deferred" to
-reach it. See `docs/process/deferral-register.md` row 20 for the current trigger text.
+reach it. (**Updated 2026-08-23:** row 20 has since RETIRED, at the increment that closed it, and
+is gone from `docs/process/deferral-register.md` — the register carries the numbering gap.
+The trigger text this paragraph describes survives verbatim in
+`docs/process/next-phases.md`'s own row-20 retirement section, which is where a reader
+should now look; the paragraph above stays as the fix-round narrative it was, its present
+tense true at its own writing.)
 
 ## Design considered and deferred, so a later reader does not redo this analysis
 

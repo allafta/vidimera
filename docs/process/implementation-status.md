@@ -1153,9 +1153,13 @@ Carried in the deferral register, with triggers:
   since the condition short-circuits on `||`. The row's other half, the missing
   rung-(1)-beats-rung-(2) adjacent pair, landed in `decline.test.ts`'s ladder-order test.
   The row's THIRD trigger text is the one that fired, and it fired as a prompting event
-  rather than tautologically: this increment extended
-  `packages/record/test/helpers/signing.ts` to expose the sidecar, which that trigger names
-  in so many words. Full account: `docs/analysis/2026-08-23-signature-enforcement-coverage.md`
+  rather than tautologically. The trigger named extending
+  `packages/record/test/helpers/signing.ts`'s shared `signingSetup` to expose the sidecar;
+  what this increment did was deliver that CAPABILITY without that EDIT — `signingSetup`
+  itself was left byte-identical by ruling, and the sidecar-exposing rig landed as a sibling
+  export beside it. The prompting work the trigger describes is what occurred, and the file
+  it names did move; the function it names did not. Full account:
+  `docs/analysis/2026-08-23-signature-enforcement-coverage.md`
   (Findings A and B), and the increment section at the end of this document. Kept here as
   the record; the register carries the numbering gap.
 - **Row 21** — RETIRED 2026-08-23 (the AL2 signature-enforcement coverage increment): the
@@ -1178,8 +1182,10 @@ Carried in the deferral register, with triggers:
   `transitionDigest`, so a fresh timestamp is a new key rather than an upsert. On a record
   whose state admits no CAS candidate the append never lands and the sidecar keeps the entry
   anyway — measured at six consecutive refusing `finalize()` calls against a sealed signing
-  record, which grew the sidecar from 6 entries to 11 while the chain stayed at 5 under a
-  real clock and left it at 6 under a fixed instant. Not a soundness defect: both AL2
+  record, which took the sidecar from 5 entries to 11 under a real clock, one fresh orphan
+  per call (the readings after each being 6, 7, 8, 9, 10, 11), while the chain stayed at 5
+  throughout; under a fixed instant the same six calls left it at 6, every call after the
+  first re-signing byte-identical bytes onto one key. Not a soundness defect: both AL2
   consumers walk the CHAIN and look each transition's digest up in the sidecar, never the
   reverse, so an orphan is never visited and cannot make the layer report a false verdict.
   Behavior on a durable `SignatureStore` backing is UNMEASURED. Full account:
@@ -2341,10 +2347,16 @@ unchanged); rows 19 and 21 untouched.
 `./node_modules/.bin/biome check .` — 130 files checked, zero errors or warnings;
 `node scripts/contract-scan.mjs` — exit 0, no output; `node scripts/api-reference-sync.mjs`
 — exit 0; `node scripts/docs-index-sync.mjs` — exit 0.
+
 ## Post-build-order increment — AL2 signature-enforcement coverage
 
 **The eighth post-build-order increment, exited (commits `dc2b9d9`..`5a1992c`, closed by
-this commit).** The ordinal counts the sections above in order — recorded human decline,
+the register-and-record commit that followed them, then extended by two
+documentation-repair commits: `126cf04`, which brought `signing-enforce.test.ts`'s header
+into line with the coverage this increment gave it, and the truth-repair commit that closes
+the range. Neither moved a figure, a test, or any `packages/*/src/` line — both are
+comment and prose only, so the gate outputs recorded at the foot of this section stand
+unchanged.)** The ordinal counts the sections above in order — recorded human decline,
 proposal provenance, effect-result notarization, release-readiness reconciliation, truth
 repairs, byte-regression pins, Finding E adjudicated — and does NOT count the
 documentation-only signature-enforcement-coverage findings note between the last two, whose
@@ -2384,8 +2396,9 @@ rows 20 and 21 carried those nine gaps; both retire here.
   `decline()` on a declaring leg; the same on a NON-declaring leg, where rung (1) refuses
   before the declaration gate can throw; `acknowledge`, reaching the findings prologue
   through its second seam; and both token seams over a signature-broken chain, un-enlisted
-  and enlisted, in one test apiece. Five existing refusal-code-only tests were deepened in
-  place to assert the edge shape.
+  and enlisted, in one test apiece. Five existing refusal-code-only SITES — spread
+  across three of the file's pre-existing tests, since two of those tests carry two sites
+  each — were deepened in place to assert the edge shape.
 - `packages/record/test/decline.test.ts` — the missing rung-(1)-beats-rung-(2) adjacent
   pair, added as a block inside the existing ladder-order test (a broken chain on a record
   also past its ttl: rung (2) would refuse `leg-expired`, rung (1) refuses
@@ -2427,9 +2440,14 @@ test still asserts anything, and gutting an existing pin leaves it green. Its ow
 says so. Second, and narrower than the coverage claim sounds: **every signature break in
 this increment is a tampered sidecar entry at the genesis transition.** A missing entry, an
 unresolvable key reference, a throwing verifier, and a break at a non-genesis transition are
-separate inputs, and they stay covered only where they already were — one existing test
-covers a deleted entry and one covers an unresolvable key reference; nothing anywhere covers
-a break at a non-genesis transition. Third, and found by this increment's own review rather
+separate inputs, and this increment added not one of them. Two were already covered and are
+left exactly as covered as they were: one existing test deletes a sidecar entry, and one
+re-keys an entry to a registry miss. **The other two are covered nowhere at all.** No test
+anywhere breaks a non-genesis entry — every mutation site in the corpus takes the first
+entry. And no test anywhere supplies a verifier that throws or rejects: every `Verifier` in
+the corpus returns a boolean, and the one throwing seam in the signing tests is a SIGNER,
+pinning the sign-before-append order, which is a different seam proving a different
+property. Third, and found by this increment's own review rather
 than claimed away: **no append site ties the returned transition reference to the appended
 edge's own digest.** The assertions accept any defined value, so a wrong digest would pass.
 An independent probe confirmed the equality holds in reality; no test states it. Fourth,
