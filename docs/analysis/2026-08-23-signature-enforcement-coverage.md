@@ -1,4 +1,4 @@
-# Signature-enforcement coverage — five findings, recorded and deferred
+# Signature-enforcement coverage — findings, recorded and deferred
 
 **Date: 2026-08-23.** An audit of `kernel/decline.ts`'s rung (1) — its pre-seam
 chain-verify and AL2 signature-layer check — found the rung's own branch structure
@@ -8,6 +8,14 @@ different classes. **This record documents all five. It writes no test and chang
 `packages/*/src/` file** — the maintainer's own choice, recorded here rather than acted
 on in passing. Two of the five findings are deferred with fresh register rows (20 and 21,
 below); the fifth is a code/spec question left for adjudication, not a deferral.
+
+**Later additions, recorded after the audit above.** This record opened with the five
+findings the 2026-08-23 audit produced, and the paragraph above describes that audit as it
+stood — it is left as written. Two things have been appended since, each dated at its own
+site: Finding E's adjudication, and Finding F below. Finding F was recorded at the
+increment that closed register rows 20 and 21, which also made one comment-only
+`packages/record/src/kernel/redeem.ts` edit — so the "changes no `packages/*/src/` file"
+claim above is true of the audit, not of everything this document now records.
 
 ## Finding A — `kernel/decline.ts`'s rung (1) was unexecuted by the entire corpus (hash-broken half closed since — see the Finding E adjudication below)
 
@@ -86,12 +94,12 @@ These three sites' bodies DO execute on a broken chain — unlike Finding A, the
   (`signing-enforce.test.ts:110–131`, the "seal and raiseFinding refuse the same way… a
   MISSING entry… also fails closed" test) — `acknowledge` itself reaches the same line
   only hash-broken, at `findings-seams.test.ts:302`.
-- `kernel/redeem.ts:224` (the shared redemption prologue's matching condition), reached
+- `kernel/redeem.ts:225` (the shared redemption prologue's matching condition), reached
   via `beginRedemption`, is exercised hash-broken only —
   `redeem-token.test.ts:774`, `'ENLISTED beginRedemption over a tampered chain:
   chain-compromise result-first, NO edge, host transaction intact (the inherited rung-(1)
   shape)'`.
-- The same `kernel/redeem.ts:224`, reached via `completeRedemption`, is exercised
+- The same `kernel/redeem.ts:225`, reached via `completeRedemption`, is exercised
   hash-broken only, at `redeem-token.test.ts:794` (the completion twin of the test above)
   and `redeem-token.test.ts:311` (`'verify-first at completion: a tampered redeeming
   chain refuses chain-compromise before any token check'`).
