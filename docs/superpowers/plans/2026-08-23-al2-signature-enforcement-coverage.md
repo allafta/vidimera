@@ -26,7 +26,8 @@
 - **Zero skips.** A cell that will not build as scripted is either built or recorded as a deferral with the trigger that un-defers it — never parked with `.skip`.
 - **Figures are measured, never predicted.** Read `vitest run`'s totals off the tree at the exit and write them down then.
 - Node floor `>=22.16`; ESM; zero runtime dependencies.
-- **Gates at every commit — never call `pnpm`**: `./node_modules/.bin/vitest run` (zero skips), `./node_modules/.bin/tsc --noEmit -p packages/record` AND `-p packages/store-postgres`, `./node_modules/.bin/biome check .`, `node scripts/contract-scan.mjs` exit 0, `node scripts/api-reference-sync.mjs` exit 0, `node scripts/docs-index-sync.mjs` exit 0.
+- **Gates at every commit — never call `pnpm`**: `./node_modules/.bin/vitest run` (zero skips), `./node_modules/.bin/tsc --noEmit -p packages/record` AND `-p packages/store-postgres`, **`./node_modules/.bin/biome check --error-on-warnings .`**, `node scripts/contract-scan.mjs` exit 0, `node scripts/api-reference-sync.mjs` exit 0, `node scripts/docs-index-sync.mjs` exit 0.
+- **USE `--error-on-warnings`, NOT A BARE `biome check`.** CI runs `lint:strict`, which is `biome check --error-on-warnings .` — a Biome *warning* fails the build. A bare `biome check .` exits 0 on warnings and will tell you everything is fine while CI is red. The trap this increment actually hit: an import added for a later task's use is an unused import today, which is warning-only under `biome check` and fatal under `lint:strict`. **Never add an import before the code that uses it.**
 - Commit messages via `git commit -F <msgfile>` written with the **Write tool** (PowerShell `Set-Content` prepends a BOM). Verify the branch before each commit. **Never push.**
 - Commit subjects: `AL2 signature-enforcement coverage N/9: <what landed>`.
 
