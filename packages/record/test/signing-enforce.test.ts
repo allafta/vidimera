@@ -326,3 +326,42 @@ test('decline on a NON-declaring leg over a signature-broken chain appends the c
   assert.equal(after.length, before.length + 1);
   assert.equal(after.at(-1)?.kind, 'refused');
 });
+
+test('acknowledge refuses chain-compromise on a signature-broken signing record — the findings prologue reached through its second seam', async () => {
+  // kernel/findings-seams.ts's shared rung (1) serves raiseFinding AND acknowledge. The
+  // raiseFinding arm above is signature-broken; acknowledge reached this line only over a
+  // hash-broken chain until now (deferral-register row 21).
+  const base = captureProfile({ id: 'test.enf.ack.v1' });
+  const leg = base.legs[0];
+  assert.ok(leg !== undefined);
+  const profile: ConfirmProfile = {
+    ...base,
+    signing: true,
+    legs: [{ ...leg, ackMode: 'any', requiredAcks: ['variance'] }],
+  };
+  const { handles, signatures, calls } = enforceableSigningSetup([profile]);
+  const recordId = await openRecord(handles, CONTENT, 'test.enf.ack.v1', 'subject:enf-11');
+  await breakOneSignature(signatures, recordId);
+
+  const before = await handles.operator.readChain(recordId);
+  assert.equal(verifyChain(before).intact, true, 'fixture: hash-intact, signature-broken');
+  const callsBefore = calls();
+
+  const out = await handles.operator.acknowledge(
+    recordId,
+    { findingId: 'f-1', findingDigest: `sha256:${'1'.repeat(64)}` },
+    identity(),
+  );
+  assert.equal(out.status, 'refused');
+  if (out.status !== 'refused') return;
+  assert.equal(out.code, 'chain-compromise');
+  assert.notEqual(out.transitionRef, undefined, 'an open record admits the edge');
+  assert.ok(calls() > callsBefore, 'the AL2 disjunct ran');
+
+  const after = await handles.operator.readChain(recordId);
+  assert.equal(after.length, before.length + 1);
+  assert.equal(after.at(-1)?.kind, 'refused');
+  // Sound only after exactly ONE refusing call — see deferral-register row 22.
+  const entries = await signatures.listByRecord(recordId);
+  assert.equal(entries.length, after.length, 'the compromise edge is itself signed');
+});
