@@ -183,9 +183,10 @@ function dueNow(chain: readonly Transition[], resolved: ResolvedProfile, now: Da
  *   (1) chain-verify -> chain-compromise — §5: "Every operator-side mutating seam
  *       verifies the chain before acting". The AL2 enforcement increment folds the
  *       signature layer into this same arm — inherited by the ENLISTED branch, not
- *       re-decided. ENLISTED callers (tx !== undefined — today
- *       only direct redeem carries tx) refuse result-first with NO edge: see the comment
- *       in place below. Un-enlisted callers append the edge via appendChainCompromise.
+ *       re-decided. ENLISTED callers (tx !== undefined — all three redemption seams carry
+ *       it, riding `opts.tx` since the effect-result increment) refuse result-first with NO
+ *       edge: see the comment in place below. Un-enlisted callers append the edge via
+ *       appendChainCompromise.
  *   (2) resolve profile -> unknown-profile (fail-closed); persisted legId absent -> THROW
  *   (3) effect seam + final leg -> unredeemable-state (§11.2 "on-iff-effects"; the
  *       non-final-leg refusal is structural until the separation-of-duties step)

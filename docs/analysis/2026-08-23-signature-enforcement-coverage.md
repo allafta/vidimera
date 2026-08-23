@@ -60,7 +60,9 @@ identity beats (3.5) SoD` — it begins at rung (3). No `(1) beats (2)` case exi
 test, and no other test in the file supplies one.
 
 Every other seam ladder in the package pins its rung-(1) adjacent pair.
-`packages/record/test/findings-seams.test.ts:190`'s test is titled `'the prologue:
+`packages/record/test/findings-seams.test.ts:263` (line pin re-derived at this increment —
+a later commit inserted 73 lines above the test this cites, making the original `:190`
+pointer stale)'s test is titled `'the prologue:
 chain-compromise outranks everything; expired refuses leg-expired; confirmed refuses
 record-not-open (never-append)'` — chain-compromise (rung 1) against the state gate (rung
 2) is exactly the missing shape. `decline()` is the only seam ladder in this repository
@@ -83,7 +85,7 @@ These three sites' bodies DO execute on a broken chain — unlike Finding A, the
   via `acknowledge`, is exercised signature-broken only through `raiseFinding`
   (`signing-enforce.test.ts:110–131`, the "seal and raiseFinding refuse the same way… a
   MISSING entry… also fails closed" test) — `acknowledge` itself reaches the same line
-  only hash-broken, at `findings-seams.test.ts:229`.
+  only hash-broken, at `findings-seams.test.ts:302`.
 - `kernel/redeem.ts:224` (the shared redemption prologue's matching condition), reached
   via `beginRedemption`, is exercised hash-broken only —
   `redeem-token.test.ts:774`, `'ENLISTED beginRedemption over a tampered chain:
@@ -244,7 +246,7 @@ Two tests were sketched, not written, to close Findings A/B:
    the sidecar to break an entry; the local rig
    in `signing-enforce.test.ts` would need to be used or the shared helper extended.
 2. A rung-(1) adjacent-pair test in `decline.test.ts`, beside the existing ladder-order
-   test, pinning `(1) beats (2)` the way `findings-seams.test.ts:190` does for its own
+   test, pinning `(1) beats (2)` the way `findings-seams.test.ts:263` does for its own
    seams.
 
 **The argued conclusion: no byte-regression pin is warranted for this gap**, even were
@@ -296,3 +298,48 @@ So:
 being deferred — there is no future increment whose landing would "close" it the way a
 register trigger closes a row; adjudicating it is itself the closing act, and that act is
 a decision, not a build.
+
+## Finding F — orphan sidecar growth on the no-edge path, recorded 2026-08-23
+
+**A later act than the audit above, found while closing rows 20 and 21 rather than by the
+original sweep.** It is recorded here so rows 20, 21 and 22 all point at one document.
+
+`appendChainCompromise` (`packages/record/src/kernel/finalize.ts`) builds its `refused`
+transition fresh on every call, stamping `at` from the clock. The signing decorator signs
+before delegating to the store, and `MemorySignatureStore.put` is keyed by
+`transitionDigest` — so a new timestamp is a new key, not an upsert. On a record whose state
+admits no CAS candidate the append never lands, and the sidecar keeps the entry anyway.
+
+Measured, not inferred. A sealed signing record with one broken signature, driven through six
+consecutive refusing `finalize()` calls:
+
+| clock | sidecar entries after each call | chain |
+|---|---|---|
+| default (wall) | 6, 7, 8, 9, 10, 11 | 5, 5, 5, 5, 5, 5 |
+| fixed instant | 6, 6, 6, 6, 6, 6 | 5, 5, 5, 5, 5, 5 |
+
+The contrast isolates the cause: the only thing differing between the runs is the clock. Under
+a fixed instant every call re-signs byte-identical bytes and upserts one key; under a real one
+each call mints a fresh orphan. A sealed record's chain can never grow again, so nothing bounds
+the accumulation. Each refusing call also performs one signing operation per CAS candidate —
+three, on the fixture above — where the answer is statically known to be "no edge can land".
+
+**Stated with its limit, which is the honest part.** This is not a soundness defect.
+`verifySignatures` and `signatureLayerHolds` both walk the CHAIN and look each transition's
+digest up in the sidecar; the reverse direction is never traversed, so an entry with no chain
+counterpart is never visited and cannot make the layer report a false verdict. It cannot fail
+open. What it costs is storage, observability, and wasted signing work — on a host whose
+`Signer` is a remote key service, three round-trips per refused seam call.
+
+The enlisted redemption branch is exempt: it refuses result-first and never routes through the
+append at all.
+
+**Unmeasured, and named as such:** behavior on a durable `SignatureStore` backing. The probe
+covered the in-memory reference backing only, and the durable case is where "unbounded" would
+actually matter.
+
+**Not fixed here, and recorded as register row 22 instead.** The containment either
+special-cases a path five call sites share, or reopens the sign-before-append ordering the
+signing decorator pins deliberately — and inverting that order would reintroduce exactly the
+landed-but-unsigned transition the AL2 enforcement increment made fail closed. That is its own
+increment with its own design, not a change to make in passing while closing a coverage row.
