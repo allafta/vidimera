@@ -66,36 +66,48 @@ any one exit.
   RETRIGGERED — kept open under its same number but a new trigger text, the house form row
   5 (`docs/process/next-phases.md`) already uses. No behavior changed, no bytes moved, and
   no maturity marker moved. See the dedicated section at the end of this document for the
-  full account; the numbers immediately below already include it.
-- **Measured against the current tree**: `pnpm test` — 63 test files, 796 tests, zero skips
+  full account; the numbers immediately below already include it. (**Updated 2026-08-23:**
+  row 20 has since RETIRED, at the AL2 signature-enforcement coverage increment below,
+  which closed the signature-broken half this bullet names as still unexercised. The
+  bullet stays as the Finding E narrative it was, its present tense true at its own
+  writing; the register carries the numbering gap.)
+- **A further increment, past the build order, has landed: AL2 signature-enforcement
+  coverage** — the signature-broken half of the AL2 enforcement surface, which register rows
+  20 and 21 held open, is now executed and shape-asserted at all seven
+  `signatureLayerHolds` call sites, and a call-site census fails on the day an eighth site
+  appears. Test-only: the increment's single `packages/*/src/` edit is a comment, and no
+  maturity marker moved. It retires rows 20 and 21 and opens row 22 (orphan sidecar growth
+  on the no-edge refusal path, recorded rather than fixed). See the dedicated section at the
+  end of this document for the full account; the numbers immediately below already include
+  it.
+- **Measured against the current tree**: `pnpm test` — 64 test files, 802 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
-  `pnpm lint` (`biome check .`) — 130 files checked, zero errors or warnings;
+  `pnpm lint` (`biome check .`) — 131 files checked, zero errors or warnings;
   `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 24 refusal codes, the twenty-fourth and
   last being `consultation-stale`; zero GOVERNED construction guards remain in `config.ts`.
-- **The live deferral-register rows**: four — row 1 (publish tooling, whose tooling landed
+- **The live deferral-register rows**: three — row 1 (publish tooling, whose tooling landed
   at the phase-2 packaging increment and which stays open until the release workflow is
   exercised once at the 0.1 cut); row 19 (the AL2 detached-signature sidecar pinning
   deferral, added by the byte-regression-pins increment, held open until the first
   increment that changes signature encoding or key handling, or the 0.1 cut, whichever
-  lands first); row 20 (decline's rung-(1) coverage gap — narrowed by the Finding E
-  adjudication's own pin: the hash-broken half of its chain-verify/signature-layer check
-  now runs and appends, proved by a corpus test rather than only by mutation, while the
-  AL2 signature-broken half stays unexecuted — RETRIGGERED, since that same adjudication's
-  edit to `kernel/decline.ts` fired the row's original file-touch trigger without closing
-  it (a first replacement trigger, at the immediately following fix commit, itself named
-  the deferred work's own completion rather than a prompting event and was corrected in
-  turn); held open until the next increment that touches AL2 signature enforcement at
-  `decline()`'s rung (1), or extends the shared AL2 signing test rig to reach it, or the
-  0.1 cut); and row 21 (three AL2 caller-input gaps plus five assertion-depth sites
-  across the signature-enforcement surface, held open until the next increment that
-  touches AL2 signature enforcement, or the 0.1 cut). Rows 20 and 21 were both added by
+  lands first); and row 22 (orphan sidecar growth on the no-edge refusal path — each
+  refusing seam call against a compromised record whose state admits no CAS candidate mints
+  a sidecar entry naming a transition that never lands, and performs one signing operation
+  per CAS candidate; inert to both AL2 consumers, which correlate from the chain to the
+  sidecar and never the reverse, so a storage, observability and wasted-work finding rather
+  than a soundness one; behavior on a durable `SignatureStore` backing is UNMEASURED). Row
+  22 was added by the AL2 signature-enforcement coverage increment, which found it while
+  closing rows 20 and 21 and recorded it rather than fixing it; its trigger is quoted
+  verbatim in the "Still outstanding" row-22 bullet below rather than paraphrased here.
+  **Rows 20 and 21 retired 2026-08-23** at
+  that same increment, their accounts in "Still outstanding" below; both had been added by
   the signature-enforcement-coverage findings record
   (`docs/analysis/2026-08-23-signature-enforcement-coverage.md`), which changed no
-  `packages/*/src/` file and wrote no test. Five rows retired 2026-08-19, each with its
-  account in "Still outstanding" below: 6 (the API review), 5 (the Biome migration), and
+  `packages/*/src/` file and wrote no test. Five further rows retired 2026-08-19, each with
+  its account in "Still outstanding" below: 6 (the API review), 5 (the Biome migration), and
   — at the phase-4 store-postgres increment — 15 (the server-SQL backing, landed whole as
   `@vidimera/store-postgres`), 16 (the token seams' `tx?`, the TWELFTH self-authored
   inversion), and 4 (the workspace shape, its trigger fired deliberately by the second
@@ -1128,63 +1140,70 @@ Carried in the deferral register, with triggers:
   anywhere in this repository reaches an AL2 detached-signature sidecar. Trigger
   (verbatim): "The first increment that changes signature encoding or key handling, or
   the 0.1 cut — whichever lands first".
-- **Row 20** — decline's rung-(1) coverage gap, added by the signature-enforcement-coverage
-  findings record: `kernel/decline.ts`'s pre-seam chain-verify and AL2 signature-layer
-  check, and its `chain-compromise` append, were unexecuted by the entire test corpus,
-  proved by deleting the rung wholesale and observing the full suite still pass. The
-  Finding E adjudication increment added the rung's first corpus execution — a hash-broken
-  corner test at `decline.test.ts` — so the hash-broken disjunct (`!report.intact`) now
-  executes and appends; the AL2 signature-broken disjunct
-  (`!(await signatureLayerHolds(...))`) is still unexecuted for this seam. Its ladder-order
-  test is also missing the rung-(1)-beats-rung-(2) adjacent pair every other seam ladder
-  pins — untouched by that same increment, since its own pin is rung (1) versus the
-  declaration gate, not rung (1) versus rung (2). Full account:
-  `docs/analysis/2026-08-23-signature-enforcement-coverage.md` (Findings A and B).
-  Trigger (verbatim): "The next increment that touches AL2 signature enforcement at
-  `decline()`'s rung (1), or that extends `signing-enforce.test.ts`'s local rig or
-  `packages/record/test/helpers/signing.ts`'s shared `signingSetup` to expose the sidecar
-  alongside decline's handles — or the 0.1 cut, whichever lands first. RETRIGGERED: this
-  said "the next increment that touches `packages/record/src/kernel/decline.ts`", which
-  fired at the Finding E adjudication increment (commit `536fdba`) — that increment touched
-  the file only to scope two throw-message strings and add a hash-broken corner test, not
-  to close the deferred gap; the AL2 signature-broken half of rung (1) is still unexecuted.
-  A first replacement trigger, written the same day at the immediately following fix
-  commit (`98584e1`), named "the next increment that drives a signature-broken chain
-  through `decline()`'s rung (1)" — but that names the deferred work's own completion, not
-  a prompting event, so it un-defers nothing (in effect, 0.1-cut-only); corrected here.
-  The principle a trigger must follow: it names the event that PROMPTS the work, never the
-  work's own completion — every other row in this table does exactly that (row 1: "First
-  external consumer"; row 19: "The first increment that changes signature encoding or key
-  handling"; row 21, this row's own sibling: "The next increment that touches AL2
-  signature enforcement"). Row 5's own retrigger (`docs/process/next-phases.md`) draws the
-  same line from the opposite side: a trigger too VAGUE to fire discriminately ("next
-  housekeeping commit") was narrowed to a specific, checkable file; here a trigger too
-  BROAD (any touch of one file) is narrowed instead to a specific, checkable class of
-  prompting work.".
-- **Row 21** — the AL2 caller-input and assertion-depth gaps, added by the same
-  signature-enforcement-coverage findings record: three call paths
-  (`acknowledge`'s shared prologue, `beginRedemption`, `completeRedemption`) are exercised
-  only over a hash-broken chain, never a signature-broken one, and five of the seven
-  signature-broken sites this package does test assert the refusal code only, never
-  whether the compromise edge appended or was withheld. Full account:
-  `docs/analysis/2026-08-23-signature-enforcement-coverage.md` (Findings C and D).
-  Trigger (verbatim): "The next increment that touches AL2 signature enforcement, or the
-  0.1 cut — whichever lands first".
+- **Row 20** — RETIRED 2026-08-23 (the AL2 signature-enforcement coverage increment):
+  `kernel/decline.ts`'s rung (1) — its pre-seam chain-verify plus the AL2 signature-layer
+  check, and the `chain-compromise` append it guards — was unexecuted by the entire test
+  corpus, proved by deleting the rung wholesale and observing the full suite still pass. The
+  Finding E adjudication increment closed the hash-broken disjunct (`!report.intact`); this
+  increment closed the AL2 signature-broken disjunct
+  (`!(await signatureLayerHolds(...))`) with two shape-asserted pins in
+  `signing-enforce.test.ts` — the declaring leg, and the non-declaring corner where rung (1)
+  refuses before the declaration gate can throw — each carrying a verifier-call DELTA above
+  zero, the only mechanical proof that the signature disjunct ran rather than the hash one,
+  since the condition short-circuits on `||`. The row's other half, the missing
+  rung-(1)-beats-rung-(2) adjacent pair, landed in `decline.test.ts`'s ladder-order test.
+  The row's THIRD trigger text is the one that fired, and it fired as a prompting event
+  rather than tautologically: this increment extended
+  `packages/record/test/helpers/signing.ts` to expose the sidecar, which that trigger names
+  in so many words. Full account: `docs/analysis/2026-08-23-signature-enforcement-coverage.md`
+  (Findings A and B), and the increment section at the end of this document. Kept here as
+  the record; the register carries the numbering gap.
+- **Row 21** — RETIRED 2026-08-23 (the AL2 signature-enforcement coverage increment): the
+  three AL2 call paths exercised only over a hash-broken chain (`acknowledge`'s shared
+  prologue, `beginRedemption`, `completeRedemption`) gained signature-broken pins — five
+  cells rather than three, since both token seams double on enlistment — and the five
+  refusal-code-only sites were deepened in place to state what the seam did with the
+  evidence edge: `seal`, `raiseFinding` and un-enlisted `redeem` now assert the append,
+  while the two that append NOTHING ANYWHERE (`verifyPriorLegs`, `verifySupersedes`) now
+  assert exactly that, including that the prior leg or predecessor whose chain was just
+  found broken is itself left unmarked — a fact no test in this package previously stated.
+  Full account: `docs/analysis/2026-08-23-signature-enforcement-coverage.md` (Findings C
+  and D), and the increment section at the end of this document. Kept here as the record;
+  the register carries the numbering gap.
+- **Row 22** — orphan sidecar growth on the no-edge refusal path, added by the AL2
+  signature-enforcement coverage increment, which found it while closing rows 20 and 21 and
+  recorded it rather than fixing it. `appendChainCompromise` (`kernel/finalize.ts`) rebuilds
+  its `refused` transition on every call, stamping `at` from the clock; the signing
+  decorator signs BEFORE delegating to the store, and `MemorySignatureStore.put` is keyed by
+  `transitionDigest`, so a fresh timestamp is a new key rather than an upsert. On a record
+  whose state admits no CAS candidate the append never lands and the sidecar keeps the entry
+  anyway — measured at six consecutive refusing `finalize()` calls against a sealed signing
+  record, which grew the sidecar from 6 entries to 11 while the chain stayed at 5 under a
+  real clock and left it at 6 under a fixed instant. Not a soundness defect: both AL2
+  consumers walk the CHAIN and look each transition's digest up in the sidecar, never the
+  reverse, so an orphan is never visited and cannot make the layer report a false verdict.
+  Behavior on a durable `SignatureStore` backing is UNMEASURED. Full account:
+  `docs/analysis/2026-08-23-signature-enforcement-coverage.md` (Finding F).
+  Trigger (verbatim): "The first increment that changes the signing decorator's
+  sign-before-append ordering or `appendChainCompromise`'s candidate walk, or that adds a
+  durable `SignatureStore` backing beyond `MemorySignatureStore` — or the 0.1 cut, whichever
+  lands first."
 
 Rows 17 and 18 both retired at the self-test-tier increment — step 8's own fourth and
 last tail item landed (see the CONTROLS §4 row and the boundary above for the full
 account, including the ELEVENTH self-authored inversion row 18 carries), so neither is
 listed here any longer. **The build order is complete: no row above carries any of the
-eight build-order steps as unfinished work** — of the four surviving rows, row 1 (publish
+eight build-order steps as unfinished work** — of the three surviving rows, row 1 (publish
 tooling) is a hygiene gate that outlives the build order by design, held open until the
 release workflow it authored is exercised once at the 0.1 cut; row 19 (the AL2
 detached-signature sidecar pinning deferral) is a scope gate opened by a later,
 post-build-order increment, held open until a signature-encoding or key-handling change
-lands, or the 0.1 cut, whichever comes first; and rows 20 and 21 (decline's rung-(1)
-coverage gap, and the AL2 caller-input/assertion-depth gaps) are coverage gates opened by
-a documentation-only findings record over the signature-enforcement surface, each held
-open until an increment touches the code they name, or the 0.1 cut, whichever comes
-first.
+lands, or the 0.1 cut, whichever comes first; and row 22 (orphan sidecar growth on the
+no-edge refusal path) is a containment gate opened by the AL2 signature-enforcement
+coverage increment, held open until a change to the signing decorator's ordering or the
+compromise-append candidate walk, or a durable sidecar backing, or the 0.1 cut, whichever
+comes first. Rows 20 and 21 — the two coverage gates a documentation-only findings record
+opened over this same surface — retired at that increment, their accounts kept above.
 
 Raised by this step's own review and planning documents and **not in the deferral register** —
 recorded here so the step does not exit with them unstated, and left as their sources state
@@ -2244,7 +2263,10 @@ Two new deferral-register rows carry the four coverage findings forward: **row 2
 (decline's rung-(1) coverage gap) and **row 21** (the AL2 caller-input and
 assertion-depth gaps), both triggered by the next increment that touches the code they
 name, or the 0.1 cut, whichever lands first (row 20's trigger has since been
-retriggered — twice — see the Finding E adjudicated section below). The fifth finding —
+retriggered — twice — see the Finding E adjudicated section below). (**Updated
+2026-08-23:** both rows have since RETIRED, at the AL2 signature-enforcement coverage
+increment at the end of this document; row 22, opened there, is the only register row this
+surface now carries.) The fifth finding —
 the code/spec question — takes no row: it is a decision for the maintainer, not work a
 future increment closes.
 Gates remained green throughout: this record changed no gate output from the
@@ -2301,7 +2323,13 @@ test rig to reach it — the same shape row 21 (this row's own sibling) already 
 the 0.1 cut. Full current trigger text: see the register row itself, and its verbatim
 mirror in `docs/process/next-phases.md`, `docs/process/release-checklist.md`, and the
 "Still outstanding" row 20 bullet above (all four moved together at fix round 2, so none
-quotes a stale trigger).
+quotes a stale trigger). (**Updated 2026-08-23:** that third trigger DID fire as a
+prompting event — the AL2 signature-enforcement coverage increment extended
+`packages/record/test/helpers/signing.ts` to expose the sidecar, which the trigger names
+— and the row RETIRED there. Its trigger text no longer stands in the register, the
+release checklist, or the "Still outstanding" row 20 bullet above, all three of which are
+now retirement notes; `docs/process/next-phases.md`'s own row-20 retirement section is
+where that trigger is preserved verbatim.)
 
 **Cuts.** None. **Register rows.** None added; row 20 narrowed AND retriggered (number
 unchanged); rows 19 and 21 untouched.
@@ -2313,3 +2341,135 @@ unchanged); rows 19 and 21 untouched.
 `./node_modules/.bin/biome check .` — 130 files checked, zero errors or warnings;
 `node scripts/contract-scan.mjs` — exit 0, no output; `node scripts/api-reference-sync.mjs`
 — exit 0; `node scripts/docs-index-sync.mjs` — exit 0.
+## Post-build-order increment — AL2 signature-enforcement coverage
+
+**The eighth post-build-order increment, exited (commits `dc2b9d9`..`5a1992c`, closed by
+this commit).** The ordinal counts the sections above in order — recorded human decline,
+proposal provenance, effect-result notarization, release-readiness reconciliation, truth
+repairs, byte-regression pins, Finding E adjudicated — and does NOT count the
+documentation-only signature-enforcement-coverage findings note between the last two, whose
+own header says it is not an increment. **This increment landed no behavior and moved no
+maturity marker.** No `docs/concept/` file changed, no sanction was sought and none was
+needed. Its single `packages/*/src/` edit is comment-only, proved by diff rather than
+asserted: `git diff 89e44ae --stat -- packages/record/src/` names exactly one file,
+`packages/record/src/kernel/redeem.ts`, at 4 insertions and 3 deletions, and every changed
+line in that diff is a JSDoc continuation. Design:
+`docs/superpowers/specs/2026-08-23-al2-signature-enforcement-coverage-design.md`; plan:
+`docs/superpowers/plans/2026-08-23-al2-signature-enforcement-coverage.md`.
+
+**The gap this closed.** `signatureLayerHolds` has exactly seven call sites, one per file,
+and the condition at every one of them is a short-circuiting disjunction —
+`!verifyChain(chain).intact || !(await signatureLayerHolds(ctx, chain))`. A hash-broken
+fixture therefore never calls `signatureLayerHolds` at all, so it exercises only the first
+operand, and every coverage claim about such a rung must say which disjunct it means.
+Measured before this increment, four of those sites had no signature-broken test at all
+(`decline`, `acknowledge`, `beginRedemption`, `completeRedemption` — six cells rather than
+four, since both token seams double on enlistment), and five of the seven sites that were
+tested asserted the refusal code only, never whether the compromise edge appended or was
+withheld. Decline additionally lacked the rung-(1)-beats-rung-(2) adjacent pair every other
+seam ladder in this package pins, which belongs to no cell of that grid at all. Register
+rows 20 and 21 carried those nine gaps; both retire here.
+
+**What landed.** Test-only, one `src/` comment aside:
+
+- `packages/record/test/helpers/signing.ts` — two new exports beside the frozen
+  `signingSetup`, never a rewrite of it: `enforceableSigningSetup(profiles, opts?)`,
+  returning `{ handles, store, signatures, calls }` so a fixture can reach the sidecar (the
+  reason no signature-broken decline fixture could exist before) and so an enlisted cell can
+  supply a `SqliteStore`; and `breakOneSignature(signatures, recordId)`, lifted from
+  `signing-enforce.test.ts`'s file-local copy, gaining a guard that asserts the tamper
+  actually changed the signature — the existing helper overwrote the leading four base64
+  characters, a silent no-op on a signature that already began with them.
+- `packages/record/test/signing-enforce.test.ts` — five new tests: signature-broken
+  `decline()` on a declaring leg; the same on a NON-declaring leg, where rung (1) refuses
+  before the declaration gate can throw; `acknowledge`, reaching the findings prologue
+  through its second seam; and both token seams over a signature-broken chain, un-enlisted
+  and enlisted, in one test apiece. Five existing refusal-code-only tests were deepened in
+  place to assert the edge shape.
+- `packages/record/test/decline.test.ts` — the missing rung-(1)-beats-rung-(2) adjacent
+  pair, added as a block inside the existing ladder-order test (a broken chain on a record
+  also past its ttl: rung (2) would refuse `leg-expired`, rung (1) refuses
+  `chain-compromise` first).
+- `packages/record/test/signature-enforcement-sites.test.ts` — new: the call-site census.
+- `packages/record/test/redeem.test.ts` — its inlined break helper repointed at the shared
+  one, which it had duplicated byte-identically.
+- `packages/record/test/signing.test.ts` — a comment recording why its own break helper is
+  deliberately NOT folded into the shared one: it corrupts the TRAILING four base64
+  characters where the shared one corrupts the leading four, so repointing it would quietly
+  change which bytes that test exercises.
+- `packages/record/src/kernel/redeem.ts` — the one `src/` edit, comment-only: a doc comment
+  said ENLISTED callers were "today only direct redeem carries tx", which the increment that
+  wired `tx` into the token seams falsified. All three redemption seams read `opts.tx`; the
+  correction drops the dated "today", a claim with a shelf life and no way to fail loudly.
+- `docs/analysis/2026-08-23-signature-enforcement-coverage.md` — Finding F appended as a
+  dated section, and three stale line pins corrected. Per that document's own established
+  convention, the original framing is preserved and reconciled by a dated masthead note
+  rather than rewritten, so the history stays legible.
+
+**The coverage proof.** Every new pin had its mutation proof run, and the results are the
+evidence, not the assertions: neutering `kernel/decline.ts`'s AL2 disjunct failed exactly
+the two new decline tests and nothing else, the revert confirmed clean; neutering
+`kernel/redeem.ts`'s disjunct failed exactly five tests — the new enlisted test, two in
+`redeem-token.test.ts` and two in `redeem.test.ts` — revert likewise confirmed; and
+injecting a probe mention of the enforcement helper into `chain/replay.ts` failed the census
+naming that file, revert confirmed. Two further proofs are structural rather than
+mutational. Each signature-broken fixture asserts `verifyChain(before).intact === true`
+before the seam call, so the refusal cannot be the hash disjunct wearing the signature
+disjunct's name; and each reads the verifier-call counter as a DELTA across the seam call,
+never as a total — `verifySignatures()` consults the verifier itself, so a bare
+"calls above zero" would pass vacuously. The delta is the only mechanical proof that the
+signature disjunct ran.
+
+**The honest limit.** The census proves NAMING, not testing. It is a source-text scan
+comparing the set of files that call `signatureLayerHolds` against a pinned list of seven,
+so an eighth site fails it on the day it lands — but it cannot tell whether a listed site's
+test still asserts anything, and gutting an existing pin leaves it green. Its own header
+says so. Second, and narrower than the coverage claim sounds: **every signature break in
+this increment is a tampered sidecar entry at the genesis transition.** A missing entry, an
+unresolvable key reference, a throwing verifier, and a break at a non-genesis transition are
+separate inputs, and they stay covered only where they already were — one existing test
+covers a deleted entry and one covers an unresolvable key reference; nothing anywhere covers
+a break at a non-genesis transition. Third, and found by this increment's own review rather
+than claimed away: **no append site ties the returned transition reference to the appended
+edge's own digest.** The assertions accept any defined value, so a wrong digest would pass.
+An independent probe confirmed the equality holds in reality; no test states it. Fourth,
+these tests prove enforcement, never that the enforcement is the right policy.
+
+**What stays outside, and why.** The orphan-growth finding takes register **row 22** rather
+than a fix. `appendChainCompromise` rebuilds its `refused` transition on every call and the
+signing decorator signs before delegating to the store, so on a record whose state admits no
+CAS candidate each refusing call mints a sidecar entry naming a transition that never lands.
+It is not fixed here because the containment either special-cases a path five call sites
+share, or reopens the sign-before-append order the signing decorator pins deliberately —
+and inverting that order would reintroduce exactly the landed-but-unsigned transition the
+AL2 enforcement increment made fail closed. That is its own increment with its own design,
+not a change to make in passing while closing a coverage row. **Behavior on a durable
+`SignatureStore` backing is UNMEASURED**: the probe covered the in-memory reference backing
+only, and the durable case is where "unbounded" would actually matter. The row says so in
+its own text. Also outside: every cell of the seam and break-kind grid that neither row
+named — coverage here is bounded to what the rows name, because a row retires when its own
+behavior lands and inventing adjacent work would blur which; a fix for the three
+near-duplicate break helpers beyond pointing two of them at one shared function; and any
+byte-regression pin over this surface, since the digested transition shape carries no
+signature field and no byte literal can distinguish a signed compromise edge from an
+unsigned one.
+
+**The frozen files, proved rather than asserted.** `git diff 89e44ae --
+packages/record/test/byte-stability.test.ts` produces no output — the frozen oracle never
+moved. `git diff 89e44ae -- packages/record/test/helpers/signing.ts` shows only appended
+exports and import-block additions; `signingSetup`'s own body is byte-identical, which
+matters because its fixed clock is load-bearing for `decline.test.ts`'s
+eligibility-freshness fixture and three test files build on it.
+
+**Cuts.** None. This increment closed two coverage rows, added one census test, and cut no
+capability.
+
+**Gate outputs, as measured against this increment's own exit commit**:
+`./node_modules/.bin/vitest run` — 64 test files, 802 tests, zero skips;
+`./node_modules/.bin/tsc --noEmit -p packages/record` and
+`./node_modules/.bin/tsc --noEmit -p packages/store-postgres` — both clean;
+`./node_modules/.bin/biome check --error-on-warnings .` — 131 files checked, zero errors or
+warnings; `node scripts/contract-scan.mjs` — exit 0, no output;
+`node scripts/api-reference-sync.mjs` — exit 0; `node scripts/docs-index-sync.mjs` — exit 0.
+`docs/process/deferral-register.md` loses two rows and gains one: rows 20 and 21 retired,
+row 22 opened.
