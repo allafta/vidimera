@@ -13,8 +13,8 @@ below); the fifth is a code/spec question left for adjudication, not a deferral.
 findings the 2026-08-23 audit produced, and the paragraph above describes that audit as it
 stood — it is left as written. Two things have been appended since, each dated at its own
 site: Finding E's adjudication, and Finding F below. Finding F was recorded at the
-increment that closed register rows 20 and 21, which also made one comment-only
-`packages/record/src/kernel/redeem.ts` edit — so the "changes no `packages/*/src/` file"
+increment that closed register rows 20 and 21, which also made comment-only edits at TWO
+sites in `packages/record/src/kernel/redeem.ts` — so the "changes no `packages/*/src/` file"
 claim above is true of the audit, not of everything this document now records.
 
 ## Finding A — `kernel/decline.ts`'s rung (1) was unexecuted by the entire corpus (hash-broken half closed since — see the Finding E adjudication below)
@@ -67,13 +67,13 @@ over the one after it (adjacent pairs)'`, opens its first case with the comment 
 identity beats (3.5) SoD` — it begins at rung (3). No `(1) beats (2)` case exists in that
 test, and no other test in the file supplies one.
 
-Every other seam ladder in the package pins its rung-(1) adjacent pair.
-`packages/record/test/findings-seams.test.ts:263` (line pin re-derived at this increment —
-a later commit inserted 73 lines above the test this cites, making the original `:190`
-pointer stale)'s test is titled `'the prologue:
+Every other seam ladder in the package pins its rung-(1) adjacent pair. The test at
+`packages/record/test/findings-seams.test.ts:263` is titled `'the prologue:
 chain-compromise outranks everything; expired refuses leg-expired; confirmed refuses
 record-not-open (never-append)'` — chain-compromise (rung 1) against the state gate (rung
-2) is exactly the missing shape. `decline()` is the only seam ladder in this repository
+2) is exactly the missing shape. (That line pin was re-derived at the AL2
+signature-enforcement coverage increment: a later commit had inserted 73 lines above the
+test cited here, making the original `:190` pointer stale.) `decline()` is the only seam ladder in this repository
 missing its own rung-(1) pair. `CLAUDE.md` names "byte-stability pins and adjacent-pair
 gate-order tests" as a standing discipline "from the kernel increment on"; this is a gap
 against that discipline, not merely an isolated oversight.
@@ -83,7 +83,7 @@ own body never runs on a broken chain; B is that the ladder-order suite, whose w
 is proving each rung outranks the next, never asked rung (1) to prove it outranks rung
 (2).
 
-## Finding C — three AL2 caller-input gaps (a different, lesser class)
+## Finding C — three AL2 caller-input gaps (a different, lesser class; all three closed since — see the dated note at the end of this section)
 
 These three sites' bodies DO execute on a broken chain — unlike Finding A, the code runs
 — but only ever over a **hash-broken** chain, never a signature-broken one:
@@ -91,7 +91,7 @@ These three sites' bodies DO execute on a broken chain — unlike Finding A, the
 - `kernel/findings-seams.ts:151` (`loadOpenDeclaringRecord`'s shared rung (1),
   `if (!verifyChain(chain).intact || !(await signatureLayerHolds(ctx, chain)))`), reached
   via `acknowledge`, is exercised signature-broken only through `raiseFinding`
-  (`signing-enforce.test.ts:110–131`, the "seal and raiseFinding refuse the same way… a
+  (`signing-enforce.test.ts:127–156`, the "seal and raiseFinding refuse the same way… a
   MISSING entry… also fails closed" test) — `acknowledge` itself reaches the same line
   only hash-broken, at `findings-seams.test.ts:302`.
 - `kernel/redeem.ts:225` (the shared redemption prologue's matching condition), reached
@@ -109,27 +109,41 @@ signature-broken fixture over these three call paths), while **decline lacks the
 (its rung's body never runs on ANY broken chain, hash- or signature-). Finding A is the
 more serious gap of the two.
 
-## Finding D — five of seven signature-enforcement sites assert the refusal code only, not the edge shape
+**Closed, 2026-08-23 (a later act than the audit above, recorded the same calendar day).**
+All three call paths gained signature-broken pins at the AL2 signature-enforcement coverage
+increment — `acknowledge` in `signing-enforce.test.ts`, and both token seams there in each
+enlistment posture, five cells rather than three because the token pair doubles on
+enlistment. Each of the five asserts `verifyChain(before).intact === true` before the seam
+call and reads the verifier-call counter as a delta across it, so none can be the hash
+disjunct wearing the signature disjunct's name. The present-tense readings above ("is
+exercised hash-broken only") are left exactly as the audit wrote them: they were true of the
+tree the audit ran against and are not true of the tree now. Register row 21, which carried
+this finding together with Finding D, RETIRED at that same increment and is gone from
+`docs/process/deferral-register.md`; `docs/process/next-phases.md`'s row-21 retirement
+section is where a reader should now look for the trigger text and the account of what
+landed.
+
+## Finding D — five of seven signature-enforcement sites assert the refusal code only, not the edge shape (all five deepened since — see the dated note at the end of this section)
 
 `signing-enforce.test.ts` and `redeem.test.ts` between them exercise seven
 signature-broken sites. Two assert the full shape of what the seam did in response;
 five assert only that the refusal carried the right code:
 
-- **Code-only** (five sites): `seal` (`signing-enforce.test.ts:100–103`, culminating in
+- **Code-only** (five sites): `seal` (`signing-enforce.test.ts:111–115`, culminating in
   `assert.equal(sealed.code, 'chain-compromise')` with nothing about the appended edge);
-  `raiseFinding` (`:130–131`); un-enlisted `redeem` (`:148–149`); `open()`'s
-  `verifyPriorLegs` claim, over a signature-broken prior leg (`:230–231`,
+  `raiseFinding` (`:147–149`); un-enlisted `redeem` (`:173–175`); `open()`'s
+  `verifyPriorLegs` claim, over a signature-broken prior leg (`:279–281`,
   `assert.equal(successor.code, 'prior-leg-unverified')`); and `open()`'s
-  `verifySupersedes` claim (`:166–167`, `assert.equal(recovered.code,
+  `verifySupersedes` claim (`:200–202`, `assert.equal(recovered.code,
   'supersedes-unverified')`). The last two assert their own cross-record claim code
   rather than `chain-compromise` — the AL2 enforcement increment's own inherited-fold
   shape, not a gap in itself — but both still assert code only, nothing about the batch
   shape underneath.
-- **Shape-asserted** (two sites): `finalize` (`:85–91`) is the only signature-broken
+- **Shape-asserted** (two sites): `finalize` (`:96–102`) is the only signature-broken
   case that asserts the compromise edge actually appended (`last?.kind === 'refused'`)
   AND that the edge itself went through the signing decorator (`entries.length ===
   chain.length`, i.e. the compromise edge is itself signed). Enlisted `redeem`
-  (`redeem.test.ts:240–245`) is the only case that asserts the opposite shape — NO edge —
+  (`redeem.test.ts:238–243`) is the only case that asserts the opposite shape — NO edge —
   checking `outcome.transitionRef === undefined` and that the stored chain is
   byte-unchanged.
 
@@ -137,6 +151,18 @@ A regression that flipped one of the five code-only sites from "append the compr
 edge" to "refuse result-first with no edge" (or vice versa) would keep all five green.
 Only `finalize` and enlisted `redeem` would catch that class of regression at their own
 sites.
+
+**Closed, 2026-08-23 (a later act than the audit above, recorded the same calendar day).**
+All five code-only sites were deepened in place at the AL2 signature-enforcement coverage
+increment: `seal`, `raiseFinding` and un-enlisted `redeem` now assert the appended edge,
+while `verifyPriorLegs` and `verifySupersedes` — the two that append NOTHING ANYWHERE — now
+assert exactly that, including that the prior leg or predecessor whose chain was just found
+broken is itself left unmarked, which no test in this package previously stated. Those two
+additionally read a verifier-call delta, added at that increment's own final review, because
+each folds several distinct causes into one refusal code and nothing else in either test
+said which one had fired. The counts above ("five of seven … assert the refusal code only")
+are left exactly as the audit wrote them. Register row 21 retired at that same increment —
+see the note under Finding C.
 
 ## Finding E — a code/spec question for the maintainer, raised undecided here, adjudicated 2026-08-23
 
@@ -306,6 +332,14 @@ So:
   next). It carries Findings C and D — the AL2 caller-input gaps and the
   assertion-depth sites. Trigger: the next increment that touches AL2 signature
   enforcement, or the 0.1 cut — whichever lands first.
+
+(**Updated 2026-08-23:** neither row is in `docs/process/deferral-register.md` any more. Row
+20 was retriggered once, at the Finding E adjudication above, and then RETIRED alongside row
+21 at the increment that closed them both — the register carries the numbering gap its own
+header describes, and `docs/process/next-phases.md`'s two retirement sections hold each row's
+trigger text and the account of what landed. The paragraph and the two bullets above stay as
+written: they are the derivation that produced the two numbers, and it is the derivation, not
+the rows' present whereabouts, that a later reader needs from this section.)
 
 **Finding E gets no row.** It is a question for the maintainer to adjudicate, not work
 being deferred — there is no future increment whose landing would "close" it the way a

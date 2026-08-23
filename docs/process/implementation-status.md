@@ -2382,7 +2382,7 @@ withheld. Decline additionally lacked the rung-(1)-beats-rung-(2) adjacent pair 
 seam ladder in this package pins, which belongs to no cell of that grid at all. Register
 rows 20 and 21 carried those nine gaps; both retire here.
 
-**What landed.** Test-only, one `src/` comment aside:
+**What landed.** Test-only, two `src/` comments aside:
 
 - `packages/record/test/helpers/signing.ts` — two new exports beside the frozen
   `signingSetup`, never a rewrite of it: `enforceableSigningSetup(profiles, opts?)`,
@@ -2410,28 +2410,58 @@ rows 20 and 21 carried those nine gaps; both retire here.
   deliberately NOT folded into the shared one: it corrupts the TRAILING four base64
   characters where the shared one corrupts the leading four, so repointing it would quietly
   change which bytes that test exercises.
-- `packages/record/src/kernel/redeem.ts` — the one `src/` edit, comment-only: a doc comment
-  said ENLISTED callers were "today only direct redeem carries tx", which the increment that
-  wired `tx` into the token seams falsified. All three redemption seams read `opts.tx`; the
-  correction drops the dated "today", a claim with a shelf life and no way to fail loudly.
+- `packages/record/src/kernel/redeem.ts` — the `src/` edits, comment-only and at TWO sites in
+  the one function: a doc comment said ENLISTED callers were "today only direct redeem
+  carries tx", which the increment that wired `tx` into the token seams falsified. All three
+  redemption seams read `opts.tx`; the correction drops the dated "today", a claim with a
+  shelf life and no way to fail loudly. The identical falsified parenthetical stood a second
+  time some fifty lines below, on the enlisted-and-due clock branch, and was repaired in the
+  same voice at this increment's own final review — on a fresh authorization that knowingly
+  exceeds the increment's original one-`src/`-edit bound, since a one-site fix would have left
+  the file asserting both claims at once. That is the same reasoning the Finding E
+  adjudication recorded when it reworded its own pair of twin messages together.
 - `docs/analysis/2026-08-23-signature-enforcement-coverage.md` — Finding F appended as a
-  dated section, and three stale line pins corrected. Per that document's own established
-  convention, the original framing is preserved and reconciled by a dated masthead note
+  dated section, and three stale line pins corrected; eight further pins, staled by this
+  increment's own test edits after those three were fixed, were re-derived at its final
+  review, where Findings C and D also gained dated closure notes. Per that document's own
+  established convention, the original framing is preserved and reconciled by dated notes
   rather than rewritten, so the history stays legible.
 
-**The coverage proof.** Every new pin had its mutation proof run, and the results are the
-evidence, not the assertions: neutering `kernel/decline.ts`'s AL2 disjunct failed exactly
-the two new decline tests and nothing else, the revert confirmed clean; neutering
-`kernel/redeem.ts`'s disjunct failed exactly five tests — the new enlisted test, two in
-`redeem-token.test.ts` and two in `redeem.test.ts` — revert likewise confirmed; and
+**The coverage proof.** Three mutations were run across the increment, and each proves
+something narrower than "the new pins are load-bearing" — so each is recorded with its own
+reach rather than pooled. First: neutering `kernel/decline.ts`'s AL2 disjunct — the
+`signatureLayerHolds` half of rung (1)'s condition, its hash half left standing — failed
+exactly the two new decline tests and nothing else, the revert confirmed clean. That is a
+direct witness that those two pins hold the SIGNATURE arm rather than the hash one. Second:
 injecting a probe mention of the enforcement helper into `chain/replay.ts` failed the census
-naming that file, revert confirmed. Two further proofs are structural rather than
-mutational. Each signature-broken fixture asserts `verifyChain(before).intact === true`
-before the seam call, so the refusal cannot be the hash disjunct wearing the signature
-disjunct's name; and each reads the verifier-call counter as a DELTA across the seam call,
-never as a total — `verifySignatures()` consults the verifier itself, so a bare
-"calls above zero" would pass vacuously. The delta is the only mechanical proof that the
-signature disjunct ran.
+naming that file, revert confirmed — the tripwire fires on a file that newly names the
+helper. Third, and recorded for what it actually was rather than for what its failure count
+suggests: `kernel/redeem.ts`'s ENLISTMENT branch was neutered (`if (tx !== undefined)`
+rewritten to `if (false)`), NOT its signature disjunct. That failed exactly five tests — the
+new enlisted test, two in `redeem-token.test.ts` and two in `redeem.test.ts` — every one of
+them throwing "cannot start a transaction within a transaction", revert likewise confirmed.
+What it proves is that the result-first, no-edge shape is load-bearing at all three
+redemption seams, which is worth having and is not a claim about AL2: two of those five
+failures are hash-broken fixtures, which no signature disjunct could reach.
+
+**The pins with no mutation witness, named rather than left to inference:** decline's
+rung-(1)-beats-rung-(2) adjacent pair, the `acknowledge` pin, and all five deepened sites.
+No mutation was run for any of them. They rest on the structural proofs below and on what
+they assert, which is weaker evidence than a mutation and is recorded as such.
+
+**The structural proofs, and where they stop.** Each of the seven new signature-broken cells
+asserts `verifyChain(before).intact === true` before the seam call, so its refusal cannot be
+the hash disjunct wearing the signature disjunct's name; and each reads the verifier-call
+counter as a DELTA across the seam call, never as a total — `verifySignatures()` consults
+the verifier itself, so a bare "calls above zero" would pass vacuously. The delta is the only
+mechanical proof that the signature disjunct ran. The five deepened sites carry no
+intactness guard of their own: they inherit fixtures whose chains are untampered by
+construction, so the property holds there without being stated. Two of them — the
+cross-record claims `verifyPriorLegs` and `verifySupersedes` — do now read the delta, added
+at this increment's own final review, because each folds several distinct causes (an absent
+or non-terminal predecessor, a head mismatch, a `subjectRef` mismatch, a hash break, a
+signature break) into one refusal code, and without the delta either test could have gone on
+passing for the wrong reason.
 
 **The honest limit.** The census proves NAMING, not testing. It is a source-text scan
 comparing the set of files that call `signatureLayerHolds` against a pinned list of seven,

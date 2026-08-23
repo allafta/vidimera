@@ -18,11 +18,12 @@
 // that append NOTHING ANYWHERE (verifyPriorLegs, verifySupersedes), which leave even the
 // prior leg or predecessor whose chain was just found broken unmarked.
 //
-// The bound, in the same breath: every break here is a TAMPERED sidecar entry at the
-// GENESIS transition. A missing entry and an unresolvable keyRef appear in this file too,
-// but only at the sites that already carried them; a break at a non-genesis position is a
-// different input again and appears nowhere. Covering all seven sites is a claim about
-// which seams enforce, never about which corruptions they were shown.
+// The bound, in the same breath: every break this increment ADDED is a TAMPERED sidecar
+// entry at the GENESIS transition. A missing entry and an unresolvable keyRef appear in this
+// file too, but only in the older tests that already carried them, exactly as they already
+// carried them; a throwing verifier, and a break at a non-genesis position, are separate
+// inputs again and appear nowhere. Covering all seven sites is a claim about which seams
+// enforce, never about which corruptions they were shown.
 
 import assert from 'node:assert/strict';
 import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';
@@ -192,6 +193,7 @@ test('the redemption prologue refuses; cross-record claims fold into their own c
   assert.equal(staged.status, 'ok');
   if (staged.status !== 'ok') return;
   const predBefore = await b.handles.operator.readChain(predId);
+  const callsBefore = b.calls();
   const recovered = await b.handles.operator.open(staged.value.stagedRef, {
     supersedes: { recordId: predId, chainHead: head },
   });
@@ -199,6 +201,12 @@ test('the redemption prologue refuses; cross-record claims fold into their own c
   if (recovered.status !== 'refused') return;
   assert.equal(recovered.code, 'supersedes-unverified');
   assert.equal(recovered.transitionRef, undefined, 'pre-record: nothing to append to');
+  // The DELTA, never the total. `supersedes-unverified` folds EVERY failure into one code —
+  // an absent or non-terminal predecessor, a head mismatch, a subjectRef mismatch, a hash
+  // break, a signature break. verifySupersedes consults the verifier only after AL1
+  // intactness passes, so a delta above zero is what says this refusal is the fixture's
+  // signature break rather than one of the others quietly standing in for it.
+  assert.ok(b.calls() > callsBefore, 'the AL2 disjunct ran — the verifier was consulted');
   assert.deepEqual(
     await b.handles.operator.readChain(predId),
     predBefore,
@@ -239,7 +247,7 @@ test('the layer does not overreach: a NON-signing record with garbage in the sid
 
 test('a multi-leg successor whose prior-leg reference is signature-broken refuses prior-leg-unverified', async () => {
   const { twoLegProfile } = await import('./helpers/profiles.js');
-  const { handles, signatures } = signedSetup([
+  const { handles, signatures, calls } = signedSetup([
     { ...twoLegProfile({ id: 'test.enf.two.v1' }), signing: true as const },
   ]);
   const makerId = await openRecord(
@@ -264,6 +272,7 @@ test('a multi-leg successor whose prior-leg reference is signature-broken refuse
   assert.equal(staged.status, 'ok');
   if (staged.status !== 'ok') return;
   const makerBefore = await handles.operator.readChain(makerId);
+  const callsBefore = calls();
   const successor = await handles.operator.open(staged.value.stagedRef, {
     priorRecordRefs: [{ recordId: makerId, chainHead: head }],
   });
@@ -271,6 +280,12 @@ test('a multi-leg successor whose prior-leg reference is signature-broken refuse
   if (successor.status !== 'refused') return;
   assert.equal(successor.code, 'prior-leg-unverified');
   assert.equal(successor.transitionRef, undefined, 'pre-record: nothing to append to');
+  // The DELTA, never the total. `prior-leg-unverified` folds EVERY failure into one code —
+  // a wrong profile or leg, a head mismatch, a subjectRef mismatch, a prior leg that is not
+  // confirmed, a hash break, a signature break. verifyPriorLegs consults the verifier only
+  // after AL1 intactness passes, so a delta above zero is what says this refusal is the
+  // fixture's signature break rather than one of the others quietly standing in for it.
+  assert.ok(calls() > callsBefore, 'the AL2 disjunct ran — the verifier was consulted');
   // AND nothing lands on the PRIOR LEG either. A signature-broken prior leg leaves no
   // evidence edge anywhere in the system — the compromised chain it just rejected is not
   // marked. That is the shape this assertion exists to state.
@@ -426,9 +441,11 @@ test('acknowledge refuses chain-compromise on a signature-broken signing record 
 });
 
 test('beginRedemption and completeRedemption refuse chain-compromise on a signature-broken signing record, un-enlisted — both append the edge', async () => {
-  // kernel/redeem.ts:224's shared prologue serves all THREE redemption seams. Only direct
-  // redeem() had signature coverage; the two token seams reached this line hash-broken only
-  // (deferral-register row 21).
+  // The shared redemption prologue in kernel/redeem.ts — its rung-(1) guard, whose AL2
+  // disjunct is the signatureLayerHolds half — serves all THREE redemption seams. Only
+  // direct redeem() had signature coverage; the two token seams reached that guard
+  // hash-broken only (deferral-register row 21). Named by symbol rather than by line: the
+  // pointer that stood here went stale inside this same increment.
   const profile: ConfirmProfile = {
     ...effectSeamProfile({ id: 'test.enf.token.v1' }),
     signing: true,
@@ -485,7 +502,8 @@ test('beginRedemption and completeRedemption refuse chain-compromise on a signat
 });
 
 test('beginRedemption and completeRedemption refuse chain-compromise on a signature-broken signing record, ENLISTED — no edge, host transaction intact', async () => {
-  // The enlisted branch (kernel/redeem.ts:225) never routes through appendChainCompromise:
+  // The enlisted branch of that same rung-(1) guard — its `tx !== undefined` arm in
+  // kernel/redeem.ts — never routes through appendChainCompromise:
   // that append would BEGIN a second transaction on the host's own connection, and enlisting
   // the evidence edge would let a host rollback erase tampering evidence. So the outcome is
   // result-first with no edge, and the host's transaction must survive intact.
@@ -515,6 +533,9 @@ test('beginRedemption and completeRedemption refuse chain-compromise on a signat
     if (out.status !== 'refused') return;
     assert.equal(out.code, 'chain-compromise');
     assert.equal(out.transitionRef, undefined, 'no edge — the append was never attempted');
+    // And no TOKEN either: a refused outcome carries no `value` at all, so the compromise
+    // refusal cannot mint one on its way out.
+    assert.ok(!('value' in out), 'no token was minted on the compromise refusal');
     assert.deepEqual(await sqlite.readChain(recordId), before, 'the chain is unchanged');
     assert.ok(calls() > callsBefore, 'the AL2 disjunct ran — the verifier was consulted');
   }

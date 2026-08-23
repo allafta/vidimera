@@ -128,13 +128,22 @@ the same distinction). Each item below names its row and quotes its trigger verb
   both token seams in both enlistment postures gained signature-broken pins, the enlisted
   cells additionally asserting that the host transaction survives, that a host `ROLLBACK`
   does not throw, that the record's state is untouched, and — for `beginRedemption` — that
-  no token is minted on a compromise refusal. The five refusal-code-only sites were deepened
-  in place: `seal`, `raiseFinding` and un-enlisted `redeem` now assert the append, while the
-  two that append NOTHING ANYWHERE — `verifyPriorLegs` and `verifySupersedes` — now assert
-  exactly that, including that the prior leg or predecessor whose chain was just found
-  broken is itself left unmarked, which no test in this package previously stated.
-  Mutation-proved at `kernel/redeem.ts`'s own site: neutering the disjunct failed exactly
-  five tests, and the revert was confirmed clean. The row is retired.
+  no token is minted on a compromise refusal (the refused outcome carries no `value`, so
+  there is no token to hand back; that assertion was added at this increment's own final
+  review, the claim having briefly outrun the test). The five refusal-code-only sites were
+  deepened in place: `seal`, `raiseFinding` and un-enlisted `redeem` now assert the append,
+  while the two that append NOTHING ANYWHERE — `verifyPriorLegs` and `verifySupersedes` —
+  now assert exactly that, including that the prior leg or predecessor whose chain was just
+  found broken is itself left unmarked, which no test in this package previously stated; both
+  also read a verifier-call delta, added at the same final review, so neither can pass on one
+  of the other causes their single refusal code folds together. One mutation was run at
+  `kernel/redeem.ts`, and it neutered the ENLISTMENT branch (`if (tx !== undefined)` rewritten
+  to `if (false)`), NOT the signature disjunct: exactly five tests failed, every one on
+  "cannot start a transaction within a transaction", and the revert was confirmed clean. That
+  proves the result-first, no-edge shape is load-bearing at all three redemption seams; it is
+  no witness for the AL2 disjunct, and neither the `acknowledge` pin nor the five deepened
+  sites has one. `docs/process/implementation-status.md`'s increment section carries the full
+  account of what was and was not mutation-proved. The row is retired.
 
 ### The server-SQL backing — register row 15, retired 2026-08-19
 

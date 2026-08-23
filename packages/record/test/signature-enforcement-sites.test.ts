@@ -5,10 +5,13 @@
 //
 // It proves NAMING, not coverage. The check is a source-text scan: it greps
 // packages/record/src for lines that CALL `signatureLayerHolds` and compares the set of
-// files against the list below. It cannot tell whether a listed site's test still asserts
-// anything — gut a pin and this stays green. Its whole value is the tripwire: decline.ts's
-// own site sat uncovered across three increments precisely because nothing failed when it
-// appeared. A useful guard against a new site; never evidence that an old one is sound.
+// files against the list below. The match is per LINE, so a call wrapped across two of them
+// — the name on one, its `(` on the next — would evade the scan entirely; all seven calls
+// are single-line today and nothing holds them that way. It cannot tell whether a listed
+// site's test still asserts anything — gut a pin and this stays green. Its whole value is
+// the tripwire: decline.ts's own site sat uncovered across three increments precisely
+// because nothing failed when it appeared. A useful guard against a new site; never
+// evidence that an old one is sound.
 
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';

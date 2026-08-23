@@ -273,9 +273,10 @@ async function prologue(
   if (record.state === 'confirmed' || record.state === 'redeeming') {
     if (tx !== undefined && dueNow(chain, resolved, now())) {
       // ENLISTED and due: mirrors the enlisted chain-verify branch above. The host
-      // already has ITS OWN transaction open on this connection (today only direct
-      // `redeem()` carries a `tx`), so `resolveDueClock`'s no-tx `store.appendTransition`
-      // would BEGIN a SECOND transaction on that same connection — the embedded backing
+      // already has ITS OWN transaction open on this connection (all three redemption
+      // seams carry a `tx`, riding `opts.tx` since the effect-result increment), so
+      // `resolveDueClock`'s no-tx `store.appendTransition` would BEGIN a SECOND
+      // transaction on that same connection — the embedded backing
       // throws ("cannot start a transaction within a transaction") rather than refusing.
       // Worse, even setting that aside, enlisting the resolution edge in the host's
       // transaction would let a host rollback erase an edge this refusal already
