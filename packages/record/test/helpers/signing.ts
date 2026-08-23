@@ -9,12 +9,15 @@
 // never runs it directly — same convention as tests/helpers/profiles.ts and
 // tests/helpers/chain.ts).
 
+import assert from 'node:assert/strict';
 import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';
 
 import type { ConfirmProfile } from '../../src/config.js';
-import { createWithClock } from '../../src/create.js';
+import { create, createWithClock } from '../../src/create.js';
 import { MemorySignatureStore } from '../../src/signing/memory.js';
 import type { Signer, Verifier } from '../../src/signing/store.js';
+import { MemoryStore } from '../../src/store/memory.js';
+import type { Store } from '../../src/store/store.js';
 import { makeConfig } from './profiles.js';
 
 /**
@@ -42,4 +45,69 @@ export function signingSetup(profile: ConfirmProfile) {
   const nowMs = Date.parse('2026-08-21T00:00:00Z');
   const handles = createWithClock(config, () => new Date(nowMs));
   return { handles };
+}
+
+/**
+ * The AL2 rig for signature-ENFORCEMENT fixtures. `signingSetup` above returns `{ handles }`
+ * only, so a fixture built on it cannot reach the sidecar to break an entry — which is why
+ * no test could drive a signature-broken chain through `decline()` until this landed. This
+ * rig hands back three more things:
+ *
+ *   - `signatures`, the SAME `MemorySignatureStore` instance the config carries, so
+ *     `breakOneSignature` below mutates what the kernel actually reads;
+ *   - `store`, so an enlisted fixture can pass a `SqliteStore` and open a host transaction;
+ *   - `calls`, a verifier invocation counter.
+ *
+ * READ `calls` AS A DELTA, NEVER AS A TOTAL. `verifySignatures()` consults the verifier too,
+ * so `calls() > 0` can be satisfied without the seam under test ever reaching the layer.
+ * Snapshot before the seam call and compare. The delta is what distinguishes rung (1)'s two
+ * disjuncts: the condition short-circuits on `||`, so a HASH-broken chain never calls
+ * `signatureLayerHolds` at all and the delta stays zero.
+ *
+ * Unlike `signingSetup` this uses the real clock (`create`, not `createWithClock`) — the
+ * redemption seams stamp real `dueAt` values from `confirmToRedeem` and a frozen clock makes
+ * those fixtures awkward. Nothing here depends on a fixed instant.
+ */
+export function enforceableSigningSetup(profiles: ConfirmProfile[], opts: { store?: Store } = {}) {
+  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+  const store = opts.store ?? new MemoryStore();
+  const signatures = new MemorySignatureStore();
+  let verifyCount = 0;
+  const signer: Signer = async (bytes) => ({
+    keyRef: 'key-1',
+    signature: edSign(null, bytes, privateKey).toString('base64'),
+  });
+  const verifier: Verifier = async (bytes, signature) => {
+    verifyCount += 1;
+    return edVerify(null, bytes, publicKey, Buffer.from(signature, 'base64'));
+  };
+  const config = {
+    ...makeConfig(profiles, { store }),
+    signing: { signer, verifiers: { 'key-1': verifier }, signatures },
+  };
+  return { handles: create(config), store, signatures, calls: () => verifyCount };
+}
+
+/**
+ * Break exactly one sidecar entry (tamper its signature) for the given record. Lifted from
+ * `signing-enforce.test.ts`'s file-local copy, which `redeem.test.ts` had inlined
+ * byte-identically; both now call this.
+ *
+ * The guard on the second assertion is not ceremony: the mutation overwrites the LEADING four
+ * base64 characters with `AAAA`, which is a silent no-op on a signature that already begins
+ * with them. Without the guard the fixture would assert nothing and the test would pass green.
+ *
+ * `signing.test.ts` keeps its own variant, which breaks the TRAILING four characters. That is
+ * a different corruption, not a duplicate of this one, so it is deliberately not folded in.
+ */
+export async function breakOneSignature(
+  signatures: MemorySignatureStore,
+  recordId: string,
+): Promise<void> {
+  const entries = await signatures.listByRecord(recordId);
+  const victim = entries[0];
+  assert.ok(victim !== undefined, 'fixture: the record has sidecar entries');
+  const broken = `AAAA${victim.signature.slice(4)}`;
+  assert.notEqual(broken, victim.signature, 'fixture: the tamper changed the signature');
+  await signatures.put({ ...victim, signature: broken });
 }

@@ -23,6 +23,7 @@ import { MemorySignatureStore } from '../src/signing/memory.js';
 import type { Signer, Verifier } from '../src/signing/store.js';
 import { MemoryStore } from '../src/store/memory.js';
 import { captureProfile, facts, identity, makeConfig, openRecord } from './helpers/profiles.js';
+import { breakOneSignature, enforceableSigningSetup } from './helpers/signing.js';
 
 const CONTENT = { subject: 'week-1', total: 40 };
 const WRONG = { subject: 'week-1', total: 41 };
@@ -57,17 +58,6 @@ function signedSetup(extraProfiles: ConfirmProfile[] = []) {
     signing: { signer, verifiers: { 'key-1': verifier }, signatures },
   };
   return { store, signatures, calls, handles: create(config) };
-}
-
-/** Break exactly one sidecar entry (tamper its signature) for the given record. */
-async function breakOneSignature(
-  signatures: MemorySignatureStore,
-  recordId: string,
-): Promise<void> {
-  const entries = await signatures.listByRecord(recordId);
-  const victim = entries[0];
-  assert.ok(victim !== undefined, 'fixture: the record has sidecar entries');
-  await signatures.put({ ...victim, signature: `AAAA${victim.signature.slice(4)}` });
 }
 
 test('finalize refuses chain-compromise on a signature-broken signing record — and the compromise edge is itself signed', async () => {

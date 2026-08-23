@@ -64,6 +64,7 @@ import {
   openRecord,
   tamperNonLast,
 } from './helpers/profiles.js';
+import { breakOneSignature } from './helpers/signing.js';
 import { TamperingStore } from './helpers/stores.js';
 
 const CONTENT = { subject: 'week-1', total: 40 };
@@ -223,10 +224,7 @@ test('ENLISTED SIGNATURE-BROKEN (the AL2 enforcement increment): a signature-bro
   const done = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
   assert.equal(done.status, 'ok', 'fixture: the record must confirm');
 
-  const entries = await signatures.listByRecord(recordId);
-  const victim = entries[0];
-  assert.ok(victim !== undefined, 'fixture: the record has sidecar entries');
-  await signatures.put({ ...victim, signature: `AAAA${victim.signature.slice(4)}` });
+  await breakOneSignature(signatures, recordId);
 
   const before = await sqlite.readChain(recordId);
   sqlite.database.exec('BEGIN IMMEDIATE');

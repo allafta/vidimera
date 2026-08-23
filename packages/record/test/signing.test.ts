@@ -241,6 +241,10 @@ test('verifySignatures: verified under the registry; fail-closed on unresolvable
   const entries = await signatures.listByRecord(recordId);
   const victim = entries[0];
   assert.ok(victim !== undefined);
+  // Deliberately NOT `helpers/signing.ts`'s shared `breakOneSignature`: that one overwrites
+  // the LEADING four base64 characters and this breaks the TRAILING four. Two different
+  // corruptions of the same entry; folding them together would quietly change which bytes
+  // this test exercises.
   await signatures.put({ ...victim, signature: `${victim.signature.slice(0, -4)}AAAA` });
   const tampered = await handles.operator.verifySignatures(recordId);
   const victimRow = tampered.transitions.find(
