@@ -23,7 +23,7 @@ import { MemorySignatureStore } from '../src/signing/memory.js';
 import type { Signer, Verifier } from '../src/signing/store.js';
 import { MemoryStore } from '../src/store/memory.js';
 import { captureProfile, facts, identity, makeConfig, openRecord } from './helpers/profiles.js';
-import { breakOneSignature, enforceableSigningSetup } from './helpers/signing.js';
+import { breakOneSignature } from './helpers/signing.js';
 
 const CONTENT = { subject: 'week-1', total: 40 };
 const WRONG = { subject: 'week-1', total: 41 };
