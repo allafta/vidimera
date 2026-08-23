@@ -124,26 +124,34 @@ as a list rather than as code.
       forward rather than leave it unaddressed; if retired, give it the same
       retirement-note/roadmap-update treatment as row 1.
 - [ ] Decide register row 20's disposition (`docs/process/deferral-register.md`, decline's
-      rung-(1) coverage gap) — RETRIGGERED at the Finding E adjudication increment (commit
-      `536fdba`, which touched `kernel/decline.ts` to scope a throw message without closing
-      the gap); its current trigger (verbatim) is: "The next increment that drives a
-      signature-broken chain through `decline()`'s rung (1) — the fixture sketched, not
-      written, in `docs/analysis/2026-08-23-signature-enforcement-coverage.md`'s own
-      'Design considered and deferred' section (extending `signing-enforce.test.ts`'s local
-      rig, or `packages/record/test/helpers/signing.ts`'s shared `signingSetup`, to expose
-      the sidecar alongside decline's handles) — or the 0.1 cut, whichever lands first.
+      rung-(1) coverage gap) — RETRIGGERED twice: first at the Finding E adjudication
+      increment (commit `536fdba`, which touched `kernel/decline.ts` to scope a throw
+      message without closing the gap), then again at the immediately following fix
+      commit (`98584e1`), whose own replacement trigger named the deferred work's own
+      completion rather than a prompting event and was corrected; its current trigger
+      (verbatim) is: "The next increment that touches AL2 signature enforcement at
+      `decline()`'s rung (1), or that extends `signing-enforce.test.ts`'s local rig or
+      `packages/record/test/helpers/signing.ts`'s shared `signingSetup` to expose the
+      sidecar alongside decline's handles — or the 0.1 cut, whichever lands first.
       RETRIGGERED: this said "the next increment that touches
       `packages/record/src/kernel/decline.ts`", which fired at the Finding E adjudication
       increment (commit `536fdba`) — that increment touched the file only to scope two
       throw-message strings and add a hash-broken corner test, not to close the deferred
-      gap; the AL2 signature-broken half of rung (1) is still unexecuted. A trigger naming
-      "touches this file" cannot discriminate substantive coverage work from an unrelated
-      edit — it fires on a comment fix or a message reword as readily as on the real gap
-      closing. (Row 5's own retrigger, `docs/process/next-phases.md`, went the other way: a
-      vague trigger was narrowed TO a specific file; here a specific-file trigger is
-      narrowed instead to the specific remaining behavior, since the file itself was
-      already too broad a target.)" — this
-      new trigger names this cut too, so release day must retire it or explicitly carry it
+      gap; the AL2 signature-broken half of rung (1) is still unexecuted. A first
+      replacement trigger, written the same day at the immediately following fix commit
+      (`98584e1`), named "the next increment that drives a signature-broken chain through
+      `decline()`'s rung (1)" — but that names the deferred work's own completion, not a
+      prompting event, so it un-defers nothing (in effect, 0.1-cut-only); corrected here.
+      The principle a trigger must follow: it names the event that PROMPTS the work, never
+      the work's own completion — every other row in this table does exactly that (row 1:
+      "First external consumer"; row 19: "The first increment that changes signature
+      encoding or key handling"; row 21, this row's own sibling: "The next increment that
+      touches AL2 signature enforcement"). Row 5's own retrigger
+      (`docs/process/next-phases.md`) draws the same line from the opposite side: a
+      trigger too VAGUE to fire discriminately ("next housekeeping commit") was narrowed
+      to a specific, checkable file; here a trigger too BROAD (any touch of one file) is
+      narrowed instead to a specific, checkable class of prompting work." — this new
+      trigger names this cut too, so release day must retire it or explicitly carry it
       forward rather than leave it unaddressed; if retired, give it the same
       retirement-note/roadmap-update treatment as row 1.
 - [ ] Decide register row 21's disposition (`docs/process/deferral-register.md`, the AL2

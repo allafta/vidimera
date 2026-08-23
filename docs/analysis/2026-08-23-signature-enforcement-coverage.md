@@ -9,7 +9,7 @@ different classes. **This record documents all five. It writes no test and chang
 on in passing. Two of the five findings are deferred with fresh register rows (20 and 21,
 below); the fifth is a code/spec question left for adjudication, not a deferral.
 
-## Finding A — `kernel/decline.ts`'s rung (1) is unexecuted by the entire corpus
+## Finding A — `kernel/decline.ts`'s rung (1) was unexecuted by the entire corpus (hash-broken half closed since — see the Finding E adjudication below)
 
 `packages/record/src/kernel/decline.ts` lines 76–80:
 
@@ -34,7 +34,10 @@ below); the fifth is a code/spec question left for adjudication, not a deferral.
   append) — leaves the full suite at **63 files / 794 tests, 0 failures**. The rung's own
   first gate can be removed wholesale and nothing in the corpus notices. The mutation was
   made and reverted on the working tree before this record was written; `git status` and
-  `git diff --stat` were both empty afterward, confirming the revert.
+  `git diff --stat` were both empty afterward, confirming the revert. (True of the tree at
+  this record's own commit; the hash-broken disjunct has since gained a corpus test of its
+  own — see the Finding E adjudication below, which re-ran this exact mutation and got a
+  single, expected failure.)
 
 This is stronger than "the AL2 arm is untested": **both** disjuncts of the
 `!report.intact || !(await signatureLayerHolds(...))` condition, and the
@@ -214,15 +217,19 @@ decline's rung (1) now has its first execution in the corpus — and row 20's te
 narrowed to name only the signature-broken half as still unexercised.
 
 The fix itself edits `kernel/decline.ts`, which is exactly what row 20's original trigger
-(quoted above, "the next increment that touches `packages/record/src/kernel/decline.ts`")
-names — so that trigger fires here without the row's deferred work (the AL2
-signature-broken half) landing. Per the register's own rule that a trigger firing without
-the work landing gets RETRIGGERED rather than silently re-armed (the house form row 5 in
-`docs/process/next-phases.md` already uses), row 20 is retriggered by this same fix: it
-keeps its number and stays open, but its trigger is replaced with one keyed to the actual
-remaining event — a signature-broken fixture driving `decline()`'s rung (1), sketched below
-under "Design considered and deferred" — rather than any touch of the file. See
-`docs/process/deferral-register.md` row 20 for the current trigger text.
+(quoted below, under "Register rows opened by this record", as "the next increment that
+touches `packages/record/src/kernel/decline.ts`") names — so that trigger fires here
+without the row's deferred work (the AL2 signature-broken half) landing. Per the
+register's own rule that a trigger firing without the work landing gets RETRIGGERED
+rather than silently re-armed (the house form row 5 in `docs/process/next-phases.md`
+already uses), row 20 is retriggered by this same fix: it keeps its number and stays
+open, but its trigger is replaced. A first replacement (fix round 1) named the deferred
+work's own completion — a signature-broken fixture driving `decline()`'s rung (1) — which
+turned out tautological, since a trigger that fires exactly when the work lands un-defers
+nothing; fix round 2 corrects it to a genuine prompting event instead: the next increment
+that touches AL2 signature enforcement at `decline()`'s rung (1), or that extends the
+shared AL2 signing test rig sketched below under "Design considered and deferred" to
+reach it. See `docs/process/deferral-register.md` row 20 for the current trigger text.
 
 ## Design considered and deferred, so a later reader does not redo this analysis
 

@@ -85,9 +85,11 @@ any one exit.
   now runs and appends, proved by a corpus test rather than only by mutation, while the
   AL2 signature-broken half stays unexecuted — RETRIGGERED, since that same adjudication's
   edit to `kernel/decline.ts` fired the row's original file-touch trigger without closing
-  it; held open until the next increment that drives a signature-broken chain through
-  `decline()`'s rung (1), or the 0.1 cut); and row 21 (three AL2 caller-input gaps plus five
-  assertion-depth sites
+  it (a first replacement trigger, at the immediately following fix commit, itself named
+  the deferred work's own completion rather than a prompting event and was corrected in
+  turn); held open until the next increment that touches AL2 signature enforcement at
+  `decline()`'s rung (1), or extends the shared AL2 signing test rig to reach it, or the
+  0.1 cut); and row 21 (three AL2 caller-input gaps plus five assertion-depth sites
   across the signature-enforcement surface, held open until the next increment that
   touches AL2 signature enforcement, or the 0.1 cut). Rows 20 and 21 were both added by
   the signature-enforcement-coverage findings record
@@ -1138,22 +1140,27 @@ Carried in the deferral register, with triggers:
   pins — untouched by that same increment, since its own pin is rung (1) versus the
   declaration gate, not rung (1) versus rung (2). Full account:
   `docs/analysis/2026-08-23-signature-enforcement-coverage.md` (Findings A and B).
-  Trigger (verbatim): "The next increment that drives a signature-broken chain through
-  `decline()`'s rung (1) — the fixture sketched, not written, in
-  `docs/analysis/2026-08-23-signature-enforcement-coverage.md`'s own 'Design considered and
-  deferred' section (extending `signing-enforce.test.ts`'s local rig, or
-  `packages/record/test/helpers/signing.ts`'s shared `signingSetup`, to expose the sidecar
-  alongside decline's handles) — or the 0.1 cut, whichever lands first. RETRIGGERED: this
+  Trigger (verbatim): "The next increment that touches AL2 signature enforcement at
+  `decline()`'s rung (1), or that extends `signing-enforce.test.ts`'s local rig or
+  `packages/record/test/helpers/signing.ts`'s shared `signingSetup` to expose the sidecar
+  alongside decline's handles — or the 0.1 cut, whichever lands first. RETRIGGERED: this
   said "the next increment that touches `packages/record/src/kernel/decline.ts`", which
   fired at the Finding E adjudication increment (commit `536fdba`) — that increment touched
   the file only to scope two throw-message strings and add a hash-broken corner test, not
   to close the deferred gap; the AL2 signature-broken half of rung (1) is still unexecuted.
-  A trigger naming "touches this file" cannot discriminate substantive coverage work from
-  an unrelated edit — it fires on a comment fix or a message reword as readily as on the
-  real gap closing. (Row 5's own retrigger, `docs/process/next-phases.md`, went the other
-  way: a vague trigger was narrowed TO a specific file; here a specific-file trigger is
-  narrowed instead to the specific remaining behavior, since the file itself was already
-  too broad a target.)".
+  A first replacement trigger, written the same day at the immediately following fix
+  commit (`98584e1`), named "the next increment that drives a signature-broken chain
+  through `decline()`'s rung (1)" — but that names the deferred work's own completion, not
+  a prompting event, so it un-defers nothing (in effect, 0.1-cut-only); corrected here.
+  The principle a trigger must follow: it names the event that PROMPTS the work, never the
+  work's own completion — every other row in this table does exactly that (row 1: "First
+  external consumer"; row 19: "The first increment that changes signature encoding or key
+  handling"; row 21, this row's own sibling: "The next increment that touches AL2
+  signature enforcement"). Row 5's own retrigger (`docs/process/next-phases.md`) draws the
+  same line from the opposite side: a trigger too VAGUE to fire discriminately ("next
+  housekeeping commit") was narrowed to a specific, checkable file; here a trigger too
+  BROAD (any touch of one file) is narrowed instead to a specific, checkable class of
+  prompting work.".
 - **Row 21** — the AL2 caller-input and assertion-depth gaps, added by the same
   signature-enforcement-coverage findings record: three call paths
   (`acknowledge`'s shared prologue, `beginRedemption`, `completeRedemption`) are exercised
@@ -2236,8 +2243,10 @@ five findings with their verbatim evidence:
 Two new deferral-register rows carry the four coverage findings forward: **row 20**
 (decline's rung-(1) coverage gap) and **row 21** (the AL2 caller-input and
 assertion-depth gaps), both triggered by the next increment that touches the code they
-name, or the 0.1 cut, whichever lands first. The fifth finding — the code/spec question
-— takes no row: it is a decision for the maintainer, not work a future increment closes.
+name, or the 0.1 cut, whichever lands first (row 20's trigger has since been
+retriggered — twice — see the Finding E adjudicated section below). The fifth finding —
+the code/spec question — takes no row: it is a decision for the maintainer, not work a
+future increment closes.
 Gates remained green throughout: this record changed no gate output from the
 byte-regression-pins increment's own exit measurement above.
 
@@ -2281,13 +2290,18 @@ number, but its trigger does NOT: this increment's own message-only edit to
 `kernel/decline.ts` fires the original trigger ("the next increment that touches
 `packages/record/src/kernel/decline.ts`") without closing the deferred gap, so the row is
 RETRIGGERED — the same house form row 5 (`docs/process/next-phases.md`) uses for a trigger
-that fired without the deferred work landing. The new trigger names the actual remaining
-event (a signature-broken fixture driving `decline()`'s rung (1), or the 0.1 cut) rather
-than any touch of the file, so an unrelated future edit to `kernel/decline.ts` — a comment
-fix, another message reword — cannot fire it again. Full new trigger text: see the register
-row itself, and its verbatim mirror in `docs/process/next-phases.md`,
-`docs/process/release-checklist.md`, and the "Still outstanding" row 20 bullet above (all
-three moved in the same commit as the register row, so none quotes a stale trigger).
+that fired without the deferred work landing. **This took two attempts.** The first
+replacement trigger (fix round 1, commit `98584e1`) named the deferred work's own
+completion — "the next increment that drives a signature-broken chain through
+`decline()`'s rung (1)" — which is tautological: a trigger that fires exactly when the
+work lands un-defers nothing, so in practice that wording left the row 0.1-cut-only. Fix
+round 2 corrects it to a genuine prompting event: the next increment that touches AL2
+signature enforcement at `decline()`'s rung (1), or that extends the shared AL2 signing
+test rig to reach it — the same shape row 21 (this row's own sibling) already uses — or
+the 0.1 cut. Full current trigger text: see the register row itself, and its verbatim
+mirror in `docs/process/next-phases.md`, `docs/process/release-checklist.md`, and the
+"Still outstanding" row 20 bullet above (all four moved together at fix round 2, so none
+quotes a stale trigger).
 
 **Cuts.** None. **Register rows.** None added; row 20 narrowed AND retriggered (number
 unchanged); rows 19 and 21 untouched.
