@@ -18,7 +18,7 @@ the increment was written, which the code and the status doc may have since move
 A reader chasing current behavior reads the code and the status doc; a reader chasing how
 a past decision was reached reads the matching row below.
 
-**33 files in `specs/`, 36 in `plans/`** — not one-to-one. Three
+**34 files in `specs/`, 37 in `plans/`** — not one-to-one. Three
 plans carry no spec: the two step-1 completion/remediation plans
 (`2026-08-03-autonomous-step-1-completion.md`, `2026-08-03-step-1-remediation.md`) and
 this housekeeping plan's own (`2026-08-18-post-build-order-housekeeping.md`). Each is
@@ -71,3 +71,4 @@ close.
 | 2026-08-23 | AL2 signature-enforcement coverage | Post-build-order (no step) | [design](specs/2026-08-23-al2-signature-enforcement-coverage-design.md) | [plan](plans/2026-08-23-al2-signature-enforcement-coverage.md) |
 | 2026-08-24 | Row 22 truth repairs | Post-build-order (no step) | [design](specs/2026-08-24-row-22-truth-repairs-design.md) | [plan](plans/2026-08-24-row-22-truth-repairs.md) |
 | 2026-08-24 | Sidecar contract | Post-build-order (no step) | [design](specs/2026-08-24-sidecar-contract-design.md) | [plan](plans/2026-08-24-sidecar-contract.md) |
+| 2026-08-24 | No-edge containment | Post-build-order (no step) | [design](specs/2026-08-24-no-edge-containment-design.md) | [plan](plans/2026-08-24-no-edge-containment.md) |
