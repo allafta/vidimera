@@ -859,10 +859,26 @@ const signatureTamperRefuses: Probe = {
       'signature-tamper-refuses: finalize (setup)',
     );
 
+    // Chain-driven correlation, never sidecar-driven: `verifySignatures` walks the CHAIN and
+    // reports each transition's own digest, so a victim chosen from its report always names a
+    // transition that actually landed. `listByRecord` promises no order, and a signing
+    // deployment accumulates entries for transitions that never landed — every refusing seam
+    // call against a record admitting no CAS candidate leaves one, because the decorator signs
+    // before delegating. Taking the list's first element could therefore garble an orphan,
+    // leave every real signature intact, and fail a sound build.
+    const report = await handles.operator.verifySignatures(recordId);
+    const signed = report.transitions.find((t) => t.signed);
+    if (signed === undefined) {
+      return fail(this, 'a confirmed signing record has no signed transitions');
+    }
     const entries = await config.signing.signatures.listByRecord(recordId);
-    const victim = entries[0];
+    const victim = entries.find((e) => e.transitionDigest === signed.transitionDigest);
     if (victim === undefined) {
-      return fail(this, 'a confirmed signing record has no sidecar signature entries');
+      // Not reachable on a sound build: `layerVerdicts` marks a transition `signed` only when
+      // the sidecar holds an entry for its digest, so this arm guards against a store that
+      // changes its answer between two reads, not a live path. It fails rather than throws so
+      // the suite keeps reporting.
+      return fail(this, 'a signed transition has no sidecar entry');
     }
     // Garble the persisted signature over a real digest — the insider attack this
     // build's own signing-enforce.test.ts uses (`config.signing.signatures.put`, the

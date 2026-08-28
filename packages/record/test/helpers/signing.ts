@@ -12,10 +12,11 @@
 import assert from 'node:assert/strict';
 import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';
 
+import { transitionDigest } from '../../src/chain/encoding.js';
 import type { ConfirmProfile } from '../../src/config.js';
 import { create, createWithClock } from '../../src/create.js';
 import { MemorySignatureStore } from '../../src/signing/memory.js';
-import type { Signer, Verifier } from '../../src/signing/store.js';
+import type { SignatureStore, Signer, Verifier } from '../../src/signing/store.js';
 import { MemoryStore } from '../../src/store/memory.js';
 import type { Store } from '../../src/store/store.js';
 import { makeConfig } from './profiles.js';
@@ -89,9 +90,26 @@ export function enforceableSigningSetup(profiles: ConfirmProfile[], opts: { stor
 }
 
 /**
- * Break exactly one sidecar entry (tamper its signature) for the given record. Lifted from
+ * Break exactly one sidecar entry (tamper its signature) for the given record — the GENESIS
+ * transition's entry, found by correlating through the chain. Lifted from
  * `signing-enforce.test.ts`'s file-local copy, which `redeem.test.ts` had inlined
  * byte-identically; both now call this.
+ *
+ * CHAIN-DRIVEN, NEVER SIDECAR-DRIVEN, and this is a correlation change, not a target change.
+ * The helper used to take `listByRecord`'s first element. `signing/store.ts` promises no order
+ * ("chain order not guaranteed"), and a signing deployment accumulates entries for transitions
+ * that never landed — the compromise append signs before delegating, so every refusing call
+ * against a record admitting no CAS candidate leaves one — so position is not identity: under
+ * a legal orphan-first ordering the old helper tampered the orphan while BOTH of its guard
+ * assertions passed, and the fixture proved nothing. Reading the genesis digest from the chain
+ * and looking THAT up is what the contract tells every caller to do. The target is unchanged:
+ * on a clean signing flow `MemorySignatureStore` iterates in insertion order and the decorator
+ * writes in append order, so the first entry WAS the genesis — measured, not assumed, at the
+ * increment that made this change. `test/sidecar-ordering.test.ts` pins the adverse ordering.
+ *
+ * The first parameter is the `SignatureStore` INTERFACE, not the `MemorySignatureStore` class:
+ * the class carries a private field and is therefore nominal, so a wrapping store could not be
+ * passed at all. The body uses only `listByRecord` and `put`.
  *
  * The guard on the second assertion is not ceremony: the mutation overwrites the LEADING four
  * base64 characters with `AAAA`, which is a silent no-op on a signature that already begins
@@ -101,12 +119,17 @@ export function enforceableSigningSetup(profiles: ConfirmProfile[], opts: { stor
  * a different corruption, not a duplicate of this one, so it is deliberately not folded in.
  */
 export async function breakOneSignature(
-  signatures: MemorySignatureStore,
+  signatures: SignatureStore,
   recordId: string,
+  store: Store,
 ): Promise<void> {
+  const chain = await store.readChain(recordId);
+  const genesis = chain[0];
+  assert.ok(genesis !== undefined, 'fixture: the record has a chain');
+  const digest = transitionDigest(genesis);
   const entries = await signatures.listByRecord(recordId);
-  const victim = entries[0];
-  assert.ok(victim !== undefined, 'fixture: the record has sidecar entries');
+  const victim = entries.find((e) => e.transitionDigest === digest);
+  assert.ok(victim !== undefined, 'fixture: the genesis transition has a sidecar entry');
   const broken = `AAAA${victim.signature.slice(4)}`;
   assert.notEqual(broken, victim.signature, 'fixture: the tamper changed the signature');
   await signatures.put({ ...victim, signature: broken });

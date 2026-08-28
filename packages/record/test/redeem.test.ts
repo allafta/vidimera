@@ -224,7 +224,7 @@ test('ENLISTED SIGNATURE-BROKEN (the AL2 enforcement increment): a signature-bro
   const done = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
   assert.equal(done.status, 'ok', 'fixture: the record must confirm');
 
-  await breakOneSignature(signatures, recordId);
+  await breakOneSignature(signatures, recordId, sqlite);
 
   const before = await sqlite.readChain(recordId);
   sqlite.database.exec('BEGIN IMMEDIATE');

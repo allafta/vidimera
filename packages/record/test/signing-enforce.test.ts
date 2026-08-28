@@ -82,9 +82,9 @@ function signedSetup(extraProfiles: ConfirmProfile[] = []) {
 }
 
 test('finalize refuses chain-compromise on a signature-broken signing record — and the compromise edge is itself signed', async () => {
-  const { handles, signatures } = signedSetup();
+  const { handles, signatures, store } = signedSetup();
   const recordId = await openRecord(handles, CONTENT, 'test.enf.v1', 'subject:enf-1');
-  await breakOneSignature(signatures, recordId);
+  await breakOneSignature(signatures, recordId, store);
 
   const out = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
   assert.equal(out.status, 'refused');
@@ -108,7 +108,7 @@ test('seal and raiseFinding refuse the same way; a MISSING entry (not just a tam
   const sealTarget = await openRecord(a.handles, CONTENT, 'test.enf.v1', 'subject:enf-2');
   const fin = await a.handles.operator.finalize(sealTarget, identity(), CONTENT, facts());
   assert.equal(fin.status, 'ok');
-  await breakOneSignature(a.signatures, sealTarget);
+  await breakOneSignature(a.signatures, sealTarget, a.store);
   const sealed = await a.handles.operator.seal(sealTarget);
   assert.equal(sealed.status, 'refused');
   if (sealed.status !== 'refused') return;
@@ -168,7 +168,7 @@ test('the redemption prologue refuses; cross-record claims fold into their own c
   const redeemId = await openRecord(a.handles, CONTENT, 'test.enf.effect.v1', 'subject:enf-4');
   const fin = await a.handles.operator.finalize(redeemId, identity(), CONTENT, facts());
   assert.equal(fin.status, 'ok');
-  await breakOneSignature(a.signatures, redeemId);
+  await breakOneSignature(a.signatures, redeemId, a.store);
   const red = await a.handles.operator.redeem(redeemId, CONTENT);
   assert.equal(red.status, 'refused');
   if (red.status !== 'refused') return;
@@ -188,7 +188,7 @@ test('the redemption prologue refuses; cross-record claims fold into their own c
   assert.equal(drifted.status, 'refused', 'fixture: content-drift, terminal by profile');
   const head = await b.handles.operator.chainHead(predId);
   assert.ok(head !== null);
-  await breakOneSignature(b.signatures, predId);
+  await breakOneSignature(b.signatures, predId, b.store);
   const staged = await b.handles.agent.stage(CONTENT, 'test.enf.v1', 'subject:enf-5');
   assert.equal(staged.status, 'ok');
   if (staged.status !== 'ok') return;
@@ -215,7 +215,7 @@ test('the redemption prologue refuses; cross-record claims fold into their own c
 });
 
 test('the layer does not overreach: a NON-signing record with garbage in the sidecar passes every seam; the reads never gate', async () => {
-  const { handles, signatures } = signedSetup([captureProfile({ id: 'test.enf.plain.v1' })]);
+  const { handles, signatures, store } = signedSetup([captureProfile({ id: 'test.enf.plain.v1' })]);
   const plainId = await openRecord(handles, CONTENT, 'test.enf.plain.v1', 'subject:enf-6');
   const chain = await handles.operator.readChain(plainId);
   const genesis = chain[0];
@@ -234,7 +234,7 @@ test('the layer does not overreach: a NON-signing record with garbage in the sid
   // The reads: break a SIGNING record and watch verifyChain stay AL1-true while
   // verifySignatures reports the break — neither refuses.
   const sigId = await openRecord(handles, CONTENT, 'test.enf.v1', 'subject:enf-7');
-  await breakOneSignature(signatures, sigId);
+  await breakOneSignature(signatures, sigId, store);
   const al1 = await handles.operator.verifyChain(sigId);
   assert.equal(al1.intact, true, 'verifyChain is the AL1 report, documented as such');
   const al2 = await handles.operator.verifySignatures(sigId);
@@ -247,7 +247,7 @@ test('the layer does not overreach: a NON-signing record with garbage in the sid
 
 test('a multi-leg successor whose prior-leg reference is signature-broken refuses prior-leg-unverified', async () => {
   const { twoLegProfile } = await import('./helpers/profiles.js');
-  const { handles, signatures, calls } = signedSetup([
+  const { handles, signatures, calls, store } = signedSetup([
     { ...twoLegProfile({ id: 'test.enf.two.v1' }), signing: true as const },
   ]);
   const makerId = await openRecord(
@@ -261,7 +261,7 @@ test('a multi-leg successor whose prior-leg reference is signature-broken refuse
   assert.equal(fin.status, 'ok');
   const head = await handles.operator.chainHead(makerId);
   assert.ok(head !== null);
-  await breakOneSignature(signatures, makerId);
+  await breakOneSignature(signatures, makerId, store);
 
   const staged = await handles.agent.stage(
     CONTENT,
@@ -343,9 +343,9 @@ test('decline refuses chain-compromise on a signature-broken signing record — 
     ...captureProfile({ id: 'test.enf.decline.v1', decline: true }),
     signing: true,
   };
-  const { handles, signatures, calls } = enforceableSigningSetup([profile]);
+  const { handles, signatures, calls, store } = enforceableSigningSetup([profile]);
   const recordId = await openRecord(handles, CONTENT, 'test.enf.decline.v1', 'subject:enf-9');
-  await breakOneSignature(signatures, recordId);
+  await breakOneSignature(signatures, recordId, store);
 
   const before = await handles.operator.readChain(recordId);
   // AL1 is INTACT. Without this the refusal could be the hash disjunct and the test would
@@ -380,9 +380,9 @@ test('decline on a NON-declaring leg over a signature-broken chain appends the c
     ...captureProfile({ id: 'test.enf.nodecline.v1' }), // no decline declared
     signing: true,
   };
-  const { handles, signatures, calls } = enforceableSigningSetup([profile]);
+  const { handles, signatures, calls, store } = enforceableSigningSetup([profile]);
   const recordId = await openRecord(handles, CONTENT, 'test.enf.nodecline.v1', 'subject:enf-10');
-  await breakOneSignature(signatures, recordId);
+  await breakOneSignature(signatures, recordId, store);
 
   const before = await handles.operator.readChain(recordId);
   assert.equal(verifyChain(before).intact, true, 'fixture: hash-intact, signature-broken');
@@ -413,9 +413,9 @@ test('acknowledge refuses chain-compromise on a signature-broken signing record 
     signing: true,
     legs: [{ ...leg, ackMode: 'any', requiredAcks: ['variance'] }],
   };
-  const { handles, signatures, calls } = enforceableSigningSetup([profile]);
+  const { handles, signatures, calls, store } = enforceableSigningSetup([profile]);
   const recordId = await openRecord(handles, CONTENT, 'test.enf.ack.v1', 'subject:enf-11');
-  await breakOneSignature(signatures, recordId);
+  await breakOneSignature(signatures, recordId, store);
 
   const before = await handles.operator.readChain(recordId);
   assert.equal(verifyChain(before).intact, true, 'fixture: hash-intact, signature-broken');
@@ -453,11 +453,11 @@ test('beginRedemption and completeRedemption refuse chain-compromise on a signat
 
   // (a) beginRedemption
   {
-    const { handles, signatures, calls } = enforceableSigningSetup([profile]);
+    const { handles, signatures, calls, store } = enforceableSigningSetup([profile]);
     const recordId = await openRecord(handles, CONTENT, 'test.enf.token.v1', 'subject:enf-12');
     const fin = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
     assert.equal(fin.status, 'ok');
-    await breakOneSignature(signatures, recordId);
+    await breakOneSignature(signatures, recordId, store);
     const before = await handles.operator.readChain(recordId);
     assert.equal(verifyChain(before).intact, true, 'fixture: hash-intact, signature-broken');
     const callsBefore = calls();
@@ -476,7 +476,7 @@ test('beginRedemption and completeRedemption refuse chain-compromise on a signat
   // (c) completeRedemption — the token is issued CLEAN first, then a signature is broken,
   // which is what makes the `redeeming` state reachable at all.
   {
-    const { handles, signatures, calls } = enforceableSigningSetup([profile]);
+    const { handles, signatures, calls, store } = enforceableSigningSetup([profile]);
     const recordId = await openRecord(handles, CONTENT, 'test.enf.token.v1', 'subject:enf-13');
     const fin = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
     assert.equal(fin.status, 'ok');
@@ -484,7 +484,7 @@ test('beginRedemption and completeRedemption refuse chain-compromise on a signat
     assert.equal(begun.status, 'ok');
     if (begun.status !== 'ok') return;
     const token = begun.value.token;
-    await breakOneSignature(signatures, recordId);
+    await breakOneSignature(signatures, recordId, store);
     const before = await handles.operator.readChain(recordId);
     assert.equal(verifyChain(before).intact, true, 'fixture: hash-intact, signature-broken');
     const callsBefore = calls();
@@ -515,11 +515,13 @@ test('beginRedemption and completeRedemption refuse chain-compromise on a signat
   // (b) beginRedemption, enlisted
   {
     const sqlite = new SqliteStore(':memory:');
-    const { handles, signatures, calls } = enforceableSigningSetup([profile], { store: sqlite });
+    const { handles, signatures, calls, store } = enforceableSigningSetup([profile], {
+      store: sqlite,
+    });
     const recordId = await openRecord(handles, CONTENT, 'test.enf.token.tx.v1', 'subject:enf-14');
     const fin = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
     assert.equal(fin.status, 'ok');
-    await breakOneSignature(signatures, recordId);
+    await breakOneSignature(signatures, recordId, store);
     const before = await sqlite.readChain(recordId);
     assert.equal(verifyChain(before).intact, true, 'fixture: hash-intact, signature-broken');
 
@@ -543,7 +545,9 @@ test('beginRedemption and completeRedemption refuse chain-compromise on a signat
   // (d) completeRedemption, enlisted
   {
     const sqlite = new SqliteStore(':memory:');
-    const { handles, signatures, calls } = enforceableSigningSetup([profile], { store: sqlite });
+    const { handles, signatures, calls, store } = enforceableSigningSetup([profile], {
+      store: sqlite,
+    });
     const recordId = await openRecord(handles, CONTENT, 'test.enf.token.tx.v1', 'subject:enf-15');
     const fin = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
     assert.equal(fin.status, 'ok');
@@ -551,7 +555,7 @@ test('beginRedemption and completeRedemption refuse chain-compromise on a signat
     assert.equal(begun.status, 'ok');
     if (begun.status !== 'ok') return;
     const token = begun.value.token;
-    await breakOneSignature(signatures, recordId);
+    await breakOneSignature(signatures, recordId, store);
     const before = await sqlite.readChain(recordId);
     assert.equal(verifyChain(before).intact, true, 'fixture: hash-intact, signature-broken');
 

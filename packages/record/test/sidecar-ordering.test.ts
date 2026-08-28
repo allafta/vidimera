@@ -144,10 +144,7 @@ test('breakOneSignature tampers a REAL entry under an orphan-first ordering — 
   assert.ok(before !== undefined, 'fixture: the genesis transition has a sidecar entry');
 
   // The wrapped sidecar is what a caller under an adverse-but-legal ordering would hand in.
-  // Today's helper is typed over the `MemorySignatureStore` CLASS, whose private field makes it
-  // nominal, so a plain `SignatureStore` cannot be passed without this cast; the helper's
-  // parameter is widened to the interface when it is made chain-driven, and the cast goes then.
-  await breakOneSignature(orphanFirst(rig.signatures) as unknown as MemorySignatureStore, recordId);
+  await breakOneSignature(orphanFirst(rig.signatures), recordId, rig.store);
 
   // What makes this defect nasty: BOTH of the helper's own guard assertions pass while it does
   // the wrong thing — an orphan is an entry, and overwriting its leading four characters does
