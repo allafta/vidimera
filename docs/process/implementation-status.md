@@ -2943,8 +2943,10 @@ packages/record/test/byte-stability.test.ts` — no output; `git diff 53ec4f6 --
 **The eleventh post-build-order increment, exited (commits `c607989`..`3542668`, closed by
 the record commit that follows them).** The ordinal counts the sections above in order and,
 as the last three did, does NOT count the documentation-only signature-enforcement-coverage
-findings note. **This increment landed behavior — the first in this three-increment
-sequence to do so — and moved no maturity marker.** No `docs/concept/` file changed, no
+findings note. **This increment landed behavior in the kernel and the decorator — the first
+in this three-increment sequence to change what the library does on a seam call, where the
+sidecar-contract increment's one behavior change was how an operator-assurance probe reads —
+and moved no maturity marker.** No `docs/concept/` file changed, no
 sanction was sought and none was needed: the narrowing drops only a candidate C3 can never
 admit, so every seam outcome (refusal code, class, `transitionRef` presence) is byte-identical
 on every shape, and the memo changes how many times a signer is asked, never what is written
@@ -3084,9 +3086,10 @@ digest happened": the eager variant let an append reach the store with zero comp
 and the awaited variant landed an UNSIGNED transition across seam calls whenever the entry
 was absent at the second append. Compensating removal — sign, put, append, remove on
 `appended: false` — obeys the sign-before-append token order and destroys the property it
-protects: 100 trials of two concurrent same-record `finalize()` calls drove 88 legitimately
-confirmed, hash-intact records to lose their signature sets (94 of 100 in an independent
-reproduction), against 0 of 400 for the shipped ordering; unrepairable, because the sidecar is
+protects: 100 trials of two concurrent same-record `finalize()` calls drove 94 legitimately
+confirmed, hash-intact records to lose their signature sets (88 of 100 in an independent
+reproduction — the figure the register row carries), against 0 of 400 for the shipped
+ordering; unrepairable, because the sidecar is
 content-addressed and the scheme deterministic, so racing writers write byte-identical entries
 under one key. Both are pinned against by this increment's INVARIANT tests: the put always
 runs, and no append is observed before that transition's put completed. All figures from the
@@ -3122,6 +3125,36 @@ redemption seams gain nothing here: their `tx !== undefined` guard returns befor
 `appendChainCompromise`, so all three token seams already cost zero signer invocations under
 enlistment. And a green suite remains a null result in this area — the two firing counts are
 the only evidence the suite itself could not give.
+
+**The row-22 sweep, discharged in writing.** `grep -rn "row 22\|Row 22" CLAUDE.md docs/
+packages/` was run after the re-scoping. Every PRESENT-TENSE hit describes the row as it now
+is: `CLAUDE.md`'s live-rows sentence; this document's coverage-increment bullet, live-rows
+clause, "Still outstanding" bullet and boundary paraphrase; `docs/process/next-phases.md`;
+`docs/process/release-checklist.md`; `kernel/finalize.ts`'s doc comment; and the test
+comments in `signing-enforce.test.ts`, `sidecar-ordering.test.ts` and
+`no-edge-containment.test.ts`, all of which name the orphan half as the open one. Every other
+hit is HISTORICAL and was deliberately left as written, per the tier discipline the row-22
+truth repairs stated: this document's coverage-increment, truth-repairs and sidecar-contract
+sections and its documentation-only findings note describe the row as it stood on the day
+each was written; `docs/analysis/2026-08-23-signature-enforcement-coverage.md` and
+`docs/analysis/2026-08-24-no-edge-containment-investigation.md` are dated records; and every
+`docs/superpowers/` spec and plan is historical and unmaintained by `INDEX.md`'s own rule —
+including this increment's own plan, whose premise check greps the register for
+`CONTAINMENT INVENTORY`, a phrase that left with 22b's body and now prints 0. That grep was a
+"predecessor landed" probe for THIS increment and has done its work; a later plan copying it
+as a probe would get a false negative, which is why it is named here. `git diff d6a5f1f
+db8070f --stat -- docs/analysis docs/superpowers` is empty.
+
+**One repair after the exit review, recorded rather than folded in silently.** The review of
+this increment against its plan found the memo's rejection path deleted its entry
+unconditionally: if a third caller had already installed a fresh in-flight promise between
+the shared promise's rejection and the `catch`, that fresh promise was dropped from the memo.
+The cost was bounded — at most one extra mint on the next attempt, never an unsigned append,
+since the put always runs — and no pin required the change; `signOne` now deletes only when
+the memo still holds the promise that rejected. The same review corrected two figures in this
+section (the primary and reproduction compensating-removal counts had been swapped; the
+"first to land behavior" sentence lacked the sidecar-contract qualifier) and asked for the
+sweep above to be written down.
 
 **What stays outside, and why.** The cost-zeroing precheck, which needs a sanction and a
 stated trade; 22a's containment, which has no candidate off the third horn; and the stale

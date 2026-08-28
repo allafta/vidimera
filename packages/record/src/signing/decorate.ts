@@ -92,7 +92,9 @@ export function withSigning(
       minted = await pending;
     } catch (err) {
       // A failed mint must not be remembered: the next attempt has to reach the signer again.
-      signerResult.delete(transition);
+      // Delete only if the memo still holds THIS promise — a later caller may already have
+      // installed a fresh attempt, and dropping that one would cost it a redundant mint.
+      if (signerResult.get(transition) === pending) signerResult.delete(transition);
       throw err;
     }
     await signing.signatures.put({
