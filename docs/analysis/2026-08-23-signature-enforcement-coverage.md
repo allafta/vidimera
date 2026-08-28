@@ -401,3 +401,46 @@ special-cases a path five call sites share, or reopens the sign-before-append or
 signing decorator pins deliberately — and inverting that order would reintroduce exactly the
 landed-but-unsigned transition the AL2 enforcement increment made fail closed. That is its own
 increment with its own design, not a change to make in passing while closing a coverage row.
+
+**Reconciled 2026-08-29 (the no-edge containment investigation).** The finding above is
+sound and its measurements reproduce. Three of its statements are corrected here rather
+than rewritten above, so the record of what the increment knew stays legible.
+
+**The deferral was right; the reason given for it was not — but it was not wrong to be a
+dilemma.** "The containment either special-cases a path five call sites share, or reopens the
+sign-before-append ordering the signing decorator pins deliberately" is withdrawn as
+EXHAUSTIVE. One containment does sit on neither horn: a signer-result memo keyed by transition
+object identity, which still writes the signature before each append, and which closes the
+redundant-signing half outright. `appendChainCompromise(store, chain, now)` receives no caller
+identity, so every candidate family is a uniform change to one shared function rather than a
+per-caller special case.
+
+**A THIRD horn exists, and the orphan half sits on it.** Every measured containment for orphan
+accumulation predicts C3 and C4 from the READ chain — the chain that reached this function
+precisely because it failed verification — while C3 and C4 are decided against the backing's
+own persisted row. On the SQL backing `readChain` reads the transitions table and the gates
+read the records row, so a tamper that rewrites a transition leaves the persisted state
+untouched. Measured: a length-preserving last-element kind rewrite over a record persisted
+`confirmed` folds to `refused` on read, and the walk lands the compromise edge through C3's
+carve-out WITH a transitionRef today; a chain-predicted bar suppresses it. The corpus cannot
+see this — every corpus tamper is payload-only, kinds intact.
+
+**A stronger justification for deferring survives, and it is not the one recorded:** all three
+prototyped containments passed the record project unchanged, and the most dangerous of them
+passed with its new branch instrumented and counted at zero firings. A green record project is
+a null result for any candidate in this family.
+
+**"An entry with no chain counterpart is never visited" should read "an entry with no chain
+counterpart never produces a verdict."** `layerVerdicts` fetches and materializes every
+sidecar row on every verification; twenty consecutive refusing calls fetched 5 to 24 rows,
+290 cumulative against 100.
+
+**The soundness argument above is exhaustive over the kernel, not over the repository.**
+A third, sidecar-driven reader exists in production source and was measured returning a
+FAIL against a sound build under a contract-legal listing order. It is a finding in its own
+right, not part of register row 22.
+
+Two statements are CONFIRMED rather than corrected: the three-candidate arithmetic on this
+section's own sealed fixture, and the enlisted-redemption exemption, which is total for all
+three token seams rather than only for direct redemption. Full account:
+`docs/analysis/2026-08-24-no-edge-containment-investigation.md`.

@@ -2549,7 +2549,17 @@ behavior lands and inventing adjacent work would blur which; a fix for the three
 near-duplicate break helpers beyond pointing two of them at one shared function; and any
 byte-regression pin over this surface, since the digested transition shape carries no
 signature field and no byte literal can distinguish a signed compromise edge from an
-unsigned one.
+unsigned one. (**Reconciled 2026-08-29:** the orphan-growth deferral stands — file-don't-fix
+was the right act — but the reason this paragraph records for it is withdrawn as an
+EXHAUSTIVE disjunction: a signer-result memo keyed by transition object identity sits on
+neither horn and closes the redundant-signing half, and the only measured containment for
+the orphan half sits on a THIRD horn the sentence never named, predicting C3 and C4 from a
+chain that failed verification by construction. Row 22 was restated 2026-08-28 by the row-22
+truth-repairs increment with a measured containment inventory; its redundant-signing half,
+22b, retires on behavior at the no-edge containment increment, which re-scopes the row to
+its orphan half, 22a, rather than retiring it. The paragraph stays as this increment wrote
+it, its reasoning true to what was known at its own writing. Full account:
+`docs/analysis/2026-08-24-no-edge-containment-investigation.md`.)
 
 **The frozen files, proved rather than asserted.** `git diff 89e44ae --
 packages/record/test/byte-stability.test.ts` produces no output — the frozen oracle never
