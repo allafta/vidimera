@@ -46,14 +46,17 @@ that sits on neither horn and closes the redundant-signing half, and found that 
 measured containment for the orphan half sits on a THIRD horn the sentence never named:
 it predicts the store's C3 and C4 answer from a chain that failed verification by
 construction. The row now carries a containment inventory instead of a dilemma. Two
-findings that investigation produced take no register row of their own and are recorded
-here so they are not lost: a third, sidecar-DRIVEN reader in `probes/probes.ts`, measured
-returning a FAIL against a sound build under a listing order the sidecar contract permits;
-and the same idiom in the corpus's shared break helper. Both are their own small cluster,
-and it is scheduled rather than open-ended: the sidecar-contract increment closes both,
-immediately after the row-22 truth-repairs increment and before the containment increment.
-Naming that home is what keeps them out of the deferral register — work with a named
-successor increment is sequenced, not deferred. Row 22's trigger (verbatim): "The first
+findings that investigation produced took no register row of their own and are now CLOSED:
+a third, sidecar-DRIVEN reader in `probes/probes.ts`, measured returning a FAIL against a
+sound build under a listing order the sidecar contract permits; and the same idiom in the
+corpus's shared break helper. The sidecar-contract increment — immediately after the row-22
+truth-repairs increment and before the containment increment — made both correlate through
+the chain and pinned the adverse ordering (`packages/record/test/sidecar-ordering.test.ts`);
+in the same change the `SignatureStore` contract and both guide documents gained the
+obligation that a conforming sidecar holds entries for transitions that never landed. That
+sentence is delegation, not a fix: row 22's orphan half stays open. Work with a named
+successor increment was sequenced, not deferred, which is why neither finding ever took a
+register row. Row 22's trigger (verbatim): "The first
 increment that changes `appendChainCompromise`'s candidate walk, the signing decorator's
 `signOne`, or the order in which the decorator's append seams sign and delegate, that adds
 a durable `SignatureStore` backing beyond `MemorySignatureStore`, that documents, ships or

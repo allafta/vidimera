@@ -82,10 +82,10 @@ any one exit.
   inventory in place of the dilemma it first recorded). See the dedicated section at the
   end of this document for the full account; the numbers immediately below already include
   it.
-- **Measured against the current tree**: `pnpm test` — 64 test files, 802 tests, zero skips
+- **Measured against the current tree**: `pnpm test` — 65 test files, 804 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
-  `pnpm lint` (`biome check .`) — 131 files checked, zero errors or warnings;
+  `pnpm lint` (`biome check .`) — 132 files checked, zero errors or warnings;
   `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 24 refusal codes, the twenty-fourth and
@@ -101,9 +101,11 @@ any one exit.
   signing operation per CAS candidate, every one of those N operations signing
   byte-identical bytes onto ONE digest, so N round-trips buy exactly one orphan; an orphan
   never produces a verdict, because both AL2 kernel readers correlate from the chain to the
-  sidecar, but every sidecar row IS fetched and materialized on every verification, and a
-  third, sidecar-DRIVEN reader exists in `probes/probes.ts` as a separate finding — so a
-  storage, observability and wasted-work finding rather than a soundness one; behavior on a
+  sidecar, but every sidecar row IS fetched and materialized on every verification, and the
+  third, formerly sidecar-DRIVEN reader in `probes/probes.ts` correlates through the chain
+  as of the sidecar-contract increment, which closed that separate finding without touching
+  this row's scope — so a storage, observability and wasted-work finding rather than a
+  soundness one; behavior on a
   durable `SignatureStore` backing is UNMEASURED, a coverage bound rather than a mitigation).
   Row 22 was added by the AL2 signature-enforcement coverage increment, which found it while
   closing rows 20 and 21 and recorded it rather than fixing it, and was restated 2026-08-28
@@ -2755,3 +2757,176 @@ warnings; `node scripts/contract-scan.mjs` — exit 0, no output;
 `node scripts/api-reference-sync.mjs` — exit 0; `node scripts/docs-index-sync.mjs` — exit 0.
 `docs/process/deferral-register.md` loses no row and gains none: row 22 restated in place.
 `git diff f6f2180 --stat -- packages/` — no output.
+
+## Post-build-order increment — Sidecar contract
+
+**The tenth post-build-order increment, exited (commits `f953d0f`..`3ab669d`, closed by the
+record commit that follows them).** The ordinal counts the sections above in order and, as
+the last two did, does NOT count the documentation-only signature-enforcement-coverage
+findings note. **This increment landed no behavior change to the record's own semantics
+and moved no maturity marker.** No `docs/concept/` file changed, no sanction was sought and
+none was needed. No interface gained or lost a member: `SignatureStore` keeps `put` and
+`listByRecord` exactly as they were. Exactly two `packages/*/src/` files changed, proved by
+`git diff 53ec4f6 --name-only -- 'packages/*/src/*'`: `packages/record/src/probes/probes.ts`
+(the one behavior change — an operator-assurance probe picks its victim through the chain)
+and `packages/record/src/signing/store.ts` (comment only — the contract states an
+obligation it had left unstated). It is the second of the three-increment sequence authored
+2026-08-24, after the row-22 truth repairs and before the no-edge containment; its plan
+checked that the analysis record the first increment created exists before starting.
+Design: `docs/superpowers/specs/2026-08-24-sidecar-contract-design.md`; plan:
+`docs/superpowers/plans/2026-08-24-sidecar-contract.md`.
+
+**The gap this closed.** `packages/record/src/signing/store.ts` already told a CALLER how to
+read the sidecar — `listByRecord` returns entries "chain order not guaranteed", and the
+caller correlates by digest, "chain-driven, never sidecar-driven" — but two readers in this
+repository did the reverse, one of them in production source, and the contract told an
+IMPLEMENTER nothing about the entries it would actually receive. The `signature-tamper-refuses`
+operator-assurance probe took `listByRecord`'s first element as its tamper victim; under a
+contract-legal orphan-first ordering it garbled an orphan, every real signature survived, its
+attacking `finalize()` reached the state guard instead of the signature gate, and it returned
+a **FAIL against a sound build** — the one verdict that tier exists never to produce. The
+corpus's shared `breakOneSignature` helper used the same positional idiom; under the same
+ordering it tampered the orphan while BOTH of its own guard assertions passed, so the fixture
+proved nothing and the fourteen tests depending on it went green. Both defects were found by
+the no-edge containment investigation
+(`docs/analysis/2026-08-24-no-edge-containment-investigation.md`) and recorded by the row-22
+truth repairs as open findings with a named home; this increment is that home.
+
+**What landed.** Three commits — one deliberately red, two green:
+
+- `packages/record/test/sidecar-ordering.test.ts` — new, committed RED first (`f953d0f`), the
+  increment's one sanctioned red commit. An `orphanFirst(inner)` `SignatureStore` wrapper
+  returns a fabricated orphan entry ahead of every real one — contract-legal, ID-agnostic
+  because the probe mints its own record after `makeConfig()` has handed the store over, and
+  re-entrancy-guarded so a positional reader's write-back can never make `listByRecord` return
+  two entries for one digest, which would make the store illegal rather than merely
+  adversely ordered. Two pins drive it: the probe must PASS against a sound build, and the
+  helper must change the GENESIS entry's signature. Both failed at that commit exactly as the
+  defects predict — the probe reporting `record-not-open` where it expected
+  `chain-compromise`, the helper leaving the genesis untouched — and both went green when
+  each reader was fixed.
+- `packages/record/src/probes/probes.ts` — the probe takes its victim's digest from
+  `handles.operator.verifySignatures(recordId)`, a chain-driven read it already had, and
+  looks THAT digest up in the sidecar. Two new failure arms, each exercised by forcing it and
+  reverting: `no signed transitions`, and `no sidecar entry` — the second commented as
+  unreachable on a sound build, since `layerVerdicts` marks a transition signed only when the
+  sidecar holds its entry; it guards a store that changes its answer between two reads.
+- `packages/record/test/helpers/signing.ts` — `breakOneSignature(signatures, recordId, store)`
+  reads the genesis transition from the chain and tampers the entry whose digest matches. A
+  correlation change, not a target change, and the claim is measured: on a clean signing
+  flow `entries[0].transitionDigest === transitionDigest(chain[0])` after stage/open/finalize,
+  so every existing fixture breaks the same entry it always did. The first parameter widened
+  from the `MemorySignatureStore` CLASS — nominal, through its private field — to the
+  `SignatureStore` interface, without which no wrapping store could be passed at all.
+  `signingSetup`, frozen by the AL2 signature-enforcement coverage increment in this same
+  file, proved byte-identical by a hash over its own extracted text before and after
+  (`b50b3798785ce8415e6e27610fb718347046d7ec`) — a narrower proof than that increment's
+  whole-file diff, chosen because a whole-file diff is unavailable when the file must change.
+- **Fourteen call sites**, thirteen in `packages/record/test/signing-enforce.test.ts` and one
+  in `packages/record/test/redeem.test.ts`, each now passing the store of the SAME rig whose
+  sidecar it passes — destructurings widened to include `store`, the enlisted `redeem` site
+  passing its `sqlite`. The specific mis-edit the compiler cannot catch: `a.signatures` paired
+  with `b.store` type-checks and tampers the wrong record, surfacing as a distant seam test
+  reporting the wrong outcome. The whole record project was run after the batch and its
+  failures read rather than counted; there were none. One over-widened destructuring with no
+  break call in scope was caught by Biome's unused-variable warning and reverted.
+- `packages/record/src/signing/store.ts` — the `SignatureStore` doc gains the
+  implementer-facing half: `AN IMPLEMENTER MUST TOLERATE ORPHANS`, why they exist (the
+  decorator signs before delegating; a refusing seam against a record admitting no append
+  target leaves one per call), why they are inert (verification is chain-driven), that they
+  are safe to prune when no chain transition references them, and that the library performs
+  no pruning and cannot say which entries are dead. No `remove` method was added: the
+  obligation is stated, the mechanism stays the implementer's. That capitalised sentence is a
+  cross-increment interface — the no-edge containment plan's premise check greps for it — and
+  is byte-identical to what that plan expects.
+- `docs/guide/api-reference.md` and `docs/guide/integrating.md` — moved in the same commit as
+  the source, as a decision rather than an obligation misread: `CLAUDE.md`'s same-change rule
+  fires on an interface member moving, and none did, but the reference quotes the interface
+  verbatim and would otherwise reproduce a contract that no longer matches its source. The
+  quote now carries both of the source's bounds (upsert-by-digest with at most one entry per
+  digest; no ordering guarantee, chain-driven correlation), its member list diffed against the
+  source by hand, and a prose paragraph states the orphan obligation; the integration guide's
+  "What you get, with its limits in the same breath" list gains the matching bullet in its
+  own voice.
+- `docs/process/deferral-register.md`, `docs/process/next-phases.md`, and this document's
+  live-rows bullet — the three present-tense sentences the row-22 truth repairs wrote
+  describing the two readers as OPEN findings, repaired in place to closures. Row 22's scope,
+  its trigger cell, and every other clause are byte-identical, proved by the same
+  whitespace-collapsed comparison the row-22 increment used: the trigger still occurs exactly
+  once in each of its four living copies.
+- `CLAUDE.md` and this document's `Measured against the current tree` bullet — the
+  present-tense counts moved to what the exit measured (65 files / 804 tests; 132 files under
+  Biome). Every figure under a `Gate outputs` heading is pinned to a past commit and stayed
+  byte-identical.
+
+**Both defects were LATENT, not live, and the record says so rather than dramatising.**
+`MemorySignatureStore` iterates a `Map` in insertion order and the decorator writes in
+append order, so today the first entry is the genesis and both readers happened to pick a
+real transition. Nothing pinned that; the contract permits any order; and register row 22
+guarantees orphans are there to be picked. No real flow was found that reaches an orphan
+for the probe's OWN record — `open()` mints a fresh identifier per probe run and the probe's
+own refusal appends rather than orphaning. The pins INJECT an ordering the contract permits;
+they do not demonstrate a deployment that produces it. Host `ProbeDriver` shapes were not
+enumerated, and a driver returning a shared durable sidecar was not modelled.
+
+**This increment does NOT close row 22's orphan half, and must not be read as doing so.**
+The contract sentence is containment by honest delegation, not by prevention: it tells the
+implementer who will actually hit unbounded growth that the growth is theirs to reconcile,
+and it prevents nothing. Orphan accumulation continues at one entry per refusing call. Row
+22 keeps both halves and its trigger; 22b closes on behavior at the no-edge containment
+increment, which follows, and 22a stays open there on the third horn.
+
+**The contract sentence is unenforced, and nothing here can enforce it.** No gate in this
+repository reads a host's `SignatureStore` implementation. The obligation lives in a doc
+comment and in the guide, which are the only places it can live; `pnpm api-sync` checks that
+exported names occur in the reference and never that a quoted interface matches its source,
+so the quote was diffed by hand and has no gate behind it.
+
+**Deviations from the plan as written, stated rather than smoothed over.** Two. (1) The plan
+asked for one commit per task and, in the same breath, for the suite to be green "at every
+commit with no exceptions" after the one red commit — but its first task wrote BOTH pins red
+and its second closed only the probe's, so a second-task-only commit would necessarily have
+carried the helper pin red. Tasks 2 and 3 therefore landed together in `3ab669d`, with each
+fix's pin-flip observed and recorded separately in that commit's message, so that no
+post-red commit is red. (2) The plan's helper-pin step said to write the pin against the
+widened `SignatureStore` signature before the helper was widened, which `tsc` would have
+rejected at the red commit where every gate but `vitest` had to pass; the pin called today's
+signature through a documented `as unknown as MemorySignatureStore` cast, removed when the
+helper was widened. Neither changes what landed.
+
+**The honest limit.** Five positional sidecar reads existed in this repository; this
+increment corrected the two that fail QUIETLY — a false operator-assurance verdict, and a
+fixture that goes green while proving nothing. The other three — `signing.test.ts`'s own
+trailing-four-character break variant, and the missing-entry and unresolvable-keyRef fixtures
+in `signing-enforce.test.ts` — fail LOUDLY under an adverse ordering, because tampering,
+deleting or re-keying an orphan leaves every real signature intact and the seam assertion
+each carries then fails outright; a loud fixture failure is a different hazard class, and
+they are left, per the design's scope bounds, with `signing.test.ts`'s variant named here so
+the next author knows it was seen and left rather than missed. The census of positional
+reads is over this repository, not over hosts. And the row-22 investigation's own limit
+binds this increment too: the corpus could not have caught either defect, and the two pins
+are the only evidence in either direction.
+
+**What stays outside, and why.** Closing 22a, for which no candidate escapes the third horn;
+a `remove` or prune method on `SignatureStore`, per the design's first ruling; the no-edge
+containment increment's own work — the signer-result memo and the candidate narrowing —
+which is the next cluster; `signing.test.ts`'s trailing-break variant, above; and the stale
+intra-repo pointer in `packages/record/src/store/memory.ts` citing `kernel/open.ts` at two
+line numbers that have moved, named by the design so the next author does not re-derive it,
+and out of this increment's envelope. No deferral-register row was written or retired.
+
+**Cuts.** None. This increment made two readers obey a contract that already bound them and
+stated one obligation that contract had left unstated; it cut no capability.
+
+**Gate outputs, as measured against this increment's own exit commit**:
+`./node_modules/.bin/vitest run` — 65 test files, 804 tests, zero skips;
+`./node_modules/.bin/tsc --noEmit -p packages/record` and
+`./node_modules/.bin/tsc --noEmit -p packages/store-postgres` — both clean;
+`./node_modules/.bin/biome check --error-on-warnings .` — 132 files checked, zero errors or
+warnings; `node scripts/contract-scan.mjs` — exit 0, no output;
+`node scripts/api-reference-sync.mjs` — exit 0; `node scripts/docs-index-sync.mjs` — exit 0.
+`docs/process/deferral-register.md` loses no row and gains none: row 22's third-reader
+sentence closed, its scope and trigger byte-identical. `git diff 53ec4f6 --stat --
+packages/record/test/byte-stability.test.ts` — no output; `git diff 53ec4f6 --name-only --
+'packages/*/src/*'` — exactly `packages/record/src/probes/probes.ts` and
+`packages/record/src/signing/store.ts`; `signingSetup` hash unchanged.

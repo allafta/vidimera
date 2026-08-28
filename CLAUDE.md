@@ -28,7 +28,7 @@ release-readiness reconciliation pass over the publish-facing docset. The worksp
 packages: `@vidimera/record` and `@vidimera/store-postgres` (the server-SQL third
 reference backing, tested against a real embedded Postgres the suite starts per run).
 Measured against the current
-tree: `pnpm test` — 64 test files, 802 tests, zero skips; `packages/record/src/refusal-codes.ts`
+tree: `pnpm test` — 65 test files, 804 tests, zero skips; `packages/record/src/refusal-codes.ts`
 carries 24 refusal codes; zero GOVERNED construction guards remain in `config.ts` — every
 field the feature-guard era installed has lifted behind real behavior at its own seam
 (`governedUnavailable` survives only for four generic unknown-option-key throw sites, in

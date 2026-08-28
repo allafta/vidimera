@@ -505,6 +505,14 @@ What you get, with its limits in the same breath:
   signed chain's bytes differ from an unsigned profile's only through the declaring
   profile's own genesis `profileDigest` (and its hash-chain derivations) — so enabling AL2
   does not fork your record format.
+- Your sidecar **will accumulate entries for transitions that never landed** — the library
+  signs before it appends, so a lost compare-and-swap or a crash leaves an entry behind, and
+  a seam that refuses against a record admitting no append target leaves one on every such
+  call. They are inert to verification, because correlation runs chain-to-sidecar and never
+  the reverse, and they are safe to prune whenever no chain transition references them —
+  but the library does no pruning and cannot tell you which entries are dead, so a durable
+  backing that must stay bounded has to reconcile against the chain itself. Stated, not
+  enforced: nothing here reads your implementation.
 
 The signing tier is root-reachable: `SigningConfig`, `Signer`, `Verifier`,
 `SignatureStore`, `SignatureEntry`, the reference `MemorySignatureStore`, and the

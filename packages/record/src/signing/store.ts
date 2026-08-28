@@ -24,7 +24,19 @@ export interface SignatureEntry {
 /** The detached-signature sidecar. Deliberately NOT part of the frozen Store
  * contract: signatures are an additive evidence layer beside the chain, stored and
  * injected separately (SPEC §14's "detached"). Same provisional-signature discipline
- * as the Store: behaviors stable, method shapes pre-1.0. */
+ * as the Store: behaviors stable, method shapes pre-1.0.
+ *
+ * AN IMPLEMENTER MUST TOLERATE ORPHANS. Entries whose `transitionDigest` names no
+ * transition in the record's chain are a normal, expected state, not corruption: the
+ * signing decorator signs BEFORE delegating the append, so a lost CAS or a crash leaves
+ * the entry behind, and a seam that refuses against a record admitting no append target
+ * leaves one on every call. They are safe to prune whenever no chain transition
+ * references them — verification is chain-driven, so an entry with no chain counterpart
+ * is never read for a verdict. The library performs no pruning and has no way to: it
+ * cannot tell this surface which entries are dead. A backing that must not grow without
+ * bound therefore has to reconcile against the chain itself. (`MemorySignatureStore` ships a
+ * `delete`, but that method is documented there as explicitly NOT part of this contract — a
+ * test and host convenience, never something the library calls.) */
 export interface SignatureStore {
   /** At most one entry per transitionDigest — put upserts; a sidecar returning
    * multiple entries for one digest is out of contract (the report's correlation

@@ -463,8 +463,12 @@ of this surface.
 type Signer   = (bytes: Uint8Array) => Promise<{ keyRef: string; signature: string }>;
 type Verifier = (bytes: Uint8Array, signature: string) => Promise<boolean>;
 interface SignatureStore {
-  put(entry: SignatureEntry): Promise<void>;             // upsert by transitionDigest
+  put(entry: SignatureEntry): Promise<void>;             // upsert by transitionDigest: at most one
+                                                         // entry per digest, never two
   listByRecord(recordId: string): Promise<SignatureEntry[]>;
+                                                         // chain order NOT guaranteed — the caller
+                                                         // correlates by transitionDigest
+                                                         // (chain-driven, never sidecar-driven)
 }
 interface SignatureEntry {
   transitionDigest: Digest; recordId: string; seq: number; keyRef: string; signature: string;
@@ -476,6 +480,17 @@ interface SignatureReport {                              // verifySignatures()'s
                  keyRef?: string; verified: boolean }[];
 }
 ```
+
+**An implementer must tolerate orphans.** A conforming `SignatureStore` will hold entries
+whose `transitionDigest` names no transition in the record's chain. That is a normal state,
+not corruption: the library signs *before* it appends, so a lost compare-and-swap or a crash
+leaves the entry behind, and a seam that refuses against a record admitting no append
+target leaves one on every such call. They are inert to verification — every reader
+correlates from the chain to the sidecar, never the reverse, so an orphan is never read for
+a verdict — and they are safe to prune whenever no chain transition references them. The
+library performs no pruning and cannot tell your store which entries are dead, so a backing
+that must not grow without bound has to reconcile against the chain itself. This is stated
+as an obligation, not enforced: nothing in the library reads your implementation.
 
 All of these names — plus `withSigning` (the store decorator) and the reference
 `MemorySignatureStore` — are exported from the entry point: the 2026-08-19 review moved
