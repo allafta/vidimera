@@ -2787,7 +2787,8 @@ attacking `finalize()` reached the state guard instead of the signature gate, an
 a **FAIL against a sound build** — the one verdict that tier exists never to produce. The
 corpus's shared `breakOneSignature` helper used the same positional idiom; under the same
 ordering it tampered the orphan while BOTH of its own guard assertions passed, so the fixture
-proved nothing and the fourteen tests depending on it went green. Both defects were found by
+proved nothing and the eleven tests depending on it — fourteen call sites, since three tests
+break more than one record — went green. Both defects were found by
 the no-edge containment investigation
 (`docs/analysis/2026-08-24-no-edge-containment-investigation.md`) and recorded by the row-22
 truth repairs as open findings with a named home; this increment is that home.
