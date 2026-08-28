@@ -77,15 +77,16 @@ any one exit.
   `signatureLayerHolds` call sites, and a call-site census fails on the day an eighth site
   appears. Test-only: the increment's single `packages/*/src/` edit is a comment, and no
   maturity marker moved. It retires rows 20 and 21 and opens row 22 (orphan sidecar growth
-  and redundant signing on the no-edge refusal path, recorded rather than fixed — and
-  restated 2026-08-28 by the row-22 truth-repairs increment with a measured containment
-  inventory in place of the dilemma it first recorded). See the dedicated section at the
-  end of this document for the full account; the numbers immediately below already include
-  it.
-- **Measured against the current tree**: `pnpm test` — 65 test files, 804 tests, zero skips
+  on the no-edge refusal path, recorded rather than fixed — restated 2026-08-28 by the
+  row-22 truth-repairs increment with a measured containment inventory in place of the
+  dilemma it first recorded, and re-scoped 2026-08-29 by the no-edge containment increment,
+  which closed its redundant-signing half on behavior and left its orphan half open). See
+  the dedicated sections at the end of this document for the full accounts; the numbers
+  immediately below already include them.
+- **Measured against the current tree**: `pnpm test` — 66 test files, 816 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
-  `pnpm lint` (`biome check .`) — 132 files checked, zero errors or warnings;
+  `pnpm lint` (`biome check .`) — 133 files checked, zero errors or warnings;
   `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 24 refusal codes, the twenty-fourth and
@@ -95,23 +96,24 @@ any one exit.
   exercised once at the 0.1 cut); row 19 (the AL2 detached-signature sidecar pinning
   deferral, added by the byte-regression-pins increment, held open until the first
   increment that changes signature encoding or key handling, or the 0.1 cut, whichever
-  lands first); and row 22 (orphan sidecar growth and redundant signing on the no-edge
-  refusal path — each refusing seam call against a compromised record whose state admits no
-  CAS candidate mints a sidecar entry naming a transition that never lands, and performs one
-  signing operation per CAS candidate, every one of those N operations signing
-  byte-identical bytes onto ONE digest, so N round-trips buy exactly one orphan; an orphan
-  never produces a verdict, because both AL2 kernel readers correlate from the chain to the
-  sidecar, but every sidecar row IS fetched and materialized on every verification, and the
-  third, formerly sidecar-DRIVEN reader in `probes/probes.ts` correlates through the chain
-  as of the sidecar-contract increment, which closed that separate finding without touching
-  this row's scope — so a storage, observability and wasted-work finding rather than a
-  soundness one; behavior on a
-  durable `SignatureStore` backing is UNMEASURED, a coverage bound rather than a mitigation).
+  lands first); and row 22 (orphan sidecar growth on the no-edge refusal path — its
+  surviving half, 22a: each refusing seam call against a compromised record whose persisted
+  state admits no CAS candidate mints a sidecar entry naming a transition that never lands;
+  an orphan never produces a verdict, because both AL2 kernel readers correlate from the
+  chain to the sidecar, but every sidecar row IS fetched and materialized on every
+  verification, and the third, formerly sidecar-DRIVEN reader in `probes/probes.ts`
+  correlates through the chain as of the sidecar-contract increment — so a storage and
+  observability finding rather than a soundness one; behavior on a durable `SignatureStore`
+  backing is UNMEASURED, a coverage bound rather than a mitigation. Its redundant-signing
+  half, 22b — one mint per CAS candidate — CLOSED on behavior at the no-edge containment
+  increment: one mint per transition object, and one dead candidate dropped from the walk).
   Row 22 was added by the AL2 signature-enforcement coverage increment, which found it while
-  closing rows 20 and 21 and recorded it rather than fixing it, and was restated 2026-08-28
-  by the row-22 truth-repairs increment with a measured containment inventory; its trigger
-  is quoted verbatim in the "Still outstanding" row-22 bullet below rather than paraphrased
-  here.
+  closing rows 20 and 21 and recorded it rather than fixing it; was restated 2026-08-28 by
+  the row-22 truth-repairs increment with a measured containment inventory; and was
+  re-scoped 2026-08-29 to 22a, which stays open on the third horn — every measured
+  containment for it predicts the store's answer from a chain that failed verification, and
+  taking that horn needs a fresh sanction. Its re-derived trigger is quoted verbatim in the
+  "Still outstanding" row-22 bullet below rather than paraphrased here.
   **Rows 20 and 21 retired 2026-08-23** at
   that same increment, their accounts in "Still outstanding" below; both had been added by
   the signature-enforcement-coverage findings record
@@ -1184,58 +1186,61 @@ Carried in the deferral register, with triggers:
   Full account: `docs/analysis/2026-08-23-signature-enforcement-coverage.md` (Findings C
   and D), and the increment section at the end of this document. Kept here as the record;
   the register carries the numbering gap.
-- **Row 22** — orphan sidecar growth and redundant signing on the no-edge refusal path,
-  added by the AL2 signature-enforcement coverage increment, which found it while closing
-  rows 20 and 21 and recorded it rather than fixing it, and restated 2026-08-28 by the
-  row-22 truth-repairs increment. `appendChainCompromise` (`kernel/finalize.ts`) rebuilds
-  its `refused` transition on every call, stamping `at` from the clock; the signing
-  decorator signs BEFORE delegating to the store, and `MemorySignatureStore.put` is keyed by
-  `transitionDigest`, so a fresh timestamp is a new key rather than an upsert. On a record
-  whose state admits no CAS candidate the append never lands and the sidecar keeps the entry
-  anyway. TWO defects, proven independent by double dissociation — a signer-result memo
-  zeroes the signing cost and leaves accumulation byte-for-byte identical, while a
-  compensating removal zeroes accumulation and leaves the signing cost untouched. (22a)
-  Orphan accumulation: six consecutive refusing `finalize()` calls against a sealed signing
-  record took the sidecar from 5 entries to 11 under a real clock, one fresh orphan per call
-  (the readings after each being 6, 7, 8, 9, 10, 11), while the chain stayed at 5
-  throughout; under a fixed instant the same six calls left it at 6. (22b) Redundant signer
-  invocations: one per CAS candidate — three on that fixture, four on a record already
-  carrying a compromise edge — all signing byte-identical bytes onto ONE digest, so N
-  round-trips buy exactly one orphan. Reached in ordinary operation, not only under attack:
-  an ordinary key retirement — dropping a decommissioned `keyRef` from the verifier registry
-  — puts a healthy, untampered, sealed signing record into permanent minting, sidecar 6 to
-  13 over eight calls with the chain flat at 5; and on an unsealed record the first call
-  lands the edge, after which the replayed state is `refused` and every later call takes the
-  four-candidate no-edge path. Not a soundness defect, stated precisely: both AL2 kernel
-  readers walk the CHAIN and look each transition's digest up in the sidecar, so an orphan
-  never produces a verdict — but it IS visited, `layerVerdicts` materializing every sidecar
-  row on every verification (twenty refusing calls fetched 5 to 24 rows, 290 cumulative
-  against 100 for a non-accumulating sidecar). Containment inventory, replacing the dilemma
-  this row first recorded, which is withdrawn as exhaustive rather than as wrong: a
-  signer-result memo keyed by transition OBJECT identity closes 22b and sits on neither horn
-  (applied to the real tree, record project green — a null result in this area, not a
-  safety claim); a chain-local admissibility precheck would zero 22a but sits on a THIRD
-  horn the dilemma never named — it predicts C3 and C4 from a chain that failed
+- **Row 22** — orphan sidecar growth on the no-edge refusal path: the surviving half, 22a,
+  of a row added by the AL2 signature-enforcement coverage increment (which found it while
+  closing rows 20 and 21 and recorded it rather than fixing it), restated 2026-08-28 by the
+  row-22 truth-repairs increment, and re-scoped 2026-08-29 by the no-edge containment
+  increment. `appendChainCompromise` (`kernel/finalize.ts`) rebuilds its `refused`
+  transition on every call, stamping `at` from the clock; the signing decorator signs BEFORE
+  delegating to the store, and `MemorySignatureStore.put` is keyed by `transitionDigest`, so
+  a fresh timestamp is a new key rather than an upsert. On a record whose persisted state
+  admits no CAS candidate the append never lands and the sidecar keeps the entry anyway —
+  one orphan per refusing call. The row's other half, 22b (redundant signer invocations, one
+  mint per CAS candidate over byte-identical bytes), CLOSED on behavior at the no-edge
+  containment increment: commit `3542668`'s signer-result memo keyed by transition OBJECT
+  identity mints once per transition and still writes the put before every attempt, and
+  commit `9111035` drops the one candidate C3 can never admit — three attempts rather than
+  four on a terminal-folded record. Neither touches 22a, and
+  `packages/record/test/no-edge-containment.test.ts` asserts the sidecar still grows by one
+  per refusing call after both. Measured: six consecutive refusing `finalize()` calls
+  against a sealed signing record took the sidecar from 5 entries to 11 under a real clock
+  (6, 7, 8, 9, 10, 11), chain flat at 5; under a fixed instant, 6 flat; on the tree as it
+  stands the pin holds under a ticking clock. Reached in ordinary operation, not only under
+  attack: an ordinary key retirement — dropping a decommissioned `keyRef` from the verifier
+  registry — puts a healthy, untampered, sealed signing record into permanent minting,
+  sidecar 6 to 13 over eight calls with the chain flat at 5; and on an unsealed record the
+  first call lands the edge, after which every later call takes the no-edge path. Not a
+  soundness defect, stated precisely: both AL2 kernel readers walk the CHAIN and look each
+  transition's digest up in the sidecar, so an orphan never produces a verdict — but it IS
+  visited, `layerVerdicts` materializing every sidecar row on every verification (twenty
+  refusing calls fetched 5 to 24 rows, 290 cumulative against 100 for a non-accumulating
+  sidecar). Why 22a stays open — the third horn: every measured containment for orphan
+  accumulation predicts C3 and C4 from the READ chain, which on this path failed
   verification by construction, while both are decided against the backing's own persisted
-  row — and was measured to suppress a compromise evidence edge that lands today, so it is
-  rejected; a digest-keyed de-dup was measured to weaken the ordering invariant and land
-  unsigned transitions, and compensating removal after a failed CAS was measured to strip
-  signatures from 88 of 100 concurrently-confirmed records against 0 of 400 for the shipped
-  ordering — both rejected. The hazard the ordering pin protects, stated as a hazard rather
-  than as one mechanism: any change that makes a sidecar entry's survival conditional on the
-  append's outcome. Behavior on a durable `SignatureStore` backing is UNMEASURED — a
-  coverage bound, not a mitigation, since `MemorySignatureStore` is the only implementation
-  in the tree. Full account: `docs/analysis/2026-08-24-no-edge-containment-investigation.md`;
-  the finding's original record is
-  `docs/analysis/2026-08-23-signature-enforcement-coverage.md` (Finding F).
-  Trigger (verbatim): "The first increment that changes `appendChainCompromise`'s candidate
-  walk, the signing decorator's `signOne`, or the order in which the decorator's append seams
-  sign and delegate, that adds a durable `SignatureStore` backing beyond
-  `MemorySignatureStore`, that documents, ships or takes a support obligation for a `Signer`
-  whose invocation has non-trivial cost — a remote key service, an HSM, or any network-bound
-  signer — or that lifts `private: true` and publishes the package, since a durable backing
-  arrives in an operator's own deployment where no in-repo event fires — or the 0.1 cut,
-  whichever lands first."
+  row; a chain-local admissibility precheck was measured to suppress a compromise evidence
+  edge that lands today, and the two divergence shapes are permanent must-not-change pins in
+  `no-edge-containment.test.ts` (a head-kind rewrite to `refused` folds terminal yet lands
+  through C3's carve-out; to `sealed` folds `open` yet lands because C4 reads the persisted
+  flag). Taking that horn narrows SPEC §5's admission rule and needs a fresh sanction with a
+  stated trade. Also rejected, measured: a digest-keyed de-dup (lands unsigned transitions)
+  and compensating removal after a failed CAS (stripped signatures from 88 of 100
+  concurrently-confirmed records against 0 of 400 for the shipped ordering). The hazard the
+  ordering pin protects, stated as a hazard rather than as one mechanism: any change that
+  makes a sidecar entry's survival conditional on the append's outcome. What stands
+  meanwhile is delegation, not prevention — the `SignatureStore` contract states that a
+  conforming sidecar holds orphans and that a bounded backing reconciles against the chain
+  (the sidecar-contract increment). Behavior on a durable `SignatureStore` backing is
+  UNMEASURED — a coverage bound, not a mitigation, since `MemorySignatureStore` is the only
+  implementation in the tree. Full account:
+  `docs/analysis/2026-08-24-no-edge-containment-investigation.md`; the finding's original
+  record is `docs/analysis/2026-08-23-signature-enforcement-coverage.md` (Finding F).
+  Trigger, re-derived for 22a (verbatim): "The first increment that adds a durable
+  `SignatureStore` backing beyond `MemorySignatureStore` — the only implementation in the
+  tree, and the reason unbounded growth is unmeasured here; or that lifts `private: true`
+  and publishes the package, since a host's durable backing arrives through the documented
+  `signatures:` hook in the operator's own deployment, where no in-repo event fires; or that
+  seeks a sanction through `docs/concept/SCOPING-GUIDE.md` §§1–2 to decide C3 and C4 from
+  the read chain, the third horn; or the 0.1 cut — whichever lands first."
 
 Rows 17 and 18 both retired at the self-test-tier increment — step 8's own fourth and
 last tail item landed (see the CONTROLS §4 row and the boundary above for the full
@@ -1246,12 +1251,13 @@ tooling) is a hygiene gate that outlives the build order by design, held open un
 release workflow it authored is exercised once at the 0.1 cut; row 19 (the AL2
 detached-signature sidecar pinning deferral) is a scope gate opened by a later,
 post-build-order increment, held open until a signature-encoding or key-handling change
-lands, or the 0.1 cut, whichever comes first; and row 22 (orphan sidecar growth and
-redundant signing on the no-edge refusal path, restated 2026-08-28) is a containment gate
-opened by the AL2 signature-enforcement coverage increment, held open until a change to the
-compromise-append candidate walk, to the decorator's `signOne` or to its sign-then-delegate
-order, or a durable sidecar backing, or a cost-bearing `Signer` documented or supported, or
-publication of the package, or the 0.1 cut, whichever comes first. Rows 20 and 21 — the two
+lands, or the 0.1 cut, whichever comes first; and row 22 (orphan sidecar growth on the
+no-edge refusal path, restated 2026-08-28 and re-scoped 2026-08-29 to its orphan half once
+the no-edge containment increment closed its redundant-signing half on behavior) is a
+sanction gate rather than a containment gate now — every measured containment for the orphan
+half takes a horn that needs a fresh sanction — held open until a durable sidecar backing,
+or publication of the package, or a sanction sought for deciding C3 and C4 from the read
+chain, or the 0.1 cut, whichever comes first. Rows 20 and 21 — the two
 coverage gates a documentation-only findings record opened over this same surface — retired
 at that increment, their accounts kept above.
 
@@ -2931,3 +2937,213 @@ sentence closed, its scope and trigger byte-identical. `git diff 53ec4f6 --stat 
 packages/record/test/byte-stability.test.ts` — no output; `git diff 53ec4f6 --name-only --
 'packages/*/src/*'` — exactly `packages/record/src/probes/probes.ts` and
 `packages/record/src/signing/store.ts`; `signingSetup` hash unchanged.
+
+## Post-build-order increment — No-edge containment
+
+**The eleventh post-build-order increment, exited (commits `c607989`..`3542668`, closed by
+the record commit that follows them).** The ordinal counts the sections above in order and,
+as the last three did, does NOT count the documentation-only signature-enforcement-coverage
+findings note. **This increment landed behavior — the first in this three-increment
+sequence to do so — and moved no maturity marker.** No `docs/concept/` file changed, no
+sanction was sought and none was needed: the narrowing drops only a candidate C3 can never
+admit, so every seam outcome (refusal code, class, `transitionRef` presence) is byte-identical
+on every shape, and the memo changes how many times a signer is asked, never what is written
+or when. Exactly four `packages/*/src/` files changed, proved by `git diff d6a5f1f --name-only
+-- 'packages/*/src/*'`: `kernel/finalize.ts` and `signing/decorate.ts` (the two permitted
+behavior changes) and `refusal-codes.ts` and `outcome.ts` (comment only, the fallback-walk
+descriptions). It is the third and last of the sequence authored 2026-08-24; its plan checked
+that both predecessors had landed — the register's `CONTAINMENT INVENTORY` and the contract's
+`AN IMPLEMENTER MUST TOLERATE ORPHANS` — before starting. Design:
+`docs/superpowers/specs/2026-08-24-no-edge-containment-design.md`; plan:
+`docs/superpowers/plans/2026-08-24-no-edge-containment.md`.
+
+**Re-scoped before implementation, and why — the increment's most durable output.** The
+design as first drafted proposed a chain-local admissibility precheck: return before building
+anything whenever the read chain looked terminal or carried a `sealed` transition. It would
+have zeroed BOTH of row 22's costs, and it passed the whole record project. It was then
+measured to SUPPRESS a compromise evidence edge that lands today, because C3 and C4 are decided
+by the backing against its own persisted row while the precheck read the chain — a chain that
+reached `appendChainCompromise` precisely because it failed verification — and on the SQL
+backing those are different tables (`readChain` reads the transitions table; the gates read the
+records row). The design was re-scoped around that finding: the precheck is named in the
+plan's constraints as the thing not to rebuild, and the divergence fixture that exposed it was
+built FIRST, under a binding STOP, before any behavior change shipped. Both shapes are now
+permanent pins marked must-not-change.
+
+**The gap this closed.** Row 22's redundant-signing half, 22b: on a refusing seam call
+against a record admitting no CAS candidate, the signing decorator — which signs BEFORE
+delegating — minted one signature per candidate the walk tried (three on a sealed record,
+four on an already-refused one), every mint over byte-identical bytes upserting one sidecar
+key. The row's trigger named "the first increment that changes `appendChainCompromise`'s
+candidate walk, the signing decorator's `signOne`, or the order in which the decorator's
+append seams sign and delegate"; this increment did the first two — the walk in `9111035`,
+`signOne` in `3542668` — and left the order untouched. **That discharges the trigger for 22b
+only.** 22a's containment did not land, and its trigger was re-derived rather than inherited.
+
+**What landed.** Four commits, the first one test-only:
+
+- `packages/record/test/no-edge-containment.test.ts` (`c607989`, then extended) — the counting
+  rig (`countingSigningSetup`: an Ed25519 signer that counts its invocations, a put-counting
+  sidecar wrapper that also records each completed put as an event, an event-recording store
+  wrapper, an injectable store and clock, a deterministic record-id mint, a put-swallow
+  toggle); the BASELINES the fix inverts, every figure measured on this tree; the two
+  DIVERGENCE fixtures; the NARROWING pin; the two MEMO pins; the two INVARIANT pins; the
+  digest-stability pin; and the WeakMap-observability pin. Twelve tests. One shape decision
+  beyond the plan: the rig's clock TICKS one second per read, because the compromise append
+  stamps `at` from the clock and two refusing calls in one wall-clock millisecond collapse two
+  orphans onto one key — the flake the investigation observed in roughly one run in twelve.
+  "One orphan per refusing call" is deterministic under a ticking clock and only usually true
+  under a real one.
+- `packages/record/src/kernel/finalize.ts` (`9111035`) — `NO_EDGE_STATE`, the five terminal
+  states out of which no `refused` edge can leave (`refused`, `expired`, `declined`,
+  `redeemed`, `redemption-failed`), written `as const satisfies Record<RecordState, boolean>`
+  so a new `RecordState` member fails the BUILD rather than being classified silently; the set
+  is DERIVED from SPEC §2's terminality plus C3's general bar, not quoted from a sealed list —
+  §5, §8 and §12's C3 each enumerate a different subset and none names `redeemed` or
+  `redemption-failed`. When the folded state is one of the five, the same-state candidate is
+  dropped before the walk; the narrowing sits INSIDE the `try`, so when `replay` throws there
+  is no folded state and the fallback walk is byte-for-byte what it was. The correctness
+  argument is written at the site: the dropped candidate could only match a record whose
+  persisted state equals the folded one, and for that record C3 bars the edge; the three
+  producible targets are NOT dropped because the backing decides them against its own row.
+  `appendChainCompromise`'s doc gains the one-place enumeration of the no-edge corner;
+  `refusal-codes.ts` and `outcome.ts` gain "three candidates rather than four".
+- `packages/record/src/signing/decorate.ts` (`3542668`) — `signOne` memoizes the SIGNER's
+  in-flight promise in a `WeakMap<Transition, Promise<{ keyRef; signature }>>` keyed by
+  transition OBJECT identity, declared at `withSigning` scope beside the existing recordId
+  memo. Only the mint is shared: the put still runs on every attempt with the digest
+  recomputed each time; a rejected mint is deleted from the memo before the rethrow, so the
+  next attempt reaches the signer again and `signing.test.ts`'s throwing-signer pin stays
+  green. Two call paths hand one object to `appendTransition` more than once — the
+  compromise walk and `open()`'s C1 expire-then-retry — and both now mint once. This is the
+  change that closes 22b.
+- `packages/record/test/signing-enforce.test.ts` — the previously unannotated cardinality
+  assertion in the file's first test now carries the sibling comment, stating the hazard as
+  it is AFTER this increment: a second refusing call still mints another sidecar entry,
+  because 22a is not closed.
+- `docs/process/deferral-register.md` — row 22 re-scoped, not retired: 22b's body and its
+  memo inventory entry removed and replaced by a closure naming both commits; 22a's body, its
+  measurements, the third horn, the rejected families, the third-reader closure and the
+  UNMEASURED clause kept; the write-time row-number derivation carried verbatim with one
+  appended re-scope clause; and a FRESH trigger for 22a — a durable `SignatureStore` backing,
+  publication, a sanction sought for the third horn, or the 0.1 cut. Also corrected in
+  passing: the row said Finding F's reconciliation note was dated 2026-08-28; the note landed
+  dated 2026-08-29.
+- `docs/process/next-phases.md`, `docs/process/release-checklist.md`, this document's
+  increment bullet, live-rows clause, "Still outstanding" bullet and boundary paraphrase, and
+  `CLAUDE.md`'s live-rows sentence — every present-tense description of the row moved to the
+  re-scoped shape, the four living copies of the new trigger proved identical by
+  whitespace-collapsed comparison and the old trigger proved absent from all four. The
+  present-tense counts moved to 66 files / 816 tests and 133 Biome files; every figure under
+  an earlier `Gate outputs` heading stayed byte-identical.
+
+**Both firing counts, with their nonzero controls, and why they are in the record.** The
+corpus asserted no signer count and pinned orphan minting in neither direction before this
+increment, so the suite could not have noticed either change had it been wrong — the
+rejected compensating removal passed the whole record project with its new branch counted at
+zero firings. Each behavior change therefore carried a temporary `process.stderr.write`
+probe, counted across the record project with the suite green under it, then removed: the
+narrowing arm fired **10** times (62 files / 745 tests at that run); the memo-hit path fired
+**37** times (62 files / 751 tests). Nothing of either probe ships. One mishap is recorded
+because it produced a misleading zero: the first attempt to inject the narrowing probe by
+`sed` mangled a newline escape, split the string literal, and failed the whole suite to
+compile — 49 files failed and the probe counted 0. That zero was a syntax error, not a
+non-firing branch; re-inserted correctly, the count was 10.
+
+**What the divergence fixture found.** Both shapes were constructible: a record persisted
+terminal `confirmed`, read through a `TamperingStore` whose length-preserving head-kind
+rewrite is armed only after the record is built — `verifyChain` still reports intact, since
+nothing chains over a head, and only the signature layer sees the rewritten head's missing
+entry. Head kind `confirmed→refused`: replay folds `refused`, yet `confirmed` passes its CAS
+and C3's carve-out admits the edge, WITH a `transitionRef`, into the REAL chain. Head kind
+`confirmed→sealed` with a fabricated `chainHead` payload: replay folds `open`/`retired`, so a
+terminal-state rule would not even fire, yet C4 reads the persisted unsealed row and the edge
+lands. The binding STOP was therefore in force from Task 1: nothing in this increment
+predicts the store's answer from the chain. One fixture bug found while writing them, fixed
+before commit: the persisted-state assertion first read through `getRecord`, i.e. through
+the tampering store, where the freshly landed head is itself rewritten and folds back to
+`confirmed`; it now replays the inner store's chain.
+
+**What is NOT closed, and why.** 22a — one orphan sidecar entry per refusing call — stays
+open, and the pins in this increment assert the sidecar STILL grows by one per call after
+both changes, deliberately. Every measured containment for it takes the third horn:
+predicting C3's and C4's answers from a chain that failed verification by construction,
+which the divergence fixture shows suppresses an evidence edge that lands today. Taking that
+horn narrows SPEC §5's admission rule against a `[PROVEN]` section — a code/spec divergence
+this repository classes as a finding — and needs a fresh sanction through
+`docs/concept/SCOPING-GUIDE.md` §§1–2 with its trade stated plainly: a lost compromise
+evidence edge under a real tamper, in exchange for bounded sidecar growth. What stands
+meanwhile is the sidecar-contract increment's delegation. Row 22's re-derived trigger names
+the events that would make 22a's cost material or its containment sanctionable.
+
+**The rejected families, with their measurements, so nobody rediscovers them.** The
+chain-local admissibility precheck (above). A digest-keyed de-dup — memoize on
+`transitionDigest` rather than object identity — weakens the pinned invariant from "this
+append is preceded by its OWN completed sidecar write" to "some earlier signing for this
+digest happened": the eager variant let an append reach the store with zero completed puts,
+and the awaited variant landed an UNSIGNED transition across seam calls whenever the entry
+was absent at the second append. Compensating removal — sign, put, append, remove on
+`appended: false` — obeys the sign-before-append token order and destroys the property it
+protects: 100 trials of two concurrent same-record `finalize()` calls drove 88 legitimately
+confirmed, hash-intact records to lose their signature sets (94 of 100 in an independent
+reproduction), against 0 of 400 for the shipped ordering; unrepairable, because the sidecar is
+content-addressed and the scheme deterministic, so racing writers write byte-identical entries
+under one key. Both are pinned against by this increment's INVARIANT tests: the put always
+runs, and no append is observed before that transition's put completed. All figures from the
+investigation record's prototype arms, which no longer exist.
+
+**The digest-stability assumption, and how it was pinned.** The memo pairs a signature
+minted over the object's bytes at first-mint time with a `transitionDigest` recomputed at
+every put; that is sound only while the object is not mutated between attempts, and nothing
+in the type system enforces it. The shape is NOT constructible through the public seams —
+every seam builds its transition once and hands that one object to the store unchanged — so
+the pin drives the exported `withSigning` factory directly over the rig's own backing and
+sidecar, mutates a transition object between a losing and a landing append, and shows the
+mismatch CAUGHT: the landed transition's entry exists under the recomputed digest, and
+`verifySignatures` reports it `verified: false`, fail-closed. The assumption is stated at the
+memo and in the test, not left implicit.
+
+**Deviations from the plan as written, stated rather than smoothed over.** Two. (1) The
+plan's rig used the real clock via `create()`; the rig uses `createWithClock` over a ticking
+clock, for the same-millisecond reason above. (2) The plan asked for a firing-count probe per
+change; both were taken, but the first injection attempt was botched (above) and is recorded
+rather than omitted. Nothing changed in what landed.
+
+**The honest limit.** Only the redundant-signing half is closed, and only for the two
+repeat-object paths that exist today; a future path that rebuilt its transition per attempt
+would mint per attempt again, and nothing but this file's pins would notice. The narrowing's
+own saving is small once the memo is in — one CAS attempt and one put per refusing call on a
+terminal-folded record, not a signer round-trip — and it is kept because it is free and
+provably outcome-preserving, not because it is the point. Behavior on a durable
+`SignatureStore` backing stays UNMEASURED and unmeasurable in this tree. No latency figure
+exists anywhere; the signing cost is an invocation count. Every concurrency measurement
+behind the rejected families was in-process, on prototype arms that are gone. The enlisted
+redemption seams gain nothing here: their `tx !== undefined` guard returns before
+`appendChainCompromise`, so all three token seams already cost zero signer invocations under
+enlistment. And a green suite remains a null result in this area — the two firing counts are
+the only evidence the suite itself could not give.
+
+**What stays outside, and why.** The cost-zeroing precheck, which needs a sanction and a
+stated trade; 22a's containment, which has no candidate off the third horn; and the stale
+intra-repo pointer in `packages/record/src/store/memory.ts` citing `kernel/open.ts` at two
+line numbers that have moved, named by both designs in this sequence and out of every
+envelope. No deferral-register row was written or retired; row 22 was re-scoped in place.
+
+**Cuts.** None. This increment removed one wasted mint per attempt and one dead CAS attempt
+per call; it cut no capability.
+
+**Gate outputs, as measured against this increment's own exit commit**:
+`./node_modules/.bin/vitest run` — 66 test files, 816 tests, zero skips (record project
+62 / 751; store-postgres 4 / 65);
+`./node_modules/.bin/tsc --noEmit -p packages/record` and
+`./node_modules/.bin/tsc --noEmit -p packages/store-postgres` — both clean;
+`./node_modules/.bin/biome check --error-on-warnings .` — 133 files checked, zero errors or
+warnings; `node scripts/contract-scan.mjs` — exit 0, no output;
+`node scripts/api-reference-sync.mjs` — exit 0; `node scripts/docs-index-sync.mjs` — exit 0.
+`docs/process/deferral-register.md` loses no row and gains none: row 22 re-scoped to 22a in
+place, its trigger re-derived. `git diff d6a5f1f --stat --
+packages/record/test/byte-stability.test.ts` — no output; `git diff d6a5f1f --name-only --
+'packages/*/src/*'` — exactly `packages/record/src/kernel/finalize.ts`,
+`packages/record/src/outcome.ts`, `packages/record/src/refusal-codes.ts` and
+`packages/record/src/signing/decorate.ts`; `packages/record/test/redeem-token.test.ts`
+untouched.

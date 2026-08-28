@@ -124,35 +124,38 @@ as a list rather than as code.
       forward rather than leave it unaddressed; if retired, give it the same
       retirement-note/roadmap-update treatment as row 1.
 - [ ] Decide register row 22's disposition (`docs/process/deferral-register.md`, orphan
-      sidecar growth and redundant signing on the no-edge refusal path — TWO defects, proven
-      independent: (22a) each refusing seam call against a record whose state admits no CAS
-      candidate mints one orphan sidecar entry naming a transition that never lands, and
-      (22b) each such call performs one signing operation per CAS candidate, every one of
-      them signing byte-identical bytes onto ONE digest, so N round-trips buy exactly one
-      orphan. An orphan never produces a verdict, because both AL2 kernel readers correlate
-      from the chain to the sidecar — but every sidecar row IS fetched on every
-      verification, so this is a storage, observability and wasted-work finding, not a
-      soundness one). The containment is identified and measured, not open-ended: a
-      signer-result memo keyed by transition object identity closes 22b, while 22a stays
-      open on a third horn no candidate escapes; the memo is scheduled to land BEFORE this
-      cut at its own increment, the no-edge containment increment, which re-scopes the row
-      to 22a rather than retiring it
+      sidecar growth on the no-edge refusal path — the row's surviving half, 22a: each
+      refusing seam call against a record whose persisted state admits no CAS candidate
+      mints one orphan sidecar entry naming a transition that never lands. An orphan never
+      produces a verdict, because both AL2 kernel readers correlate from the chain to the
+      sidecar — but every sidecar row IS fetched on every verification, so this is a
+      storage and observability finding, not a soundness one. The redundant-signing half,
+      22b, CLOSED on behavior at the no-edge containment increment, 2026-08-29: one mint per
+      transition instead of one per CAS candidate, and one dead candidate dropped from the
+      walk — so no wasted-signing cost remains to weigh). What remains open cannot be closed
+      by a fix in this repository as it stands: every measured containment for 22a predicts
+      the store's C3 and C4 answer from a chain that failed verification, a chain-local
+      precheck was measured to suppress a compromise evidence edge that lands today, and the
+      two divergence shapes are permanent must-not-change pins
+      (`packages/record/test/no-edge-containment.test.ts`). Closing 22a therefore means
+      seeking a sanction for that trade, or accepting the delegation already stated in the
+      `SignatureStore` contract — a conforming sidecar holds orphans and a bounded backing
+      reconciles against the chain
       (`docs/analysis/2026-08-24-no-edge-containment-investigation.md`). Its own trigger
-      (verbatim) — "The first increment that changes `appendChainCompromise`'s candidate
-      walk, the signing decorator's `signOne`, or the order in which the decorator's append
-      seams sign and delegate, that adds a durable `SignatureStore` backing beyond
-      `MemorySignatureStore`, that documents, ships or takes a support obligation for a
-      `Signer` whose invocation has non-trivial cost — a remote key service, an HSM, or any
-      network-bound signer — or that lifts `private: true` and publishes the package, since
-      a durable backing arrives in an operator's own deployment where no in-repo event fires
-      — or the 0.1 cut, whichever lands first." — names this cut too, so release day must
-      retire it or explicitly carry it forward rather than leave it unaddressed; if retired,
-      give it the same retirement-note/roadmap-update treatment as row 1. Note before
-      ruling: behavior on a durable `SignatureStore` backing is a coverage bound, NOT a
-      mitigation — it is unmeasurable in this tree, because `MemorySignatureStore` is the
-      only implementation — so its absence from the evidence must not be read as the finding
-      being contained. If the no-edge containment increment has already landed, 22b is
-      discharged there and the row stands re-scoped to 22a; this item then decides 22a on
-      the same terms.
+      (verbatim) — "The first increment that adds a durable `SignatureStore` backing beyond
+      `MemorySignatureStore` — the only implementation in the tree, and the reason unbounded
+      growth is unmeasured here; or that lifts `private: true` and publishes the package,
+      since a host's durable backing arrives through the documented `signatures:` hook in the
+      operator's own deployment, where no in-repo event fires; or that seeks a sanction
+      through `docs/concept/SCOPING-GUIDE.md` §§1–2 to decide C3 and C4 from the read chain,
+      the third horn; or the 0.1 cut — whichever lands first." — names this cut too, so
+      release day must retire it or explicitly carry it forward rather than leave it
+      unaddressed; if retired, give it the same retirement-note/roadmap-update treatment as
+      row 1. Note before ruling: behavior on a durable `SignatureStore` backing is a coverage
+      bound, NOT a mitigation — it is unmeasurable in this tree, because
+      `MemorySignatureStore` is the only implementation — so its absence from the evidence
+      must not be read as the finding being contained; and "carry forward" is the expected
+      ruling unless a sanction for the third horn has been sought and granted, since the
+      alternative containments were measured and rejected rather than left untried.
 - [ ] Update `docs/process/implementation-status.md`'s measured block (versions,
       published state) — dated, as always.

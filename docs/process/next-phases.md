@@ -35,35 +35,43 @@ triggers names the 0.1 cut too, so both belong beside row 1 here rather than onl
 build-order account. Row 19, the AL2 detached-signature sidecar pinning deferral, was
 opened by the byte-regression-pins increment; its trigger (verbatim): "The first increment
 that changes signature encoding or key handling, or the 0.1 cut — whichever lands first".
-Row 22, orphan sidecar growth and redundant signing on the no-edge refusal path, was
-opened by the AL2 signature-enforcement coverage increment, which found it while closing
-rows 20 and 21 and recorded it rather than fixing it
+Row 22, orphan sidecar growth on the no-edge refusal path, was opened by the AL2
+signature-enforcement coverage increment, which found it while closing rows 20 and 21 and
+recorded it rather than fixing it
 (`docs/analysis/2026-08-23-signature-enforcement-coverage.md`, Finding F). That was the
-right act — one cluster per increment — but the reason the row first gave has been
-withdrawn as an exhaustive disjunction. A later investigation
+right act — one cluster per increment — but the reason the row first gave was withdrawn as
+an exhaustive disjunction by the row-22 truth repairs (2026-08-28), after an investigation
 (`docs/analysis/2026-08-24-no-edge-containment-investigation.md`) found one containment
 that sits on neither horn and closes the redundant-signing half, and found that the only
 measured containment for the orphan half sits on a THIRD horn the sentence never named:
 it predicts the store's C3 and C4 answer from a chain that failed verification by
-construction. The row now carries a containment inventory instead of a dilemma. Two
-findings that investigation produced took no register row of their own and are now CLOSED:
-a third, sidecar-DRIVEN reader in `probes/probes.ts`, measured returning a FAIL against a
-sound build under a listing order the sidecar contract permits; and the same idiom in the
-corpus's shared break helper. The sidecar-contract increment — immediately after the row-22
-truth-repairs increment and before the containment increment — made both correlate through
-the chain and pinned the adverse ordering (`packages/record/test/sidecar-ordering.test.ts`);
-in the same change the `SignatureStore` contract and both guide documents gained the
-obligation that a conforming sidecar holds entries for transitions that never landed. That
-sentence is delegation, not a fix: row 22's orphan half stays open. Work with a named
-successor increment was sequenced, not deferred, which is why neither finding ever took a
-register row. Row 22's trigger (verbatim): "The first
-increment that changes `appendChainCompromise`'s candidate walk, the signing decorator's
-`signOne`, or the order in which the decorator's append seams sign and delegate, that adds
-a durable `SignatureStore` backing beyond `MemorySignatureStore`, that documents, ships or
-takes a support obligation for a `Signer` whose invocation has non-trivial cost — a remote
-key service, an HSM, or any network-bound signer — or that lifts `private: true` and
-publishes the package, since a durable backing arrives in an operator's own deployment
-where no in-repo event fires — or the 0.1 cut, whichever lands first."
+construction. The row then carried two halves. **It carries one now.** The no-edge
+containment increment (2026-08-29) closed the redundant-signing half, 22b, on behavior —
+the signer-result memo keyed by transition object identity (one mint per transition, the
+put still written before every attempt) and the outcome-preserving narrowing that drops the
+one candidate C3 can never admit — and re-scoped the row to its orphan half, 22a, which
+stays open on the third horn: every measured containment for it predicts the backing's
+answer from the read chain, a chain-local precheck was measured to suppress a compromise
+evidence edge that lands today, and the two divergence shapes are now permanent must-not-
+change pins in `packages/record/test/no-edge-containment.test.ts`. Taking that horn needs a
+fresh sanction and a stated trade, not a fix. Two further findings that investigation
+produced took no register row of their own and are CLOSED: a third, sidecar-DRIVEN reader in
+`probes/probes.ts`, measured returning a FAIL against a sound build under a listing order the
+sidecar contract permits; and the same idiom in the corpus's shared break helper. The
+sidecar-contract increment — between the truth repairs and the containment — made both
+correlate through the chain and pinned the adverse ordering
+(`packages/record/test/sidecar-ordering.test.ts`); in the same change the `SignatureStore`
+contract and both guide documents gained the obligation that a conforming sidecar holds
+entries for transitions that never landed. That sentence is delegation, not a fix: 22a stays
+open. Work with a named successor increment was sequenced, not deferred, which is why neither
+finding ever took a register row. Row 22's trigger, re-derived for 22a alone (verbatim):
+"The first increment that adds a durable `SignatureStore` backing beyond
+`MemorySignatureStore` — the only implementation in the tree, and the reason unbounded
+growth is unmeasured here; or that lifts `private: true` and publishes the package, since a
+host's durable backing arrives through the documented `signatures:` hook in the operator's
+own deployment, where no in-repo event fires; or that seeks a sanction through
+`docs/concept/SCOPING-GUIDE.md` §§1–2 to decide C3 and C4 from the read chain, the third
+horn; or the 0.1 cut — whichever lands first."
 
 Rows 20 and 21 retired 2026-08-23, each with its account in its own section below. Every
 other row retired 2026-08-19, likewise each with its account in its

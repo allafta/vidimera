@@ -94,6 +94,11 @@ test('finalize refuses chain-compromise on a signature-broken signing record —
   const chain = await handles.operator.readChain(recordId);
   const last = chain.at(-1);
   assert.equal(last?.kind, 'refused', 'the compromise edge appended');
+  // Sound only after exactly ONE refusing call — a second would mint another sidecar entry
+  // against a digest that never lands, because the record is now terminal `refused` and no
+  // candidate can win its CAS. That is deferral-register row 22's OPEN orphan half; the
+  // no-edge containment increment closed the redundant-signing half (one mint per call, not
+  // one per candidate) and left this one standing — `no-edge-containment.test.ts` pins both.
   const entries = await signatures.listByRecord(recordId);
   assert.equal(
     entries.length,
