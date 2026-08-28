@@ -35,15 +35,32 @@ triggers names the 0.1 cut too, so both belong beside row 1 here rather than onl
 build-order account. Row 19, the AL2 detached-signature sidecar pinning deferral, was
 opened by the byte-regression-pins increment; its trigger (verbatim): "The first increment
 that changes signature encoding or key handling, or the 0.1 cut — whichever lands first".
-Row 22, orphan sidecar growth on the no-edge refusal path, was opened by the AL2
-signature-enforcement coverage increment, which found it while closing rows 20 and 21 and
-recorded it rather than fixing it — the containment either special-cases a path five call
-sites share or reopens a deliberately pinned ordering, which is its own increment
-(`docs/analysis/2026-08-23-signature-enforcement-coverage.md`, Finding F). Row 22's trigger
-(verbatim): "The first increment that changes the signing decorator's
-sign-before-append ordering or `appendChainCompromise`'s candidate walk, or that adds a
-durable `SignatureStore` backing beyond `MemorySignatureStore` — or the 0.1 cut, whichever
-lands first."
+Row 22, orphan sidecar growth and redundant signing on the no-edge refusal path, was
+opened by the AL2 signature-enforcement coverage increment, which found it while closing
+rows 20 and 21 and recorded it rather than fixing it
+(`docs/analysis/2026-08-23-signature-enforcement-coverage.md`, Finding F). That was the
+right act — one cluster per increment — but the reason the row first gave has been
+withdrawn as an exhaustive disjunction. A later investigation
+(`docs/analysis/2026-08-24-no-edge-containment-investigation.md`) found one containment
+that sits on neither horn and closes the redundant-signing half, and found that the only
+measured containment for the orphan half sits on a THIRD horn the sentence never named:
+it predicts the store's C3 and C4 answer from a chain that failed verification by
+construction. The row now carries a containment inventory instead of a dilemma. Two
+findings that investigation produced take no register row of their own and are recorded
+here so they are not lost: a third, sidecar-DRIVEN reader in `probes/probes.ts`, measured
+returning a FAIL against a sound build under a listing order the sidecar contract permits;
+and the same idiom in the corpus's shared break helper. Both are their own small cluster,
+and it is scheduled rather than open-ended: the sidecar-contract increment closes both,
+immediately after the row-22 truth-repairs increment and before the containment increment.
+Naming that home is what keeps them out of the deferral register — work with a named
+successor increment is sequenced, not deferred. Row 22's trigger (verbatim): "The first
+increment that changes `appendChainCompromise`'s candidate walk, the signing decorator's
+`signOne`, or the order in which the decorator's append seams sign and delegate, that adds
+a durable `SignatureStore` backing beyond `MemorySignatureStore`, that documents, ships or
+takes a support obligation for a `Signer` whose invocation has non-trivial cost — a remote
+key service, an HSM, or any network-bound signer — or that lifts `private: true` and
+publishes the package, since a durable backing arrives in an operator's own deployment
+where no in-repo event fires — or the 0.1 cut, whichever lands first."
 
 Rows 20 and 21 retired 2026-08-23, each with its account in its own section below. Every
 other row retired 2026-08-19, likewise each with its account in its

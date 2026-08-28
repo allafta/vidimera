@@ -77,7 +77,9 @@ any one exit.
   `signatureLayerHolds` call sites, and a call-site census fails on the day an eighth site
   appears. Test-only: the increment's single `packages/*/src/` edit is a comment, and no
   maturity marker moved. It retires rows 20 and 21 and opens row 22 (orphan sidecar growth
-  on the no-edge refusal path, recorded rather than fixed). See the dedicated section at the
+  and redundant signing on the no-edge refusal path, recorded rather than fixed — and
+  restated 2026-08-28 by the row-22 truth-repairs increment with a measured containment
+  inventory in place of the dilemma it first recorded). See the dedicated section at the
   end of this document for the full account; the numbers immediately below already include
   it.
 - **Measured against the current tree**: `pnpm test` — 64 test files, 802 tests, zero skips
@@ -93,15 +95,21 @@ any one exit.
   exercised once at the 0.1 cut); row 19 (the AL2 detached-signature sidecar pinning
   deferral, added by the byte-regression-pins increment, held open until the first
   increment that changes signature encoding or key handling, or the 0.1 cut, whichever
-  lands first); and row 22 (orphan sidecar growth on the no-edge refusal path — each
-  refusing seam call against a compromised record whose state admits no CAS candidate mints
-  a sidecar entry naming a transition that never lands, and performs one signing operation
-  per CAS candidate; inert to both AL2 consumers, which correlate from the chain to the
-  sidecar and never the reverse, so a storage, observability and wasted-work finding rather
-  than a soundness one; behavior on a durable `SignatureStore` backing is UNMEASURED). Row
-  22 was added by the AL2 signature-enforcement coverage increment, which found it while
-  closing rows 20 and 21 and recorded it rather than fixing it; its trigger is quoted
-  verbatim in the "Still outstanding" row-22 bullet below rather than paraphrased here.
+  lands first); and row 22 (orphan sidecar growth and redundant signing on the no-edge
+  refusal path — each refusing seam call against a compromised record whose state admits no
+  CAS candidate mints a sidecar entry naming a transition that never lands, and performs one
+  signing operation per CAS candidate, every one of those N operations signing
+  byte-identical bytes onto ONE digest, so N round-trips buy exactly one orphan; an orphan
+  never produces a verdict, because both AL2 kernel readers correlate from the chain to the
+  sidecar, but every sidecar row IS fetched and materialized on every verification, and a
+  third, sidecar-DRIVEN reader exists in `probes/probes.ts` as a separate finding — so a
+  storage, observability and wasted-work finding rather than a soundness one; behavior on a
+  durable `SignatureStore` backing is UNMEASURED, a coverage bound rather than a mitigation).
+  Row 22 was added by the AL2 signature-enforcement coverage increment, which found it while
+  closing rows 20 and 21 and recorded it rather than fixing it, and was restated 2026-08-28
+  by the row-22 truth-repairs increment with a measured containment inventory; its trigger
+  is quoted verbatim in the "Still outstanding" row-22 bullet below rather than paraphrased
+  here.
   **Rows 20 and 21 retired 2026-08-23** at
   that same increment, their accounts in "Still outstanding" below; both had been added by
   the signature-enforcement-coverage findings record
@@ -1174,26 +1182,58 @@ Carried in the deferral register, with triggers:
   Full account: `docs/analysis/2026-08-23-signature-enforcement-coverage.md` (Findings C
   and D), and the increment section at the end of this document. Kept here as the record;
   the register carries the numbering gap.
-- **Row 22** — orphan sidecar growth on the no-edge refusal path, added by the AL2
-  signature-enforcement coverage increment, which found it while closing rows 20 and 21 and
-  recorded it rather than fixing it. `appendChainCompromise` (`kernel/finalize.ts`) rebuilds
+- **Row 22** — orphan sidecar growth and redundant signing on the no-edge refusal path,
+  added by the AL2 signature-enforcement coverage increment, which found it while closing
+  rows 20 and 21 and recorded it rather than fixing it, and restated 2026-08-28 by the
+  row-22 truth-repairs increment. `appendChainCompromise` (`kernel/finalize.ts`) rebuilds
   its `refused` transition on every call, stamping `at` from the clock; the signing
   decorator signs BEFORE delegating to the store, and `MemorySignatureStore.put` is keyed by
   `transitionDigest`, so a fresh timestamp is a new key rather than an upsert. On a record
   whose state admits no CAS candidate the append never lands and the sidecar keeps the entry
-  anyway — measured at six consecutive refusing `finalize()` calls against a sealed signing
-  record, which took the sidecar from 5 entries to 11 under a real clock, one fresh orphan
-  per call (the readings after each being 6, 7, 8, 9, 10, 11), while the chain stayed at 5
-  throughout; under a fixed instant the same six calls left it at 6, every call after the
-  first re-signing byte-identical bytes onto one key. Not a soundness defect: both AL2
-  consumers walk the CHAIN and look each transition's digest up in the sidecar, never the
-  reverse, so an orphan is never visited and cannot make the layer report a false verdict.
-  Behavior on a durable `SignatureStore` backing is UNMEASURED. Full account:
+  anyway. TWO defects, proven independent by double dissociation — a signer-result memo
+  zeroes the signing cost and leaves accumulation byte-for-byte identical, while a
+  compensating removal zeroes accumulation and leaves the signing cost untouched. (22a)
+  Orphan accumulation: six consecutive refusing `finalize()` calls against a sealed signing
+  record took the sidecar from 5 entries to 11 under a real clock, one fresh orphan per call
+  (the readings after each being 6, 7, 8, 9, 10, 11), while the chain stayed at 5
+  throughout; under a fixed instant the same six calls left it at 6. (22b) Redundant signer
+  invocations: one per CAS candidate — three on that fixture, four on a record already
+  carrying a compromise edge — all signing byte-identical bytes onto ONE digest, so N
+  round-trips buy exactly one orphan. Reached in ordinary operation, not only under attack:
+  an ordinary key retirement — dropping a decommissioned `keyRef` from the verifier registry
+  — puts a healthy, untampered, sealed signing record into permanent minting, sidecar 6 to
+  13 over eight calls with the chain flat at 5; and on an unsealed record the first call
+  lands the edge, after which the replayed state is `refused` and every later call takes the
+  four-candidate no-edge path. Not a soundness defect, stated precisely: both AL2 kernel
+  readers walk the CHAIN and look each transition's digest up in the sidecar, so an orphan
+  never produces a verdict — but it IS visited, `layerVerdicts` materializing every sidecar
+  row on every verification (twenty refusing calls fetched 5 to 24 rows, 290 cumulative
+  against 100 for a non-accumulating sidecar). Containment inventory, replacing the dilemma
+  this row first recorded, which is withdrawn as exhaustive rather than as wrong: a
+  signer-result memo keyed by transition OBJECT identity closes 22b and sits on neither horn
+  (applied to the real tree, record project green — a null result in this area, not a
+  safety claim); a chain-local admissibility precheck would zero 22a but sits on a THIRD
+  horn the dilemma never named — it predicts C3 and C4 from a chain that failed
+  verification by construction, while both are decided against the backing's own persisted
+  row — and was measured to suppress a compromise evidence edge that lands today, so it is
+  rejected; a digest-keyed de-dup was measured to weaken the ordering invariant and land
+  unsigned transitions, and compensating removal after a failed CAS was measured to strip
+  signatures from 88 of 100 concurrently-confirmed records against 0 of 400 for the shipped
+  ordering — both rejected. The hazard the ordering pin protects, stated as a hazard rather
+  than as one mechanism: any change that makes a sidecar entry's survival conditional on the
+  append's outcome. Behavior on a durable `SignatureStore` backing is UNMEASURED — a
+  coverage bound, not a mitigation, since `MemorySignatureStore` is the only implementation
+  in the tree. Full account: `docs/analysis/2026-08-24-no-edge-containment-investigation.md`;
+  the finding's original record is
   `docs/analysis/2026-08-23-signature-enforcement-coverage.md` (Finding F).
-  Trigger (verbatim): "The first increment that changes the signing decorator's
-  sign-before-append ordering or `appendChainCompromise`'s candidate walk, or that adds a
-  durable `SignatureStore` backing beyond `MemorySignatureStore` — or the 0.1 cut, whichever
-  lands first."
+  Trigger (verbatim): "The first increment that changes `appendChainCompromise`'s candidate
+  walk, the signing decorator's `signOne`, or the order in which the decorator's append seams
+  sign and delegate, that adds a durable `SignatureStore` backing beyond
+  `MemorySignatureStore`, that documents, ships or takes a support obligation for a `Signer`
+  whose invocation has non-trivial cost — a remote key service, an HSM, or any network-bound
+  signer — or that lifts `private: true` and publishes the package, since a durable backing
+  arrives in an operator's own deployment where no in-repo event fires — or the 0.1 cut,
+  whichever lands first."
 
 Rows 17 and 18 both retired at the self-test-tier increment — step 8's own fourth and
 last tail item landed (see the CONTROLS §4 row and the boundary above for the full
@@ -1204,12 +1244,14 @@ tooling) is a hygiene gate that outlives the build order by design, held open un
 release workflow it authored is exercised once at the 0.1 cut; row 19 (the AL2
 detached-signature sidecar pinning deferral) is a scope gate opened by a later,
 post-build-order increment, held open until a signature-encoding or key-handling change
-lands, or the 0.1 cut, whichever comes first; and row 22 (orphan sidecar growth on the
-no-edge refusal path) is a containment gate opened by the AL2 signature-enforcement
-coverage increment, held open until a change to the signing decorator's ordering or the
-compromise-append candidate walk, or a durable sidecar backing, or the 0.1 cut, whichever
-comes first. Rows 20 and 21 — the two coverage gates a documentation-only findings record
-opened over this same surface — retired at that increment, their accounts kept above.
+lands, or the 0.1 cut, whichever comes first; and row 22 (orphan sidecar growth and
+redundant signing on the no-edge refusal path, restated 2026-08-28) is a containment gate
+opened by the AL2 signature-enforcement coverage increment, held open until a change to the
+compromise-append candidate walk, to the decorator's `signOne` or to its sign-then-delegate
+order, or a durable sidecar backing, or a cost-bearing `Signer` documented or supported, or
+publication of the package, or the 0.1 cut, whichever comes first. Rows 20 and 21 — the two
+coverage gates a documentation-only findings record opened over this same surface — retired
+at that increment, their accounts kept above.
 
 Raised by this step's own review and planning documents and **not in the deferral register** —
 recorded here so the step does not exit with them unstated, and left as their sources state

@@ -52,9 +52,10 @@ read it rather than trusting any count here, which is a claim with a shelf life 
 to fail loudly. `docs/process/next-phases.md` names what gates the next cut (three live
 deferral-register rows — row 1, publish tooling, held open until the release workflow runs
 once; row 19, the AL2 detached-signature sidecar pinning deferral; and row 22, orphan
-sidecar growth on the no-edge refusal path, opened by the AL2 signature-enforcement
-coverage increment that retired rows 20 and 21 — rows 19 and 22's own triggers both also
-name the 0.1 cut, so each gates the cut too) and what
+sidecar growth and redundant signing on the no-edge refusal path, opened by the AL2
+signature-enforcement coverage increment that retired rows 20 and 21 and restated
+2026-08-28 with a measured containment inventory in place of its original dilemma — rows 19
+and 22's own triggers both also name the 0.1 cut, so each gates the cut too) and what
 stays deliberately out of scope; `docs/process/release-checklist.md` is release day's
 authoritative list.
 
