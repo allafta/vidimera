@@ -367,7 +367,8 @@ test('decline refuses chain-compromise on a signature-broken signing record — 
   assert.equal(after.at(-1)?.kind, 'refused');
   assert.deepEqual(after.at(-1)?.payload, { code: 'chain-compromise' });
   // Sound only after exactly ONE refusing call — a second would mint another sidecar entry
-  // against a digest that never lands. See deferral-register row 22.
+  // against a digest that never lands (one entry per call, however many candidates the walk
+  // tries; `no-edge-containment.test.ts` pins that minting). See deferral-register row 22.
   const entries = await signatures.listByRecord(recordId);
   assert.equal(entries.length, after.length, 'the compromise edge is itself signed');
 });

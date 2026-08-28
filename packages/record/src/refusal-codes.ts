@@ -197,7 +197,9 @@ const NEVER_APPENDS: ReadonlySet<RefusalCode> = new Set<RefusalCode>([
  * already-terminal `expired`/`refused` record (§12's C3) or a sealed one (§12's C4), so
  * this predicate returns `true` unconditionally and the append seam in the kernel
  * (kernel/finalize.ts's `appendChainCompromise`, which walks candidate CAS targets and
- * falls back to a ref-less refusal when the store admits none), not `appendsOn`, is what
+ * falls back to a ref-less refusal when the store admits none — trying three candidates
+ * rather than four when the chain folds to a terminal state, since that state's own
+ * candidate could never win), not `appendsOn`, is what
  * lands that carve-out. §12's C4 is built in `store/memory.ts`, so the sealed half is a
  * bar this build's Store enforces, not merely a rule §12 states; the never-append codes
  * above NEVER append; every other

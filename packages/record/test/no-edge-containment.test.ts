@@ -182,11 +182,13 @@ test('BASELINE — the already-refused corner: the first call LANDS the edge, th
   // the first attempt, so landing costs exactly one mint.
   assert.equal(rig.signerCalls() - signerBefore, 1, 'landing the edge costs one signer call');
 
-  // The replayed state is now `refused` — outside the static three — so the deduped list is
-  // FOUR long, and no candidate can win: `refused` passes the state check but C3 bars a
-  // state-leaving `refused` out of a terminal `refused` record (no carve-out), the other three
-  // mismatch the persisted state.
-  const CANDIDATES = 4;
+  // The replayed state is now `refused` — outside the static three. BEFORE the narrowing the
+  // deduped list was FOUR long and this pin measured four mints per call: `refused` passed the
+  // state check but C3 barred a state-leaving `refused` out of a terminal `refused` record (no
+  // carve-out), and the other three mismatched the persisted state. AFTER it, the dead
+  // same-state candidate is dropped before the walk and the list is THREE long — the figure
+  // this pin now records. The refusal is byte-identical either way.
+  const CANDIDATES = 3;
   const sidecarBefore = (await rig.signatures.listByRecord(recordId)).length;
   const signerAfterFirst = rig.signerCalls();
   for (let call = 1; call <= 3; call += 1) {
@@ -221,6 +223,43 @@ test('the candidate arithmetic: a sealed record folds to `confirmed`, so its no-
     'sealed corner',
   );
   assert.equal(rig.signerCalls() - before, 3, 'three candidates, three mints — not four');
+});
+
+// === the narrowing: the one candidate C3 can never admit is dropped ======================
+
+test('NARROWING — on a terminal-folded record the same-state candidate is not tried: three mints and three puts per refusing call, the refusal byte-identical, the sidecar still growing', async () => {
+  const rig = countingSigningSetup();
+  const recordId = await confirmedSigningRecord(rig, 'subject:noedge-narrowed');
+  await breakOneSignature(rig.signatures, recordId, rig.store);
+  const first = await rig.handles.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(first.status, 'refused');
+  if (first.status !== 'refused') return;
+  assert.ok(first.transitionRef !== undefined, 'fixture: the edge landed, the record is refused');
+  const chainLength = (await rig.store.readChain(recordId)).length;
+
+  // The folded state is `refused`, a terminal state, so the same-state candidate is dead: its
+  // CAS could only match a record persisted `refused`, and for that record C3 bars a
+  // state-leaving `refused` append with no carve-out. Dropping it saves one signed attempt per
+  // call. The three producible targets are still tried — they are adjudicated against the
+  // persisted row, which the read chain does not determine (see the divergence fixtures).
+  const CANDIDATES_AFTER = 3;
+  const sidecarBefore = (await rig.signatures.listByRecord(recordId)).length;
+  const signerBefore = rig.signerCalls();
+  const putBefore = rig.putCalls();
+  for (let call = 1; call <= 3; call += 1) {
+    const out = await rig.handles.operator.finalize(recordId, identity(), CONTENT, facts());
+    assertNoEdgeRefusal(out, `narrowed already-refused corner, call ${call}`);
+    assert.equal((await rig.store.readChain(recordId)).length, chainLength, 'chain flat');
+    assert.equal(rig.signerCalls() - signerBefore, CANDIDATES_AFTER * call, 'three mints');
+    assert.equal(rig.putCalls() - putBefore, CANDIDATES_AFTER * call, 'three puts');
+    // Deliberately asserted as STILL GROWING: the narrowing does not touch orphan minting.
+    // That is deferral-register row 22's orphan half, and this increment does not close it.
+    assert.equal(
+      (await rig.signatures.listByRecord(recordId)).length,
+      sidecarBefore + call,
+      'one orphan per refusing call, unchanged by the narrowing',
+    );
+  }
 });
 
 // === the divergence fixtures: read chain vs persisted state — MUST NOT CHANGE ============

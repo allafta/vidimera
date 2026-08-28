@@ -635,6 +635,29 @@ function batchConflict(conflict: 'seq', index: number): Error {
 }
 
 /**
+ * The states out of which no `refused` edge can leave — exactly `RecordState` minus the three
+ * producible CAS targets the candidate walk tries. C3 bars a state-leaving `refused` append out
+ * of a terminal record, and the compromise carve-out admits only an expected `confirmed` or
+ * `redeeming`, so for a record whose persisted state is one of these five the same-state
+ * candidate can never win its CAS. The set is DERIVED — SPEC §2's terminality plus C3's general
+ * bar — not quoted from a sealed list: §5, §8 and §12's C3 each enumerate a different subset of
+ * it, and none names `redeemed` or `redemption-failed`.
+ *
+ * Written as a `satisfies`-checked record rather than a bare set on purpose: adding a member to
+ * `RecordState` then fails the build here, instead of silently classifying it as admissible.
+ */
+const NO_EDGE_STATE = {
+  refused: true,
+  expired: true,
+  declined: true,
+  redeemed: true,
+  'redemption-failed': true,
+  open: false,
+  confirmed: false,
+  redeeming: false,
+} as const satisfies Record<RecordState, boolean>;
+
+/**
  * The chain-compromise failure path (SPEC §5, AL1-honest). Appends ONE `refused`
  * edge at head via NORMAL C2 (`seq=max+1`, `prevHash=chainHead`, payload `{code}`-only), then
  * refuses `chain-compromise` WITH the appended edge's digest — compromise carries a
@@ -642,6 +665,21 @@ function batchConflict(conflict: 'seq', index: number): Error {
  * `confirmed→refused`; `redeeming→refused`). On an already-terminal `expired`/`refused`
  * record NO CAS candidate is admitted (the C3-forced corner), no edge is appended, and the
  * refusal surfaces result-first with NO transitionRef — see the fallback below / SPEC §5.
+ *
+ * THE NO-EDGE CORNER, enumerated once. No candidate can land when the backing's PERSISTED
+ * state is any of `NO_EDGE_STATE`'s five terminal states — `refused`, `expired`, `declined`,
+ * `redeemed`, `redemption-failed` — or when the record is sealed (C4 bars unconditionally,
+ * whatever the state). The shapes named below (already-terminal, already-sealed,
+ * already-`redeemed`) are instances of that one rule. When the FOLDED state is one of the five,
+ * the same-state candidate is dropped before the walk (see the body): it saves one signed CAS
+ * attempt per refusing call and cannot change an outcome, because that candidate could only
+ * ever match a record whose persisted state equals the folded one, and for such a record C3
+ * bars the edge. Nothing else is predicted from the folded state — the three producible
+ * targets are always tried, because the backing decides them against its own persisted row,
+ * which the chain handed here (a chain that failed verification by construction) does not
+ * determine. Under a signing profile every attempt is signed and written before it is tried,
+ * so a refusing call on this corner still leaves ONE sidecar entry with no chain counterpart
+ * (deferral-register row 22); the narrowing does not change that.
  *
  * The CAS target state is the REPLAYED current state of the (tampered) chain — `open→refused`
  * for an unconfirmed record; `confirmed→refused` rides the Store's C3 compromise carve-out for
@@ -700,9 +738,28 @@ export async function appendChainCompromise(
 ): Promise<Outcome<never>> {
   let candidates: RecordState[];
   try {
-    candidates = dedupe([replay(chain).state, 'open', 'confirmed', 'redeeming']);
+    const replayed = replay(chain).state;
+    // --- drop the one candidate C3 can never admit ---------------------------------------
+    // When the folded state is terminal, the same-state candidate is provably dead: its CAS
+    // can only match a record whose persisted state equals the folded one, and for such a
+    // record C3 bars a state-leaving `refused` append. Dropping it saves one signed CAS
+    // attempt per refusing call and cannot change any outcome.
+    //
+    // The three producible targets are deliberately NOT dropped, and that is the load-bearing
+    // limit. They are adjudicated by the backing against its OWN persisted row, which the read
+    // chain does not determine — and the chain reaching this function failed verification by
+    // construction. On the SQL backing `readChain` reads the transitions table while the C3
+    // and C4 gates read the records row, so a tamper that rewrites a transition leaves the
+    // persisted state untouched and the two diverge. Measured: a last-element kind rewrite
+    // over a record persisted `confirmed` folds to `refused` on read, and the walk still lands
+    // the edge through C3's carve-out. A bar predicted from the chain would suppress it.
+    candidates = NO_EDGE_STATE[replayed]
+      ? ['open', 'confirmed', 'redeeming']
+      : dedupe([replayed, 'open', 'confirmed', 'redeeming']);
   } catch {
     // A tampered chain replay cannot fold a state — fall back to the three producible targets.
+    // The narrowing above is deliberately INSIDE the try: with no folded state there is nothing
+    // to narrow, and skipping it structurally keeps the fallback walk exactly as it was.
     candidates = ['open', 'confirmed', 'redeeming'];
   }
 
