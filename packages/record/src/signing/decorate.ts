@@ -36,6 +36,31 @@ export function withSigning(
 ): Store {
   const memo = new Map<string, boolean>();
 
+  // One signer invocation per transition OBJECT, not per append attempt. Two call paths hand
+  // the SAME transition object to `appendTransition` more than once: the compromise append's
+  // candidate walk, and open()'s expire-then-retry. The bytes are identical, so the signature
+  // is identical and the sidecar upserts one key either way — the repeat buys nothing and, on
+  // a host whose signer is a remote key service, costs a round-trip each time.
+  //
+  // Keyed by object identity, NOT by digest, and it memoizes the SIGNER's promise, not this
+  // function's. A digest-keyed memo would weaken the pinned guarantee from "this append is
+  // preceded by its OWN completed sidecar write" to "some earlier signing operation for this
+  // digest happened", which lands an unsigned transition whenever the earlier entry is no
+  // longer there. Memoizing this function's own promise would skip the `put` on every repeat
+  // and reach the same place. So the `put` ALWAYS runs, and only the mint is shared; storing
+  // the in-flight promise means two concurrent appends of one object await one mint rather
+  // than racing.
+  //
+  // Two things this shape assumes, stated because nothing in the type system enforces them.
+  // The signature minted at first-mint time is paired with a `transitionDigest` recomputed at
+  // every `put`, which is sound only while the object is not mutated between attempts — the
+  // kernel never does that, and verification fails closed on the mismatch if anything else
+  // did (`test/no-edge-containment.test.ts` pins both). And a `WeakMap` has no size: "it holds
+  // nothing after the object is unreachable" is a garbage-collection property, not a reading,
+  // so no test asserts it; what is observable — N distinct transitions produce N mints and N
+  // puts — is what gets pinned.
+  const signerResult = new WeakMap<Transition, Promise<{ keyRef: string; signature: string }>>();
+
   async function recordSigns(transition: Transition): Promise<boolean> {
     const known = memo.get(transition.recordId);
     if (known !== undefined) return known;
@@ -57,14 +82,25 @@ export function withSigning(
   }
 
   async function signOne(transition: Transition): Promise<void> {
-    const bytes = encodeTransition(transition);
-    const { keyRef, signature } = await signing.signer(bytes);
+    let pending = signerResult.get(transition);
+    if (pending === undefined) {
+      pending = signing.signer(encodeTransition(transition));
+      signerResult.set(transition, pending);
+    }
+    let minted: { keyRef: string; signature: string };
+    try {
+      minted = await pending;
+    } catch (err) {
+      // A failed mint must not be remembered: the next attempt has to reach the signer again.
+      signerResult.delete(transition);
+      throw err;
+    }
     await signing.signatures.put({
       transitionDigest: transitionDigest(transition),
       recordId: transition.recordId,
       seq: transition.seq,
-      keyRef,
-      signature,
+      keyRef: minted.keyRef,
+      signature: minted.signature,
     });
   }
 

@@ -33,15 +33,17 @@ import assert from 'node:assert/strict';
 import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';
 import { test } from 'vitest';
 
+import { transitionDigest } from '../src/chain/encoding.js';
 import { replay, verifyChain } from '../src/chain/replay.js';
 import type { ConfirmProfile } from '../src/config.js';
 import { createWithClock } from '../src/create.js';
 import type { Outcome } from '../src/outcome.js';
+import { withSigning } from '../src/signing/decorate.js';
 import { MemorySignatureStore } from '../src/signing/memory.js';
 import type { SignatureStore, Signer, Verifier } from '../src/signing/store.js';
 import { MemoryStore } from '../src/store/memory.js';
-import type { Store } from '../src/store/store.js';
-import type { Transition } from '../src/types.js';
+import type { AppendMeta, AppendResult, BatchResult, Store } from '../src/store/store.js';
+import type { Digest, RecordState, StagedDraft, Transition } from '../src/types.js';
 import { captureProfile, facts, identity, makeConfig, openRecord } from './helpers/profiles.js';
 import { breakOneSignature } from './helpers/signing.js';
 import { TamperingStore } from './helpers/stores.js';
@@ -65,22 +67,70 @@ function tickingClock(startIso = '2026-08-29T00:00:00Z'): () => Date {
 }
 
 /**
+ * A Store wrapper that records, in order, every append the decorator hands DOWN to it — one
+ * `append:<digest>` event per transition, batch members included — so the sign-before-append
+ * invariant can be asserted on an event SEQUENCE rather than on a boolean. Every method
+ * delegates to `inner`.
+ */
+class EventStore implements Store {
+  constructor(
+    public readonly inner: Store,
+    private readonly events: string[],
+  ) {}
+  putStaged(s: StagedDraft): Promise<void> {
+    return this.inner.putStaged(s);
+  }
+  getStaged(r: string): Promise<StagedDraft | null> {
+    return this.inner.getStaged(r);
+  }
+  chainHead(r: string): Promise<Digest | null> {
+    return this.inner.chainHead(r);
+  }
+  appendTransition(e: RecordState | null, t: Transition, m: AppendMeta): Promise<AppendResult> {
+    this.events.push(`append:${transitionDigest(t)}`);
+    return this.inner.appendTransition(e, t, m);
+  }
+  appendBatch(
+    e: RecordState,
+    transitions: readonly Transition[],
+    m: AppendMeta,
+  ): Promise<BatchResult> {
+    for (const t of transitions) this.events.push(`append:${transitionDigest(t)}`);
+    return this.inner.appendBatch(e, transitions, m);
+  }
+  readChain(r: string): Promise<Transition[]> {
+    return this.inner.readChain(r);
+  }
+  listDue(now: Date): Promise<string[]> {
+    return this.inner.listDue(now);
+  }
+  findNonTerminal(p: string, s: string): Promise<string | null> {
+    return this.inner.findNonTerminal(p, s);
+  }
+}
+
+/**
  * The counting rig: a real Ed25519 signer that counts its invocations, a `SignatureStore`
- * wrapper that counts `put` calls while delegating to a real `MemorySignatureStore`, and a
- * signing capture profile. `handles` is nested because `createWithClock()` returns the two
- * surfaces; `store` is exposed so a fixture can inject a `TamperingStore` and read the REAL
- * persisted chain beneath the decorator; every extra profile is stamped `signing: true`, or
- * the decorator would never sign it. Read the counters as DELTAS around the call under test.
+ * wrapper that counts `put` calls (and records each completed put as a `put:<digest>` event)
+ * while delegating to a real `MemorySignatureStore`, an event-recording store over the caller's
+ * backing, and a signing capture profile. `handles` is nested because `createWithClock()`
+ * returns the two surfaces; `store` is the REAL backing beneath the decorator, so a fixture can
+ * inject a `TamperingStore` and read the persisted chain; every extra profile is stamped
+ * `signing: true`, or the decorator would never sign it. `swallowNextPut()` makes the next
+ * `put` a silent no-op — the shape that separates a memo which shares only the mint from one
+ * that would skip the write. Read the counters as DELTAS around the call under test.
  */
 function countingSigningSetup(
   extraProfiles: ConfirmProfile[] = [],
-  opts: { store?: Store; mintId?: () => string } = {},
+  opts: { store?: Store; mintId?: () => string; clock?: () => Date } = {},
 ) {
   const store = opts.store ?? new MemoryStore();
+  const events: string[] = [];
   const signatures = new MemorySignatureStore();
   const { publicKey, privateKey } = generateKeyPairSync('ed25519');
   let signerCalls = 0;
   let putCalls = 0;
+  let swallow = false;
   const signer: Signer = async (bytes) => {
     signerCalls += 1;
     return { keyRef: 'key-1', signature: edSign(null, bytes, privateKey).toString('base64') };
@@ -90,7 +140,13 @@ function countingSigningSetup(
   const counted: SignatureStore = {
     put: async (entry) => {
       putCalls += 1;
-      return signatures.put(entry);
+      if (swallow) {
+        swallow = false;
+        events.push(`put-swallowed:${entry.transitionDigest}`);
+        return;
+      }
+      await signatures.put(entry);
+      events.push(`put:${entry.transitionDigest}`);
     },
     listByRecord: (recordId) => signatures.listByRecord(recordId),
   };
@@ -99,15 +155,20 @@ function countingSigningSetup(
     ...extraProfiles.map((p) => ({ ...p, signing: true as const })),
   ];
   const config = {
-    ...makeConfig(profiles, { store }),
+    ...makeConfig(profiles, { store: new EventStore(store, events) }),
     signing: { signer, verifiers: { 'key-1': verifier }, signatures: counted },
   };
   return {
-    handles: createWithClock(config, tickingClock(), opts.mintId),
+    handles: createWithClock(config, opts.clock ?? tickingClock(), opts.mintId),
     signatures,
+    signing: config.signing,
     store,
+    events,
     signerCalls: () => signerCalls,
     putCalls: () => putCalls,
+    swallowNextPut: () => {
+      swallow = true;
+    },
   };
 }
 
@@ -147,8 +208,12 @@ test('BASELINE — the sealed no-edge corner: six refusing finalize() calls, cha
   // The deduped candidate list is THREE long here, not four: `sealed` is a transition kind,
   // never a record state, and replay leaves `state` at `confirmed` — see the arithmetic pin
   // below. Every candidate loses its CAS (C4 bars a sealed record unconditionally), and the
-  // decorator has signed and written once per attempt before each loses.
+  // decorator has written once per attempt before each loses. BEFORE the signer-result memo
+  // this pin measured three MINTS per call too — one per attempt; AFTER it the three attempts
+  // share one mint, because they carry the same transition object. The puts and the orphan are
+  // unchanged: that is the orphan half of row 22, which nothing here closes.
   const CANDIDATES = 3;
+  const MINTS_PER_CALL = 1;
   for (let call = 1; call <= 6; call += 1) {
     const out = await rig.handles.operator.finalize(recordId, identity(), CONTENT, facts());
     assertNoEdgeRefusal(out, `sealed corner, call ${call}`);
@@ -158,7 +223,11 @@ test('BASELINE — the sealed no-edge corner: six refusing finalize() calls, cha
       sidecarBefore + call,
       `sidecar grows by exactly one per refusing call (call ${call})`,
     );
-    assert.equal(rig.signerCalls() - signerBefore, CANDIDATES * call, 'signer calls per call');
+    assert.equal(
+      rig.signerCalls() - signerBefore,
+      MINTS_PER_CALL * call,
+      'one mint per refusing call (three before the memo)',
+    );
     assert.equal(rig.putCalls() - putBefore, CANDIDATES * call, 'one put per attempt');
   }
 });
@@ -187,10 +256,13 @@ test('BASELINE — the already-refused corner: the first call LANDS the edge, th
   // state check but C3 barred a state-leaving `refused` out of a terminal `refused` record (no
   // carve-out), and the other three mismatched the persisted state. AFTER it, the dead
   // same-state candidate is dropped before the walk and the list is THREE long — the figure
-  // this pin now records. The refusal is byte-identical either way.
+  // the put count now records. And AFTER the signer-result memo the three attempts share ONE
+  // mint (three before it, four before the narrowing). The refusal is byte-identical throughout.
   const CANDIDATES = 3;
+  const MINTS_PER_CALL = 1;
   const sidecarBefore = (await rig.signatures.listByRecord(recordId)).length;
   const signerAfterFirst = rig.signerCalls();
+  const putAfterFirst = rig.putCalls();
   for (let call = 1; call <= 3; call += 1) {
     const out = await rig.handles.operator.finalize(recordId, identity(), CONTENT, facts());
     assertNoEdgeRefusal(out, `already-refused corner, call ${call}`);
@@ -200,7 +272,16 @@ test('BASELINE — the already-refused corner: the first call LANDS the edge, th
       sidecarBefore + call,
       `one orphan per refusing call (call ${call})`,
     );
-    assert.equal(rig.signerCalls() - signerAfterFirst, CANDIDATES * call, 'four mints per call');
+    assert.equal(
+      rig.putCalls() - putAfterFirst,
+      CANDIDATES * call,
+      'three puts per call (four before the narrowing)',
+    );
+    assert.equal(
+      rig.signerCalls() - signerAfterFirst,
+      MINTS_PER_CALL * call,
+      'one mint per call (three before the memo, four before the narrowing)',
+    );
   }
 });
 
@@ -217,17 +298,21 @@ test('the candidate arithmetic: a sealed record folds to `confirmed`, so its no-
   assert.equal(replay(chain).status, 'retired');
 
   await breakOneSignature(rig.signatures, recordId, rig.store);
-  const before = rig.signerCalls();
+  const putBefore = rig.putCalls();
+  const signerBefore = rig.signerCalls();
   assertNoEdgeRefusal(
     await rig.handles.operator.finalize(recordId, identity(), CONTENT, facts()),
     'sealed corner',
   );
-  assert.equal(rig.signerCalls() - before, 3, 'three candidates, three mints — not four');
+  // The put count is the candidate count — one write per attempt. The mint count is not,
+  // since the signer-result memo: three attempts, one mint (three before the memo).
+  assert.equal(rig.putCalls() - putBefore, 3, 'three candidates, three puts — not four');
+  assert.equal(rig.signerCalls() - signerBefore, 1, 'one mint for the three attempts');
 });
 
 // === the narrowing: the one candidate C3 can never admit is dropped ======================
 
-test('NARROWING — on a terminal-folded record the same-state candidate is not tried: three mints and three puts per refusing call, the refusal byte-identical, the sidecar still growing', async () => {
+test('NARROWING — on a terminal-folded record the same-state candidate is not tried: three puts per refusing call (four before), the refusal byte-identical, the sidecar still growing', async () => {
   const rig = countingSigningSetup();
   const recordId = await confirmedSigningRecord(rig, 'subject:noedge-narrowed');
   await breakOneSignature(rig.signatures, recordId, rig.store);
@@ -250,8 +335,10 @@ test('NARROWING — on a terminal-folded record the same-state candidate is not 
     const out = await rig.handles.operator.finalize(recordId, identity(), CONTENT, facts());
     assertNoEdgeRefusal(out, `narrowed already-refused corner, call ${call}`);
     assert.equal((await rig.store.readChain(recordId)).length, chainLength, 'chain flat');
-    assert.equal(rig.signerCalls() - signerBefore, CANDIDATES_AFTER * call, 'three mints');
     assert.equal(rig.putCalls() - putBefore, CANDIDATES_AFTER * call, 'three puts');
+    // One mint since the signer-result memo (this pin measured three when it was written, four
+    // before the narrowing): the mint count no longer tracks the candidate count — the puts do.
+    assert.equal(rig.signerCalls() - signerBefore, call, 'one mint per call');
     // Deliberately asserted as STILL GROWING: the narrowing does not touch orphan minting.
     // That is deferral-register row 22's orphan half, and this increment does not close it.
     assert.equal(
@@ -260,6 +347,208 @@ test('NARROWING — on a terminal-folded record the same-state candidate is not 
       'one orphan per refusing call, unchanged by the narrowing',
     );
   }
+});
+
+// === the signer-result memo: one mint per transition object, the put unchanged ============
+
+/** A clock the test can move: ticks one second per read, and jumps on demand. */
+function movableClock(startIso = '2026-08-29T00:00:00Z') {
+  let ms = Date.parse(startIso);
+  return {
+    now: () => {
+      ms += 1000;
+      return new Date(ms);
+    },
+    advance: (deltaMs: number) => {
+      ms += deltaMs;
+    },
+  };
+}
+
+test('MEMO — the compromise walk mints ONCE per refusing call where it minted once per candidate; the puts and the sidecar are unchanged', async () => {
+  const rig = countingSigningSetup();
+  const recordId = await confirmedSigningRecord(rig, 'subject:noedge-memo');
+  assert.equal((await rig.handles.operator.seal(recordId)).status, 'ok', 'fixture: sealed');
+  await breakOneSignature(rig.signatures, recordId, rig.store);
+
+  const sidecarBefore = (await rig.signatures.listByRecord(recordId)).length;
+  const signerBefore = rig.signerCalls();
+  const putBefore = rig.putCalls();
+  const eventsBefore = rig.events.length;
+  assertNoEdgeRefusal(
+    await rig.handles.operator.finalize(recordId, identity(), CONTENT, facts()),
+    'sealed corner under the memo',
+  );
+  // Three candidates are still tried (a sealed record folds to `confirmed`, which is not a
+  // no-edge state), so three puts still happen and the sidecar still gains its one orphan —
+  // but the three attempts carry the SAME transition object, whose bytes are identical, so
+  // the signer is asked once. This is the redundant-signing half of row 22 closing; the
+  // orphan half is visibly NOT closing in the same assertions.
+  assert.equal(rig.signerCalls() - signerBefore, 1, 'one mint per refusing call');
+  assert.equal(rig.putCalls() - putBefore, 3, 'the put still runs on every attempt');
+  assert.equal(
+    (await rig.signatures.listByRecord(recordId)).length,
+    sidecarBefore + 1,
+    'one orphan per refusing call — unchanged',
+  );
+  const puts = rig.events.slice(eventsBefore).filter((e) => e.startsWith('put:'));
+  assert.equal(puts.length, 3);
+  assert.equal(new Set(puts).size, 1, 'all three puts upsert ONE digest — byte-identical entries');
+});
+
+test("MEMO — open()'s expire-then-retry hands the SAME genesis object to both appends: one mint for it where there were two", async () => {
+  const clock = movableClock();
+  const rig = countingSigningSetup([], { clock: clock.now });
+  // The rig's capture profile declares `ttl: 3600` through `captureProfile()`'s default expiry.
+  const subjectRef = 'subject:noedge-retry';
+  const blocker = await openRecord(rig.handles, CONTENT, PROFILE_ID, subjectRef);
+  clock.advance(2 * 3600 * 1000); // past the open window: the blocker is now due
+
+  const signerBefore = rig.signerCalls();
+  const putBefore = rig.putCalls();
+  const second = await openRecord(rig.handles, CONTENT, PROFILE_ID, subjectRef);
+  assert.notEqual(second, blocker, 'a NEW record opened after the lapsed blocker expired');
+  assert.equal(replay(await rig.store.readChain(blocker)).state, 'expired', 'blocker expired');
+
+  // Three appends happen: the genesis attempt that loses C1 to the blocker, the blocker's
+  // `expired` edge, and the genesis RETRY — the same `openedTransition` object as the first
+  // attempt. Three puts, therefore; but only TWO distinct transitions, so two mints. Before
+  // the memo this measured three mints.
+  assert.equal(rig.putCalls() - putBefore, 3, 'three puts: attempt, expire, retry');
+  assert.equal(rig.signerCalls() - signerBefore, 2, 'two mints: the genesis object once');
+  const report = await rig.handles.operator.verifySignatures(second);
+  assert.ok(
+    report.transitions.every((t) => t.signed && t.verified),
+    'the new genesis is signed',
+  );
+});
+
+test('INVARIANT (green before the memo, and it must stay green) — the put ALWAYS runs: a put that silently no-ops on one attempt does not leave the landed transition unsigned', async () => {
+  // This is the measured difference between the shape that ships — memoize only the signer's
+  // result, run `put` on every attempt — and the digest-keyed or promise-memoizing shapes that
+  // were rejected: those skip the write on a repeat and land an UNSIGNED transition whenever
+  // the earlier entry is not there. Today's code satisfies this already; a future rewrite
+  // toward either rejected shape is what this pin would catch.
+  const clock = movableClock();
+  const rig = countingSigningSetup([], { clock: clock.now });
+  const subjectRef = 'subject:noedge-swallow';
+  await openRecord(rig.handles, CONTENT, PROFILE_ID, subjectRef);
+  clock.advance(2 * 3600 * 1000);
+
+  // The next put is the genesis attempt that will lose C1 to the blocker. Swallowing it leaves
+  // that attempt's entry unwritten; the retry of the SAME object must still write its own.
+  rig.swallowNextPut();
+  const second = await openRecord(rig.handles, CONTENT, PROFILE_ID, subjectRef);
+  const swallowed = rig.events.filter((e) => e.startsWith('put-swallowed:'));
+  assert.equal(swallowed.length, 1, 'fixture: exactly one put was swallowed');
+  const genesis = (await rig.store.readChain(second))[0];
+  assert.ok(genesis !== undefined);
+  assert.equal(
+    swallowed[0],
+    `put-swallowed:${transitionDigest(genesis)}`,
+    "fixture: the swallowed put was the new genesis's first attempt",
+  );
+  const report = await rig.handles.operator.verifySignatures(second);
+  assert.equal(report.transitions.length, 1);
+  assert.equal(report.transitions[0]?.signed, true, 'the landed genesis has its sidecar entry');
+  assert.equal(report.transitions[0]?.verified, true, 'and it verifies');
+});
+
+test('INVARIANT (green before the memo, and it must stay green) — sign-before-append holds as a SEQUENCE: no append is observed before a put for that transition has completed', async () => {
+  const rig = countingSigningSetup();
+  const recordId = await confirmedSigningRecord(rig, 'subject:noedge-order');
+  assert.equal((await rig.handles.operator.seal(recordId)).status, 'ok');
+  await breakOneSignature(rig.signatures, recordId, rig.store);
+  assertNoEdgeRefusal(
+    await rig.handles.operator.finalize(recordId, identity(), CONTENT, facts()),
+    'sealed corner',
+  );
+
+  // Every kind of append this rig can produce is in the log: the genesis, finalize's batch, the
+  // seal, and the compromise walk's attempts. For each `append:<digest>` the SAME digest's
+  // `put:<digest>` must already be in the sequence. Asserted on the sequence, not a boolean.
+  const appends = rig.events.filter((e) => e.startsWith('append:'));
+  assert.ok(appends.length >= 6, `fixture: appends were observed (${appends.length})`);
+  const completedPuts = new Set<string>();
+  for (const event of rig.events) {
+    if (event.startsWith('put:')) completedPuts.add(event.slice('put:'.length));
+    if (event.startsWith('append:')) {
+      const digest = event.slice('append:'.length);
+      assert.ok(
+        completedPuts.has(digest),
+        `an append was handed to the store before its own put completed: ${event}`,
+      );
+    }
+  }
+});
+
+test('the digest-stability assumption behind the memo: a transition object MUTATED between two appends is caught — verification fails closed on the recomputed digest', async () => {
+  // Not constructible through the public seams: every seam builds its transition once and hands
+  // that one object to the store, unchanged, on every attempt. So this pin drives the decorator
+  // directly through its exported factory, over the rig's own backing and sidecar, to show what
+  // the memo's pairing — a signature minted at first-mint time, a digest recomputed at every
+  // put — does if anything ever violates that. The mismatch is CAUGHT: the landed transition's
+  // entry exists under the recomputed digest, but its signature is over the old bytes, and the
+  // layer fails closed on it. Nothing in the type system prevents the mutation; this pin and
+  // the comment at the memo are what state the assumption.
+  const rig = countingSigningSetup();
+  const first = await openRecord(rig.handles, CONTENT, PROFILE_ID, 'subject:noedge-mutate-1');
+  const template = (await rig.store.readChain(first))[0];
+  assert.ok(template !== undefined, 'fixture: a real genesis to clone');
+  const payload = template.payload as Record<string, unknown>;
+  const t: Transition = {
+    ...structuredClone(template),
+    recordId: 'rec-noedge-mutated',
+    payload: { ...payload, subjectRef: 'subject:noedge-mutate-2' },
+  };
+  const decorated = withSigning(rig.signing, rig.store, (id) => id === PROFILE_ID);
+  const meta = { nonTerminal: true };
+
+  // Attempt 1: a genesis with a non-null expected state loses its CAS — but the decorator has
+  // already minted and written for it.
+  const lost = await decorated.appendTransition('open', t, meta);
+  assert.equal(lost.appended, false, 'fixture: the first attempt did not land');
+  const mintsAfterFirst = rig.signerCalls();
+  // Mutate the SAME object, then append it again: the memo hands back the FIRST mint.
+  t.payload = {
+    ...payload,
+    subjectRef: 'subject:noedge-mutate-2',
+    contentDigest: `sha256:${'f'.repeat(64)}`,
+  };
+  const landed = await decorated.appendTransition(null, t, meta);
+  assert.equal(landed.appended, true, 'fixture: the mutated object landed');
+  assert.equal(rig.signerCalls(), mintsAfterFirst, 'no second mint — the memo was used');
+
+  const report = await rig.handles.operator.verifySignatures('rec-noedge-mutated');
+  assert.equal(report.transitions.length, 1);
+  assert.equal(report.transitions[0]?.signed, true, 'an entry exists under the recomputed digest');
+  assert.equal(
+    report.transitions[0]?.verified,
+    false,
+    'and it does NOT verify: the signature is over the pre-mutation bytes — caught, fail-closed',
+  );
+});
+
+test('what a WeakMap can and cannot show: N distinct transitions produce N mints and N puts — nothing observable grows', async () => {
+  // A `WeakMap` has no size, so "the memo holds nothing once its keys are unreachable" is a
+  // garbage-collection property and not a reading; no assertion is written against it. What IS
+  // observable is that distinct objects never share a mint: each open() below builds a fresh
+  // genesis, and the counters rise one-for-one with the appends. No assertion here is made
+  // against a Map the test built itself — that would be a fact about the scaffolding.
+  const rig = countingSigningSetup();
+  const N = 7;
+  const signerBefore = rig.signerCalls();
+  const putBefore = rig.putCalls();
+  for (let i = 0; i < N; i += 1) {
+    await openRecord(rig.handles, CONTENT, PROFILE_ID, `subject:noedge-distinct-${i}`);
+  }
+  assert.equal(rig.signerCalls() - signerBefore, N, 'one mint per distinct genesis');
+  assert.equal(rig.putCalls() - putBefore, N, 'one put per distinct genesis');
+  assert.equal(
+    rig.events.filter((e) => e.startsWith('append:')).length,
+    N,
+    'and exactly N appends were handed down',
+  );
 });
 
 // === the divergence fixtures: read chain vs persisted state — MUST NOT CHANGE ============
