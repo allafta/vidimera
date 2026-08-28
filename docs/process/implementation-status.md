@@ -2580,3 +2580,178 @@ warnings; `node scripts/contract-scan.mjs` — exit 0, no output;
 `node scripts/api-reference-sync.mjs` — exit 0; `node scripts/docs-index-sync.mjs` — exit 0.
 `docs/process/deferral-register.md` loses two rows and gains one: rows 20 and 21 retired,
 row 22 opened.
+
+## Post-build-order increment — Row 22 truth repairs
+
+**The ninth post-build-order increment, exited (commits `e306673`..`062a3cb`, closed by the
+record commit that follows them).** The ordinal counts the sections above in order and, as
+the eighth did, does NOT count the documentation-only signature-enforcement-coverage
+findings note, whose own header says it is not an increment. **This increment landed no
+behavior and moved no maturity marker.** No `docs/concept/` file changed, no sanction was
+sought and none was needed. No `packages/` file was touched at all, proved by diff rather
+than asserted: `git diff f6f2180 --stat -- packages/` — `f6f2180` being the commit this
+increment's first task started from — produces no output, and the test figures are
+identical before and after (64 test files / 802 tests, of which the record project is 60 /
+737 and the store-postgres project 4 / 65). It is the first of a three-increment sequence
+authored together on 2026-08-24 — this one, then the sidecar contract, then the no-edge
+containment — each of whose plans checks that its predecessor landed before it starts.
+Design: `docs/superpowers/specs/2026-08-24-row-22-truth-repairs-design.md`; plan:
+`docs/superpowers/plans/2026-08-24-row-22-truth-repairs.md`.
+
+**The gap this closed.** Register row 22 was opened by the increment above with its
+containment's cost estimated rather than measured, and the estimate was wrong in the same
+way in five documents: the row said the fix "either special-cases a path five call sites
+share or reopens the deliberately pinned sign-before-append ordering", an exhaustive
+disjunction. A later investigation measured every candidate and found the disjunction
+non-exhaustive without finding the containment unconstrained — one family (a signer-result
+memo keyed by transition OBJECT identity) sits on neither horn and closes the
+redundant-signing half; the only measured family for the orphan half sits on a THIRD horn
+the sentence never named, predicting the store's C3 and C4 answer from a chain that failed
+verification by construction, and was measured to suppress a compromise evidence edge that
+lands today. The design's inventory carries twelve corrections and one finding (its row 13,
+the third horn); its row 12 is a clarification listed apart so it does not inflate the count
+of things that were wrong. Deferring was the right act throughout — the investigation's
+own decisive result is that the record project passes with a signature-destroying change's
+new branch firing zero times, so the corpus cannot adjudicate this family and a containment
+needs its own pins — but the reason recorded for deferring was not, and a register that
+states a wrong reason with the authority of the tree is the thing this increment corrects.
+
+**What landed.** Markdown only, in four commits:
+
+- `docs/analysis/2026-08-24-no-edge-containment-investigation.md` — new. The record every
+  corrected site points at: the measurements, each figure naming the rig that produced it
+  and stating that the rig is gone (every scratch fixture and prototype arm was reverted),
+  or that it is one of two marked exceptions reproduced against the current tree; the
+  zero-firing result in its own paragraph; the containment inventory with each family's
+  horn; and an explicit list of what the investigation did NOT establish. The filing-time
+  corpus census (72 / 64 / 68) is withdrawn there as arithmetically irreconcilable, with the
+  re-derivation method stated, and is carried nowhere as a live figure.
+- `docs/superpowers/INDEX.md` — the `docs/analysis/` count 17 → 18. The sequence's three
+  spec/plan rows and the 34 / 37 counts had already landed with the authoring commits
+  (`e08a1da`..`f6f2180`), each pair whole, so no `plan pending` state was ever written.
+- `docs/process/deferral-register.md` — row 22 replaced whole and RESTATED: same number,
+  write-time row-number derivation carried verbatim with one appended restatement clause;
+  the 22a/22b decomposition, proven independent by double dissociation; the ordinary
+  key-retirement reachability; "never visited" corrected to "never produces a verdict — but
+  IS visited"; the third sidecar-driven reader named as a separate finding; the containment
+  inventory in place of the dilemma, which is withdrawn as EXHAUSTIVE rather than as wrong;
+  horn 2 restated by its hazard (any change that makes a sidecar entry's survival conditional
+  on the append's outcome) rather than by one mechanism. The trigger grew from 248 to 613
+  characters and gained three disjuncts: `signOne` (the memo changes it without changing the
+  ordering, so the old wording would not have fired), a cost-bearing `Signer` (the condition
+  that makes 22b material, which nothing named), and publication (a durable backing arrives
+  in an operator's deployment through the documented `signatures:` hook, where no in-repo
+  event fires — a clarification of which event matters, never earlier than the 0.1-cut
+  disjunct already present).
+- `docs/process/next-phases.md` — the dilemma paraphrase replaced; the two reader findings
+  recorded with their scheduled home (the sidecar-contract increment) so they stay out of
+  the register without being lost; the trigger, pasted from the register.
+- `docs/process/release-checklist.md` — the row-22 disposition item restated for a reader
+  arriving cold on release day: two defects, a containment identified and scheduled BEFORE
+  the cut, the trigger, and a "Note before ruling" that now says the durable-backing
+  unmeasurability is a coverage bound and not a mitigation.
+- `docs/process/implementation-status.md` — four Tier 1 sites corrected in place (the
+  increment bullet, the live-rows clause, the "Still outstanding" bullet, the boundary
+  paraphrase — which stays a paraphrase, not a fifth verbatim copy); one Tier 2 inline dated
+  note appended to the coverage increment's "What stays outside, and why" paragraph; and
+  this section.
+- `CLAUDE.md` — the live-rows sentence, outside `docs/process/` and therefore outside every
+  completeness sweep in this sequence, corrected to the row's new title.
+- `docs/analysis/2026-08-23-signature-enforcement-coverage.md` — a dated reconciliation
+  note appended to Finding F; every pre-existing line byte-identical.
+
+**The twelve corrections, accounted.** Design rows 1, 2, 9 and 10 (the dilemma's
+exhaustiveness, the "special-cases" mis-description, the trigger's unreachable
+durable-backing disjunct, the unnamed signing-cost condition) landed in the restated row
+and its four living trigger copies. Rows 3, 4, 5, 6 and 7 ("never visited", the two-consumer
+claim, the misleading per-candidate cost and the withdrawn census, the sealed record as
+canonical shape, the attacker-only framing) landed in the row, the four `implementation-status.md`
+Tier 1 sites, and the two Tier 2 notes. Row 8 (unmeasured-as-mitigation) landed in the
+release checklist's corrected note and the row's own UNMEASURED clause. Row 11 (the
+uncommented cardinality assertion) is recorded below and discharged by the next increment.
+Row 12 (the enlisted exemption's scope) is confirmed rather than corrected, in Finding F's
+note. Row 13, the third horn, is recorded everywhere the dilemma was.
+
+**The three tiers, and why two documents were deliberately not touched.** Tier 1 — the
+living records — was corrected in place. Tier 2 — the coverage increment's own section in
+this document and Finding F in its analysis record — was PRESERVED and reconciled by dated
+notes, in this document's own convention ("the original framing is preserved and reconciled
+by dated notes rather than rewritten, so the history stays legible"); `git diff -U0` at that
+commit shows zero removed lines in the analysis record and exactly one in this document,
+the paragraph's own final line re-added with the note appended, and both original dilemma
+sentences — "ordering" in the analysis record, "order" in this document's coverage section —
+still occur exactly once. Tier 3 —
+`docs/superpowers/specs/2026-08-23-al2-signature-enforcement-coverage-design.md` and
+`docs/superpowers/plans/2026-08-23-al2-signature-enforcement-coverage.md` — was not touched
+at all, per `docs/superpowers/INDEX.md`'s own rule that spec/plan pairs are
+historical and unmaintained. **The trigger therefore has four living copies and one frozen
+one.** The Tier 3 copy at the coverage plan's line 985 deliberately still reads the old
+248-character text. A future sweep comparing all five will find them divergent; the
+divergence is correct, and this paragraph is where a reader learns that. The proof that the
+four living copies are byte-identical is a whitespace-collapsed programmatic comparison,
+never an occurrence count — the register line contains the trigger phrase twice and counts
+once, and a `docs/process/` glob cannot see the Tier 3 copy.
+
+**Row 22 is restated, not split and not retired.** It keeps its number and stays in the
+table; the register's own rule is that an entry leaves only when the behavior lands or the
+deferral is explicitly retired, and neither happened here. The redundant-signing half, 22b,
+retires on behavior at the no-edge containment increment, which re-scopes the row to its
+orphan half, 22a; 22a stays open on the third horn, with no candidate that escapes it. The
+row's date cell reads `2026-08-23 (restated 2026-08-28)`.
+
+**One correction is recorded here and discharged elsewhere.** The cardinality assertion at
+`packages/record/test/signing-enforce.test.ts:98-102` — the file's first test, asserting
+sidecar entries equal chain length after one refusing `finalize()` — carries no comment
+saying why that equality holds only after exactly ONE refusing call, while three siblings in
+the file do. It is not annotated by this increment, because the hazard the annotation would
+state is the hazard the no-edge containment increment removes; the annotation lands with the
+behavior change, in the increment that owns it.
+
+**Deviations from the plan as written, stated rather than smoothed over.** Four, none of
+them a change of substance. (1) Dates: the plan pre-wrote `2026-08-24` for the row's
+restatement and for both reconciliation notes, assuming same-day execution; the
+restatement landed 2026-08-28 (`9fc914a`) and the notes 2026-08-29 (`062a3cb`), and each
+carries its actual landing date, since a false date is exactly the defect class this
+increment corrects. (2) The plan's release-checklist step and Tier 2 note step both said the
+row "is gone" / "will retire on behavior" at the containment increment; the plan's own
+Global Constraints and the containment design keep the row in the table with 22a open, so
+both sites say 22b retires and the row is re-scoped. (3) The plan's Task 2 Step 8 expected
+exactly four modified paths; five were modified, because the same task's Step 6a adds
+`CLAUDE.md`. (4) In the analysis record, the `SignatureStore` contract sentence is quoted as
+its two contiguous fragments rather than whole: it wraps a ` * ` comment-leader line break in
+the source, so the whole-sentence quote is present in the source and invisible to the
+whitespace-collapsed check this repository uses — the standing citation trap, met in a new
+form.
+
+**The honest limit.** Nothing in this increment is gated by anything that can fail. Every
+figure it wrote down was measured, and the analysis record says per figure that the rig is
+gone; the only figures reproducible from the tree today are the baseline test counts, the
+candidate arithmetic read from `kernel/finalize.ts`, and the two sidecar-driven reader
+measurements. Markdown is citation-checked by nothing, so every quoted phrase and SPEC
+section number was hand-verified against a whitespace-collapsed copy of its source, and that
+verification is not repeatable by a gate. The two reader defects the investigation found are
+recorded and still OPEN in the tree at this exit; the sidecar-contract increment closes them.
+The census stays withdrawn; nothing here re-derives it. And the deferral's stronger
+justification — that a green suite is a null result in this area — is a limit on every
+future claim about this path, including the next increment's.
+
+**What stays outside, and why.** The design's scope bounds, decisions rather than deferrals,
+none given a register row: the defect itself, which row 22 stays open for; the annotation at
+`signing-enforce.test.ts:98-102`, discharged by the next increment; hardening the two
+sidecar-driven readers, which the sidecar-contract increment owns; the tolerate-and-prune
+sentence in `packages/record/src/signing/store.ts` and its guide counterpart, same owner;
+and the row-number derivation parentheticals in rows 19 and 22, which are write-time
+records and were carried verbatim rather than re-run. No deferral-register row was written
+or retired.
+
+**Cuts.** None. This increment corrected a record and cut no capability.
+
+**Gate outputs, as measured against this increment's own exit commit**:
+`./node_modules/.bin/vitest run` — 64 test files, 802 tests, zero skips;
+`./node_modules/.bin/tsc --noEmit -p packages/record` and
+`./node_modules/.bin/tsc --noEmit -p packages/store-postgres` — both clean;
+`./node_modules/.bin/biome check --error-on-warnings .` — 131 files checked, zero errors or
+warnings; `node scripts/contract-scan.mjs` — exit 0, no output;
+`node scripts/api-reference-sync.mjs` — exit 0; `node scripts/docs-index-sync.mjs` — exit 0.
+`docs/process/deferral-register.md` loses no row and gains none: row 22 restated in place.
+`git diff f6f2180 --stat -- packages/` — no output.
