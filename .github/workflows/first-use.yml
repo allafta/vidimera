@@ -1,0 +1,120 @@
+# The clean-runner first-use proof (the first-use-proof increment; the release checklist's
+# first precondition, "a machine that never held this checkout"). Two jobs. `pack` checks the
+# repository out, builds, packs both packages — npm for the record package, pnpm for the
+# adapter, because only pnpm rewrites the adapter's `workspace:^` peer range (the release
+# workflow's own tarball-first shape) — and uploads ONE artifact: both tarballs plus the
+# consumer script. `first-use` has NO checkout step, by design and as the proof: it downloads
+# only that artifact, installs the packages into a scratch project, drives the getting-started
+# flow to a verified chain over MemoryStore and over a real PostgreSQL service the job owns,
+# and then pins the node:sqlite warning story both ways — a bare import must warn on the
+# declared floor (22.16.0) and must not on the current LTS line (24, which resolves to a patch
+# at or above 24.15 on a current runner image). Dispatch-only: this is a deliberate release
+# act, like release.yml, not a per-push gate — `pnpm smoke` stays that. `source: registry`
+# reuses the same job against the published packages after the cut.
+name: First-use
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: where the consumer installs from
+        type: choice
+        options: [tarball, registry]
+        default: tarball
+      version:
+        description: package version to install when source is registry (ignored for tarball)
+        type: string
+        default: ''
+permissions:
+  contents: read
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: pack both packages and stage the artifact
+        run: |
+          mkdir -p first-use-artifact
+          (cd packages/record && npm pack --pack-destination ../../first-use-artifact --loglevel=error)
+          (cd packages/store-postgres && pnpm pack --pack-destination ../../first-use-artifact)
+          cp scripts/first-use.mjs first-use-artifact/
+          ls -l first-use-artifact
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: first-use-${{ github.run_id }}
+          path: first-use-artifact/
+          if-no-files-found: error
+          retention-days: 7
+  first-use:
+    needs: pack
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - node: 22.16.0 # the declared engines floor, exactly — the import MUST warn here
+            expect_warning: 'true'
+          - node: 24 # the current LTS line — resolves to >= 24.15, where the import MUST NOT warn
+            expect_warning: 'false'
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    # NO actions/checkout here. That absence is the proof: nothing below can resolve from the
+    # repository, because the repository is not on this runner.
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: first-use-${{ github.run_id }}
+          path: artifact
+      - name: scratch consumer project
+        run: |
+          mkdir app && cd app
+          printf '{ "name": "first-use-app", "private": true, "type": "module" }\n' > package.json
+          cp ../artifact/first-use.mjs .
+      - name: install the packages (${{ inputs.source }})
+        working-directory: app
+        run: |
+          if [ "${{ inputs.source }}" = "registry" ]; then
+            test -n "${{ inputs.version }}" || { echo "source=registry needs a version input"; exit 1; }
+            npm install "@vidimera/record@${{ inputs.version }}" "@vidimera/store-postgres@${{ inputs.version }}" --no-audit --no-fund
+          else
+            ls ../artifact/*.tgz
+            npm install ../artifact/*.tgz --no-audit --no-fund
+          fi
+      - name: first use — the getting-started flow over MemoryStore and PostgreSQL
+        working-directory: app
+        env:
+          FIRST_USE_SOURCE: ${{ inputs.source }}
+          VIDIMERA_PG_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+        run: node first-use.mjs
+      - name: the node:sqlite warning pin — bare import, stderr captured, asserted both ways
+        working-directory: app
+        run: |
+          node --version
+          node -e "await import('@vidimera/record'); console.log('imported @vidimera/record')" 2> stderr.txt || { cat stderr.txt; exit 1; }
+          echo "--- stderr of a bare import ---"; cat stderr.txt; echo "--- end ---"
+          if [ "${{ matrix.expect_warning }}" = "true" ]; then
+            grep -q ExperimentalWarning stderr.txt || { echo "expected the node:sqlite ExperimentalWarning on Node ${{ matrix.node }} and saw none"; exit 1; }
+          else
+            if grep -q ExperimentalWarning stderr.txt; then echo "unexpected ExperimentalWarning on Node $(node --version) — the guide's sentence would be false here"; exit 1; fi
+          fi

@@ -184,6 +184,14 @@ and one cancel-on-supersede concurrency group per ref. `.github/workflows/releas
 the dispatch-only, provenance-attested publish workflow (both packages, record first),
 unexercised until the 0.1 cut; `docs/process/release-checklist.md` is release day's
 authoritative list.
+`.github/workflows/first-use.yml` is the dispatch-only clean-runner first-use proof: a `pack`
+job uploads both packed tarballs and `scripts/first-use.mjs` as one artifact, and a
+`first-use` job with NO checkout step installs them into a scratch project on the declared
+Node floor and on the current LTS line, drives the getting-started flow to a verified chain
+over `MemoryStore` and a PostgreSQL service, and pins the `node:sqlite` warning story both
+ways (present on 22.16.0, absent on 24.15+); `source: registry` reuses it against the
+published packages after the cut. It is a deliberate release act, never a per-push gate —
+`pnpm smoke` remains that.
 `.github/dependabot.yml` groups weekly npm and actions updates; `.github/CODEOWNERS`
 guards `docs/concept/` and the frozen byte-stability test (binding once the
 require-review-from-code-owners branch protection is enabled — a release-day checklist
