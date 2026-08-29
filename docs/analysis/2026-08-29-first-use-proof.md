@@ -7,7 +7,8 @@ points. It does not prove the guide's prose reads right (that stays a human's ju
 not exercise the registry install path (that waits for the cut and the same workflow's
 `source: registry` input), does not run the probe tier's verdicts (running probes needs a
 host-declared driver), and measures the `24` line only at the patch the runner resolved on
-this date, `v24.19.0`. Every line quoted below is quoted verbatim from the run's own log.
+this date, `v24.19.0`. Every line quoted below is quoted verbatim from the run's own log, or
+from the dispatch attempt that preceded it.
 
 ## What ran
 
@@ -19,7 +20,7 @@ at. Three jobs, all `success`: `pack`, `first-use (22.16.0, true)`, `first-use (
 `actions/checkout` step, and that absence is the proof: the repository is not on the runner,
 so nothing the job does can resolve from it. Its only inputs are the artifact `pack` uploaded
 — both tarballs plus the consumer script — and the public package registry for the transitive
-dependencies. Per the operator's ruling of 2026-08-29, a freshly provisioned, GitHub-hosted
+dependencies. Per the owner's ruling of 2026-08-29, a freshly provisioned, GitHub-hosted
 `ubuntu-latest` runner with no checkout step satisfies the release checklist's precondition:
 it holds no prior state from this project and cannot see the working tree. That is the honest
 reading of the precondition — not a machine anyone owns, but a machine that demonstrably never
@@ -98,27 +99,33 @@ here — the public sentences this record licenses name 24.15 on that account, a
 not proven, by `v22.16.0` and `v24.19.0`. Nor does the run say anything about the 25.x line,
 about non-ubuntu platforms, or about what a registry install will do after the cut.
 
-## Two deviations the plan did not anticipate
+## One deviation the plan did not anticipate, and two anticipated risks that did not fire
 
-1. **A `workflow_dispatch` workflow is dispatchable only from the default branch.** The plan
-   assumed the workflow could be dispatched from the feature branch as soon as the branch was
-   pushed. It cannot: `gh workflow run first-use.yml --ref first-use-proof` returned
-   `HTTP 404: workflow first-use.yml not found on the default branch`, and the raw dispatch
-   endpoint returned the same. A dispatchable workflow is registered only from the default
-   branch; the `ref` then selects which branch's file runs, but registration must happen
-   first. On the operator's ruling, the consumer script and the workflow were fast-forwarded
-   onto `main` **before** this run — so the increment's first two commits landed on the
-   default branch ahead of the record that cites them, and the run's commit `5c036d0` was the
-   head of both `main` and `first-use-proof`.
-2. **Once registered, the feature-branch ref was accepted.** The re-dispatch named
-   `--ref first-use-proof` and was accepted, so the workflow file that ran is the branch's, not
-   a separately maintained copy. No fix-up to the workflow was needed: the anticipated
-   top-level-`await`-under-`-e` risk on 22.16.0 did not materialize — the bare import ran clean
-   on both legs, module-syntax detection accepting it.
+**The deviation: a `workflow_dispatch` workflow is dispatchable only from the default
+branch.** The plan assumed the workflow could be dispatched from the feature branch as soon as
+the branch was pushed. It cannot: `gh workflow run first-use.yml --ref first-use-proof`
+returned `HTTP 404: workflow first-use.yml not found on the default branch`, and the raw
+dispatch endpoint returned the same. A dispatchable workflow is registered only from the
+default branch; the `ref` then selects which branch's file runs, but registration must happen
+first. On the owner's ruling, the consumer script and the workflow were fast-forwarded onto
+`main` **before** this run — so the increment's first two commits landed on the default branch
+ahead of the record that cites them, and the run's commit `5c036d0` was the head of both `main`
+and `first-use-proof`.
+
+**Two anticipated risks that did not fire, once the workflow was registered.**
+
+1. **That `--ref` might not select the feature branch's own copy of the workflow.** It did:
+   the re-dispatch named `--ref first-use-proof` and was accepted, so the workflow file that
+   ran is the branch's, not a separately maintained copy on `main`. No fix-up to the workflow
+   was needed.
+2. **The anticipated top-level-`await`-under-`-e` risk on 22.16.0.** It did not materialize —
+   the bare import ran clean on both legs, module-syntax detection accepting it.
 
 ## Standing after this run
 
-The release checklist's first precondition is met, at the scope stated in the bound above. The
+The release checklist's first precondition is met, at the scope stated in the bound above —
+though its own checkbox, and its floor-rule text, are not ticked or touched by this record:
+that edit belongs to the next increment, and this record is what that edit will cite. The
 two public sentences this run licenses — the `SqliteStore` bullet in
 `docs/guide/integrating.md` and the install paragraph in `packages/record/README.md` — were
 rewritten only after the measurement existed, and say what it showed: the warning present

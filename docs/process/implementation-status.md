@@ -3490,12 +3490,17 @@ repair the same review round caught.
    workflow is dispatch-only and does nothing on push, but it is a real ordering the plan
    did not anticipate, and a later plan that assumes feature-branch dispatch will meet the
    same 404.
-2. **The plan's prescribed guide sentence over-claimed.** As written it also named "(and
-   25.x below 25.7)" — a boundary this run did not measure at all. The plan-mandated review
-   of Task 3 flagged it, the clause was ruled out, and `d95dcc8` removed it. The 24.15
-   boundary itself stays, on a stated basis: it is bracketed by the two measured legs
-   (`v22.16.0` warns, `v24.19.0` does not) and attributed to Node's own release note, with
-   the bracket — measured either side, never at the boundary — written into the record.
+2. **The design's and the plan's prescribed sentence over-claimed.** As written — in the
+   design's own "What lands" bullet for `docs/guide/integrating.md`
+   (`docs/superpowers/specs/2026-08-29-first-use-proof-design.md`) and repeated verbatim in
+   the plan — it also named "(and 25.x below 25.7)", a boundary this run did not measure at
+   all. The plan-mandated review of Task 3 flagged it, the clause was ruled out, and
+   `d95dcc8` removed it. This is a finding against the design as much as the implementation:
+   the design itself asked for an unmeasured claim, and the plan carried the same clause
+   forward rather than catching it first. The 24.15 boundary itself stays, on a stated
+   basis: it is bracketed by the two measured legs (`v22.16.0` warns, `v24.19.0` does not)
+   and attributed to Node's own release note, with the bracket — measured either side, never
+   at the boundary — written into the record.
 3. **The record's install-timing quote over-generalized**, and the same review round caught
    it: it read as though both legs reported the same elapsed install time, when they differ
    (1s and 2s). It now quotes each leg separately. That repair is not visible in `d95dcc8`'s
@@ -3558,5 +3563,14 @@ packages/record/test/byte-stability.test.ts` — no output; `git diff 4e3e833 --
 .github/workflows/ scripts/ docs/process/release-checklist.md` — exactly
 `.github/workflows/first-use.yml` and `scripts/first-use.mjs`, so `ci.yml`, `release.yml`,
 `smoke-pack.mjs` and the release checklist are all untouched. The full changed set since
-that baseline is five files: those two, `CLAUDE.md`, `docs/guide/integrating.md` and
-`packages/record/README.md`.
+that baseline, measured directly (`git diff 4e3e833 954d421 --name-only`), is TEN files: the
+five outside the increment's own records — those two, `CLAUDE.md`,
+`docs/guide/integrating.md` and `packages/record/README.md` — plus the design
+(`docs/superpowers/specs/2026-08-29-first-use-proof-design.md`), the plan
+(`docs/superpowers/plans/2026-08-29-first-use-proof.md`),
+`docs/analysis/2026-08-29-first-use-proof.md`, `docs/superpowers/INDEX.md` and this
+document. The exit commit's own message quotes "five files" for the same range — that count
+was taken before the commit's own changes to this document, `docs/superpowers/INDEX.md` and
+the three `git add`ed documents were staged, so it measured a narrower tree than the one the
+commit actually closed, and a commit body cannot be rewritten to fix it. This section is the
+corrected count.
