@@ -3574,3 +3574,242 @@ was taken before the commit's own changes to this document, `docs/superpowers/IN
 the three `git add`ed documents were staged, so it measured a narrower tree than the one the
 commit actually closed, and a commit body cannot be rewritten to fix it. This section is the
 corrected count.
+
+## Post-build-order increment — Checklist refresh
+
+**The fourteenth post-build-order increment, exited (commits `e30c1f5`..`b27f2d0`, closed
+by the record commit that follows them).** The ordinal counts the sections above in order
+and, as the last six did, does NOT count the documentation-only
+signature-enforcement-coverage findings note. **This increment landed no library behavior,
+no workflow and no script — five documents changed, two added, and one outward-facing act
+on a tag — and moved no maturity marker.** No `docs/concept/` file changed, no sanction was
+sought and none was needed: nothing here promotes a capability, narrows a rule, or touches
+a sealed enumeration. No `packages/`, `.github/` or `scripts/` file changed at all, proved
+by `git diff 3154cc3 --stat -- packages/ .github/ scripts/ docs/concept/` (no output). And
+no `docs/process/deferral-register.md` row was written, retired or re-worded: the register
+was read, quoted and compared, never edited, and the whole file is byte-identical to the
+baseline (proof below). It is the third increment authored 2026-08-29 and the second of the
+two that day's path-to-0.1 brainstorm chose: the first-use proof took the measurements and
+deliberately left release day's list alone so that this increment could cite the run rather
+than write the run and the citation in one breath; this one writes them in, so release day
+starts from a list that is true on the day it is read. Design:
+`docs/superpowers/specs/2026-08-29-checklist-refresh-design.md`; plan:
+`docs/superpowers/plans/2026-08-29-checklist-refresh.md`.
+
+**The gap this closed.** `docs/process/release-checklist.md` had drifted from the tree in
+eight places, tabulated in the design and compressed here. Its pickup recipe told a reader
+to cherry-pick the preserved release commit `8be3fce` and refresh every `2026-08-19` date
+in it — but that commit is stale in CONTENT, not only in date: `[Unreleased]` has gained
+six entries since (three post-build-order promotions, `SignatureReport.orphans`, and two
+`Fixed` entries), the checklist's own "File changes" list gained four docset flips that
+commit never touched, and `CLAUDE.md`'s honest-bound paragraph has been rewritten several
+times, so the pick would have been mostly conflicts carrying stale wording. The same notice
+carried a CONDITIONAL instruction to delete the remote `v0.1.0` tag if it still existed —
+and it still existed, on origin and locally: an annotated tag (object `49502c3`, per the
+deletion output; target `8be3fce`) on the reverted commit, and so a standing public claim
+that a 0.1.0 had been released. The first precondition read unticked, with the
+same-machine rehearsal named as what remained, after the same day's first-use proof had
+discharged it by construction. The floor rule carried its 2026-08-19
+evaluation (measured on 24.12.0, ship-as-is) and the rehearsal's finding that "every
+adopter meets it at hello", both overtaken by Node. The post-publish verification item
+asked release day to find a second clean machine, when `.github/workflows/first-use.yml`'s
+`source: registry` input is that exact job and already exists. The row-19 and row-22
+disposition items said only that release day "must retire it or explicitly carry it
+forward" and stopped there, leaving a written argument to be drafted under the pressure of
+the day. The notice's owner-side list called five settings "all still open" without
+recording that two of them are not merely undone but UNAVAILABLE while the repository is
+private. And `docs/process/next-phases.md` and `CLAUDE.md` described the cut's gates as the
+three register rows alone — true, and incomplete: a reader of either learned that rows gate
+the cut and not that the clean-machine pass was done or that the floor had been
+re-evaluated.
+
+**What landed.** Two commits, neither of them touching code, and no red commit:
+
+- `docs/process/release-checklist.md` (`e30c1f5`) — six sites, 87 insertions and 35
+  deletions in one file, with every other line of the list byte-identical, proved by
+  reading `git diff -U0` hunk by hunk: all eight hunks fall inside the six named sites.
+  (1) The `PAUSED` blockquote becomes a STATUS rather than a recipe — what has landed since
+  the pause and what each landing changed for the cut, the state of both engineering
+  preconditions, the re-cut instruction with `8be3fce` demoted to a precedent to diff
+  against, the tag's deletion, and the owner-side list with the platform bound on two of
+  its items. It no longer carries a cherry-pick command. (2) The phase-6 precondition,
+  ticked (below). (3) The floor-rule item, extended (below) — its existing sentences kept
+  byte-identical and the 2026-08-29 evaluation appended after them. (4) The post-publish
+  verification item, rewritten to dispatch `.github/workflows/first-use.yml` with
+  `source: registry` and `version: 0.1.0` against the published packages, on the same
+  no-checkout job that discharged the precondition, and naming the three script and
+  workflow improvements parked for that dispatch's own commit — the floor leg's warning
+  grep narrowed to the SQLite-specific message, a header note that the script's `pg` import
+  resolves only because npm hoists the adapter's dependency, and the review view's
+  `subjectRef` assertion — so the recorded tarball run's script stays byte-identical until
+  the run that supersedes it. (5) and (6) The row-19 and row-22 disposition items, each
+  extended with an expected ruling (below).
+- The tag `v0.1.0` — deleted on origin and then locally on the owner's authorization of
+  2026-08-29, the one outward-facing act in this increment and the only thing it changed
+  outside the tree. What the tag pointed at was confirmed BEFORE the deletion rather than
+  reconstructed after it: `git show -s --format` over `v0.1.0^{commit}` printed `8be3fce`
+  and its subject, the preserved 0.1-cut commit that the pause reverted whole, and the plan
+  made a different target a STOP. `git push origin :refs/tags/v0.1.0` reported the tag
+  deleted; `git tag -d v0.1.0` followed. The deletion is irreversible in place but not
+  lossy: the commit stays in history, is named in the notice, and a tag can be recreated on
+  it in one command. What is gone is the claim, not the code.
+- `docs/process/next-phases.md` and `CLAUDE.md` (`b27f2d0`) — the two mirrors, 17
+  insertions across two files and nothing removed. The next-phases paragraph lands at the
+  END of the "What gates the next cut" passage — directly after its closing sentence,
+  "Each item below names its row and quotes its trigger verbatim.", and before the
+  `### Consumability` heading — not beside the sentence that OPENS the passage by naming
+  the three rows. It carries the two engineering preconditions that also gate the cut, both
+  moved on 2026-08-29; `8be3fce` as a precedent and not a commit to cherry-pick; the stale
+  tag gone; and the owner-side list as what still gates the cut outside this repository. It
+  points at the checklist as the authority rather than restating it as a second claim of
+  record — "the checklist is the authority; this is the pointer", in its own words.
+  `CLAUDE.md`'s honest-bound paragraph gains one sentence carrying the same two facts plus
+  the owner-gated ones.
+- `docs/superpowers/INDEX.md`, this document, and the `git add` of the design and the plan
+  (this commit) — the record. The counted sentences move by the two files added, to 37 in
+  `specs/` and 40 in `plans/`, measured with `git ls-files` after the `git add` rather than
+  incremented from the previous figure; `docs/analysis/` stays at 19, because this
+  increment adds no analysis record — it has no run and no measurement of its own to write
+  down, only the previous increment's to cite. The present-tense vitest and Biome counts
+  did NOT move and were re-measured rather than assumed: this increment adds no test file
+  and no file Biome scans. Every figure under an earlier `Gate outputs` heading is pinned
+  to a past commit and stayed byte-identical.
+
+**Pre-argued, not decided — stated here because this is where it could be misread.** Rows
+19 and 22 keep their numbers, their scopes, their triggers and their date cells; both are
+OPEN, and this increment decided neither. What each item gained is an EXPECTED ruling with
+its reasoning, prefixed in the file by its own disclaimer — release day "confirms or
+overrules", and the row is not decided there. Row 19's expected ruling is carry forward,
+because nothing has changed signature encoding or key handling since the row opened on
+2026-08-23: the no-edge containment increment's signer-result memo changed how many times a
+signer is asked, never what is signed or how it is keyed, so the row's first trigger
+disjunct has not fired and the deferral's reason stands. Row 22's is carry forward too,
+because the surviving orphan half's only containment takes a horn that needs a sanction
+nobody has sought — "declined at this cut unless sought on its own merits", in the
+checklist's own words — while the `SignatureStore` contract's delegation and the visibility
+`SignatureReport.orphans` gives a host are what stand in the meantime. Both rows' triggers
+name the 0.1 cut as a disjunct, which is exactly why the ruling belongs to the cut and not
+to this increment: re-deriving either trigger today to drop that disjunct would be a
+register decision taken on the grounds that the answer is already known, which is the
+pre-judging the trigger discipline exists to prevent. Row 22's row was restated by the
+row-22 truth-repairs increment and re-scoped by the no-edge containment increment, and
+its date cell still reads `2026-08-23 (restated 2026-08-28; re-scoped 2026-08-29)`,
+unchanged by this increment. What each carry-forward would MEAN is written down too —
+restating the row's trigger without the cut disjunct and recording that ruling here — so
+the day's work is confirming an argument rather than composing one.
+
+**The floor did not move, and why.** Phase-0 ruling 3's trigger is literal: the item asks
+release day to "Check whether a maintained Node line carries a **stable** `node:sqlite`".
+`node:sqlite` reached Stability 1.2 — release candidate — in Node 24.15.0, not Stability 2,
+so the rule as written has not fired. `engines.node` stays `>=22.16` in the root and both
+packages, CI's exact-floor leg stays 22.16.0, and `packages/record/README.md`'s
+`Requires Node 22.16 or newer.` is untouched; this increment changed no manifest and no
+workflow, which the envelope proof below covers. What the item gained is the measurement
+the rule was written to weigh. The change that made the module a release candidate also
+removed the runtime `ExperimentalWarning`, so the rehearsal's "every adopter meets it at
+hello" finding is now true only for adopters below 24.15 — measured, not assumed, by the
+first-use run's two legs (`v22.16.0` warns; `v24.19.0` is silent), with the guide and the
+package README already saying so. The item is dated on its face and hands the question
+back: release day re-evaluates against the Node lines THEN, and a Stability-2 `node:sqlite`
+on any maintained line by the cut fires the rule as written.
+
+**The one checkbox ticked, and its bound.** The file carried 19 unticked boxes and none
+ticked before this increment, and carries 18 unticked and exactly one ticked after —
+measured on both sides, not asserted. The box that moved is the phase-6 clean-machine
+precondition, ticked "Discharged by construction, 2026-08-29:" against
+`.github/workflows/first-use.yml`'s no-checkout job, `First-use run 33242645696 on origin`
+at commit `5c036d0`, and `docs/analysis/2026-08-29-first-use-proof.md` as the record.
+Ticking a checkbox is a claim, so the item states what the run did not prove in the same
+breath: ubuntu only; tarball source only until the cut; "the getting-started prose itself
+unproven"; "the probe tier not run". The owner's-bar precondition directly below it stays
+UNTICKED deliberately — it is a judgment only the owner makes, on the day, and no
+repository act can discharge it. Every other box on the list — the file changes, the
+repository and registry settings, the dispatch, the paperwork — stays unticked: this
+increment prepares the list, it does not run it.
+
+**Deviations from the plan as written, stated rather than smoothed over.** Three, all
+minor, none caught by a gate — two are wrinkles in the landed text, and the third is a
+finding against the plan rather than against the implementation.
+
+1. **A prescribed line overruns the file's own wrap.**
+   `docs/process/release-checklist.md:24` runs to 98 characters (100 bytes, for one
+   em-dash), the longest line in the file. It is text the plan prescribed verbatim, and it
+   is long because it carries an inline path
+   (`docs/analysis/2026-08-29-first-use-proof.md`) inside a blockquote whose `> ` marker
+   eats two more columns. No gate measures markdown line length, and re-wrapping would have
+   moved away from the plan's own words, so it was left as written and is recorded here
+   instead.
+2. **`CLAUDE.md`'s new sentence paraphrases where it could have quoted.** It says no publish
+   token exists; the checklist's corresponding item — a live granular `NPM_TOKEN` secret,
+   still open — is what that paraphrases. The paraphrase is accurate on this date and
+   `CLAUDE.md` points at the checklist as the authority, so it is not a second claim of
+   record; but a reader comparing the two will find wording, not text.
+3. **The plan disagreed with itself about the checkbox baseline.** Its Global Constraints
+   named 19 unticked boxes on 2026-08-29 while Task 1's own first step gave `21` as the
+   expected reading. That step also said to measure and use what was read, which is what
+   happened — the file held 19 — so the discipline absorbed the defect rather than the
+   implementation inheriting it. It is recorded because that constraint is the only reason
+   the wrong figure did not become the record.
+
+Otherwise both tasks executed the plan as written, checked rather than assumed:
+`git show e30c1f5 --stat` is one file, and `git show b27f2d0 --stat` is exactly `CLAUDE.md`
+and `docs/process/next-phases.md` — the files each task was scoped to and no others.
+
+**The honest limit.** Nothing about the cut itself moves. The repository stays private,
+`private: true` stays in both manifests, no version is bumped, no token exists, and this
+increment publishes nothing — it prepares the list, it does not run it, and a true list is
+not a release. The owner-side items are not the repository's to close, and two of them
+cannot even be ATTEMPTED until the visibility flip, because the platform refuses branch
+protection with code-owner review and private vulnerability reporting on a private
+repository of this plan; the list can say so and that is all it can do, which is also why
+"public first, then dispatch" is not only npm's provenance ordering here. Pre-argued is not
+decided: if release day finds a reason to retire row 19 or row 22, the pre-written text is
+a draft to overrule and carries no weight against the day's judgment. The floor evaluation
+is DATED — it is true of 2026-08-29, and the item itself tells release day to re-evaluate.
+The re-cut recipe is a list of files, not a commit: release day still composes the release
+commit by hand, and the recipe removes a trap rather than automating the flip. And the
+whole increment is prose about a list — nothing here is executable, no test pins any of it,
+and it will go stale exactly the way the text it replaced did, which is why the notice now
+carries its own refresh date on its face.
+
+**What stays outside, and why.** The cut, entirely: every "File changes" and "Repository
+and registry settings" item stays unticked, and nothing is bumped, flipped, published or
+tagged. Raising the floor, per the rule's own unfired trigger. The three parked script and
+workflow improvements, which land with the `source: registry` dispatch so the recorded
+tarball run's script stays byte-identical until the run that supersedes it. Retiring or
+re-deriving rows 19 and 22, which belongs to the cut. Rewriting the historical accounts of
+the paused attempt — this document's release-readiness section and
+`docs/process/open-items-plan.md` describe that cut as it stood when they were written, and
+per the tier discipline they are left alone; the mentions of `8be3fce` there are history,
+not instructions. `docs/guide/` and `packages/record/README.md`, which the first-use proof
+already corrected. And any deferral-register edit at all: no row was written, retired or
+restated, row 1's trigger does not fire here because nothing was published, and the file is
+byte-identical to the baseline.
+
+**Cuts.** None. This increment rewrote a list and deleted a stale tag; it cut no capability
+and removed no behavior.
+
+**Gate outputs, as measured against this increment's own exit commit**:
+`./node_modules/.bin/vitest run` — 67 test files, 821 tests, zero skips (record project
+63 / 756; store-postgres 4 / 65 — each project measured on its own run as well as together),
+identical to the pre-increment figures, as an increment that adds no test file should be;
+`./node_modules/.bin/tsc --noEmit -p packages/record` and
+`./node_modules/.bin/tsc --noEmit -p packages/store-postgres` — both clean;
+`./node_modules/.bin/biome check --error-on-warnings .` — 135 files checked, zero errors or
+warnings; `node scripts/contract-scan.mjs` — exit 0, no output, re-run after the two untracked
+documents were staged, since the scan reaches them only once they are tracked;
+`node scripts/api-reference-sync.mjs` — exit 0; `node scripts/docs-index-sync.mjs` — exit
+0, run after the INDEX row and both counts were written and the pair staged.
+`docs/process/deferral-register.md` loses no row and gains none, and no row's text moved:
+the whole file is byte-identical to the baseline, and rows 1, 19 and 22 were additionally
+compared cell by cell after splitting each row on the table's own separator. The envelope
+baseline is `3154cc3`, the commit this branch was cut from.
+`git diff 3154cc3 --stat -- packages/ .github/ scripts/ docs/concept/` — no output, so the
+library, the workflows, the scripts and the sealed set are all untouched. The full changed
+set since that baseline, measured directly (`git diff 3154cc3 --name-only` at this commit),
+is SEVEN files: `CLAUDE.md`, `docs/process/release-checklist.md`,
+`docs/process/next-phases.md`, this document, `docs/superpowers/INDEX.md`, and the two
+added pair documents (`docs/superpowers/specs/2026-08-29-checklist-refresh-design.md`,
+`docs/superpowers/plans/2026-08-29-checklist-refresh.md`). `git ls-remote --tags origin`
+piped to `grep -c v0.1.0`, and `git tag -l v0.1.0` piped to `wc -l`, both read `0`: the
+stale tag is gone from the remote and from this clone.
