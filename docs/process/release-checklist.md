@@ -154,8 +154,12 @@ as a list rather than as code.
       row 1. Note before ruling: behavior on a durable `SignatureStore` backing is a coverage
       bound, NOT a mitigation — it is unmeasurable in this tree, because
       `MemorySignatureStore` is the only implementation — so its absence from the evidence
-      must not be read as the finding being contained; and "carry forward" is the expected
-      ruling unless a sanction for the third horn has been sought and granted, since the
-      alternative containments were measured and rejected rather than left untried.
+      must not be read as the finding being contained; and "carry forward, with the growth
+      visible" is the expected ruling — `verifySignatures(recordId).orphans` now names the
+      entries a host must reconcile, so the row's cost is a number rather than a warning —
+      and the third-horn sanction is DECLINED at this cut unless sought on its own merits,
+      since the alternative containments were measured and rejected rather than left
+      untried and the one horn-free deletion point (prune-at-seal) is recorded in the row
+      as identified, not built.
 - [ ] Update `docs/process/implementation-status.md`'s measured block (versions,
       published state) — dated, as always.

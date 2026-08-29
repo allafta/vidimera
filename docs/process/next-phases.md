@@ -62,9 +62,14 @@ sidecar-contract increment — between the truth repairs and the containment —
 correlate through the chain and pinned the adverse ordering
 (`packages/record/test/sidecar-ordering.test.ts`); in the same change the `SignatureStore`
 contract and both guide documents gained the obligation that a conforming sidecar holds
-entries for transitions that never landed. That sentence is delegation, not a fix: 22a stays
-open. Work with a named successor increment was sequenced, not deferred, which is why neither
-finding ever took a register row. Row 22's trigger, re-derived for 22a alone (verbatim):
+entries for transitions that never landed. That sentence is delegation, not a fix: 22a
+stays open. The sidecar-orphans-report increment (2026-08-29) made the delegated work
+visible — `verifySignatures(recordId).orphans` names the entries to prune, sorted, at no
+extra read — without closing 22a; prune-at-seal is recorded in the row's inventory as
+identified and gated on a durable backing, and the third-horn sanction is declined at this
+cut. Work with a named successor increment was sequenced, not deferred, which is why
+neither finding ever took a register row. Row 22's trigger, re-derived for 22a alone
+(verbatim):
 "The first increment that adds a durable `SignatureStore` backing beyond
 `MemorySignatureStore` — the only implementation in the tree, and the reason unbounded
 growth is unmeasured here; or that lifts `private: true` and publishes the package, since a
