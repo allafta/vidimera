@@ -86,7 +86,7 @@ any one exit.
 - **Measured against the current tree**: `pnpm test` — 67 test files, 821 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
-  `pnpm lint` (`biome check .`) — 134 files checked, zero errors or warnings;
+  `pnpm lint` (`biome check .`) — 135 files checked, zero errors or warnings;
   `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 24 refusal codes, the twenty-fourth and
@@ -3352,3 +3352,211 @@ inventory gains two sentences, its scope, trigger and date cells byte-identical.
 `packages/record/src/kernel/verify-signatures.ts` and
 `packages/record/src/operator-surface.ts`; `signatureLayerHolds` body hash unchanged at
 `f1b8ac2567ebba588dd61a336ba8ca9aed3b4ef2`.
+
+## Post-build-order increment — First-use proof
+
+**The thirteenth post-build-order increment, exited (commits `2a28abe`..`d95dcc8`, closed
+by the record commit that follows them).** The ordinal counts the sections above in order
+and, as the last five did, does NOT count the documentation-only
+signature-enforcement-coverage findings note. **This increment landed no library behavior
+at all — one dispatch-only workflow, the consumer script it runs, one documented run of
+that workflow, and the two public sentences the run licensed — and moved no maturity
+marker.** No `docs/concept/` file changed, no sanction was sought and none was needed:
+nothing here promotes a capability, narrows a rule, or touches a sealed enumeration. No
+`packages/*/src/` file changed, proved by `git diff 4e3e833 --name-only --
+'packages/*/src/*'` (no output); the one file under `packages/` that moved is
+`packages/record/README.md`, one paragraph of install prose, named in the design's own
+"What lands" list. It is the second increment authored 2026-08-29 and the first
+release-readiness increment since the reconciliation pass: where the three-increment
+sidecar sequence and the orphans report worked on the signing layer, this one leaves the
+library alone and asks a different question — whether an adopter can install it and reach
+a verified chain on a machine that never held this checkout. Design:
+`docs/superpowers/specs/2026-08-29-first-use-proof-design.md`; plan:
+`docs/superpowers/plans/2026-08-29-first-use-proof.md`.
+
+**The gap this closed.** The release checklist's first precondition asks for "one
+documented, reproduced first-use pass from packed artifact to verified chain on a machine
+that never held this checkout", and nothing this repository ran could discharge it. The
+2026-08-19 rehearsal ran on the development machine and said so. `pnpm smoke`, the
+per-push packed-artifact gate, packs both packages and consumer-tests the tarballs in a
+scratch directory — on a runner that CHECKED THE REPOSITORY OUT, so the checkout sits on
+disk beside the scratch project, which is exactly the doubt the bar exists to remove. The
+second gap is smaller and was found while reading the first: two public sentences had gone
+stale under Node. `docs/guide/integrating.md` said "Node still flags `node:sqlite` as
+experimental and prints a warning" and `packages/record/README.md` said the same in its
+own voice — true below Node 24.15 and false at or above it, so every reader on the current
+LTS line was being told to expect something they would not see.
+
+**What landed.** Four commits, none of them touching the library:
+
+- `scripts/first-use.mjs` (`2a28abe`) — the consumer script, and consumer code in the
+  strict sense: it imports `@vidimera/record`, `@vidimera/record/probes`,
+  `@vidimera/store-postgres`, `pg` and node builtins, and never a relative path into this
+  repository, so every import resolves through a package's exports map or fails. It is the
+  getting-started flow in substance rather than a copy of `smoke-pack.mjs`'s loop: stage →
+  open → review → finalize → `confirmed` over `MemoryStore`; the offline `replay` and
+  `verifyChain` reads and the handle-form `verifyChain`; the four-kind chain shape
+  `['opened', 'consultation-recorded', 'consultation-recorded', 'confirmed']` the guide
+  shows; the refused half, where a wrong-authority identity comes back as
+  `identity-authority-refused` and is never thrown; the `./probes` subpath, with
+  `ALL_PROBES` non-empty and `runProbes` and `assertSatisfied` importable; the adapter's
+  peer range read out of the installed manifest and asserted NOT to start with
+  `workspace:`; and, when `VIDIMERA_PG_URL` is set, the same confirm loop over a real
+  PostgreSQL server through `PostgresStore`. Without that variable the Postgres half prints
+  a notice and is skipped — never skipped silently. One summary line on success, non-zero
+  exit on the first failed assertion.
+- `.github/workflows/first-use.yml` and `CLAUDE.md` (`5c036d0`) — the dispatch-only
+  workflow: `workflow_dispatch` with a `source` choice (`tarball` | `registry`) and a
+  `version` string, `permissions: contents: read`, five actions pinned by full SHA with
+  trailing version comments. Job `pack` checks out, builds, packs the record package with
+  `npm pack` and the adapter with `pnpm pack` — only pnpm rewrites the adapter's
+  `workspace:^` peer range, the trap `scripts/smoke-pack.mjs` already documents — copies
+  the script in beside them, and uploads all three as ONE artifact. Job `first-use` has no
+  `actions/checkout` step, and that absence is the whole proof: it downloads that artifact
+  and installs from it, on a two-entry matrix (`22.16.0` with `expect_warning: 'true'`,
+  `24` with `'false'`) against a `postgres:18` service container with a `pg_isready` health
+  check. Its last step is the warning pin: a bare `node -e` import of `@vidimera/record`
+  with stderr redirected to a file, the file echoed into the log between two markers, then
+  `grep -q ExperimentalWarning` asserted present on the floor leg and absent on the other.
+  `CLAUDE.md`'s CI paragraph gained one sentence naming the workflow, what it does, and
+  what it is not — a deliberate release act, never a per-push gate, with `pnpm smoke` named
+  as the thing that stays that.
+- `docs/guide/integrating.md` and `packages/record/README.md` (`40331ba`, corrected in
+  `d95dcc8`) — the two public sentences, rewritten AFTER the run and only because of it.
+  Both now say the same thing in their own voices: below Node 24.15 importing the package
+  prints Node's `ExperimentalWarning` for `node:sqlite` and
+  `node --disable-warning=ExperimentalWarning` silences it; "on 24.15 and later nothing
+  prints". Both attribute the claim — measured by the first-use workflow, which imports the
+  packed artifact bare on the declared floor and on the current LTS line — and the guide
+  points at the record by path. The README's `Requires Node 22.16 or newer.` is
+  byte-identical across this increment.
+- `docs/superpowers/INDEX.md`, this document, and the `git add` of the design, the plan and
+  `docs/analysis/2026-08-29-first-use-proof.md` (this commit) — the record. The
+  present-tense Biome count moved by one, to 135 files, for `scripts/first-use.mjs`; the
+  present-tense test counts did NOT move and were re-measured rather than assumed, because
+  this increment added no test file. Every figure under an earlier `Gate outputs` heading
+  is pinned to a past commit and stayed byte-identical.
+
+**The run, and what it proved.** `First-use run 33242645696 on origin` — the `First-use`
+workflow, dispatched with `source: tarball` against ref `first-use-proof` at commit
+`5c036d0`. Three jobs, all `success`: `pack`, `first-use (22.16.0, true)` and
+`first-use (24, false)`. `pack` produced `vidimera-record-0.0.0.tgz` (164713 bytes) and
+`vidimera-store-postgres-0.0.0.tgz` (11521 bytes) and uploaded them with the script. Each
+`first-use` leg then installed both tarballs into a scratch project — `added 16 packages in
+1s` on the floor leg, `added 16 packages in 2s` on the LTS leg — and ran the script against
+a `postgres:18` service container the JOB owned
+(`starting PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2)`), not against the workspace's own
+embedded Postgres: the rehearsal's one honest gap, borrowed binaries, closes there. Both
+legs printed a byte-identical summary line:
+
+```
+first-use: OK - source=tarball; memory: 4 transitions, confirmed + intact; 17 probes visible through ./probes; adapter peer range ^0.0.0; postgres half OK (4 transitions, confirmed + intact)
+```
+
+Four transitions over `MemoryStore` and four more over the real server, each confirmed and
+chain-intact; the adapter's peer range observed as `^0.0.0`, pnpm's pack-time rewrite of
+`workspace:^`, satisfied by the record tarball installed beside it. The bare import then
+printed `imported @vidimera/record` on stdout on both legs and, on stderr, the two
+measurements the public sentences rest on: on the resolved `v22.16.0`,
+`ExperimentalWarning: SQLite is an experimental feature and might change at any time`; on
+the resolved `v24.19.0`, an empty block. Nothing printed.
+
+**The floor did not move, and why.** Phase-0 ruling 3's trigger is a stable `node:sqlite` —
+the checklist's own words are "Check whether a maintained Node line carries a **stable**
+`node:sqlite`". Node marked the module a release candidate, not stable, at 24.15;
+"Stability 1.2 is not 2", as the design puts it, so the rule's trigger has not fired.
+`engines.node` stays `>=22.16` in the root and both packages, CI's exact-floor leg stays
+22.16.0, and the README's `Requires Node 22.16 or newer.` is unchanged. What DID move is
+the story the rule was written to weigh: the checklist tells release day to weigh the
+rehearsal's finding that "every adopter meets it at hello", and on 24.15 and later they no
+longer do. This increment supplies that measurement and pins it in a re-runnable job;
+refreshing the rule's own text is the next increment's work, not this one's.
+
+**Deviations from the plan as written, stated rather than smoothed over.** Two, plus one
+repair the same review round caught.
+
+1. **A `workflow_dispatch` workflow is registered only from the default branch.** The
+   plan's Task 3 assumed `gh workflow run --ref first-use-proof` would work as soon as the
+   file existed on that branch. It does not: the first dispatch returned
+   `HTTP 404: workflow first-use.yml not found on the default branch`, and the raw REST
+   endpoint returned the same — registration happens from the default branch, and `--ref`
+   only selects which branch's file then runs. On the owner's ruling of 2026-08-29 (option
+   1 of three offered), `main` was fast-forwarded to `5c036d0` — Tasks 1 and 2, both
+   reviewed clean, gates green on the merged head — and pushed; the workflow registered;
+   the run was dispatched from `first-use-proof` at that same commit, so the file that ran
+   is the branch's. The consequence is recorded rather than hidden: this increment lands on
+   `main` in two pieces, Tasks 1–2 before the run and Tasks 3–4 after, and `main` briefly
+   carried a workflow whose proving run had not happened yet. That is harmless, because the
+   workflow is dispatch-only and does nothing on push, but it is a real ordering the plan
+   did not anticipate, and a later plan that assumes feature-branch dispatch will meet the
+   same 404.
+2. **The plan's prescribed guide sentence over-claimed.** As written it also named "(and
+   25.x below 25.7)" — a boundary this run did not measure at all. The plan-mandated review
+   of Task 3 flagged it, the clause was ruled out, and `d95dcc8` removed it. The 24.15
+   boundary itself stays, on a stated basis: it is bracketed by the two measured legs
+   (`v22.16.0` warns, `v24.19.0` does not) and attributed to Node's own release note, with
+   the bracket — measured either side, never at the boundary — written into the record.
+3. **The record's install-timing quote over-generalized**, and the same review round caught
+   it: it read as though both legs reported the same elapsed install time, when they differ
+   (1s and 2s). It now quotes each leg separately. That repair is not visible in `d95dcc8`'s
+   diff, because the record was still untracked at the time; it is part of the file this
+   commit adds.
+
+**The honest limit.** Ubuntu only: both legs run on `ubuntu-latest`, and consumer-side
+behavior on Windows and macOS is inferred from CI's own matrix, which runs from a checkout,
+rather than proved here. Tarball source only: `source: registry` is wired and has nothing
+to install until the packages exist, so the registry half stays a rehearsed act rather than
+a performed one. The prose is unproven — whether the getting-started walkthrough reads right
+to a first-time reader is a human's judgment, and the script follows the flow in substance,
+not the reader's eyes. The `24` leg measured the patch the runner image resolved on this
+date, `v24.19.0`, named in the record for exactly that reason: it lets a later reader tell
+"the story is wrong" from "that image was old". The probe tier was reached and not run — 17
+probes visible through `./probes`, no verdict computed, because running them needs a
+host-declared driver the guide does not ask a first-time reader to write. `pnpm smoke` is
+unchanged and remains the per-push packed-artifact gate; this workflow adds a second,
+deliberate proof and replaces nothing. And it is ONE run on one date: nothing re-runs it
+automatically, so a future runner image resolving `24` below 24.15 would falsify the public
+sentence and be caught only at the next dispatch — the leg would fail loudly, which is the
+pin working, but only when someone presses it.
+
+**What stays outside, and why.** The release checklist itself, deliberately and entirely:
+its first precondition box, its floor-rule text, its pickup instructions, rows 19 and 22's
+carry-forward notes, and the deletion of the stale remote `v0.1.0` tag from the paused
+attempt are all the NEXT increment's, so that increment can cite this run rather than write
+the run and the citation in one breath. `docs/process/release-checklist.md` is
+byte-identical across this increment, proved below. **The precondition is therefore
+discharged BY CONSTRUCTION, not ticked**: the run exists and the record names it, and the
+checkbox is a checklist edit this increment did not make. Also outside: raising the floor
+(above); a lazy `SqliteStore` load to remove the warning on old Nodes, which would reshape
+the entry point after the API review closed; running the probe tier inside the script,
+which needs a host driver; Windows and macOS first-use legs, which the record names as a
+gap and which are a later choice; and any change to `.github/workflows/ci.yml`,
+`.github/workflows/release.yml` or `scripts/smoke-pack.mjs`, all three proved untouched
+below. No deferral-register row was written, retired or restated — row 1's trigger, the
+release workflow's first exercise, does not fire here, because this workflow publishes
+nothing.
+
+**Cuts.** None. This increment added a proof and corrected two sentences; it cut no
+capability and removed no behavior.
+
+**Gate outputs, as measured against this increment's own exit commit**:
+`./node_modules/.bin/vitest run` — 67 test files, 821 tests, zero skips (record project
+63 / 756; store-postgres 4 / 65), identical to the pre-increment figures, as an increment
+that adds no test file should be;
+`./node_modules/.bin/tsc --noEmit -p packages/record` and
+`./node_modules/.bin/tsc --noEmit -p packages/store-postgres` — both clean;
+`./node_modules/.bin/biome check --error-on-warnings .` — 135 files checked, zero errors or
+warnings; `node scripts/contract-scan.mjs` — exit 0, no output, re-run after the three
+untracked documents were staged, since the scan reaches them only once they are tracked;
+`node scripts/api-reference-sync.mjs` — exit 0; `node scripts/docs-index-sync.mjs` — exit 0.
+`docs/process/deferral-register.md` loses no row and gains none, and no row's text moved.
+The envelope baseline is `4e3e833`, the commit this branch was cut from — NOT
+`git merge-base main HEAD`, which advanced to `5c036d0` mid-increment (deviation 1) and
+would hide the first two commits from the proof. `git diff 4e3e833 --name-only --
+'packages/*/src/*'` — no output; `git diff 4e3e833 --stat --
+packages/record/test/byte-stability.test.ts` — no output; `git diff 4e3e833 --name-only --
+.github/workflows/ scripts/ docs/process/release-checklist.md` — exactly
+`.github/workflows/first-use.yml` and `scripts/first-use.mjs`, so `ci.yml`, `release.yml`,
+`smoke-pack.mjs` and the release checklist are all untouched. The full changed set since
+that baseline is five files: those two, `CLAUDE.md`, `docs/guide/integrating.md` and
+`packages/record/README.md`.
