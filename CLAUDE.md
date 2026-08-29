@@ -44,6 +44,11 @@ the 0.1 cut. Register row 1 stays open until the release workflow
 (`.github/workflows/release.yml`, dispatch-only) is exercised at that cut; the pre-0.1 API
 review (row 6) completed and retired 2026-08-19
 (`docs/analysis/2026-08-19-phase-1-api-review.md`).
+The release checklist's clean-machine precondition is discharged by construction (the
+first-use proof, 2026-08-29 — `docs/analysis/2026-08-29-first-use-proof.md`), its floor
+rule was evaluated and did not fire, and the cut stays owner-gated: the repository is
+private, no publish token exists, and the paused attempt's stale `v0.1.0` tag has been
+removed.
 
 **Read these, not this file, for the record and the plan.**
 `docs/process/implementation-status.md` is the authoritative account of what this build

@@ -86,6 +86,18 @@ seams' `tx?`), and row 4 (the workspace shape, its trigger fired deliberately by
 second package) (`docs/process/implementation-status.md`'s own boundary paragraph draws
 the same distinction). Each item below names its row and quotes its trigger verbatim.
 
+Two engineering preconditions also gate the cut, and both moved on 2026-08-29 (the
+checklist is the authority; this is the pointer). The clean-machine first-use pass is
+discharged by construction — `.github/workflows/first-use.yml`'s no-checkout job and
+`First-use run 33242645696 on origin` (`docs/analysis/2026-08-29-first-use-proof.md`) —
+and its checkbox is ticked against that record. The floor rule was evaluated and did not
+fire: `node:sqlite` is Stability 1.2 since Node 24.15.0, not 2, so `>=22.16` stands; the
+warning it was written to weigh no longer fires on 24.15+, and the guide says so. The
+paused release commit `8be3fce` is a precedent to diff against, never a commit to
+cherry-pick — the checklist's notice says why; and the stale `v0.1.0` tag from the paused
+attempt is gone. What still gates the cut outside this repository is the owner-side list in
+that notice, two items of which cannot even be attempted until the repository is public.
+
 ### Consumability — register row 1 (row 6 completed and retired 2026-08-19)
 
 - **Row 1** — deferred item: "Publish tooling (build, versioning, release) for the record
