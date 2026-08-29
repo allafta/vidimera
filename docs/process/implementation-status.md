@@ -83,10 +83,10 @@ any one exit.
   which closed its redundant-signing half on behavior and left its orphan half open). See
   the dedicated sections at the end of this document for the full accounts; the numbers
   immediately below already include them.
-- **Measured against the current tree**: `pnpm test` — 66 test files, 816 tests, zero skips
+- **Measured against the current tree**: `pnpm test` — 67 test files, 821 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
-  `pnpm lint` (`biome check .`) — 133 files checked, zero errors or warnings;
+  `pnpm lint` (`biome check .`) — 134 files checked, zero errors or warnings;
   `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 24 refusal codes, the twenty-fourth and
@@ -3180,3 +3180,167 @@ packages/record/test/byte-stability.test.ts` — no output; `git diff d6a5f1f --
 `packages/record/src/outcome.ts`, `packages/record/src/refusal-codes.ts` and
 `packages/record/src/signing/decorate.ts`; `packages/record/test/redeem-token.test.ts`
 untouched.
+
+## Post-build-order increment — Sidecar orphans report
+
+**The twelfth post-build-order increment, exited (commits `f778c17`..`917c5fd`, closed by
+the record commit that follows them).** The ordinal counts the sections above in order and,
+as the last four did, does NOT count the documentation-only signature-enforcement-coverage
+findings note. **This increment landed one field on one provisional report type — no gate,
+no append, no deletion and no admission decision changed — and moved no maturity marker.**
+No `docs/concept/` file changed, no sanction was sought and none was needed; that was
+checked rather than assumed, since the design asked for it in writing: a grep of the sealed
+set for `SignatureReport` and `orphan` returns three hits, all of them the redemption
+passages' orphaned EFFECTS in `CONCEPT.md` and `SPEC.md`, and no concept-set text
+enumerates the report's members. Exactly two `packages/*/src/` files changed, proved by
+`git diff 8571301 --name-only -- 'packages/*/src/*'`:
+`packages/record/src/kernel/verify-signatures.ts` (the one behavior change — the field, its
+computation, and the threading) and `packages/record/src/operator-surface.ts` (comment
+only). It is the first increment authored 2026-08-29, following the three-increment
+sequence authored 2026-08-24, and it is the smallest honest next step its own design ranked
+first among what that sequence left: make the orphans the contract already delegates
+VISIBLE. Design: `docs/superpowers/specs/2026-08-29-sidecar-orphans-report-design.md`; plan:
+`docs/superpowers/plans/2026-08-29-sidecar-orphans-report.md`.
+
+**The gap this closed.** The sidecar-contract increment's `AN IMPLEMENTER MUST TOLERATE
+ORPHANS` half told a host that orphans exist and are safe to prune when no chain transition
+references them, and `docs/guide/integrating.md` told it that "a durable backing that must
+stay bounded has to reconcile against the chain itself" — but neither named a read that
+yields the entries to prune, so a host was told to do something the library gave it no
+direct way to do. The one library read that touches the sidecar had the answer already:
+`layerVerdicts` (`kernel/verify-signatures.ts`) lists `listByRecord(recordId)` once into a
+`byDigest` map, walks the CHAIN, and reports a verdict per chain transition, so every
+sidecar entry the walk never visits is an orphan by definition. The set difference sat in
+that same pass at zero additional reads, computed implicitly and discarded.
+
+**What landed.** One implementation commit and one records commit, no red commit:
+
+- `packages/record/src/kernel/verify-signatures.ts` (`f778c17`) — `SignatureReport` gains
+  `orphans: Digest[]` with its own doc comment; `layerVerdicts`' return type widens from
+  `{ signingDeclared, transitions }` to carry `orphans` beside them; `verifySignatures`
+  destructures and threads all three. The set is the sidecar's digests minus the chain's,
+  `Set`-collapsed — so the duplicate-digest shape `signing/store.ts` calls out of contract
+  is reported once rather than twice — and `.sort()`ed, so the report is identical under
+  any `listByRecord` order the contract permits. No second `listByRecord` and no second
+  `readChain`: the row's own read-amplification finding is not made worse by one byte.
+  `signatureLayerHolds` is unedited.
+- `packages/record/src/operator-surface.ts` — the `verifySignatures` doc comment gains one
+  sentence naming the field, its sort and its limit: reporting only, read by no gate, the
+  host prunes and the library never does. Every earlier sentence byte-identical.
+- `packages/record/test/sidecar-orphans-report.test.ts` — new, five pins, one test each: a
+  clean signing record reports no orphans; the already-refused corner — break one
+  signature, `finalize()` once to LAND the compromise edge, `finalize()` again to refuse
+  with no edge — leaves exactly one orphan and the report names it; **orphans never gate**,
+  an open record carrying a fabricated orphan still finalizes `ok` and its `transitions[]`
+  verdicts are deep-equal with and without it; the report is deterministic under a
+  contract-legal reordering of the sidecar, sorted and deep-equal across calls; and a
+  non-signing instance reports no orphans. The pins were written and run RED before the
+  field existed — the focused run failed all five, `report.orphans` reading `undefined`
+  against every assertion — and passed all five once the field and its computation landed.
+  That red state was observed in the working tree and not committed: this increment carries
+  no sanctioned red commit, and its one implementation commit is green.
+- `docs/guide/api-reference.md` and `docs/guide/integrating.md` — moved in the same commit
+  as the surface, as an obligation rather than a choice: `SignatureReport` is exported from
+  `packages/record/src/index.ts`, so `CLAUDE.md`'s same-change rule fires on a public
+  interface gaining a member. The quoted `SignatureReport` block gains the member with its
+  comment, diffed against the source by hand because `api-sync` gates presence and never
+  accuracy; the reference's orphan paragraph now names `verifySignatures(recordId).orphans`
+  as the read that yields the dead entries, in place of its previous claim that the library
+  "cannot tell your store which entries are dead"; the integration guide's limits bullet
+  gains the same pointer in its own voice. Both carry the in-flight caveat, because the
+  report says WHICH entries are orphans and never WHEN it is safe to delete them: prune
+  only when no seam call on that record is in flight, since an in-flight append's entry and
+  an orphan carry the same `seq`.
+- `docs/process/deferral-register.md`, `docs/process/release-checklist.md` and
+  `docs/process/next-phases.md` (`917c5fd`) — the three living records that describe row 22,
+  moved together. The register's containment inventory gains two sentences and nothing
+  else, `OBSERVABILITY, LANDED at the sidecar-orphans-report increment` and `IDENTIFIED,
+  NOT BUILT: prune-at-seal`; the row's scope cell (22a), its trigger cell and its date cell
+  are byte-identical, proved by the same whitespace-collapsed before/after comparison the
+  row-22 increment used, with the trigger still occurring exactly once in each of its four
+  living copies. The checklist's expected ruling for the row becomes "carry forward, with
+  the growth visible", the row's cost now a number rather than a warning, and the
+  third-horn sanction restated as `DECLINED at this cut unless sought on its own merits`.
+  The next-phases passage gains one sentence after "That sentence is delegation, not a fix:
+  22a stays open.", naming this increment as having made the delegated work visible
+  "without closing 22a".
+- `CLAUDE.md` and this document's `Measured against the current tree` bullet — the
+  present-tense counts moved to what the exit measured (67 files / 821 tests; 134 files
+  under Biome). Every figure under an earlier `Gate outputs` heading is pinned to a past
+  commit and stayed byte-identical.
+
+**Reporting, not containment — stated here because this is where it could be misread.** Row
+22 keeps its number, its scope and its trigger, and 22a is open. The sidecar still grows by
+one entry per refusing call; `packages/record/test/no-edge-containment.test.ts` still pins
+that it does, and nothing in this increment was allowed to weaken that pin. Naming an
+orphan does not prevent it, and the inventory entry reads "observability landed" rather
+than "contained" for exactly that reason. The load-bearing pin is the never-gates one: a
+fabricated orphan leaves `finalize()` at `ok` and the chain verdicts deep-equal, so the
+field cannot quietly become an admission input. The gate's own body is the other half of
+that proof — `signatureLayerHolds` consumes only the per-transition verdicts, as it always
+did, and `sed -n '/^export async function signatureLayerHolds/,/^}/p'` over
+`kernel/verify-signatures.ts` piped to `git hash-object --stdin` reads
+`f1b8ac2567ebba588dd61a336ba8ca9aed3b4ef2` both at the pre-increment baseline and at this
+exit.
+
+**The two inventory entries, and why each is shaped the way it is.** The first records what
+shipped and states its limit in the same breath: the field names every sidecar digest with
+no chain counterpart, sorted, computed inside the read the call already makes — and it is
+reporting only, read by no gate, and it bounds nothing. The second records an idea found and
+deliberately NOT built. Prune-at-seal is the one deletion point identified that escapes the
+third horn entirely: once `seal()`'s CAS has landed, C4 admits no further append of any
+kind, so every sidecar entry without a chain counterpart is an orphan forever — including a
+concurrent refusing call's entry whose append is still in flight — and can be deleted with
+no race and no prediction from a chain that failed verification. Three things keep it out
+of this increment, and the record names all three rather than the first alone: it needs a
+`remove` on the provisional `SignatureStore`, which the sidecar-contract increment's first
+ruling declined and which its own design would have to re-open explicitly; it is PARTIAL,
+bounding only orphans minted before the seal while the key-retirement shape keeps minting
+after it; and it is gated on a durable `SignatureStore` backing existing to measure
+against, which is one of row 22's own trigger disjuncts. The third horn itself — deciding
+C3 and C4 from the read chain — is declined at this cut in writing, in the checklist's own
+words, with the row's sanction disjunct left standing as the door.
+
+**Deviations from the plan as written.** None.
+
+**The honest limit.** The read is PER RECORD: a host with many records still has to know
+which records to ask about, and this increment opened no cross-record view — a sweep would
+be a new surface, not a wider field. The report is as fresh as the read: an orphan minted
+by a refusing call that completes after `verifySignatures` returns is not in that report,
+so it is a reconciliation input and never a lock. Deleting what the report names is still
+the HOST's act under the host's own race discipline, for the same-`seq` reason both guide
+documents now carry; the library performs no pruning and gained no way to. Behavior on a
+durable `SignatureStore` backing stays UNMEASURED and unmeasurable in this tree — the field
+was exercised against `MemorySignatureStore` only, which is row 22's own standing coverage
+bound rather than anything new. And no probe covers it: the operator-assurance tier's probe
+targets quote `docs/concept/CONTROLS.md` §4 verbatim, that document is sealed, and none of
+the seventeen targets in `packages/record/src/probes/probes.ts` describes sidecar
+reporting — so the proof that the report is honest lives in the test corpus and nowhere
+else.
+
+**What stays outside, and why.** Closing 22a, for which no candidate escapes the third horn
+and whose sanction is declined at this cut; prune-at-seal, which needs its own design, a
+re-opened ruling and a durable backing to measure against; a `remove` or prune method on
+`SignatureStore`, for that same reason; a cross-record orphan sweep or any new read surface
+beyond the one field; a probe, per the design's fifth ruling; and any change to
+`signatureLayerHolds`, the seams or the signing decorator, which the design named as a STOP
+and which the hash and the two-file envelope both prove untouched. No deferral-register row
+was written or retired; row 22's inventory grew and nothing else in the row moved.
+
+**Cuts.** None. This increment added one field to one report and cut no capability.
+
+**Gate outputs, as measured against this increment's own exit commit**:
+`./node_modules/.bin/vitest run` — 67 test files, 821 tests, zero skips (record project
+63 / 756; store-postgres 4 / 65);
+`./node_modules/.bin/tsc --noEmit -p packages/record` and
+`./node_modules/.bin/tsc --noEmit -p packages/store-postgres` — both clean;
+`./node_modules/.bin/biome check --error-on-warnings .` — 134 files checked, zero errors or
+warnings; `node scripts/contract-scan.mjs` — exit 0, no output;
+`node scripts/api-reference-sync.mjs` — exit 0; `node scripts/docs-index-sync.mjs` — exit 0.
+`docs/process/deferral-register.md` loses no row and gains none: row 22's containment
+inventory gains two sentences, its scope, trigger and date cells byte-identical.
+`git diff 8571301 --stat -- packages/record/test/byte-stability.test.ts` — no output;
+`git diff 8571301 --name-only -- 'packages/*/src/*'` — exactly
+`packages/record/src/kernel/verify-signatures.ts` and
+`packages/record/src/operator-surface.ts`; `signatureLayerHolds` body hash unchanged at
+`f1b8ac2567ebba588dd61a336ba8ca9aed3b4ef2`.
