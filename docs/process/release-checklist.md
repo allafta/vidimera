@@ -1,33 +1,45 @@
 # The 0.1 release-day checklist
 
-> **PAUSED — 2026-08-19.** The cut was prepared and run to the owner-action boundary,
-> then deliberately paused and reverted so main carries no published-state claim while
-> parked. What exists: the complete release commit — versions bumped, `private` dropped,
-> the CHANGELOG's `[0.1.0]` section cut, every docset caveat flipped — is preserved in
-> history as commit `8be3fce` ("The 0.1 cut: ..."), reverted whole by the commit that
-> added this notice. The floor rule was evaluated at the pause (Node 24 LTS still emits
-> the `node:sqlite` ExperimentalWarning, measured on 24.12.0 → ship-as-is); re-evaluate
-> at pickup. The clean-machine precondition was owner-waived at the paused attempt; that
-> waiver does not carry — re-decide it at pickup.
+> **PAUSED — 2026-08-19; list refreshed 2026-08-29.** The cut was prepared and run to the
+> owner-action boundary on 2026-08-19, then deliberately paused and reverted so `main` carries
+> no published-state claim while parked. The complete release commit of that attempt —
+> versions bumped, `private` dropped, the CHANGELOG's `[0.1.0]` section cut, every docset
+> caveat then known flipped — is preserved in history as `8be3fce` ("The 0.1 cut: …"),
+> reverted whole by the commit that added the original notice. **Do not cherry-pick it.** It
+> is stale in content, not only in date: `[Unreleased]` has gained six entries since (three
+> post-build-order promotions, `SignatureReport.orphans`, and two `Fixed` entries), the
+> "File changes" list below gained four docset flips that commit never touched (`SECURITY.md`,
+> `docs/README.md`, both package READMEs), and `CLAUDE.md`'s honest-bound paragraph has been
+> rewritten several times. **To pick the cut back up:** compose the release commit fresh from
+> the "File changes" list below against the tree as it stands, using `8be3fce` only as the
+> precedent for what such a commit looks like — and re-cut the CHANGELOG's `[0.1.0]` section
+> from `[Unreleased]` as it reads on the day, never from the preserved wording. Then run every
+> gate, commit, tag `v<version>`, push with the tag, and resume at "Repository and registry
+> settings" below.
 >
-> **To pick the cut back up:** `git cherry-pick 8be3fce` (or revert the reverting
-> commit), refresh every `2026-08-19` release date in it to the actual cut date
-> (CHANGELOG's `[0.1.0]` heading and body, README's status paragraph, CLAUDE.md's honest
-> bound, the guide's four flips). The CHANGELOG's `[0.1.0]` section is the one flip a
-> date refresh cannot fix: re-cut it fresh from `[Unreleased]` as it reads at pickup
-> rather than reusing the preserved commit's wording — `[Unreleased]` has grown three
-> post-build-order capabilities since the pause (recorded human decline, proposal
-> provenance, effect-result notarization), none named in the commit being picked up. The
-> same staleness question — has the content, not only the date, moved since the pause? —
-> applies to any other docset flip in that commit; check each against its current source
-> before trusting the preserved wording. Re-run all gates, commit, tag `v<version>`, push
-> with the tag — then resume at "Repository and registry settings" below. The owner-side items
-> that stopped the paused attempt, all still open: the npm `vidimera` org and a granular
-> `NPM_TOKEN` secret, the repository visibility flip (blocked from automation by design —
-> run `gh repo edit allafta/vidimera --visibility public
-> --accept-visibility-change-consequences` yourself), private vulnerability reporting,
-> and the code-owner branch protection. If the remote tag `v0.1.0` from the paused
-> attempt still exists, delete it: `git push origin :refs/tags/v0.1.0`.
+> **State of the two engineering preconditions, as of 2026-08-29.** The clean-machine
+> first-use pass is DISCHARGED BY CONSTRUCTION: `.github/workflows/first-use.yml`'s
+> `first-use` job has no checkout step, and `First-use run 33242645696 on origin` (commit
+> `5c036d0`) reached verified chains over `MemoryStore` and a `PostgresStore` against a service
+> the job owned, on Node `v22.16.0` and `v24.19.0` — `docs/analysis/2026-08-29-first-use-proof.md`
+> is the record, and its checkbox below is ticked against it. The floor rule was evaluated
+> 2026-08-29 and did NOT fire (its own item below records why); the floor stays `>=22.16`.
+>
+> **The stale tag is gone.** The remote and local tag `v0.1.0` from the paused attempt, which
+> pointed at `8be3fce`, was deleted on 2026-08-29 on the owner's authorization; a tag can be
+> recreated on that commit in one command if ever wanted, and the commit itself stays in
+> history.
+>
+> **What stopped the paused attempt, all still open, none the repository's to close:** the
+> npm `@vidimera` scope and a live granular `NPM_TOKEN` secret; the repository visibility flip
+> (blocked from automation by design — run `gh repo edit allafta/vidimera --visibility public
+> --accept-visibility-change-consequences` yourself); private vulnerability reporting; and the
+> code-owner branch protection. Two of those are not merely undone but UNAVAILABLE while the
+> repository is private — the platform refuses both branch protection with code-owner review
+> and private vulnerability reporting on a private repository of this plan — so "public first,
+> then dispatch" below is not only npm's provenance ordering; it is the precondition for two
+> other settings on this list. The clean-machine precondition was owner-waived at the paused
+> attempt; that waiver is now moot, since the precondition is discharged.
 
 The one list release day runs from, collected across the release plan's phase records
 (`docs/analysis/2026-08-19-phase-0-decisions.md` asked for it; the phase 2, 3, and 5
@@ -38,12 +50,19 @@ as a list rather than as code.
 
 ## Preconditions (before the day is scheduled)
 
-- [ ] Phase 6 of the release plan (first-use validation) has run: one documented,
+- [x] Phase 6 of the release plan (first-use validation) has run: one documented,
       reproduced first-use pass from packed artifact to verified chain on a machine that
-      never held this checkout. (The same-machine rehearsal ran 2026-08-19 —
-      `docs/analysis/2026-08-19-phase-6-rehearsal.md`: both tarballs, the peer-range
-      rewrite proven, both stores green from the installed artifacts. The clean-machine
-      run is what remains of this box.)
+      never held this checkout. **Discharged by construction, 2026-08-29:**
+      `.github/workflows/first-use.yml` (dispatch-only) packs both tarballs in one job and
+      installs them in a second that has NO checkout step; `First-use run 33242645696 on
+      origin`, commit `5c036d0`, reached verified chains over `MemoryStore` and a
+      `PostgresStore` against a service the job owned, on Node `v22.16.0` and `v24.19.0` —
+      `docs/analysis/2026-08-29-first-use-proof.md` is the record (the owner ruled a
+      no-checkout GitHub-hosted runner meets the bar). The bound, in the same breath: ubuntu
+      only; tarball source only until the cut; the getting-started prose itself unproven; the
+      probe tier not run. (The same-machine rehearsal of 2026-08-19 —
+      `docs/analysis/2026-08-19-phase-6-rehearsal.md` — remains the record of the first pass
+      and of the finding that shaped the floor rule.)
 - [ ] The owner's own bar from the phase-0 record holds: nothing goes public before the
       project is actually ready — this list executes that decision, never substitutes
       for it.
@@ -58,6 +77,17 @@ as a list rather than as code.
       `docs/guide/integrating.md`. Weigh it knowing the phase-6 rehearsal's finding: the
       warning fires on ANY `@vidimera/record` import (the entry point re-exports
       `SqliteStore`), so every adopter meets it at hello, whatever store they use.
+      **Evaluated 2026-08-29 — the rule did NOT fire.** `node:sqlite` reached Stability 1.2
+      (release candidate) in Node 24.15.0, not Stability 2; `engines.node` stays `>=22.16` in
+      the root and both packages, and CI's exact-floor leg stays 22.16.0. What DID change is
+      the fact this rule was written to weigh: the change that made it a release candidate
+      also removed the runtime `ExperimentalWarning`, so on 24.15 and later an adopter sees
+      nothing at import — measured, not assumed, by `First-use run 33242645696 on origin`
+      (`v22.16.0` warns, `v24.19.0` silent; `docs/analysis/2026-08-29-first-use-proof.md`).
+      `docs/guide/integrating.md` and `packages/record/README.md` now say exactly that, so the
+      "meets it at hello" finding is true only for adopters below 24.15. Re-evaluate on the
+      day against the Node lines THEN: if any maintained line has reached Stability 2, this
+      rule fires as written.
 
 ## File changes (one commit, tagged)
 
@@ -111,9 +141,17 @@ as a list rather than as code.
 
 ## Verification, then the paperwork
 
-- [ ] In a scratch project on a clean machine: `npm install @vidimera/record
-      @vidimera/store-postgres`, run the getting-started flow against the registry
-      artifacts, and confirm the `./probes` subpath resolves.
+- [ ] Re-prove the PUBLISHED artifacts on a machine that never held this checkout: dispatch
+      `.github/workflows/first-use.yml` with `source: registry` and `version: 0.1.0` — the same
+      no-checkout job that discharged the precondition above, now installing
+      `@vidimera/record` and `@vidimera/store-postgres` from the registry, running the
+      getting-started flow to a verified chain over both stores, and confirming the `./probes`
+      subpath resolves. Record the run id and both legs' results in a dated
+      `docs/analysis/` record. Three improvements are parked for THIS dispatch's own commit so
+      the recorded tarball run's script stayed byte-identical until now: the floor leg's
+      warning grep narrowed to `ExperimentalWarning: SQLite`; a header note that the script's
+      `import pg from 'pg'` resolves only because npm hoists the adapter's dependency; and the
+      review view's `subjectRef` assertion the guide's own test makes.
 - [ ] Retire register row 1 (`docs/process/deferral-register.md` — row 1 leaves the
       table), with the retirement note in `docs/process/implementation-status.md` and the
       roadmap update in `docs/process/next-phases.md`.
@@ -123,6 +161,13 @@ as a list rather than as code.
       first") names this cut too, so release day must retire it or explicitly carry it
       forward rather than leave it unaddressed; if retired, give it the same
       retirement-note/roadmap-update treatment as row 1.
+      **Expected ruling, pre-argued 2026-08-29 (release day confirms or overrules; the row is
+      NOT decided here):** carry forward. Nothing has changed signature encoding or key
+      handling since the row opened on 2026-08-23 — the decorator's memo (the no-edge
+      containment increment) changed how many times a signer is asked, never what is signed or
+      how it is keyed — so the row's first disjunct has not fired and the deferral's reason
+      stands. Carrying it forward means restating the row's trigger without the "or the 0.1
+      cut" disjunct and recording that ruling in `docs/process/implementation-status.md`.
 - [ ] Decide register row 22's disposition (`docs/process/deferral-register.md`, orphan
       sidecar growth on the no-edge refusal path — the row's surviving half, 22a: each
       refusing seam call against a record whose persisted state admits no CAS candidate
@@ -161,5 +206,12 @@ as a list rather than as code.
       since the alternative containments were measured and rejected rather than left
       untried and the one horn-free deletion point (prune-at-seal) is recorded in the row
       as identified, not built.
+      **Expected ruling, pre-argued 2026-08-29 (release day confirms or overrules; the row is
+      NOT decided here):** carry forward. The only containment for the orphan half takes a horn
+      that needs a sanction nobody has sought; the delegation in the `SignatureStore` contract
+      and the visibility `SignatureReport.orphans` gives a host are what stand; the sanction is
+      declined at this cut unless sought on its own merits. Carrying it forward means
+      restating the row's trigger without the "or the 0.1 cut" disjunct and recording that
+      ruling in `docs/process/implementation-status.md`.
 - [ ] Update `docs/process/implementation-status.md`'s measured block (versions,
       published state) — dated, as always.
