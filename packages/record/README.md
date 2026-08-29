@@ -24,9 +24,11 @@ npm install @vidimera/record
 ```
 
 Requires Node 22.16 or newer. Importing the package loads `node:sqlite` (the embedded
-`SqliteStore` is re-exported from the entry point), which current Node lines still flag
-as experimental — the one-line warning on first import is expected, and
-`node --disable-warning=ExperimentalWarning` silences it.
+`SqliteStore` is re-exported from the entry point). On Node below 24.15 that prints a
+one-line `ExperimentalWarning` on first import, and
+`node --disable-warning=ExperimentalWarning` silences it; on 24.15 and later nothing
+prints. Measured by the first-use workflow, which imports the packed artifact bare on the
+declared floor and on the current LTS line.
 
 ## What it looks like
 
