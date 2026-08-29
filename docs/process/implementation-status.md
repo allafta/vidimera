@@ -3613,12 +3613,16 @@ discharged it by construction. The floor rule carried its 2026-08-19
 evaluation (measured on 24.12.0, ship-as-is) and the rehearsal's finding that "every
 adopter meets it at hello", both overtaken by Node. The post-publish verification item
 asked release day to find a second clean machine, when `.github/workflows/first-use.yml`'s
-`source: registry` input is that exact job and already exists. The row-19 and row-22
-disposition items said only that release day "must retire it or explicitly carry it
+`source: registry` input is that exact job and already exists. The row-19
+disposition item said only that release day "must retire it or explicitly carry it
 forward" and stopped there, leaving a written argument to be drafted under the pressure of
-the day. The notice's owner-side list called five settings "all still open" without
-recording that two of them are not merely undone but UNAVAILABLE while the repository is
-private. And `docs/process/next-phases.md` and `CLAUDE.md` described the cut's gates as the
+the day; the row-22 item already carried a "Note before ruling" naming carry-forward as
+the expected ruling, but in a shape row 19 had nothing to match. Both now carry the same
+explicitly-disclaimed "Expected ruling" block, so release day reads one form for both rows
+and the row-22 note stays as the fuller argument the block compresses. The notice's
+owner-side list called five settings "all still open" without recording that two of them
+are not merely undone but UNAVAILABLE while the repository is private. And
+`docs/process/next-phases.md` and `CLAUDE.md` described the cut's gates as the
 three register rows alone — true, and incomplete: a reader of either learned that rows gate
 the cut and not that the clean-machine pass was done or that the floor had been
 re-evaluated.
@@ -3684,19 +3688,25 @@ because nothing has changed signature encoding or key handling since the row ope
 2026-08-23: the no-edge containment increment's signer-result memo changed how many times a
 signer is asked, never what is signed or how it is keyed, so the row's first trigger
 disjunct has not fired and the deferral's reason stands. Row 22's is carry forward too,
-because the surviving orphan half's only containment takes a horn that needs a sanction
-nobody has sought — "declined at this cut unless sought on its own merits", in the
+because the surviving orphan half's only measured containment takes a horn that needs a
+sanction nobody has sought — "declined at this cut unless sought on its own merits", in the
 checklist's own words — while the `SignatureStore` contract's delegation and the visibility
 `SignatureReport.orphans` gives a host are what stand in the meantime. Both rows' triggers
-name the 0.1 cut as a disjunct, which is exactly why the ruling belongs to the cut and not
-to this increment: re-deriving either trigger today to drop that disjunct would be a
-register decision taken on the grounds that the answer is already known, which is the
-pre-judging the trigger discipline exists to prevent. Row 22's row was restated by the
-row-22 truth-repairs increment and re-scoped by the no-edge containment increment, and
-its date cell still reads `2026-08-23 (restated 2026-08-28; re-scoped 2026-08-29)`,
-unchanged by this increment. What each carry-forward would MEAN is written down too —
-restating the row's trigger without the cut disjunct and recording that ruling here — so
-the day's work is confirming an argument rather than composing one.
+name the 0.1 cut as a disjunct — and row 22's names the publish event as a second one the
+cut fires, "or that lifts `private: true` and publishes the package", since the release
+commit drops `private: true` and the dispatch publishes — which is exactly why the ruling
+belongs to the cut and not to this increment: re-deriving either trigger today to drop
+those disjuncts would be a register decision taken on the grounds that the answer is
+already known, which is the pre-judging the trigger discipline exists to prevent. Row 22's
+row was restated by the row-22 truth-repairs increment and re-scoped by the no-edge
+containment increment, and its date cell still reads
+`2026-08-23 (restated 2026-08-28; re-scoped 2026-08-29)`,
+unchanged by this increment. What each carry-forward would MEAN is written down too, and
+row by row rather than in one recipe: for row 19, restating the trigger without the cut
+disjunct; for row 22, restating it without BOTH disjuncts the cut fires — the publish one
+and the cut one — leaving the durable-backing and third-horn-sanction disjuncts standing,
+so that what is restated is not a trigger already fired. Each ruling is then recorded here,
+and the day's work is confirming an argument rather than composing one.
 
 **The floor did not move, and why.** Phase-0 ruling 3's trigger is literal: the item asks
 release day to "Check whether a maintained Node line carries a **stable** `node:sqlite`".
@@ -3727,9 +3737,9 @@ repository act can discharge it. Every other box on the list — the file change
 repository and registry settings, the dispatch, the paperwork — stays unticked: this
 increment prepares the list, it does not run it.
 
-**Deviations from the plan as written, stated rather than smoothed over.** Three, all
-minor, none caught by a gate — two are wrinkles in the landed text, and the third is a
-finding against the plan rather than against the implementation.
+**Deviations from the plan as written, stated rather than smoothed over.** Five, all
+minor, none caught by a gate — two are wrinkles in the landed text, and three are findings
+against the design, the plan and a commit body rather than against the implementation.
 
 1. **A prescribed line overruns the file's own wrap.**
    `docs/process/release-checklist.md:24` runs to 98 characters (100 bytes, for one
@@ -3750,6 +3760,26 @@ finding against the plan rather than against the implementation.
    happened — the file held 19 — so the discipline absorbed the defect rather than the
    implementation inheriting it. It is recorded because that constraint is the only reason
    the wrong figure did not become the record.
+4. **The design's gap table overstated the row-22 gap.** Its row 6 covers both disposition
+   items in one cell, saying of each that it quotes release day's instruction to retire the
+   row or carry it forward "and stops there". That is true of the row-19 item and false of
+   the row-22 one: at the baseline the row-22 item already carried a
+   ten-line "Note before ruling" naming "carry forward, with the growth visible" as the
+   expected ruling, explaining why, and recording the third-horn sanction as declined at
+   this cut — text this increment did not touch, readable at the baseline with
+   `git show 3154cc3:docs/process/release-checklist.md`. What row 22 lacked was the SHAPE
+   row 19 had nothing to match, not an argument, which is why the increment gave both rows
+   one block and left the note standing as the fuller argument the block compresses. The
+   design lands as authored — it is a dated artefact and this is a finding against it,
+   not an edit to it — and the "gap this closed" paragraph above is the corrected statement.
+5. **Task 2's commit body names the wrong paragraph.** It says the `next-phases.md`
+   paragraph landed "after the passage's first paragraph"; it landed after the SECOND. The
+   passage's blank lines fall at 27, 80, 88 and 100, so its first paragraph runs 28-79, its
+   second runs 81-87, and the new paragraph is 89-99 — directly after the closing sentence
+   "Each item below names its row and quotes its trigger verbatim." The plan's Task 2 anchor
+   made the same misidentification and the body inherited it. The "What landed" bullet above
+   already states the correct location, and a commit body cannot be rewritten, so this
+   section is the corrected location.
 
 Otherwise both tasks executed the plan as written, checked rather than assumed:
 `git show e30c1f5 --stat` is one file, and `git show b27f2d0 --stat` is exactly `CLAUDE.md`
@@ -3761,16 +3791,16 @@ increment publishes nothing — it prepares the list, it does not run it, and a 
 not a release. The owner-side items are not the repository's to close, and two of them
 cannot even be ATTEMPTED until the visibility flip, because the platform refuses branch
 protection with code-owner review and private vulnerability reporting on a private
-repository of this plan; the list can say so and that is all it can do, which is also why
-"public first, then dispatch" is not only npm's provenance ordering here. Pre-argued is not
-decided: if release day finds a reason to retire row 19 or row 22, the pre-written text is
-a draft to overrule and carries no weight against the day's judgment. The floor evaluation
-is DATED — it is true of 2026-08-29, and the item itself tells release day to re-evaluate.
-The re-cut recipe is a list of files, not a commit: release day still composes the release
-commit by hand, and the recipe removes a trap rather than automating the flip. And the
-whole increment is prose about a list — nothing here is executable, no test pins any of it,
-and it will go stale exactly the way the text it replaced did, which is why the notice now
-carries its own refresh date on its face.
+repository under this account's plan; the list can say so and that is all it can do, which
+is also why "public first, then dispatch" is not only npm's provenance ordering here.
+Pre-argued is not decided: if release day finds a reason to retire row 19 or row 22, the
+pre-written text is a draft to overrule and carries no weight against the day's judgment.
+The floor evaluation is DATED — it is true of 2026-08-29, and the item itself tells release
+day to re-evaluate. The re-cut recipe is a list of files, not a commit: release day still
+composes the release commit by hand, and the recipe removes a trap rather than automating
+the flip. And the whole increment is prose about a list — nothing here is executable, no
+test pins any of it, and it will go stale exactly the way the text it replaced did, which
+is why the notice now carries its own refresh date on its face.
 
 **What stays outside, and why.** The cut, entirely: every "File changes" and "Repository
 and registry settings" item stays unticked, and nothing is bumped, flipped, published or
@@ -3778,11 +3808,16 @@ tagged. Raising the floor, per the rule's own unfired trigger. The three parked 
 workflow improvements, which land with the `source: registry` dispatch so the recorded
 tarball run's script stays byte-identical until the run that supersedes it. Retiring or
 re-deriving rows 19 and 22, which belongs to the cut. Rewriting the historical accounts of
-the paused attempt — this document's release-readiness section and
-`docs/process/open-items-plan.md` describe that cut as it stood when they were written, and
-per the tier discipline they are left alone; the mentions of `8be3fce` there are history,
-not instructions. `docs/guide/` and `packages/record/README.md`, which the first-use proof
-already corrected. And any deferral-register edit at all: no row was written, retired or
+the paused attempt — this document's release-readiness section,
+`docs/process/open-items-plan.md` and `docs/process/open-items-sessions.md` describe that
+cut as it stood when they were written, and per the tier discipline they are left alone;
+the mentions of `8be3fce` there are history, not instructions. Both open-items documents
+rest on the same 2026-08-19 survey and its measurements, taken well before this refresh, so
+their description of the PAUSED banner — its cherry-pick pickup recipe, and the `v0.1.0`
+tag as something that might still exist — is an account of what the banner said then, not
+of what it says today; the checklist itself is the authority on that. `docs/guide/` and
+`packages/record/README.md`, which the first-use proof already corrected. And any
+deferral-register edit at all: no row was written, retired or
 restated, row 1's trigger does not fire here because nothing was published, and the file is
 byte-identical to the baseline.
 

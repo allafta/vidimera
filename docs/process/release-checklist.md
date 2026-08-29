@@ -36,10 +36,11 @@
 > --accept-visibility-change-consequences` yourself); private vulnerability reporting; and the
 > code-owner branch protection. Two of those are not merely undone but UNAVAILABLE while the
 > repository is private — the platform refuses both branch protection with code-owner review
-> and private vulnerability reporting on a private repository of this plan — so "public first,
-> then dispatch" below is not only npm's provenance ordering; it is the precondition for two
-> other settings on this list. The clean-machine precondition was owner-waived at the paused
-> attempt; that waiver is now moot, since the precondition is discharged.
+> and private vulnerability reporting on a private repository under this account's plan — so
+> "public first, then dispatch" below is not only npm's provenance ordering; it is the
+> precondition for two other settings on this list. The clean-machine precondition was
+> owner-waived at the paused attempt; that waiver is now moot, since the precondition is
+> discharged.
 
 The one list release day runs from, collected across the release plan's phase records
 (`docs/analysis/2026-08-19-phase-0-decisions.md` asked for it; the phase 2, 3, and 5
@@ -207,11 +208,14 @@ as a list rather than as code.
       untried and the one horn-free deletion point (prune-at-seal) is recorded in the row
       as identified, not built.
       **Expected ruling, pre-argued 2026-08-29 (release day confirms or overrules; the row is
-      NOT decided here):** carry forward. The only containment for the orphan half takes a horn
-      that needs a sanction nobody has sought; the delegation in the `SignatureStore` contract
-      and the visibility `SignatureReport.orphans` gives a host are what stand; the sanction is
-      declined at this cut unless sought on its own merits. Carrying it forward means
-      restating the row's trigger without the "or the 0.1 cut" disjunct and recording that
+      NOT decided here):** carry forward. The only measured containment for the orphan half
+      takes a horn that needs a sanction nobody has sought; the delegation in the
+      `SignatureStore` contract and the visibility `SignatureReport.orphans` gives a host are
+      what stand; the sanction is declined at this cut unless sought on its own merits.
+      Carrying it forward means restating the row's trigger without the TWO disjuncts the cut
+      itself fires — "or that lifts `private: true` and publishes the package" (the release
+      commit drops `private: true` and the dispatch publishes) and "or the 0.1 cut" — leaving
+      the durable-backing and third-horn-sanction disjuncts standing, and recording that
       ruling in `docs/process/implementation-status.md`.
 - [ ] Update `docs/process/implementation-status.md`'s measured block (versions,
       published state) — dated, as always.
