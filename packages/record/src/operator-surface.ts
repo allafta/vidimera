@@ -115,7 +115,9 @@ export interface OperatorSurface {
    * fail-closed REPORTING, not a gate: the AL2 enforcement increment (second of three,
    * now landed) folds the layer into chain-compromise at the seams via its own
    * `signatureLayerHolds`, never by this read gating. Throws only on the
-   * caller-error/unknown-record class every read takes. */
+   * caller-error/unknown-record class every read takes. Its `orphans` names the sidecar
+   * entries with no chain counterpart, sorted — reporting only, read by no gate; the host
+   * prunes them, the library never does. */
   verifySignatures(recordId: string): Promise<SignatureReport>;
 }
 

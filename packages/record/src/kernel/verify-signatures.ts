@@ -33,6 +33,19 @@ export interface SignatureReport {
     keyRef?: string;
     verified: boolean;
   }[];
+  /**
+   * Every sidecar digest for this record that names NO transition in the chain — orphans.
+   * REPORTING ONLY: no verdict reads this, no gate consults it, `signatureLayerHolds` never
+   * sees it; the layer stays chain-driven and an orphan is never visited for a verdict. The
+   * set is derived from the sidecar because orphans exist nowhere else, and it is SORTED
+   * lexicographically so the report is identical under any `listByRecord` order the contract
+   * permits. It is computed inside the one pass that already lists the sidecar — zero
+   * additional reads. A host discharges `SignatureStore`'s prune obligation by deleting what
+   * this names, when no seam call on the record is in flight (an in-flight append's entry and
+   * an orphan carry the same `seq`). Deferral-register row 22's open half is why this exists;
+   * naming orphans does not bound them.
+   */
+  orphans: Digest[];
 }
 
 /**
@@ -52,7 +65,11 @@ export interface SignatureReport {
 async function layerVerdicts(
   ctx: KernelContext,
   chain: readonly Transition[],
-): Promise<{ signingDeclared: boolean; transitions: SignatureReport['transitions'] }> {
+): Promise<{
+  signingDeclared: boolean;
+  transitions: SignatureReport['transitions'];
+  orphans: Digest[];
+}> {
   const genesis = chain[0];
   const profileId =
     genesis === undefined ? undefined : (genesis.payload as { profileId?: unknown }).profileId;
@@ -91,7 +108,14 @@ async function layerVerdicts(
       verified,
     });
   }
-  return { signingDeclared, transitions };
+  // The orphan set: sidecar digests the chain walk above never visited. `byDigest` already
+  // holds every entry, so this costs no read; the Set collapses the duplicate-digest shape
+  // `signing/store.ts` calls out of contract rather than reporting it twice.
+  const chainDigests = new Set(transitions.map((t) => t.transitionDigest));
+  const orphans = Array.from(
+    new Set(entries.map((e) => e.transitionDigest).filter((d) => !chainDigests.has(d))),
+  ).sort();
+  return { signingDeclared, transitions, orphans };
 }
 
 export async function verifySignatures(
@@ -105,8 +129,8 @@ export async function verifySignatures(
         'resolves to no chain is a caller error, not a domain refusal (SPEC §8)',
     );
   }
-  const { signingDeclared, transitions } = await layerVerdicts(ctx, chain);
-  return { recordId, signingDeclared, transitions };
+  const { signingDeclared, transitions, orphans } = await layerVerdicts(ctx, chain);
+  return { recordId, signingDeclared, transitions, orphans };
 }
 
 /**

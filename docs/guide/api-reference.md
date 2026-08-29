@@ -478,6 +478,8 @@ interface SignatureReport {                              // verifySignatures()'s
   signingDeclared: boolean;
   transitions: { seq: number; transitionDigest: Digest; signed: boolean;
                  keyRef?: string; verified: boolean }[];
+  orphans: Digest[];                                     // sidecar digests naming no chain
+                                                         // transition — sorted; reporting only
 }
 ```
 
@@ -487,9 +489,12 @@ not corruption: the library signs *before* it appends, so a lost compare-and-swa
 leaves the entry behind, and a seam that refuses against a record admitting no append
 target leaves one on every such call. They are inert to verification — every reader
 correlates from the chain to the sidecar, never the reverse, so an orphan is never read for
-a verdict — and they are safe to prune whenever no chain transition references them. The
-library performs no pruning and cannot tell your store which entries are dead, so a backing
-that must not grow without bound has to reconcile against the chain itself. This is stated
+a verdict — and they are safe to prune whenever no chain transition references them.
+The library performs no pruning, but it tells you which entries are dead:
+`verifySignatures(recordId).orphans` names every sidecar digest with no chain counterpart,
+sorted, at no read the call was not already making. A backing that must not grow without
+bound reconciles by deleting what that names — when no seam call on the record is in flight,
+since an in-flight append's entry and an orphan carry the same `seq`. This is stated
 as an obligation, not enforced: nothing in the library reads your implementation.
 
 All of these names — plus `withSigning` (the store decorator) and the reference
