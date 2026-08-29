@@ -36,14 +36,14 @@ protection, so treat the operator handle like you treat your database handle.
 - **`MemoryStore`** — reference semantics for tests and development; nothing survives the
   process. Exported from the package entry point.
 - **`SqliteStore(location)`** — the embedded-SQL backing over `node:sqlite`; pass a file
-  path, or `':memory:'` for throwaway instances. On Node below 24.15 (and 25.x below 25.7),
-  importing the package prints Node's `ExperimentalWarning` for `node:sqlite` — the entry
-  point re-exports this class, so every adopter meets it at import whatever store they
-  choose — and `node --disable-warning=ExperimentalWarning` silences it; on 24.15 and later
-  nothing prints, since Node marked the module a release candidate there. Measured, not
-  assumed: the first-use workflow imports the packed artifact bare on the declared floor and
-  on the current LTS line and asserts the warning present on the first and absent on the
-  second (`docs/analysis/2026-08-29-first-use-proof.md`).
+  path, or `':memory:'` for throwaway instances. On Node below 24.15, importing the package
+  prints Node's `ExperimentalWarning` for `node:sqlite` — the entry point re-exports this
+  class, so every adopter meets it at import whatever store they choose — and
+  `node --disable-warning=ExperimentalWarning` silences it; on 24.15 and later nothing
+  prints, since Node marked the module a release candidate there. Measured, not assumed:
+  the first-use workflow imports the packed artifact bare on the declared floor and on the
+  current LTS line and asserts the warning present on the first and absent on the second
+  (`docs/analysis/2026-08-29-first-use-proof.md`).
 - **`PostgresStore(pool, { schema })`** — the server-SQL backing
   (`@vidimera/store-postgres`, this workspace's second package; landed 2026-08-19,
   retiring deferral register row 15): multi-connection-safe over a `pg.Pool` you own —
