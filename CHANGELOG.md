@@ -137,6 +137,28 @@ is the summary, and that file wins on conflict.
 
 ### Fixed
 
+- **The `signature-tamper-refuses` operator-assurance probe no longer picks its tamper
+  victim by sidecar position** (2026-08-29, the sidecar-contract increment): `SignatureStore`'s
+  `listByRecord` promises no order, and under an orphan-first order the contract permits the
+  probe garbled an entry no chain transition names, left every real signature intact, and
+  reported a FAIL against a sound build — the one verdict that tier exists never to give. It
+  now correlates through `verifySignatures`, and the corpus's shared break helper does the
+  same. In the same change the `SignatureStore` contract states what it had left unsaid: a
+  conforming sidecar holds entries for transitions that never landed, they are safe to prune
+  when no chain transition references them, and the library never prunes. The honest bound:
+  both defects were latent, not live — the in-memory sidecar lists in insertion order, and no
+  real flow was found producing the adverse order; the pins inject it.
+- **A refusing seam call against a record admitting no append target no longer asks the
+  signer once per CAS candidate** (2026-08-29, the no-edge containment increment): the
+  signing decorator minted a signature for every attempt of the compromise walk — three on a
+  sealed record, four on an already-refused one — over byte-identical bytes, and twice for
+  `open()`'s expire-then-retry genesis. It now mints once per transition object, with the
+  sidecar write still made before every attempt; the walk also drops the one candidate C3 can
+  never admit, so a terminal-folded record tries three rather than four. Outcome-preserving:
+  no refusal code, class, or `transitionRef` changes on any shape. The honest bound, in the
+  same breath: the orphan sidecar entry such a call leaves behind is unchanged — deferral
+  register row 22's orphan half stays open, and `SignatureReport.orphans` (above) is how a
+  host sees it.
 - **A transient database failure no longer bricks a `PostgresStore` instance**
   (2026-08-19, found by the full-project review): the lazy-DDL memo cached a rejection
   and replayed the stale error forever; it now resets on failure so the next call

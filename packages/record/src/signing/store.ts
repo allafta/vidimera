@@ -32,9 +32,11 @@ export interface SignatureEntry {
  * the entry behind, and a seam that refuses against a record admitting no append target
  * leaves one on every call. They are safe to prune whenever no chain transition
  * references them — verification is chain-driven, so an entry with no chain counterpart
- * is never read for a verdict. The library performs no pruning and has no way to: it
- * cannot tell this surface which entries are dead. A backing that must not grow without
- * bound therefore has to reconcile against the chain itself. (`MemorySignatureStore` ships a
+ * is never read for a verdict. The library performs no pruning, and this surface is never
+ * told which entries are dead — the operator's `verifySignatures(recordId).orphans` names
+ * them (every sidecar digest with no chain counterpart, sorted; reporting only), and the
+ * host acts on that. A backing that must not grow without bound therefore reconciles
+ * against the chain itself, deleting what that read names. (`MemorySignatureStore` ships a
  * `delete`, but that method is documented there as explicitly NOT part of this contract — a
  * test and host convenience, never something the library calls.) */
 export interface SignatureStore {
