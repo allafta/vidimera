@@ -234,7 +234,9 @@ export class MemoryStore implements Store {
       nonTerminal: meta.nonTerminal,
       dueAt: meta.dueAt,
       // Clone on write: `open()` deliberately reuses the same `openedTransition` object
-      // across its first attempt and an expire-then-retry (kernel/open.ts:116,157) — the
+      // across its first attempt and an expire-then-retry (kernel/open.ts's `first` and
+      // `retry` genesis appends, both `store.appendTransition(null, openedTransition, …)`;
+      // named rather than line-pinned, because the previous pin here went stale) — the
       // caller's object must not become a live write handle into what gets persisted here.
       chain: [structuredClone(transition)],
       sealed: false,
