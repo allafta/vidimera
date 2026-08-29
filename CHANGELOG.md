@@ -128,6 +128,12 @@ is the summary, and that file wins on conflict.
   observes the effect, never verifies the claim, never mirrors later business state; the
   digest lands in the chain head, head-exposed until a `sealed` cap chains over it (AL2
   signing closes the window early).
+- **`SignatureReport.orphans`** (2026-08-29): `verifySignatures(recordId)` now names
+  every sidecar digest with no chain counterpart, sorted, computed inside the read it
+  already makes — the entries a host's `SignatureStore` reconciliation should remove.
+  Reporting only: no gate, verdict, or seam reads it, and deferral-register row 22's
+  orphan-accumulation half stays open — the field makes the growth visible, it does not
+  bound it.
 
 ### Fixed
 

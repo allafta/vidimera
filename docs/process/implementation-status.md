@@ -3273,7 +3273,7 @@ that same pass at zero additional reads, computed implicitly and discarded.
 22 keeps its number, its scope and its trigger, and 22a is open. The sidecar still grows by
 one entry per refusing call; `packages/record/test/no-edge-containment.test.ts` still pins
 that it does, and nothing in this increment was allowed to weaken that pin. Naming an
-orphan does not prevent it, and the inventory entry reads "observability landed" rather
+orphan does not prevent it, and the inventory entry reads `OBSERVABILITY, LANDED` rather
 than "contained" for exactly that reason. The load-bearing pin is the never-gates one: a
 fabricated orphan leaves `finalize()` at `ok` and the chain verdicts deep-equal, so the
 field cannot quietly become an admission input. The gate's own body is the other half of
@@ -3301,7 +3301,15 @@ against, which is one of row 22's own trigger disjuncts. The third horn itself �
 C3 and C4 from the read chain — is declined at this cut in writing, in the checklist's own
 words, with the row's sanction disjunct left standing as the door.
 
-**Deviations from the plan as written.** None.
+**Deviations from the plan as written, stated rather than smoothed over.** Two, both caught
+by the final review after this paragraph was first written as "None." (1) The plan's Task 1
+Step 7 told the implementer to INSERT the orphans-naming sentence before
+`integrating.md`'s closing line rather than REPLACE the bullet's own `cannot tell you which
+entries are dead` clause, so the guide carried the old limit and the new pointer together
+and contradicted itself until the review caught it and the clause was rewritten in place.
+(2) Neither the design nor the plan named `CHANGELOG.md`; its own convention needs an
+`### Added` entry for a public-type member gaining a field, so one was added, dated
+2026-08-29, after review rather than as a plan-carried step.
 
 **The honest limit.** The read is PER RECORD: a host with many records still has to know
 which records to ask about, and this increment opened no cross-record view — a sweep would

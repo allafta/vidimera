@@ -109,12 +109,11 @@ async function layerVerdicts(
     });
   }
   // The orphan set: sidecar digests the chain walk above never visited. `byDigest` already
-  // holds every entry, so this costs no read; the Set collapses the duplicate-digest shape
-  // `signing/store.ts` calls out of contract rather than reporting it twice.
+  // holds every entry — one key per digest, so the duplicate-digest shape `signing/store.ts`
+  // calls out of contract collapses here rather than being reported twice — and reading its
+  // keys costs no further read.
   const chainDigests = new Set(transitions.map((t) => t.transitionDigest));
-  const orphans = Array.from(
-    new Set(entries.map((e) => e.transitionDigest).filter((d) => !chainDigests.has(d))),
-  ).sort();
+  const orphans = [...byDigest.keys()].filter((d) => !chainDigests.has(d)).sort();
   return { signingDeclared, transitions, orphans };
 }
 

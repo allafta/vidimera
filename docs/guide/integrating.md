@@ -510,12 +510,12 @@ What you get, with its limits in the same breath:
   a seam that refuses against a record admitting no append target leaves one on every such
   call. They are inert to verification, because correlation runs chain-to-sidecar and never
   the reverse, and they are safe to prune whenever no chain transition references them —
-  but the library does no pruning and cannot tell you which entries are dead, so a durable
-  backing that must stay bounded has to reconcile against the chain itself.
-  `operator.verifySignatures(recordId).orphans` names exactly those entries, sorted, so the
-  reconciliation is a delete of what it lists — run it only when no seam call on that record
-  is in flight, because an in-flight append's entry and an orphan carry the same `seq`. Stated,
-  not enforced: nothing here reads your implementation.
+  the library does no pruning, so a durable backing that must stay bounded reconciles
+  against the chain itself — and `operator.verifySignatures(recordId).orphans` names
+  exactly the entries to remove, sorted, so the reconciliation is a delete of what it
+  lists — run it only when no seam call on that record is in flight, because an
+  in-flight append's entry and an orphan carry the same `seq`. Stated, not enforced:
+  nothing here reads your implementation.
 
 The signing tier is root-reachable: `SigningConfig`, `Signer`, `Verifier`,
 `SignatureStore`, `SignatureEntry`, the reference `MemorySignatureStore`, and the
