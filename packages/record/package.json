@@ -6,6 +6,17 @@
   "description": "Durable, content-bound, hash-chained, operator-replayable records of human confirmations over AI-drafted actions.",
   "license": "Apache-2.0",
   "author": "The Vidimera Authors",
+  "homepage": "https://github.com/allafta/vidimera/tree/main/packages/record#readme",
+  "bugs": { "url": "https://github.com/allafta/vidimera/issues" },
+  "keywords": [
+    "decision-records",
+    "confirmation",
+    "hash-chain",
+    "append-only",
+    "tamper-evident",
+    "audit",
+    "human-in-the-loop"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/allafta/vidimera.git",

@@ -6,6 +6,15 @@
   "description": "PostgreSQL Store backing for @vidimera/record — the server-SQL third reference backing (multi-connection-safe).",
   "license": "Apache-2.0",
   "author": "The Vidimera Authors",
+  "homepage": "https://github.com/allafta/vidimera/tree/main/packages/store-postgres#readme",
+  "bugs": { "url": "https://github.com/allafta/vidimera/issues" },
+  "keywords": [
+    "vidimera",
+    "postgres",
+    "postgresql",
+    "store-adapter",
+    "decision-records"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/allafta/vidimera.git",
