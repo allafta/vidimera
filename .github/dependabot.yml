@@ -11,6 +11,12 @@ updates:
       npm-dependencies:
         patterns:
           - "*"
+    ignore:
+      # The @types/node major is pinned to the engines floor's major line (the
+      # registry-hygiene increment's ruling 2): a types major above the floor would let
+      # post-floor APIs typecheck. Minors/patches still flow weekly.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
