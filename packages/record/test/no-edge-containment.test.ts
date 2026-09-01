@@ -232,6 +232,42 @@ test('BASELINE — the sealed no-edge corner: six refusing finalize() calls, cha
   }
 });
 
+test('BASELINE — key retirement: dropping the keyRef from the verifier registry puts a HEALTHY sealed record into permanent minting — one orphan per refusing call', async () => {
+  // Deferral register row 22's key-retirement reachability shape, pinned for the first
+  // time (the register's own figure was measured on a rig that is gone): the record is
+  // untampered and sealed, the sidecar complete — only the registry moved. Nothing here
+  // contains the growth; the pin states it.
+  const rig = countingSigningSetup();
+  const recordId = await confirmedSigningRecord(rig, 'subject:noedge-retired');
+  assert.equal((await rig.handles.operator.seal(recordId)).status, 'ok', 'fixture: sealed');
+  // NO breakOneSignature: chain and sidecar are both healthy.
+
+  // The retired instance: same store, same sidecar, same signer — but the verifier
+  // registry no longer resolves 'key-1' (the operator decommissioned the key).
+  const retired = createWithClock(
+    {
+      ...makeConfig([{ ...captureProfile({ id: PROFILE_ID }), signing: true }], {
+        store: rig.store,
+      }),
+      signing: { signer: rig.signing.signer, verifiers: {}, signatures: rig.signing.signatures },
+    },
+    tickingClock('2026-08-29T02:00:00Z'),
+  );
+
+  const chainLength = (await rig.store.readChain(recordId)).length;
+  const sidecarBefore = (await rig.signatures.listByRecord(recordId)).length;
+  for (let call = 1; call <= 4; call += 1) {
+    const out = await retired.operator.finalize(recordId, identity(), CONTENT, facts());
+    assertNoEdgeRefusal(out, `key retirement, call ${call}`);
+    assert.equal((await rig.store.readChain(recordId)).length, chainLength, 'chain flat');
+    assert.equal(
+      (await rig.signatures.listByRecord(recordId)).length,
+      sidecarBefore + call,
+      `one orphan per refusing call (call ${call})`,
+    );
+  }
+});
+
 test('BASELINE — the already-refused corner: the first call LANDS the edge, then every later call takes the four-candidate no-edge path', async () => {
   const rig = countingSigningSetup();
   const recordId = await confirmedSigningRecord(rig, 'subject:noedge-refused');
