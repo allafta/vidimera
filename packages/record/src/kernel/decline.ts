@@ -19,7 +19,7 @@
 import { canonicalize, digest } from '../canonical.js';
 import { transitionDigest } from '../chain/encoding.js';
 import { replay, verifyChain } from '../chain/replay.js';
-import { type DeclineOptions, governedUnavailable } from '../config.js';
+import { type DeclineOptions, unknownOptionKey } from '../config.js';
 import type { KernelContext } from '../create.js';
 import { isFinalLeg, nonTerminal } from '../nonterminal.js';
 import type { Outcome } from '../outcome.js';
@@ -54,7 +54,7 @@ export async function decline(
     for (const key of Object.keys(opts)) {
       if (key === 'consultations') continue;
       throw new Error(
-        governedUnavailable(
+        unknownOptionKey(
           key,
           'decline() accepts only consultations in this build — the seam takes no policy ' +
             'input by design (SPEC §9). Contract: §9 and §11.1.',

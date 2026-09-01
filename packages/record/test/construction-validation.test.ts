@@ -1,8 +1,8 @@
 // @vidimera/record — construction-validation.test.ts (SPEC §9.1 "Construction is loud"):
 // `create()` is fail-CLOSED at construction. Every profile-construction field this
-// build once guarded with a GOVERNED throw —
-//   "GOVERNED feature not available in this build (<field>)"
-// — lifted feature-by-feature as build steps added enforcement, `freshness` (the AL2
+// build once guarded with a GOVERNED throw (the guard-era head, reworded to the
+// unknown-option-key head at the registry-hygiene increment, 2026-09-01)
+// lifted feature-by-feature as build steps added enforcement, `freshness` (the AL2
 // freshness increment) being the LAST: the governed count reached ZERO with that lift,
 // so this file no longer has any live GOVERNED-throw pin of its own (the dead
 // `assertGoverned`/`GOVERNED` helpers this file once carried are gone with it).
@@ -80,8 +80,8 @@ function assertStructural(cfgProfile: ConfirmProfile, re: RegExp): void {
       assert.ok(err instanceof Error);
       assert.doesNotMatch(
         err.message,
-        /GOVERNED feature not available/,
-        'a structural error must NOT be the GOVERNED string',
+        /unknown option key/,
+        'a structural error must NOT be the unknown-option-key string',
       );
       assert.match(err.message, re);
       return true;
@@ -375,8 +375,8 @@ test("structural: freshness settled class — signing required, keys ⊆ the leg
         assert.ok(err instanceof Error);
         assert.doesNotMatch(
           err.message,
-          /GOVERNED feature not available/,
-          'a structural error must NOT be the GOVERNED string',
+          /unknown option key/,
+          'a structural error must NOT be the unknown-option-key string',
         );
         assert.match(err.message, re);
         return true;

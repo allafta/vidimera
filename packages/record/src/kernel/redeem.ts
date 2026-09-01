@@ -79,7 +79,7 @@
 import { canonicalize, digest } from '../canonical.js';
 import { transitionDigest } from '../chain/encoding.js';
 import { replay, verifyChain } from '../chain/replay.js';
-import { governedUnavailable, type RedeemOptions } from '../config.js';
+import { type RedeemOptions, unknownOptionKey } from '../config.js';
 import type { KernelContext, ResolvedProfile } from '../create.js';
 import { isFinalLeg, nonTerminal } from '../nonterminal.js';
 import type { Outcome } from '../outcome.js';
@@ -318,7 +318,7 @@ function validateRedeemOptions(
   for (const key of Object.keys(opts)) {
     if (key === 'tx' || key === 'result') continue;
     throw new Error(
-      governedUnavailable(
+      unknownOptionKey(
         key,
         `${seam}() accepts only tx and result in this build. Contract: §11.2, §12.`,
       ),

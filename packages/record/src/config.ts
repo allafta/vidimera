@@ -95,29 +95,26 @@ export function profileDeclaresEffectSeam(profile: ConfirmProfile): boolean {
 // --- construction guards (fail-CLOSED) -----------------------------------------------
 
 /**
- * The exact GOVERNED throw message (§9.1: "a feature field for an unimplemented capability
- * fails fast with an explicit 'feature not available in this build' error rather than
- * silently degrading"). Guards lift feature-by-feature as build steps add enforcement. The
- * head through the closing parenthesis — `GOVERNED feature not available in this build
- * (<field>)` — is NOT pinned by any test. `construction-validation.test.ts` names it in
- * its own header and in two `assert.doesNotMatch` negatives, which assert that a
- * STRUCTURAL error is not the governed string; nothing anywhere asserts that a governed
- * throw MATCHES this head, so rewording it would break no gate. Ordinary prose, not a
- * byte contract. The
- * caller-supplied `contract` is the appended tail: what is unavailable, and the SPEC
- * section(s) that lift it. Arity-2 originally because it served the per-field
- * construction guards below (now zero — every field this build once gated has lifted
- * behind its own behavior, each in the same commit as that behavior) alongside a growing
- * set of generic unknown-option-key throws: `open()`'s own message (every DOCUMENTED
- * `open()` key — `priorRecordRefs`/`policyDigest`/`supersedes` — is real as of the step-8
- * recovery increment, so no per-key GOVERNED arm remains there), `finalize()`'s own,
- * `decline()`'s own, and `kernel/redeem.ts`'s shared `validateRedeemOptions` — one call
- * site serving all three redemption seams (`redeem()`/`beginRedemption()`/
- * `completeRedemption()`, the effect-result increment). None of these four names a
- * not-yet-enforceable field.
+ * The message for a genuinely unknown options-bag key — a caller/config error, never a
+ * domain refusal. `field` is the unknown key; the caller-supplied `contract` is the
+ * appended tail: the seam's accepted keys, and the SPEC section(s) that made them real.
+ * Four call sites today: `kernel/open.ts`'s options loop, `kernel/finalize.ts`'s
+ * `finalizeOptionMessage`, `kernel/decline.ts`'s intake, and `kernel/redeem.ts`'s shared
+ * `validateRedeemOptions` serving all three redemption seams
+ * (`redeem()`/`beginRedemption()`/`completeRedemption()`). This count is stated once more
+ * above `validateProfile`; the two must not diverge again.
+ *
+ * HISTORY: until the registry-hygiene increment (2026-09-01) this helper was
+ * `governedUnavailable`, minting the feature-guard era's head — GOVERNED feature not
+ * available in this build (<field>) — per SPEC §9.1's fail-fast rule for unimplemented
+ * capabilities. That era closed with zero governed fields remaining; the four surviving
+ * callers were never guards, and the old head was recorded as unpinned prose, so the
+ * rename broke no gate. §9.1 binds GUARDS: if a governed field ever returns, its guard
+ * mints its own §9.1-shaped message at its own site. The NEW head IS pinned
+ * (decline.test.ts's unknown-option test), so rewording it again is a test-visible act.
  */
-export function governedUnavailable(field: string, contract: string): string {
-  return `GOVERNED feature not available in this build (${field}) — ${contract}`;
+export function unknownOptionKey(field: string, contract: string): string {
+  return `unknown option key (${field}) — ${contract}`;
 }
 
 /** SPEC §11.1: the library-emitted consultation kinds — reserved on BOTH sides of the
@@ -599,13 +596,14 @@ function validateFindingsFlow(profile: ConfirmProfile, leg: LegSpec): void {
  * implicit `'eligibility'`), values positive integer seconds. The governed count moves
  * 1 → 0 with this lift: the feature-guards-from-day-one era the kernel increment opened
  * closes here — every guard that era installed has now lifted behind its own behavior,
- * each in the same commit as that behavior. `governedUnavailable` (above) SURVIVES this
- * lift: it is not itself a per-field guard, and it still serves the generic
+ * each in the same commit as that behavior. `unknownOptionKey` (above; named
+ * `governedUnavailable` until the registry-hygiene increment renamed it with its head)
+ * SURVIVES this lift: it is not itself a per-field guard, and it still serves the generic
  * unknown-option-key throws that are NOT feature guards — four call sites today
  * (`kernel/open.ts`, `kernel/finalize.ts`, `kernel/decline.ts`, and `kernel/redeem.ts`'s
  * shared `validateRedeemOptions` serving all three redemption seams), none of which names
  * a single not-yet-enforceable field the way every guard swept by this sequence did. This
- * count is stated once above `governedUnavailable` itself; the two must not diverge again.
+ * count is stated once above `unknownOptionKey` itself; the two must not diverge again.
  * The sweep is TOTAL: a profile declaring any governed feature throws — the first one
  * reached wins, but none slips through. Canonicalizer resolution + duplicate-id detection
  * are `create.ts`'s (they need the registry / the whole profile list).

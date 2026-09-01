@@ -104,7 +104,7 @@
 import { canonicalize, digest } from '../canonical.js';
 import { transitionDigest } from '../chain/encoding.js';
 import { replay, verifyChain } from '../chain/replay.js';
-import { type FinalizeOptions, governedUnavailable, type LegSpec } from '../config.js';
+import { type FinalizeOptions, type LegSpec, unknownOptionKey } from '../config.js';
 import type { KernelContext, ResolvedProfile } from '../create.js';
 import { isFinalLeg, nonTerminal } from '../nonterminal.js';
 import type { Outcome } from '../outcome.js';
@@ -152,7 +152,7 @@ export const SYSTEM_CHECKER: IdentityAssertion = {
 
 /** Per-key message for a finalize() options key this build does not accept. */
 function finalizeOptionMessage(key: string): string {
-  return governedUnavailable(
+  return unknownOptionKey(
     key,
     'finalize() accepts only consultations and policy in this build. Contract: §9, §11.1, and §10.3.',
   );

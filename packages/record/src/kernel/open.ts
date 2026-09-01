@@ -19,7 +19,7 @@
 
 import { genesisPrevHash } from '../chain/encoding.js';
 import { replay } from '../chain/replay.js';
-import { governedUnavailable, type OpenOptions } from '../config.js';
+import { type OpenOptions, unknownOptionKey } from '../config.js';
 import type { KernelContext } from '../create.js';
 import { isFinalLeg, nonTerminal } from '../nonterminal.js';
 import type { Outcome } from '../outcome.js';
@@ -45,7 +45,7 @@ export async function open(
   // (`priorRecordRefs` since the first step-4 increment, `policyDigest` since the
   // second step-6 increment, `supersedes` since the step-8 recovery increment,
   // `proposed` since the proposal-provenance increment); anything else is a genuinely
-  // unknown key and throws GOVERNED (config.ts's `governedUnavailable`) — a
+  // unknown key and throws (config.ts's `unknownOptionKey`) — a
   // caller/config error, never a domain refusal.
   if (opts !== undefined) {
     for (const key of Object.keys(opts)) {
@@ -54,7 +54,7 @@ export async function open(
       if (key === 'supersedes') continue; // REAL as of the step-8 recovery increment
       if (key === 'proposed') continue; // REAL as of the proposal-provenance increment
       throw new Error(
-        governedUnavailable(
+        unknownOptionKey(
           key,
           'open() accepts only priorRecordRefs, policyDigest, supersedes, and proposed in this build. Contract: §9.',
         ),

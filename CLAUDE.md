@@ -31,7 +31,8 @@ Measured against the current
 tree: `pnpm test` — 67 test files, 821 tests, zero skips; `packages/record/src/refusal-codes.ts`
 carries 24 refusal codes; zero GOVERNED construction guards remain in `config.ts` — every
 field the feature-guard era installed has lifted behind real behavior at its own seam
-(`governedUnavailable` survives only for four generic unknown-option-key throw sites, in
+(`unknownOptionKey` — named `governedUnavailable` until the registry-hygiene increment —
+survives only for four generic unknown-option-key throw sites, in
 `finalize()`, `open()`, `decline()`, and the shared `validateRedeemOptions`
 (`kernel/redeem.ts`) serving all three redemption seams — `redeem()`, `beginRedemption()`,
 `completeRedemption()` — none naming a not-yet-enforceable field).
@@ -237,7 +238,8 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   (`config.ts`'s `validateProfile`) until its own seam behavior lands, in the same commit
   as that behavior. Every profile field the kernel increment marked GOVERNED has since
   lifted this way; measured against the current tree, zero fields are governed
-  (`governedUnavailable` survives only for four generic unknown-option-key throw sites, in
+  (`unknownOptionKey` — named `governedUnavailable` until the registry-hygiene increment —
+  survives only for four generic unknown-option-key throw sites, in
   `finalize()`, `open()`, `decline()`, and the shared `validateRedeemOptions`
   (`kernel/redeem.ts`) serving all three redemption seams — `redeem()`, `beginRedemption()`,
   `completeRedemption()` — none naming a not-yet-enforceable field). `redeem` was
