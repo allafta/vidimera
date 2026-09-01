@@ -4216,7 +4216,8 @@ feature-by-feature…" completed the edit grammatically, and it was applied that
 confirmed in the tree: the line reads "lifted feature-by-feature as build steps added
 enforcement" with no leading dash.
 
-**Task 2's ruled sweep of `docs/process/`, folded in verbatim (its final per-hit table).**
+**Task 2's ruled sweep of `docs/process/`, carried here in substance (its final per-hit
+table).**
 
 | Site | Pre-classification | Verification | Status |
 |---|---|---|---|
@@ -4249,10 +4250,11 @@ reach) passed clean — the `node:sqlite` surface (`DatabaseSync`, `exec`, `prep
 update does not bump the pin back; minors and patches still flow. A sanity run of
 `sqlite-store.test.ts` passed 6/6 under the pinned types. One disclosed, bounded transitive
 shift: `@types/pg` declares its own `@types/node` dependency as unconstrained (`"*"`), and
-vacating the workspace root's `26.2.0` let pnpm re-resolve that nested copy to `26.2.0`
-anyway (paired shift: `undici-types` `7.18.2` → `6.21.0`). No typecheck consequence:
-`@types/pg` imports no `'@types/node'`/`'node'` module paths directly, only builtins
-(`events`, `stream`, `tls`) that pnpm's hoisted layout resolves against the workspace
+vacating the workspace root's `26.2.0` let pnpm re-resolve that nested copy — previously
+`24.13.3` — up to `26.2.0` anyway (paired shift: `undici-types` `7.18.2` → `6.21.0`). No
+typecheck consequence: `@types/pg` imports no `'@types/node'`/`'node'` module paths
+directly, only builtins (`events`, `stream`, `tls`) that pnpm's hoisted layout resolves
+against the workspace
 root's `@types/node@22.20.1`, not the nested copy — both clean `tsc` runs and the sanity
 test confirm this in practice, not only in theory. **The honest bound, either way, restated
 here rather than only in the design document:** `^22` resolves to the latest 22.x typings,
