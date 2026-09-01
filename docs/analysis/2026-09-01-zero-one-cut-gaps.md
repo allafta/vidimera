@@ -262,3 +262,16 @@ checklist, and takes none of the four decisions in section 4. It adds one dated 
 the 2026-08-30 sweep, and it corrects that sweep on one point of mechanism (section 2.3). The
 sweep remains the catalogue; this is the cut's gate set and the case for repairing the list
 before running it.
+
+---
+
+**Addendum, 2026-09-01 (same day), recorded in place rather than by rewriting the body.**
+Increment 0 as scoped in section 4 landed the same day this record was written. The four
+repairs are in `docs/process/release-checklist.md`, and the account is
+`docs/process/implementation-status.md`'s "Checklist repair" section. Two figures above are
+therefore superseded and are left as written, pinned to `710aa69` by this record's own
+stated bound: the checklist's open checkbox count moved **18 to 22** (one for the promoted
+entry-point decision, three for the new pre-flight section), and section 1's line-number
+citations into `release-checklist.md` shifted with the insertions. Section 1's *reading* is
+unchanged — the gate set grew because two gates that were being taken by default became
+gates that get taken deliberately, which is what section 4 asked for.

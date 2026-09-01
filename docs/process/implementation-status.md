@@ -3848,3 +3848,84 @@ added pair documents (`docs/superpowers/specs/2026-08-29-checklist-refresh-desig
 `docs/superpowers/plans/2026-08-29-checklist-refresh.md`). `git ls-remote --tags origin`
 piped to `grep -c v0.1.0`, and `git tag -l v0.1.0` piped to `wc -l`, both read `0`: the
 stale tag is gone from the remote and from this clone.
+
+## Post-build-order increment — Checklist repair (documentation only)
+
+**The fifteenth post-build-order increment, exited.** The ordinal counts the sections above
+in order and, as the last seven did, does NOT count the documentation-only
+signature-enforcement-coverage findings note. **This increment landed no library behavior,
+no workflow and no script — three documents changed, one added the day before it as its own
+commit — and moved no maturity marker.** No `docs/concept/` file changed, no sanction was
+sought and none was needed: nothing here promotes a capability, narrows a rule, or touches
+a sealed enumeration. No `packages/`, `.github/` or `scripts/` file changed at all. And no
+`docs/process/deferral-register.md` row was written, retired or re-worded: rows 1, 19 and
+22 are untouched, and the two pre-argued dispositions are left exactly as the checklist
+refresh wrote them — this increment makes release day's list true, it decides nothing on
+it. It has no spec/plan pair, deliberately: its design argument is
+`docs/analysis/2026-09-01-zero-one-cut-gaps.md` section 4, committed the same day as
+`565f7b4`, which scoped the four edits and named what was out of scope. A bounded
+documentation change to one file did not warrant a third document to say so.
+
+**The gap this closed.** The 2026-09-01 gaps record read the cut's gate set whole rather
+than through the 2026-08-30 sweep's code-only frame, and found three defects in the list
+release day runs from.
+
+1. **The docset flip item was an enumeration, and had been short twice.** It named eight
+   sites. Four of those eight had themselves been added at the open-items plan's stage-2
+   pass, which found them missing from the paused attempt's flip set — and the gaps record
+   found three more the list still did not name: `CHANGELOG.md`'s preamble and its "Known
+   not-done" block, both of which go flatly false at the cut, and the second workspace
+   caveat in `docs/guide/api-reference.md` plus the probe-tier caveat in
+   `docs/guide/integrating.md` — a file no version of the list had ever named. A list
+   maintained by hand across a growing docset fails this way structurally, not by
+   carelessness. The item now carries a two-tier `git grep` recipe: tier 1 for claims that
+   go false, which must come back empty before the release commit; tier 2 for from-source
+   and in-this-workspace sentences, which need a ruling rather than a flip because they can
+   stay true for a reader inside the workspace while being the wrong sentence for an
+   adopter. The eight named sites survive only as the worked example of what the recipe
+   caught. **Measured at `565f7b4` before the edit and re-measured after: tier 1 returns 16
+   hits across 9 files, tier 2 returns 22** — figures recorded as a worked example, dated,
+   not as a pin: the recipe is what release day runs, never the count. The recipe's own trap
+   is named in place: this checklist contains the search terms as regex and as prose, so the
+   path list deliberately excludes `docs/process/`, whose historical accounts describe the
+   pre-cut state correctly in the past tense and must not be flipped.
+2. **The CHANGELOG item covered only the section cut.** Executed exactly as written it
+   produced a file carrying a `[0.1.0]` heading above a paragraph reading "No release has
+   been cut". The item now names both claims, and rules in place on the third hit — the
+   publish-tooling entry's own narration of what it did — as one that stays.
+3. **The irreversible step had nothing in front of it and no way back.** `release.yml`
+   publishes `@vidimera/record` then `@vidimera/store-postgres` in one job; its guard checks
+   `private` and `0.0.0` and nothing about the registry. A failure between the two publishes
+   leaves the first live and immutable and the registry in the state the lockstep ruling
+   forbids. A new "Pre-flight, immediately before the dispatch" section carries three boxes:
+   prove publish rights against the live scope rather than token validity alone (and that
+   neither name is taken); know the recovery — npm's unpublish window, flagged as an
+   external policy to confirm on the day rather than trust from this file, with a 0.1.1 as
+   the only exit once it closes; and know what state `main` is in if the dispatch never
+   succeeds, since the release commit is tagged and pushed before the dispatch runs and
+   asserts a publish that has not happened. That last is where the 2026-08-19 attempt
+   stopped, and the whole-commit revert of `8be3fce` is named as the precedent.
+
+**One item promoted, not added.** Whether the entry point keeps re-exporting `SqliteStore`
+eagerly was the only cut-gating decision with no checkbox: it was weighed inside the floor
+rule's prose, which is how a behavioral decision gets defaulted into rather than taken. It
+now has its own section with the three recorded exits (ship as-is — the recorded default;
+lazy-load; raise the floor to 24.15) and the reason it stands apart from the floor rule: the
+floor rule can fail to fire, as it did on 2026-08-29, while this question still wants an
+answer. Nothing about the recorded default changed; only whether it is taken knowingly.
+
+**What moved, and what did not.** `docs/process/release-checklist.md`'s open checkbox count
+moves **18 to 22** — one for the entry-point decision, three for pre-flight — and its
+section list in the opening paragraph now names both new sections.
+`docs/process/next-phases.md` gains a paragraph naming the entry-point decision as a third
+engineering question and pointing at the gaps record for the argument. `CLAUDE.md` is NOT
+edited: nothing in its release paragraph became false, and it already directs a reader to
+the checklist as release day's authority. The gaps record is NOT edited either — it is a
+dated artefact and lands as authored, so its own present-tense "18 open checkboxes" stays
+pinned to `710aa69` by its stated bound, with a dated addendum at its foot recording that
+this increment moved the figure.
+
+**Gate outputs, as measured against this increment's own exit commit.** `contract-scan` and
+`docs-index-sync` both exit 0. No TypeScript, workflow or script file changed, so
+`typecheck`, `test`, `build`, `smoke`, `lint:strict` and `api-sync` are unaffected and were
+not re-run — the same bound the checklist refresh recorded for the same reason.

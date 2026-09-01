@@ -98,6 +98,17 @@ cherry-pick — the checklist's notice says why; and the stale `v0.1.0` tag from
 attempt is gone. What still gates the cut outside this repository is the owner-side list in
 that notice, two items of which cannot even be attempted until the repository is public.
 
+A third engineering question joined the checklist on 2026-09-01, having previously been
+weighed inside the floor rule's prose rather than asked: whether the entry point keeps
+re-exporting `SqliteStore` eagerly, so that `node:sqlite` loads — and, below Node 24.15,
+warns — on any `@vidimera/record` import whatever store the adopter chose. It is the only
+cut-gating decision that changes what an adopter meets at `import`, its recorded default is
+ship-as-is, and it now carries its own item because the floor rule can fail to fire, as it
+did, while this question still wants an answer. The same day's checklist repair also gave
+release day a pre-flight section before the irreversible dispatch and turned the docset
+flip from a hand-maintained enumeration into a grep recipe;
+`docs/analysis/2026-09-01-zero-one-cut-gaps.md` is the argument, the checklist is the list.
+
 ### Consumability — register row 1 (row 6 completed and retired 2026-08-19)
 
 - **Row 1** — deferred item: "Publish tooling (build, versioning, release) for the record

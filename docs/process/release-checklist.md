@@ -44,10 +44,13 @@
 
 The one list release day runs from, collected across the release plan's phase records
 (`docs/analysis/2026-08-19-phase-0-decisions.md` asked for it; the phase 2, 3, and 5
-records each contributed items). Ordered: preconditions, the rule to evaluate, file
-changes, repository settings, the dispatch, the verification, the paperwork. Nothing here
-is optional; several items are settings no commit can land, which is why this list exists
-as a list rather than as code.
+records each contributed items; the 2026-09-01 gaps record,
+`docs/analysis/2026-09-01-zero-one-cut-gaps.md`, added the entry-point decision and the
+pre-flight section and turned the docset flip from an enumeration into a recipe). Ordered:
+preconditions, the rule to evaluate, the entry-point decision, file changes, repository
+settings, pre-flight, the dispatch, the verification, the paperwork. Nothing here is
+optional; several items are settings no commit can land, which is why this list exists as
+a list rather than as code.
 
 ## Preconditions (before the day is scheduled)
 
@@ -77,7 +80,9 @@ as a list rather than as code.
       `--disable-warning=ExperimentalWarning` flag are already documented in
       `docs/guide/integrating.md`. Weigh it knowing the phase-6 rehearsal's finding: the
       warning fires on ANY `@vidimera/record` import (the entry point re-exports
-      `SqliteStore`), so every adopter meets it at hello, whatever store they use.
+      `SqliteStore`), so every adopter meets it at hello, whatever store they use — that
+      finding's own question now has its own item, "The entry-point decision" below, and is
+      no longer settled inside this one.
       **Evaluated 2026-08-29 — the rule did NOT fire.** `node:sqlite` reached Stability 1.2
       (release candidate) in Node 24.15.0, not Stability 2; `engines.node` stays `>=22.16` in
       the root and both packages, and CI's exact-floor leg stays 22.16.0. What DID change is
@@ -90,6 +95,33 @@ as a list rather than as code.
       day against the Node lines THEN: if any maintained line has reached Stability 2, this
       rule fires as written.
 
+## The entry-point decision (`SqliteStore`'s eager re-export)
+
+- [ ] Rule on whether `packages/record/src/index.ts` keeps re-exporting `SqliteStore`
+      eagerly, so that `node:sqlite` loads — and, below Node 24.15, warns — on any
+      `@vidimera/record` import whatever store the adopter chose. **This is the only
+      cut-gating decision that changes what an adopter meets at `import`, and until
+      2026-09-01 it had no item of its own**: it was weighed inside the floor rule's prose
+      above, which is how a behavioral decision gets defaulted into rather than taken. It is
+      listed separately here because the floor rule can fail to fire — as it did on
+      2026-08-29 — while this question still wants an answer. The three recorded exits:
+      - **Ship as-is** (the recorded default, `docs/analysis/2026-08-19-phase-0-decisions.md`):
+        the warning stays for adopters below 24.15 and the documented
+        `--disable-warning=ExperimentalWarning` flag is the shipped answer. The entry point
+        stays exactly what the 2026-08-19 API review closed on.
+      - **Lazy-load** `SqliteStore` so `node:sqlite` loads on first construction. Honest in
+        shape — an adopter on `MemoryStore` or Postgres never asked for `node:sqlite` — but it
+        reshapes the entry point after a closed review, so it needs its own recorded ruling,
+        and `.github/workflows/first-use.yml`'s warning assertions must then expect silence
+        on both legs, with `docs/guide/integrating.md` and `packages/record/README.md` moving
+        with it.
+      - **Raise the floor to 24.15**, which drops the 22.x line the floor rule was written to
+        keep and keys on the warning rather than on Stability 2, contradicting that rule as
+        written.
+
+      Whichever is chosen, record it — a default taken knowingly is a ruling; a default
+      taken by silence is the thing this item exists to prevent.
+
 ## File changes (one commit, tagged)
 
 - [ ] Bump `version` to `0.1.0` in `packages/record/package.json` **and**
@@ -98,17 +130,57 @@ as a list rather than as code.
       same version and both publish, at this cut and every later one,
       `docs/analysis/2026-08-20-versioning-mechanics.md`).
 - [ ] Drop `"private": true` from both manifests — the one deliberate publish block.
-- [ ] `CHANGELOG.md`: cut a `[0.1.0]` section from `[Unreleased]`, dated.
-- [ ] Flip the docset's "unpublished" caveats to the published truth — `README.md`'s
-      status paragraph, `docs/guide/getting-started.md`'s honest precondition,
-      `docs/guide/api-reference.md`'s header caveat, `docs/guide/faq.md`'s
-      is-it-production-ready answer, `SECURITY.md`'s supported-versions section,
-      `docs/README.md`'s "not yet published or installable" line, and both package
-      READMEs' status blocks (`packages/record/README.md`,
-      `packages/store-postgres/README.md`; the last four entries added at the
-      open-items plan's stage-2 pass, which found them missing from the paused cut's
-      flip set) — and verify the README's headline snippet
-      (`import ... from '@vidimera/record'`) is now literally true.
+- [ ] `CHANGELOG.md`: cut a `[0.1.0]` section from `[Unreleased]`, dated — **and flip the
+      file's own two unpublished-state claims in the same edit**, because cutting the
+      section alone leaves the file contradicting itself: the preamble ("**No release has
+      been cut.** The package is pre-0.1 and unpublished") and the "Known not-done" block's
+      first bullet ("The release itself: the package is `private: true` and unpublished by
+      design until the 0.1 cut"). Both are found by the tier-1 recipe in the next item;
+      neither was named by any earlier version of this list. A third hit, inside the
+      publish-tooling entry ("The package stays `private: true` until the 0.1 cut by
+      design"), is that entry's own narration of what it did and stays as written —
+      rule on it, do not flip it.
+- [ ] Flip the docset's "unpublished" caveats to the published truth. **Find the sites by
+      running the recipe, not by reading a list.** This item was an enumeration of named
+      sites until 2026-09-01, and an enumeration maintained by hand across a growing docset
+      was short twice: the open-items plan's stage-2 pass found four sites the paused
+      attempt's flip set had missed (`SECURITY.md`, `docs/README.md`, both package READMEs),
+      and the 2026-09-01 gaps record found three more this list still did not name (both
+      `CHANGELOG.md` claims, now folded into the item above, and the two workspace caveats
+      tier 2 catches). The recipe is the check; the worked example below is only what it
+      caught on 2026-09-01.
+
+      ```sh
+      # Tier 1 — claims that go FALSE at the cut. Rule on every hit, then re-run:
+      # this must come back EMPTY before the release commit is made.
+      git grep -nE 'private: true|unpublished|not yet published|is not published|no npm install|does not exist as an option|No release has been cut|not yet published or installable|until the 0\.1 cut' -- README.md CHANGELOG.md CONTRIBUTING.md SECURITY.md docs/README.md 'docs/guide/*.md' 'packages/*/README.md'
+
+      # Tier 2 — claims that need a RULING, not necessarily a flip: a from-source or
+      # in-this-workspace sentence can stay true for a reader inside the workspace while
+      # being the wrong sentence for an adopter. This one need not come back empty; every
+      # hit must have been looked at.
+      git grep -nE 'from source|this workspace|deep import|pre-0\.1' -- README.md CHANGELOG.md CONTRIBUTING.md SECURITY.md docs/README.md 'docs/guide/*.md' 'packages/*/README.md'
+      ```
+
+      **Worked example, measured 2026-09-01 at `565f7b4`** — tier 1 returned 16 hits in 9
+      files and tier 2 returned 22, together covering: `README.md`'s status paragraph,
+      `docs/guide/getting-started.md`'s honest precondition, `docs/guide/api-reference.md`'s
+      header caveat AND its second workspace caveat at the probe-tier section,
+      `docs/guide/faq.md`'s is-it-production-ready answer, `docs/guide/integrating.md`'s
+      probe-tier deep-import caveat (a file no earlier version of this list named),
+      `SECURITY.md`'s supported-versions section, `docs/README.md`'s "not yet published or
+      installable" line, both package READMEs' status blocks, and the three `CHANGELOG.md`
+      hits the item above rules on. Expect the numbers to have moved; the recipe, not the
+      count, is what release day runs.
+
+      One trap, named so nobody walks into it: THIS file contains the recipe's own search
+      terms, as regex and as prose. The path list above deliberately excludes
+      `docs/process/`, and widening it to the process docs would make the recipe match
+      itself and every historical account in `implementation-status.md` — which describe
+      the pre-cut state correctly, in the past tense, and must not be flipped.
+
+      Then verify the README's headline snippet (`import ... from '@vidimera/record'`) is
+      now literally true.
 - [ ] The `CLAUDE.md` skim (phase-0 ruling 6): remove private-workflow residue; update
       its honest-bound paragraph to the published state.
 - [ ] Run every gate (`pnpm typecheck && pnpm test && pnpm build && pnpm smoke &&
@@ -130,6 +202,37 @@ as a list rather than as code.
 - [ ] Branch protection with **require review from code owners** is enabled —
       `.github/CODEOWNERS` guards `docs/concept/` and the frozen byte-stability test, and
       is advisory until this is on.
+
+## Pre-flight, immediately before the dispatch
+
+The dispatch is the only step on this list that cannot be undone, and until 2026-09-01 it
+was also the only one with nothing in front of it: `release.yml`'s guard checks the two
+things the repository can see (`private`, `0.0.0`) and nothing about the registry it is
+about to write to. Do these in the same sitting as the dispatch, not the week before.
+
+- [ ] **Prove publish rights against the live scope, not just token validity.** This sharpens
+      the token item in the section above rather than repeating it: a token that authenticates
+      and a token that may publish to `@vidimera` are different facts, and only the second one
+      matters. Check the authenticated identity and the scope's permissions
+      from the token you are about to hand the workflow, and confirm neither package name is
+      already taken. A `--dry-run` publish of the packed tarball exercises the same path
+      without writing.
+- [ ] **Know the recovery before you need it.** The publish is not atomic: `release.yml`
+      publishes `@vidimera/record` first and `@vidimera/store-postgres` second, in one job.
+      If the second fails, the first is live and immutable, and the registry is in the state
+      the lockstep ruling forbids (`docs/analysis/2026-08-20-versioning-mechanics.md`: both
+      packages carry the same version and both publish). The escape hatch is npm's unpublish
+      window — as this is written, a version may be unpublished within 72 hours of its
+      publication, after which the version number is burned permanently even if unpublished.
+      That is an external policy this repository cannot verify: **confirm it on the day**, and
+      if the window has closed or the policy has changed, the only exit is a 0.1.1.
+- [ ] **Know what state `main` is in if the dispatch never succeeds.** The release commit
+      flips the docset to published truth, and it is committed, tagged and pushed BEFORE the
+      dispatch runs. Between the two, `main` asserts a publish that has not happened. That is
+      exactly where the 2026-08-19 attempt stopped, and the answer then was to revert the
+      whole commit — `8be3fce`, preserved in history, reverted whole; the tag was deleted
+      later, on 2026-08-29. If the dispatch fails and cannot be re-run the same day, take
+      that path rather than leaving the claim standing.
 
 ## The dispatch
 
