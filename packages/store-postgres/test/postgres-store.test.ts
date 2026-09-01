@@ -3,7 +3,8 @@
 // everything backing-generic; only what is Postgres-shaped lives here.
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import { storeGenesis } from '../../record/test/helpers/chain.js';
+import { verifyChain } from '../../record/src/chain/replay.js';
+import { storeGenesis, storeNext } from '../../record/test/helpers/chain.js';
 import { newStore, nextSchemaName, sharedPool } from './helpers/pg.js';
 
 test('tx validation: a foreign object is refused loudly (not a pg client)', async () => {
@@ -90,4 +91,28 @@ test('recovery: a transient failure during lazy DDL does not brick the store —
   await assert.rejects(store.getStaged('s-any'), /transient/);
   // The blip is over — the same instance must work now, not replay the stale rejection.
   assert.equal(await store.getStaged('s-any'), null);
+});
+
+test('payload posture: a function-valued member is dropped CONSISTENTLY with the digest — exactly SqliteStore posture, as postgres-store.ts claims', async () => {
+  // Proves the src/postgres-store.ts claim that the JCS-invisible-member round-trip
+  // behavior is exactly SqliteStore's: JSON round-trip drops the member, library JCS
+  // dropped the same member when digesting, so persisted bytes and digest agree.
+  const store = newStore();
+  const genesis = storeGenesis('rec-jsondrop', 'profile.p1', 'subject:jsondrop');
+  await store.appendTransition(null, genesis, { nonTerminal: true });
+  const confirmed = storeNext(genesis, 'confirmed', {
+    actor: { principal: 'approver:posture', authority: 'session:posture' },
+    describe: () => 'not JSON-representable',
+  });
+  const res = await store.appendTransition('open', confirmed, { nonTerminal: false });
+  assert.equal(res.appended, true);
+
+  const chain = await store.readChain('rec-jsondrop');
+  const last = chain.at(-1);
+  assert.ok(last !== undefined);
+  assert.ok(
+    !('describe' in (last.payload as Record<string, unknown>)),
+    'the function member is gone from the persisted payload',
+  );
+  assert.equal(verifyChain(chain).intact, true, 'and the digests still verify');
 });
