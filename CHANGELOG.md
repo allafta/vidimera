@@ -137,6 +137,25 @@ is the summary, and that file wins on conflict.
 
 ### Fixed
 
+- **Truth restoration** (2026-09-01, post-build-order): every stale shipped-source and
+  test sentence found by the pre-cut sweep repaired against what the tree actually does —
+  the retired naming-review pointer (`operator-surface.ts`), the Node floor (`id.ts`), the
+  adapter-anticipation note (`store/store.ts`), the `appendsOn` caller set
+  (`refusal-codes.ts`), and the enlisted-token and racing-store claims (`clocks.test.ts`,
+  `redeem.test.ts`, `redeem-token.test.ts`) — plus the one behavior-adjacent edit,
+  `kernel/expiry.ts`'s last hardcoded leg index replaced with the derived index the
+  sibling `dueAt` producer already computes, output-identical (both `expired` and
+  `redemption-failed` are terminal, so the fed flag is `false` under either derivation)
+  and pinned. New evidence: the enlisted-token due-window twins over both token seams, the
+  (5)→(6) race pair on both redemption ladders (a fired-state assertion pinning the
+  order, not only the outcome), the unknown-profile arms exercised at `finalize()` and
+  `seal()`, `transitionRef` upgraded to equality against the appended edge's digest at all
+  nine signature-broken cells, the key-retirement orphan baseline (one sidecar orphan
+  minted per call — a pin, not containment), a `magnitude` byte pin, and the Postgres
+  payload-posture pin proving its JCS-invisible-member round-trip really matches
+  `SqliteStore`'s. `listDue()` is recorded as carrying no naming ruling of its own,
+  docketed to the 1.0 freeze rather than claimed retroactively covered. No public-surface
+  change; no deferral-register row moves; no checklist box ticked.
 - **The `signature-tamper-refuses` operator-assurance probe no longer picks its tamper
   victim by sidecar position** (2026-08-29, the sidecar-contract increment): `SignatureStore`'s
   `listByRecord` promises no order, and under an orphan-first order the contract permits the

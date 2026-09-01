@@ -3932,3 +3932,182 @@ this increment moved the figure.
 `docs-index-sync` both exit 0. No TypeScript, workflow or script file changed, so
 `typecheck`, `test`, `build`, `smoke`, `lint:strict` and `api-sync` are unaffected and were
 not re-run — the same bound the checklist refresh recorded for the same reason.
+
+## Post-build-order increment — Truth restoration (comments, tests, and one output-identical edit)
+
+**The sixteenth post-build-order increment, exited (commits `fd8a6ea`..`5672c89`, closed by
+the record commit that follows them).** The ordinal counts the sections above in order and,
+as the last eight did, does NOT count the documentation-only signature-enforcement-coverage
+findings note. **No sanction was needed and none was sought**: nothing in `docs/concept/`
+moves, no maturity marker moves, no capability is promoted, and the public surface does not
+change (`pnpm api-sync` unaffected, `docs/guide/` untouched). Design:
+`docs/superpowers/specs/2026-09-01-truth-restoration-design.md`; plan:
+`docs/superpowers/plans/2026-09-01-truth-restoration.md`.
+
+**What the increment is.** Every stale sentence the tree ships or asserts about itself made
+true, and every cheap claim that can become a test made one — assembled from the 2026-08-30
+sweep's "increment 1" and its section 9 (`docs/analysis/2026-08-30-pre-release-code-gaps.md`
+§§2, 9), scoped as step 1 of the revised pre-cut sequence
+(`docs/analysis/2026-09-01-zero-one-cut-gaps.md` §5). One `packages/*/src/` edit is
+behavior-adjacent (`kernel/expiry.ts`'s leg-index derivation, required output-identical);
+everything else is comments and tests.
+
+**Five rulings taken at scoping, held through exit, so they are not re-litigated here
+either.**
+
+1. Item 23 (the Postgres payload-posture claim) rides this increment rather than the
+   adapter-evidence increment — a shipped claim should be true before it ships.
+2. The (5)→(6) race pair is added as tests, not recorded-excluded — `RaceOnceStore`
+   already exists and the tests are small.
+3. `listDue()` gets the honest note, not a retroactive claim: the row-6 API review's
+   name-by-name pass never mentions it, so this increment records that no recorded ruling
+   covers the name and dockets it to the 1.0 freeze, beside its ids-vs-records shape.
+4. Item 22's optional Postgres kernel-enlisted leg is deferred to the adapter-evidence
+   increment; the two new enlisted-token tests run over `SqliteStore` only, mirroring the
+   existing direct-seam test.
+5. Item 40 is pin-only: containment of key-retirement minting stays sequenced behind the
+   durable `SignatureStore` backing, the first post-0.1 increment, per the register.
+
+**Cluster A — five shipped-source comment repairs, each verified stale against
+`main = ead1f0b` on 2026-09-01, task 1 except A5.**
+
+- `operator-surface.ts:34-37` — was: the three redemption call names "flagged to the
+  pre-0.1 naming review"; is: that review RATIFIED the triad and retired deferral register
+  row 6 on 2026-08-19 (`docs/analysis/2026-08-19-phase-1-api-review.md`).
+- `id.ts:17` — was: `node:crypto` "the project's runtime baseline (Node >= 24 …)"; is: the
+  declared floor, Node 22.16, the `engines` field in both manifests.
+- `store/store.ts:122` — was: a sync→async flip anticipated "once a real Postgres adapter
+  lands"; is: reworded against the adapter that exists, `@vidimera/store-postgres`, landed
+  2026-08-19.
+- `refusal-codes.ts:~210-212` — was: finalize's "steps (3)-(5.7)" named as "the only
+  callers of `appendsOn`"; is: `decline.ts` calls it too, since the recorded-human-decline
+  increment, through the shared `refuseMaybeAppend` helper (exported for decline as its
+  second caller).
+- `kernel/expiry.ts:135-136` (task 2) — the one behavior-adjacent edit:
+  `isFinalLeg(0, profile.legs.length)`, a hardcoded leg index fed to the
+  `expired`/`redemption-failed` append's meta, replaced with the derived index the sibling
+  `dueAt` producer already computes at `expiry.ts:75` (`profile.legs.findIndex(...)`).
+  **Output-identical, argued and pinned**: both `expired` and `redemption-failed` are
+  terminal, so the fed `nonTerminal` flag is `false` for every input under either
+  derivation — no byte pin could move. The new pin, in `clocks.test.ts`, asserts
+  `nonTerminal: false` on that append for a final-leg, multi-leg profile — the one shape
+  where a hardcoded `0` and the derived index could ever disagree.
+
+A1 carried two paired documentation edits, both landed at task 1: the "flagged to" tense
+fix at this file's own §9 row (line ~414), and ruling 3's dated note recording
+`listDue()`'s no-ruling status — see "The two corrections this file made to itself" below.
+
+**Cluster B — two test-comment repairs, each paired with the tests that make the repair
+honest.**
+
+- B1, `clocks.test.ts:200-202` (item 22, task 3) — was: the shared prologue's enlisted
+  branch reachable only through direct `redeem()` "(the token seams take no tx)"; is:
+  false since the effect-result increment — all three redemption seams carry `opts.tx`.
+  Repaired the parenthetical and added the twins: `beginRedemption(recordId, content,
+  { tx })` against a due `confirmed` record and `completeRedemption(recordId, token,
+  content, { tx })` against a due `redeeming` record, both over `SqliteStore`, mirroring
+  the existing direct-seam enlisted-due test — each asserts the due refusal
+  (`unredeemable-state`), no edge appended, and that an un-enlisted re-invocation then
+  resolves the clock.
+- B2, `redeem.test.ts:42-43` and `redeem-token.test.ts:585-586` (item 25, task 4) — was:
+  the mismatch-plus-racing-writer pair "not constructible without a bespoke racing"
+  store; is: false since `RaceOnceStore` exists. Fixed both comments and added the pair
+  test each ladder lacked — mismatched content presented while `RaceOnceStore` is armed on
+  the success append (`confirmed → redeemed` on the direct ladder; the completion append
+  on the token ladder) — asserting both the refusal (`effect-mismatch`) AND the racer's
+  fired-state staying `false`, so the pin is on ORDER (rung (5) correspondence beats rung
+  (6)'s append) rather than merely on outcome.
+
+**Cluster C — five new-evidence tests, the sweep's section 9 conversions.**
+
+- C1 (item 91, task 5): the `unknown-profile` arms at `kernel/finalize.ts:209-215` and
+  `kernel/seal.ts:63-67`, called defensive and untested, exercised by two
+  `refusal-matrix.test.ts` tests under the established two-instance shape (open, and for
+  seal confirm, under one `create()` instance; drive `finalize()`/`seal()` from a second
+  instance whose catalog lacks the profile) — both assert `unknown-profile`,
+  refusal-class, no append. The two "not exercised" comment sentences were deleted in the
+  same commit as the tests that license the deletion.
+- C2 (item 84, task 6): the nine defined-only `transitionRef` assertions upgraded to
+  equality against the appended edge's digest (`signing-enforce.test.ts:181, 365, 402,
+  438, 475, 502`; `decline.test.ts:136`; `findings-seams.test.ts:234, 256`), mirroring
+  `chain-verify.test.ts:165-169`. The four no-edge assertions in those same files stay
+  unchanged, pinning the opposite behavior. This task is also where this file's own
+  over-broad sentence at ~2538 was softened — see "The two corrections" below.
+- C3 (item 40, pin only, task 7): one baseline test in `no-edge-containment.test.ts` — a
+  healthy, untampered, sealed signing record, its `keyRef` dropped from the verifier
+  registry, four repeated `finalize()` calls: each takes the no-edge refusal path, the
+  chain stays flat, and the sidecar grows by exactly one orphan entry per call. No
+  containment, no source change — the register's "6 to 13 over eight calls" figure now
+  rests on a live pin instead of a retired rig.
+- C4 (item 90, task 8): `magnitude?: string` (confirmed string-only on both
+  `FindingRaisedPayload` and `AcknowledgedPayload`, `types.ts` — the sweep's "string
+  and/or numeric" hedge does not survive the type) had been pinned only absent;
+  `byte-regression/findings.test.ts` gained a flow that raises and acknowledges a finding
+  WITH `magnitude` set, freezing six new `PINNED_MAGNITUDE_` literals.
+  `byte-stability.test.ts` is untouched; no existing pinned literal moved.
+- C5 (item 23, task 9): `postgres-store.ts:20-24`'s claim that the JCS-invisible-member
+  round-trip behavior is "exactly `SqliteStore`'s" was untested. `postgres-store.test.ts`
+  gained the mirror of `sqlite-store.test.ts:107-125` against the embedded server: a
+  function-valued payload member is dropped on the JSON round-trip, consistently with the
+  digest — `verifyChain(chain).intact === true` afterward. No source change; the comment
+  held.
+
+**The two corrections this increment made to `implementation-status.md` itself, so their
+provenance sits in the file that changed rather than only in a commit body.**
+
+1. **Line ~414, the §9 row (task 1).** The "flagged to the pre-0.1 naming review" clause
+   was tense-fixed to record row 6's actual 2026-08-19 ratification, and the same edit
+   extended the divergence item to `listDue()` with ruling 3's dated note: "NO recorded
+   ruling covers the name (noted 2026-09-01, the truth-restoration increment)", docketed
+   to the 1.0 freeze beside its ids-vs-records shape — not claimed "retroactively covered
+   by the whole-surface ratification," a reading the review's own text does not support.
+2. **Line ~2538, the AL2 signature-enforcement-coverage account (task 6).** The sentence
+   "no append site ties the returned transition reference to the appended edge's own
+   digest" was over-broad as first written even then — the hash-broken cell had the
+   equality pinned at `chain-verify.test.ts` since the step-1 corpus. Softened to the true
+   bound, "no signature-broken cell tied [it]," with the fact of the upgrade recorded in
+   the same breath: "the truth-restoration increment (2026-09-01) upgraded all nine cells
+   to equality against the chain head."
+
+A third, smaller narrative edit rode task 2 alongside the A5 code change: the §10.1 row's
+"One residual hardcoded leg index remains" tail (line ~423) now reads that the index "was
+removed at the truth-restoration increment (2026-09-01) … output-identical … pinned in
+clocks.test.ts". That edit is the A5 repair's own record, not counted among the two
+corrections above — those two are the file noticing and fixing claims it had gotten wrong
+on its own account, not restating a code change made elsewhere in the same task.
+
+**Gate outputs, as measured against this increment's own exit commit.**
+`./node_modules/.bin/tsc -p packages/record --noEmit` and
+`./node_modules/.bin/tsc -p packages/store-postgres --noEmit` — both clean.
+`./node_modules/.bin/vitest run` — 67 test files, 832 tests, zero skips (record project
+alone: 63 files, 766 tests; store-postgres alone: 4 files, 66 tests — each project measured
+on its own run as well as together). Up from the pre-increment 67 files/821 tests (63/756
+and 4/65) by exactly the eleven new tests this increment's pins add: one at A5, two at B1,
+two at B2, two at C1, one at C3, two at C4, and one at C5 — cluster A's other four sites and
+C2's nine assertion upgrades touch no test count, since they repair comments or tighten an
+existing assertion in place rather than adding one.
+`./node_modules/.bin/biome check --error-on-warnings .` — 135 files checked, zero errors or
+warnings. `node scripts/contract-scan.mjs` — exit 0, silent. `node
+scripts/api-reference-sync.mjs` — exit 0, silent. `node scripts/docs-index-sync.mjs` — exit
+0, silent, re-run after this section and the CHANGELOG entry were written, since the scan
+reaches this file's own new content only once it is written.
+`docs/process/deferral-register.md` and `docs/process/release-checklist.md` are both
+byte-identical to the branch's baseline — neither was opened, let alone edited.
+`git diff ead1f0b --stat -- packages/ .github/ scripts/ docs/concept/
+packages/record/test/byte-stability.test.ts` names only `packages/` lines — seventeen files
+(seven `src/` sites, ten test files), the whole comment-and-test surface clusters A through
+C touch; `.github/`, `scripts/`, `docs/concept/` and the frozen byte-stability oracle carry
+no diff at all.
+
+**What stays outside, and why.** No deferral-register row moved: the file is untouched, and
+neither row 1's publish trigger nor row 19's nor row 22's cut trigger fires from a
+comment-and-test increment that publishes nothing. No release-checklist box was ticked —
+this increment does not touch `docs/process/release-checklist.md` at all. **Row 22a is
+unchanged**: C3's key-retirement pin is a BASELINE, not containment — it states the growth
+deferral register row 22's own figure describes, measured on a live rig instead of one that
+no longer exists, and ruling 5 records why containment stays out: sequenced behind the
+durable `SignatureStore` backing, the first post-0.1 increment. No maturity marker moved,
+no public-surface name changed, and no `docs/concept/` file was opened.
+
+**Cuts.** None. This increment repaired sentences and added tests; it removed no capability
+and no behavior, and its one source edit is proven output-identical above.
