@@ -118,8 +118,9 @@ export type BatchResult =
  * narrowed to recordIds — see its own doc comment). §12 is explicit that what is durable is
  * the behaviour each method guarantees rather than its argument list, so this narrowed surface
  * conforms behaviourally without mirroring §12's signatures — but a reader must not take it
- * for the whole adapter contract. Async throughout — committing now avoids a breaking
- * sync->async flip once a real Postgres adapter lands — even though `store/memory.ts`'s
+ * for the whole adapter contract. Async throughout — committed before any SQL backing
+ * existed, so the server-SQL adapter (`@vidimera/store-postgres`, real since 2026-08-19)
+ * arrived without a breaking sync->async flip — even though `store/memory.ts`'s
  * Map-backed implementation has no genuine I/O to await.
  *
  * `tx?` on every write is SPEC §12's caller-supplied transaction — adapter-generic: "its

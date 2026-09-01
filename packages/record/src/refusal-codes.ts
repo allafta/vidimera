@@ -207,18 +207,21 @@ const NEVER_APPENDS: ReadonlySet<RefusalCode> = new Set<RefusalCode>([
  * (otherwise the record stays open, no append).
  *
  * `leg-expired` is a member of `RefusalCode` and CAN legally appear in a leg's
- * `terminalRefusals`, but it is resolved by finalize()'s state/expiry gate BEFORE any
- * refusal-append decision is reached (kernel/finalize.ts step (2), ahead of steps
- * (3)-(5.7) which are the only callers of `appendsOn`) — so `appendsOn('leg-expired', …)`
- * is never actually consulted by the kernel. `availability` is legal in a leg's
+ * `terminalRefusals`, but it is resolved at rung (2) — the state/expiry gate — of BOTH
+ * ladders that consult `appendsOn`, before any refusal-append decision is reached:
+ * kernel/finalize.ts's steps (3)-(5.7) and, since the recorded-human-decline increment,
+ * kernel/decline.ts's refusal rungs, each consulting only through `refuseMaybeAppend`
+ * (kernel/finalize.ts, exported for decline as its second caller) — so
+ * `appendsOn('leg-expired', …)` is never actually consulted by the kernel. `availability` is legal in a leg's
  * `terminalRefusals` too, but by a different mechanism: this function's own
  * availability-class check above returns `false` for it unconditionally, ahead of the
  * `terminalRefusals` consult, so `appendsOn('availability', …)` never reaches that
  * consult either — no kernel timing involved, unlike `leg-expired`. `leg-expired` and
  * `availability` are the two legal-but-inert `terminalRefusals` members SPEC §8 names
  * "so an adopter isn't trapped configuring a control that can never fire" (both pinned in
- * refusal-matrix.test.ts). Keep it that way, or gate it explicitly if/when `appendsOn`
- * usage widens beyond finalize's steps (3)-(5.7).
+ * refusal-matrix.test.ts). Keep it that way, or gate it explicitly if `appendsOn` usage
+ * widens again — it widened once already (kernel/decline.ts's ladder, above) with the
+ * conclusion intact, because decline mirrors finalize's rung-(2) placement.
  */
 export function appendsOn(code: RefusalCode, leg: AppendDecisionLeg): boolean {
   if (REGISTRY[code] === 'compromise') return true;

@@ -34,7 +34,9 @@
 // The seam family now has a token half alongside the direct one — SPEC §11.2 names one
 // verb, `redeem()`; the three call names here (`redeem`/`beginRedemption`/
 // `completeRedemption`) are this build's own, recorded in
-// `docs/process/implementation-status.md` and flagged to the pre-0.1 naming review.
+// `docs/process/implementation-status.md` and RATIFIED by the pre-0.1 API review, which
+// retired deferral register row 6 on 2026-08-19
+// (`docs/analysis/2026-08-19-phase-1-api-review.md`).
 
 import type { ChainVerifyReport } from './chain/replay.js';
 import type { DeclineOptions, FinalizeOptions, OpenOptions, RedeemOptions } from './config.js';

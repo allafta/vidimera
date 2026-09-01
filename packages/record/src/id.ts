@@ -14,8 +14,9 @@ import type { Digest } from './types.js';
  *
  * Format choice (SPEC §2 names it only a "Host-scheme identifier", leaving the exact
  * internal format open): a bare RFC 4122 v4 UUID via `node:crypto.randomUUID()`. Reasons:
- * `node:crypto` is already the project's runtime baseline (Node >= 24, no new
- * dependency); collision probability is cryptographically negligible; and a bare UUID
+ * `node:crypto` is already the project's runtime baseline (Node >= 22.16, the declared
+ * `engines` floor in both manifests; no new dependency); collision probability is
+ * cryptographically negligible; and a bare UUID
  * embeds cleanly into any host-side scheme (URL segment, DB primary key, log
  * correlation id) without the host having to strip a library-imposed prefix. The
  * "host-scheme" wording is read as "assigned by the host process" (in
