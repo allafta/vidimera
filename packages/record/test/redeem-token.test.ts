@@ -582,8 +582,9 @@ test('a begun record with a lost token has NO exit in this build except completi
 //     outranks mismatch reporting).
 //   (5) internal (token-vs-content order): NOT pinnable via codes — both refuse
 //     effect-mismatch; recorded here, not tested.
-//   (5)->(6): a mismatch plus a racing writer — needs the racing store; the racing task
-//     covers the (6) residual on its own.
+//   (5)->(6): a mismatch plus a racing writer — pinned in the racing section below
+//     (2026-09-01): effect-mismatch wins and the racer never fires; the racing residual
+//     tests cover the (6) residual on its own.
 // Not jointly constructible (and why): (2)->(x) — an unconfigured profile is
 // defensive-only, as redeem.test.ts's derivation records; (3)->(4) — a pure-capture
 // record cannot reach redeeming/redeemed.
@@ -708,6 +709,57 @@ test('direct-vs-direct race: the loser refuses already-redeemed — the family-w
   assert.equal(loser.status, 'refused');
   if (loser.status !== 'refused') return;
   assert.equal(loser.code, 'already-redeemed');
+});
+
+// === order (5)->(6), both ladders: mismatch beats the racer, and the racer NEVER fires ==
+
+test('order (5)->(6), direct ladder: a mismatch plus an ARMED racing writer — effect-mismatch wins and the racer never fires', async () => {
+  // The pair cell is an ORDER claim: rung (5) correspondence refuses before rung (6)'s
+  // append, so the armed racer — which fires only on that append — must stay cold. The
+  // hook flag is the firing counter; the same match predicate fires in the
+  // direct-vs-direct race test above, so a cold racer here is order, not a dead rig.
+  const inner = new MemoryStore();
+  const { recordId } = await confirmedEffectRecord(inner);
+  let raced = false;
+  const racing = new RaceOnceStore(
+    inner,
+    (expected, t) => expected === 'confirmed' && t.kind === 'redeemed',
+    async () => {
+      raced = true;
+      return undefined;
+    },
+  );
+  const handles = create(makeConfig([effectSeamProfile()], { store: racing }));
+
+  const loser = await handles.operator.redeem(recordId, { subject: 'week-1', total: 999 });
+  assert.equal(loser.status, 'refused');
+  if (loser.status !== 'refused') return;
+  assert.equal(loser.code, 'effect-mismatch', 'rung (5) wins the pair');
+  assert.equal(raced, false, 'the racer never fired — no append was ever attempted');
+});
+
+test('order (5)->(6), complete ladder: wrong content with a CORRECT token plus an ARMED racing writer — effect-mismatch wins and the racer never fires', async () => {
+  const inner = new MemoryStore();
+  const { recordId, token } = await redeemingRecord(inner);
+  let raced = false;
+  const racing = new RaceOnceStore(
+    inner,
+    (expected, t) => expected === 'redeeming' && t.kind === 'redeemed',
+    async () => {
+      raced = true;
+      return undefined;
+    },
+  );
+  const handles = create(makeConfig([effectSeamProfile()], { store: racing }));
+
+  const loser = await handles.operator.completeRedemption(recordId, token, {
+    subject: 'week-1',
+    total: 999,
+  });
+  assert.equal(loser.status, 'refused');
+  if (loser.status !== 'refused') return;
+  assert.equal(loser.code, 'effect-mismatch', 'rung (5) wins the pair');
+  assert.equal(raced, false, 'the racer never fired — no append was ever attempted');
 });
 
 // === the enlisted token seams (register row 16, the TWELFTH inversion) ================

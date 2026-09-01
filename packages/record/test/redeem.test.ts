@@ -39,8 +39,9 @@
 //   (3)->(4): NOT jointly constructible — a pure-capture record cannot reach 'redeemed'.
 //   (4)->(5): an already-redeemed record offered WRONG content — at-most-once outranks
 //     mismatch reporting; already-redeemed must win. Constructible; below.
-//   (5)->(6): a mismatch plus a racing writer — not constructible without a bespoke racing
-//     store; excluded, and this comment is why.
+//   (5)->(6): a mismatch plus a racing writer — constructible since RaceOnceStore
+//     (helpers/stores.ts); pinned in redeem-token.test.ts's racing section (2026-09-01):
+//     effect-mismatch wins and the racer never fires. Not counted in this file's total.
 // Total order-pair tests in this file: 3.
 
 import assert from 'node:assert/strict';
