@@ -292,6 +292,42 @@ test('unknown-profile: stage() naming an unconfigured profileId -> refused/refus
   assert.equal(outcome.transitionRef, undefined);
 });
 
+test('unknown-profile: finalize() under a second instance whose catalog lacks the profile -> refused/refusal, no append (the defensive arm, two-instance shape)', async () => {
+  const store = new MemoryStore();
+  const profile = captureProfile();
+  const openingSide = create(makeConfig([profile], { store }));
+  const recordId = await openRecord(openingSide, CONTENT, profile.id, DEFAULT_SUBJECT_REF);
+  const before = await store.readChain(recordId);
+
+  const unaware = create(makeConfig([captureProfile({ id: 'test.unrelated.v1' })], { store }));
+  const outcome = await unaware.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'unknown-profile');
+  assert.equal(outcome.class, 'refusal');
+  assert.equal(outcome.transitionRef, undefined);
+  assert.equal((await store.readChain(recordId)).length, before.length, 'no append');
+});
+
+test('unknown-profile: seal() under a second instance whose catalog lacks the profile -> refused/refusal, no append (the defensive arm, two-instance shape)', async () => {
+  const store = new MemoryStore();
+  const profile = captureProfile();
+  const openingSide = create(makeConfig([profile], { store }));
+  const recordId = await openRecord(openingSide, CONTENT, profile.id, DEFAULT_SUBJECT_REF);
+  const done = await openingSide.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(done.status, 'ok', 'fixture: the record must confirm');
+  const before = await store.readChain(recordId);
+
+  const unaware = create(makeConfig([captureProfile({ id: 'test.unrelated.v1' })], { store }));
+  const outcome = await unaware.operator.seal(recordId);
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'unknown-profile');
+  assert.equal(outcome.class, 'refusal');
+  assert.equal(outcome.transitionRef, undefined);
+  assert.equal((await store.readChain(recordId)).length, before.length, 'no append');
+});
+
 // === unredeemable-state (ONE production-path assertion here; both profile-shape depth ===
 // === lives in terminality.test.ts) ========================================================
 

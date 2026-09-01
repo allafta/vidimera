@@ -62,7 +62,7 @@ export async function seal(
   const resolved = profiles.get(record.profileId);
   if (resolved === undefined) {
     // Fail-closed, matching finalize's posture. Defensive: a coherent instance always
-    // resolves a record it opened, so no test at this build step constructs it.
+    // resolves a record it opened; refusal-matrix.test.ts's two-instance arm constructs it.
     return refused('unknown-profile');
   }
   const legIndex = resolved.profile.legs.findIndex((l) => l.id === record.legId);

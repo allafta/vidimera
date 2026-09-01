@@ -209,8 +209,8 @@ export async function finalize(
   if (resolved === undefined) {
     // Fail-closed: the record's profile is not configured in THIS instance (a config/caller
     // error — a coherent instance always resolves a record it opened). No append, matching
-    // stage()/open()'s `unknown-profile` posture. Not exercised by this build's tests
-    // (open() is the runtime producer); defensive.
+    // stage()/open()'s `unknown-profile` posture. Defensive; exercised by
+    // refusal-matrix.test.ts's two-instance arm.
     return refused('unknown-profile');
   }
   const legIndex = resolved.profile.legs.findIndex((l) => l.id === record.legId);
