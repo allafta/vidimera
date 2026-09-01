@@ -18,13 +18,12 @@ the increment was written, which the code and the status doc may have since move
 A reader chasing current behavior reads the code and the status doc; a reader chasing how
 a past decision was reached reads the matching row below.
 
-**39 files in `specs/`, 41 in `plans/`** — not one-to-one. Three
+**39 files in `specs/`, 42 in `plans/`** — not one-to-one. Three
 plans carry no spec: the two step-1 completion/remediation plans
 (`2026-08-03-autonomous-step-1-completion.md`, `2026-08-03-step-1-remediation.md`) and
 this housekeeping plan's own (`2026-08-18-post-build-order-housekeeping.md`). Each is
 noted "no spec" in its row below rather than paired with a design document that does not
-exist. One spec precedes its plan: the registry-hygiene design (2026-09-01), noted
-"plan pending" in its row until the plan lands.
+exist.
 
 **`docs/analysis/`** holds 21 files, the increment-history artifacts outside that pair
 structure — earliest is
@@ -77,4 +76,4 @@ close.
 | 2026-08-29 | First-use proof | Post-build-order (no step) | [design](specs/2026-08-29-first-use-proof-design.md) | [plan](plans/2026-08-29-first-use-proof.md) |
 | 2026-08-29 | Checklist refresh | Post-build-order (no step) | [design](specs/2026-08-29-checklist-refresh-design.md) | [plan](plans/2026-08-29-checklist-refresh.md) |
 | 2026-09-01 | Truth restoration in shipped source and tests | Post-build-order (no step) | [design](specs/2026-09-01-truth-restoration-design.md) | [plan](plans/2026-09-01-truth-restoration.md) |
-| 2026-09-01 | Registry-facing hygiene | Post-build-order (no step) | [design](specs/2026-09-01-registry-hygiene-design.md) | plan pending |
+| 2026-09-01 | Registry-facing hygiene | Post-build-order (no step) | [design](specs/2026-09-01-registry-hygiene-design.md) | [plan](plans/2026-09-01-registry-hygiene.md) |
