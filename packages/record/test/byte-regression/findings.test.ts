@@ -23,6 +23,7 @@ const STAGED_CONTENT = { subject: 'week-1', total: 40 };
 const FINDING_ID = 'finding-1';
 const FINDING_KIND = 'data-quality';
 const FINDING_DIGEST = 'sha256:0000000000000000000000000000000000000000000000000000000000000002';
+const MAGNITUDE = 'material';
 
 // The profile is declared inline, never imported from a shared helper: its declarative
 // bytes are inside the digests below, through the profile digest written into the
@@ -90,6 +91,17 @@ const PINNED_DIGESTS: readonly string[] = [
   'sha256:3104703daa2f74ec1255d5a378f256f680dc5defcaf4ec9bf3fa106461a30757',
   'sha256:f15bcd2e8a37c2746ed68edb34fd2fc74b8326a0f8a53dcaeb6effffa8646a3a',
   'sha256:0efca5812e6f8150118e49af7d60ddc6a520cf7f46e56532e60766e9c01a177d',
+];
+
+// Harvest-then-pin, like PINNED_DIGESTS above: placeholders first, then paste the values
+// the failure diff reports.
+const PINNED_MAGNITUDE_DIGESTS: readonly string[] = [
+  'sha256:ad5f556c94fc488c412c978350b4fd9a063cbe843776e1ed5f675335b6142589',
+  'sha256:bee47a9e9db055962d645738be4c448e773ffc23bf8e76b817c5a6848930ad3a',
+  'sha256:d3cdbd1e88639ca547b03b5b92b4b4ebf3879108c720218508369cab434d3968',
+  'sha256:1d59a421f660683ec69f2de459d5ca01d28de294eecad633c4393f2e6f611ae0',
+  'sha256:afc78dff9758df27017809f232cca771c681ac27c4948f29914440e46b02d0ae',
+  'sha256:aa3a68af319b7fec43876b1010b867a750f115c9166d76f33161292ec7b9d9be',
 ];
 
 async function runFindingsFlow(): Promise<Transition[]> {
@@ -168,5 +180,62 @@ test('byte-regression: the findings chain matches its pinned literals', async ()
   assert.deepEqual(
     chain.map((t) => transitionDigest(t)),
     [...PINNED_DIGESTS],
+  );
+});
+
+async function runFindingsFlowWithMagnitude(): Promise<Transition[]> {
+  const { now, mintId, tokenSource } = deterministicSeams('byte-regression-findings-magnitude');
+  const { agent, operator } = createWithClock(makeConfig(), now, mintId, tokenSource);
+
+  const staged = await agent.stage(STAGED_CONTENT, PROFILE_ID, SUBJECT_REF);
+  if (staged.status !== 'ok') throw new Error(`stage() refused: ${JSON.stringify(staged)}`);
+  const opened = await operator.open(staged.value.stagedRef);
+  if (opened.status !== 'ok') throw new Error(`open() refused: ${JSON.stringify(opened)}`);
+
+  const finding: FindingInput = {
+    findingId: FINDING_ID,
+    kind: FINDING_KIND,
+    findingDigest: FINDING_DIGEST,
+    magnitude: MAGNITUDE,
+  };
+  const raised = await operator.raiseFinding(opened.value.recordId, finding, raiserIdentity());
+  if (raised.status !== 'ok') throw new Error(`raiseFinding() refused: ${JSON.stringify(raised)}`);
+
+  const ack: AckInput = {
+    findingId: FINDING_ID,
+    findingDigest: FINDING_DIGEST,
+    magnitude: MAGNITUDE,
+  };
+  const acked = await operator.acknowledge(opened.value.recordId, ack, ackerIdentity());
+  if (acked.status !== 'ok') throw new Error(`acknowledge() refused: ${JSON.stringify(acked)}`);
+
+  const finalized = await operator.finalize(
+    opened.value.recordId,
+    identityAssertion(),
+    STAGED_CONTENT,
+    factsArg(),
+  );
+  if (finalized.status !== 'ok')
+    throw new Error(`finalize() refused: ${JSON.stringify(finalized)}`);
+
+  return operator.readChain(opened.value.recordId);
+}
+
+test('byte-regression: magnitude rides both findings payloads, value-pinned', async () => {
+  const chain = await runFindingsFlowWithMagnitude();
+  const raisedPayload = chain[1]?.payload as Record<string, unknown> | undefined;
+  const ackedPayload = chain[2]?.payload as Record<string, unknown> | undefined;
+  if (raisedPayload === undefined || ackedPayload === undefined) {
+    throw new Error('expected findings transitions at indices 1 and 2');
+  }
+  assert.equal(raisedPayload.magnitude, MAGNITUDE);
+  assert.equal(ackedPayload.magnitude, MAGNITUDE);
+});
+
+test('byte-regression: the magnitude-carrying findings chain matches its pinned literals', async () => {
+  const chain = await runFindingsFlowWithMagnitude();
+  assert.deepEqual(
+    chain.map((t) => transitionDigest(t)),
+    PINNED_MAGNITUDE_DIGESTS,
   );
 });
