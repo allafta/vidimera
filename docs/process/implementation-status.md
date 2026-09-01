@@ -4251,8 +4251,12 @@ update does not bump the pin back; minors and patches still flow. A sanity run o
 `sqlite-store.test.ts` passed 6/6 under the pinned types. One disclosed, bounded transitive
 shift: `@types/pg` declares its own `@types/node` dependency as unconstrained (`"*"`), and
 vacating the workspace root's `26.2.0` let pnpm re-resolve that nested copy — previously
-`24.13.3` — up to `26.2.0` anyway (paired shift: `undici-types` `7.18.2` → `6.21.0`). No
-typecheck consequence: `@types/pg` imports no `'@types/node'`/`'node'` module paths
+`24.13.3` — up to `26.2.0` anyway, a move that pairs with `undici-types@8.3.0` (already
+present in the lockfile — the same version root's own vacated `26.2.0` had used); the
+fresh `undici-types@6.21.0` the lockfile also gained arrived paired with the ROOT's own new
+`22.20.1` pin, not with the nested move (verified against
+`git diff d4abfc0..3593555 -- pnpm-lock.yaml`). No typecheck consequence:
+`@types/pg` imports no `'@types/node'`/`'node'` module paths
 directly, only builtins (`events`, `stream`, `tls`) that pnpm's hoisted layout resolves
 against the workspace
 root's `@types/node@22.20.1`, not the nested copy — both clean `tsc` runs and the sanity
@@ -4316,28 +4320,45 @@ emitted for both packages. `node scripts/smoke-pack.mjs` (what `pnpm smoke` runs
 resolved, peer range ^0.0.0, PostgresStore constructs (packaging-level only, by recorded
 bound)`.
 
-**The sweep recipe, both greps re-run against the exit commit.** First grep,
-`git grep -n "governedUnavailable\|GOVERNED feature not available" -- packages/ CLAUDE.md`:
-the design document's own refined bound (the plan's strict-empty sweep was ruled
-unsatisfiable — the mandated rename annotations themselves contain the old name) applies:
-tsc green (no live identifier, confirmed above) plus every remaining hit is a rename
-annotation or past-tense narration. The re-run returns FIVE hits — `CLAUDE.md:34`,
-`CLAUDE.md:241` (both rename annotations), `config.ts:108` (the HISTORY doc-comment,
-past-tense), `config.ts:600` (a rename annotation), `construction-validation.test.ts:20`
-(past-tense narration of when the `open()` guard lifted) — not the six the scoping
-session's own ruling text names. This is accounted for, not a shortfall: task 1's own Fix
-Round 1 (commit `070f96a`) corrected a sixth hit, `construction-validation.test.ts:586`,
-from a present-tense claim using the old name ("NO per-field `governedUnavailable` caller
-remains anywhere in this sweep") to the current name — exactly what the refined bound
-itself calls for, since a present-tense claim about the current tree must use the current
-name and only a rename annotation or past-tense narration may keep the old one. Five is the
-bound satisfied, measured after task 1's own later correction, not six under-delivered.
+**The sweep recipe, both greps re-run.** First grep,
+`git grep -n "governedUnavailable\|GOVERNED feature not available" -- packages/ CLAUDE.md`,
+re-run against the exit commit: the design document's own recipe called for this grep to
+"return EMPTY"; a controller ruling taken during execution — not itself in the design
+document, resolving a tension the design left unresolved — held that strict bound
+unsatisfiable (the mandated rename annotations themselves contain the old name) and
+refined it to the bound actually checked here: tsc green (no live identifier, confirmed
+above) plus every remaining hit being a rename annotation or past-tense narration. The
+re-run returns FIVE hits — `CLAUDE.md:34`, `CLAUDE.md:241` (both rename annotations),
+`config.ts:108` (the HISTORY doc-comment, past-tense), `config.ts:600` (a rename
+annotation), `construction-validation.test.ts:20` (past-tense narration of when the
+`open()` guard lifted) — not the six the scoping session's own ruling text names. This is
+accounted for, not a shortfall: task 1's own Fix Round 1 (commit `070f96a`) corrected a
+sixth hit, `construction-validation.test.ts:586`, from a present-tense claim using the old
+name ("NO per-field `governedUnavailable` caller remains anywhere in this sweep") to the
+current name — exactly what the refined bound itself calls for, since a present-tense
+claim about the current tree must use the current name and only a rename annotation or
+past-tense narration may keep the old one. Five is the bound satisfied, measured after
+task 1's own later correction, not six under-delivered.
+
 Second grep, `git grep -n "governedUnavailable\|GOVERNED feature not available" --
-docs/process/`: fourteen hits, matching task 2's table above in substance at every site;
-the nine `implementation-status.md` hits at and after line 815 sit two lines later than
-task 2's own report recorded them, because task 2's own Fix Round 1 rewrapped line 815's
-one long line into three (net +2 lines) — a line-count artifact of that fix, not a content
-change, and every hit after that point shifts by the same two lines.
+docs/process/`, measured against `7fb9324` — the tree before this account section
+existed — returns FOURTEEN hits, matching task 2's table above in substance at every site.
+Of the nine pre-account `implementation-status.md` hits, two (`:173`, `:414`) sit BEFORE
+line 815 and are unmoved, one sits AT line 815 itself and is unmoved (task 2's own edit
+landed there), and six sit AFTER it — now at `:1739`, `:1868`, `:1869`, `:2089`, `:2090`,
+`:2093` — two lines later than task 2's own report recorded them, because task 2's own Fix
+Round 1 rewrapped line 815's one long line into three (net +2 lines); a line-count
+artifact of that fix, not a content change. **Re-running the same grep at the branch
+head, after this section was written, returns TWENTY-SIX, not fourteen** — this section's
+own text is the cause, not a new violation: two literal quotations of the grep pattern
+itself (this paragraph and the one above), three further prose mentions of the retired
+name inside this section's own narrative (describing the rename, the TDD pin, and task
+1's fix), and seven of task 2's table rows above whose Verification cells quote the old
+name inside a historical quotation — twelve new hits, every one the account's own ruling
+text describing or quoting the sweep, not an unruled present-tense claim about the tree.
+Fourteen is the correct, measured count of what the sweep found before this account
+existed to describe it; the account's own act of recording that finding necessarily grows
+the grep's count from here on, which is expected and not itself a gap.
 
 **What stays outside, and why.** No deferral-register row moves: item 45's old register
 lineage (row 7, "corrected, not satisfied") is history, and this increment's decision lands

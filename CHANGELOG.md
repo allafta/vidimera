@@ -142,8 +142,9 @@ is the summary, and that file wins on conflict.
   now throws `unknown option key (<key>) — <the seam's accepted keys>` where it threw the
   feature-guard era's `GOVERNED feature not available in this build (<key>)`. The guard
   era closed with zero governed fields; the old head named a mechanism the tree no longer
-  has, was recorded as unpinned prose, and this was the last release before it became a
-  string adopters match on. The new head IS pinned. Each seam's tail is unchanged.
+  has, was recorded as unpinned prose, and this reword lands before 0.1 — the package's
+  first release, none having shipped yet — ships the string an adopter could come to match
+  on. The new head IS pinned. Each seam's tail is unchanged.
 - **Manifest metadata** (same increment): both packages gain `homepage`, `bugs`, and
   `keywords` so the 0.1 registry pages render links and are keyword-findable;
   `publishConfig` deliberately omitted (the release workflow passes `--access public`
