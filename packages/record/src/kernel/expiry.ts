@@ -132,7 +132,15 @@ export async function resolveDueClock(
   };
   const state = kind === 'expired' ? 'expired' : 'redemption-failed';
   const { profile, effectSeam } = resolved;
-  const meta = { nonTerminal: nonTerminal(state, isFinalLeg(0, profile.legs.length), effectSeam) };
+  // Derived, not hardcoded, mirroring pendingWindow's confirmed arm. Output-identical:
+  // both resolution kinds are terminal, so nonTerminal() is false for every input either
+  // way; the derived index keeps this append correct if a non-terminal clock edge ever
+  // exists. Pinned in clocks.test.ts.
+  const record = replay(chain);
+  const legIndex = profile.legs.findIndex((l) => l.id === record.legId);
+  const meta = {
+    nonTerminal: nonTerminal(state, isFinalLeg(legIndex, profile.legs.length), effectSeam),
+  };
   const result = await store.appendTransition(target, edge, meta);
   return { due: true, window: win.window, result, bound };
 }

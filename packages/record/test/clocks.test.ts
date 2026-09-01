@@ -10,7 +10,9 @@ import { createWithClock } from '../src/create.js';
 import { pendingWindow, resolveDueClock } from '../src/kernel/expiry.js';
 import { MemoryStore } from '../src/store/memory.js';
 import { SqliteStore } from '../src/store/sqlite.js';
-import { storeNext } from './helpers/chain.js';
+import type { AppendMeta } from '../src/store/store.js';
+import type { RecordState, Transition } from '../src/types.js';
+import { storeGenesis, storeNext } from './helpers/chain.js';
 import {
   captureProfile,
   DEFAULT_SUBJECT_REF,
@@ -506,4 +508,55 @@ test('the sweep, end to end: listDue names the lost-token record, redeem({}) res
   assert.equal(sealed.status, 'ok', 'sweep first, then seal — the record is terminal now');
   if (sealed.status !== 'ok') return;
   assert.equal(sealed.value.status, 'retired');
+});
+
+class MetaSpyStore extends MemoryStore {
+  captured: AppendMeta | undefined;
+  override async appendTransition(expected: RecordState | null, t: Transition, meta: AppendMeta) {
+    this.captured = meta;
+    return super.appendTransition(expected, t, meta);
+  }
+}
+
+test('resolveDueClock derives the leg index: the expired append is terminal (nonTerminal false) on a final-leg MULTI-LEG effect profile', async () => {
+  // The one shape where a hardcoded leg index 0 and the derived index could ever
+  // disagree: a due CONFIRMED record on the FINAL leg of a two-leg effect profile. Both
+  // derivations feed nonTerminal('expired', flag, true) === false — this pin states the
+  // append's meta as a contract, for the day a non-terminal clock edge ever exists.
+  const twoLegEffect = {
+    ...effectSeamProfile(),
+    legs: [
+      { id: 'leg-first', allowedAuthorities: ['session:test-app'] },
+      { id: 'leg-final', allowedAuthorities: ['session:test-app'] },
+    ],
+  };
+  const resolved = {
+    profile: twoLegEffect,
+    canonicalizer: (c: unknown) => c,
+    effectSeam: true,
+  };
+
+  const genesisBase = storeGenesis('rec-legindex', twoLegEffect.id, 'subject:legindex');
+  const genesis = {
+    ...genesisBase,
+    payload: { ...(genesisBase.payload as Record<string, unknown>), legId: 'leg-final' },
+  };
+  const confirmed = storeNext(genesis, 'confirmed', { actor: identity() });
+  const spy = new MetaSpyStore();
+  await spy.appendTransition(null, genesis, { nonTerminal: true });
+  await spy.appendTransition('open', confirmed, { nonTerminal: true });
+  const chain = await spy.readChain('rec-legindex');
+  spy.captured = undefined;
+
+  const past = new Date(Date.parse(confirmed.at) + (CONFIRM_BOUND + 10) * 1000);
+  const res = await resolveDueClock(spy, chain, resolved, past);
+  assert.equal(res.due, true);
+  if (!res.due) return;
+  assert.equal(res.window, 'confirmed');
+  assert.equal(
+    (spy.captured as AppendMeta | undefined)?.nonTerminal,
+    false,
+    'the expired append is terminal',
+  );
+  assert.equal((await spy.readChain('rec-legindex')).at(-1)?.kind, 'expired');
 });
