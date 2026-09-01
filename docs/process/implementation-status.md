@@ -4043,7 +4043,8 @@ honest.**
   `FindingRaisedPayload` and `AcknowledgedPayload`, `types.ts` — the sweep's "string
   and/or numeric" hedge does not survive the type) had been pinned only absent;
   `byte-regression/findings.test.ts` gained a flow that raises and acknowledges a finding
-  WITH `magnitude` set, freezing six new `PINNED_MAGNITUDE_` literals.
+  WITH `magnitude` set, freezing six new digest values in one new `PINNED_MAGNITUDE_DIGESTS`
+  array.
   `byte-stability.test.ts` is untouched; no existing pinned literal moved.
 - C5 (item 23, task 9): `postgres-store.ts:20-24`'s claim that the JCS-invisible-member
   round-trip behavior is "exactly `SqliteStore`'s" was untested. `postgres-store.test.ts`
@@ -4098,6 +4099,19 @@ packages/record/test/byte-stability.test.ts` names only `packages/` lines — se
 (seven `src/` sites, ten test files), the whole comment-and-test surface clusters A through
 C touch; `.github/`, `scripts/`, `docs/concept/` and the frozen byte-stability oracle carry
 no diff at all.
+
+**Build and smoke, run 2026-09-01 against this same commit** — the spec's Verification list
+names both and neither had run above.
+`./node_modules/.bin/tsc -p packages/record/tsconfig.build.json && ./node_modules/.bin/tsc -p
+packages/store-postgres/tsconfig.build.json` (what `pnpm build` runs) — clean, `dist/`
+emitted for both packages. `node scripts/smoke-pack.mjs` (what `pnpm smoke` runs) — exit 0,
+`smoke: OK`, pnpm resolving from this machine's PATH (the npm-global install, 11.18.0, not
+the corepack shim recorded elsewhere as broken on this machine) for the adapter's `pnpm
+pack` step; a pnpm-environment failure would have been recorded here as a bound rather than
+claimed green, but none occurred. Both gates' artifacts are gitignored or scratch-directory
+temporary; `git status` stays clean throughout. CI's `test` matrix runs both on every push
+regardless of this machine's pnpm posture and remains the gate that proves them across the
+declared Node floor and current Node.
 
 **What stays outside, and why.** No deferral-register row moved: the file is untouched, and
 neither row 1's publish trigger nor row 19's nor row 22's cut trigger fires from a
