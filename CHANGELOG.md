@@ -135,6 +135,24 @@ is the summary, and that file wins on conflict.
   orphan-accumulation half stays open — the field makes the growth visible, it does not
   bound it.
 
+### Changed
+
+- **The unknown-option-key error head** (2026-09-01, the registry-hygiene increment): an
+  unknown options-bag key at `open()`, `finalize()`, `decline()`, or any redemption seam
+  now throws `unknown option key (<key>) — <the seam's accepted keys>` where it threw the
+  feature-guard era's `GOVERNED feature not available in this build (<key>)`. The guard
+  era closed with zero governed fields; the old head named a mechanism the tree no longer
+  has, was recorded as unpinned prose, and this was the last release before it became a
+  string adopters match on. The new head IS pinned. Each seam's tail is unchanged.
+- **Manifest metadata** (same increment): both packages gain `homepage`, `bugs`, and
+  `keywords` so the 0.1 registry pages render links and are keyword-findable;
+  `publishConfig` deliberately omitted (the release workflow passes `--access public`
+  itself). `@types/node` pinned to the floor major (`^22`, resolved `22.20.1`, both
+  packages' typecheck clean including the `node:sqlite` surface) with a new Dependabot
+  ignore rule blocking `@types/node` semver-major bumps; the pin narrows the
+  types-vs-floor gap by a major line, it does not close it — the exact-floor CI leg
+  (ubuntu @ 22.16.0) remains the runtime gate regardless.
+
 ### Fixed
 
 - **Truth restoration** (2026-09-01, post-build-order): every stale shipped-source and

@@ -4127,3 +4127,225 @@ no public-surface name changed, and no `docs/concept/` file was opened.
 
 **Cuts.** None. This increment repaired sentences and added tests; it removed no capability
 and no behavior, and its one source edit is proven output-identical above.
+
+## Post-build-order increment — Registry-facing hygiene (unknown-option-key reword,
+`@types/node` pin, manifest metadata)
+
+**The seventeenth post-build-order increment, exited (commits `4bad794`..`7fb9324`, closed
+by the record commit that follows them).** The ordinal counts every section above in order,
+excluding only the documentation-only signature-enforcement-coverage findings note, the same
+rule the sixteen before it used. **No sanction was needed and none was sought**: nothing in
+`docs/concept/` moves, no maturity marker moves, and the public surface does not change
+(`pnpm api-sync` unaffected — the renamed helper was never exported). Design:
+`docs/superpowers/specs/2026-09-01-registry-hygiene-design.md`; plan:
+`docs/superpowers/plans/2026-09-01-registry-hygiene.md`.
+
+**What the increment is.** Three decisions the 2026-08-30 sweep grouped as "registry-facing
+hygiene" (`docs/analysis/2026-08-30-pre-release-code-gaps.md` §2 increment 2: items 10, 45,
+47), promoted by the 2026-09-01 gaps record on its immutability lens: each becomes unfixable
+for 0.1 the moment the packages publish — the registry page renders from the 0.1 tarball's
+manifest, and the error string ships in `dist/*.js` under the provenance attestation. One
+adopter-visible error string changes; nothing exported moves.
+
+**Three rulings taken at scoping (2026-09-01, in the design document), held through exit.**
+
+1. **Item 45 — reword the unknown-option-key error head, rename the helper, pin the new
+   head.** New head: `unknown option key (<key>)`, every caller's tail (the seam's
+   accepted-keys sentence and its SPEC citation) unchanged. Helper renamed
+   `governedUnavailable` → `unknownOptionKey`. Plus ONE positive `assert.match` pin on the
+   new head at one seam, and the two existing `assert.doesNotMatch` negatives updated to the
+   new head, keeping their meaning (a structural error is not the unknown-key string).
+2. **Item 47 — pin `@types/node` to the floor major (`^22`), decided empirically.** The
+   increment's first act was the check itself: set the pin, `pnpm install`, run the full
+   typecheck. A clean result lands the pin with a Dependabot ignore guard; a typing failure
+   on floor-only APIs (the `node:sqlite` surface named as the suspect) would have kept `^26`
+   and recorded the exact-floor CI leg as the deliberate gate instead. See the measured exit
+   below.
+3. **Item 10 — add `homepage`, `bugs`, `keywords` to both manifests; omit `publishConfig`
+   deliberately.** `release.yml` already passes `--access public` on the publish command
+   line, so `publishConfig.access` would be a second copy of the same fact.
+
+**On SPEC §9.1, said precisely so the reword is not mistaken for a fork.** §9.1's
+error-shape rule — a feature field for an unimplemented capability fails fast with an
+explicit unavailable-in-this-build error — binds GUARDS. Measured against the tree at
+scoping, zero governed fields remained (`config.ts`'s own count, "1 → 0" at the AL2
+freshness increment), so no site emits a §9.1 guard error; the four surviving
+`unknownOptionKey` call sites are generic unknown-option-key throws that merely ride the
+guard era's helper, and its old head named a mechanism the tree no longer has. Rewording
+that head neither touches §9.1 nor weakens it: if a governed field ever returns, its guard
+mints its own §9.1-shaped message at its own site. The old head was "NOT pinned by any
+test … Ordinary prose, not a byte contract" by `config.ts`'s own prior recorded ruling, so
+the reword broke no gate — and this increment ends that unpinned state for the NEW head.
+
+**Ruling 1's full site list, mechanical everywhere but the header.**
+`packages/record/src/config.ts` — the helper (`~:97-121`, rename plus a HISTORY paragraph
+naming the old head verbatim so the phrase survives descriptively) and the
+`validateProfile` count comment (`~:599-609`), its "the two must not diverge again" pairing
+kept, both sides updated together. The four callers, import plus call site, tails
+byte-identical: `kernel/open.ts` (`~:22` import, `~:48` comment, `~:57` call),
+`kernel/finalize.ts` (`~:107` import, `finalizeOptionMessage` call), `kernel/decline.ts`
+(`~:22` import, `~:57` call), `kernel/redeem.ts` (`~:82` import, `validateRedeemOptions`
+call). `packages/record/test/construction-validation.test.ts` — the header (`~:1-8`) and
+both `doesNotMatch` negatives (`~:81-85`, `~:376-380`). `packages/record/test/decline.test.ts`
+(`~:150`) — the positive pin. `CLAUDE.md` — two identical parentheticals (`~:34`, `~:241`);
+the other four bare `GOVERNED` words there (`~:18`, `~:22`, `~:32`, `~:238`) are tier/era
+vocabulary and stayed.
+
+**The pin, TDD-shaped.** `decline.test.ts`'s `'decline: unknown option keys throw — policy
+is deliberately not accepted'` test ran RED first, against the still-`governedUnavailable`
+head — captured output showed the actual message still reading `GOVERNED feature not
+available in this build (policy) — decline() accepts only consultations…` — then GREEN
+after the rename. Its final regex, by controller ruling, is
+`/^Error: unknown option key \(policy\) — decline\(\) accepts only consultations/`: anchored
+against `err.toString()`, since `assert.rejects` matches the stringified error, which
+prepends `Error: ` to the message — an unanchored or bare-anchored pattern either matches
+too loosely or fails against the literal string actually under test. The two negatives
+became `assert.doesNotMatch(err.message, /unknown option key/, …)`, their comments reworded
+to name the new string they must not be.
+
+**The header ruling (task 1's own, plus one controller ruling on the same edit).** Rather
+than keep the old head's literal text quoted in the file header — which would leave the
+phrase greppable in `packages/` forever and defeat the sweep recipe below — the header now
+describes the history descriptively: "build once guarded with a GOVERNED throw (the
+guard-era head, reworded to the unknown-option-key head at the registry-hygiene increment,
+2026-09-01)"; the old head's verbatim text lives on instead in this file's own guard-era
+accounts. Separately, the replacement text removed the opening half of an em-dash pair the
+original header used (`"… a GOVERNED throw —"` / `"…(<field>)" —`); the controller ruled
+that dropping the now-orphaned closing `"— "` before the following line's "lifted
+feature-by-feature…" completed the edit grammatically, and it was applied that way —
+confirmed in the tree: the line reads "lifted feature-by-feature as build steps added
+enforcement" with no leading dash.
+
+**Task 2's ruled sweep of `docs/process/`, folded in verbatim (its final per-hit table).**
+
+| Site | Pre-classification | Verification | Status |
+|---|---|---|---|
+| `adopted-source-provenance.md:637-640` (hit 1) | STAYS — provenance record | Dated narrative of the kernel as arrived; first consumer count claim | VERIFIED |
+| `adopted-source-provenance.md:644` (hit 2) | STAYS — provenance record | Quote: "calls `governedUnavailable` nowhere today"; historical correction record | VERIFIED |
+| `adopted-source-provenance.md:658` (hit 3) | STAYS — provenance record | Quote: "has exactly two live consumers today"; dated observation | VERIFIED |
+| `adopted-source-provenance.md:672` (hit 4) | STAYS — provenance record | Quote: "`completeRedemption()` immediately after its own token-type throw"; final paragraph of divergence list update | VERIFIED |
+| `implementation-status.md:173` (hit 5) | STAYS — step-8 table row | Past-tense narration of step 8's exit: "The LAST call-seam GOVERNED guard in this build lifted with it"; no edit needed | VERIFIED |
+| `implementation-status.md:414` (hit 6) | STAYS — recovery increment account | Historical narrative of redemption surface evolution; past-tense account of state at that moment | VERIFIED |
+| `implementation-status.md:815` (hit 7) | EDIT — guard-era exit record | Added annotation immediately after "exit": naming the later rename, its head reworded, at the registry-hygiene increment | LANDED |
+| `implementation-status.md:1737` (hit 8) | STAYS — narration of past increment | Quote of unchanged tail text while narrating the effect-result increment's shared validator; historical account | VERIFIED |
+| `implementation-status.md:1866` (hit 9) | STAYS — past count correction | Quote: "within `governedUnavailable`'s own count-literal family"; historical account of the effect-result increment's correction | VERIFIED |
+| `implementation-status.md:1867` (hit 10) | STAYS — past count correction | Quote: "enumeration (three throw sites) and a general doc-comment on `governedUnavailable`"; same correction's account | VERIFIED |
+| `implementation-status.md:2087` (hit 11) | STAYS — count correction | Quote: "AL2-freshness tail said `governedUnavailable` serves two throw sites where the comment directly above...already said four"; historical account of a mismatch that was corrected | VERIFIED |
+| `implementation-status.md:2088` (hit 12) | STAYS — count correction | Quote: "directly above `governedUnavailable` itself already said four"; narrative of same historical correction | VERIFIED |
+| `implementation-status.md:2091` (hit 13) | STAYS — was not touched | Explicit statement: "`governedUnavailable` itself was not touched — no construction guard added or removed"; historical account of the effect-result increment | VERIFIED |
+| `open-items-plan.md:312` (hit 14) | EDIT — live planning document | Renamed `governedUnavailable` to `unknownOptionKey` (`governedUnavailable` until 2026-09-01) in present-tense live planning context | LANDED |
+
+Hit counts and line numbers are quoted as task 2 measured them at its own exit; this
+increment's own re-run of the same grep (below) confirms all fourteen still match in
+substance, at line numbers shifted by task 2's own later line-wrap fix.
+
+**Ruling 2's measured exit.** The check (task 3's own first act): root `@types/node` set to
+`^22`, `pnpm install` resolved `22.20.1`, both `tsc -p packages/record --noEmit` and
+`tsc -p packages/store-postgres --noEmit` (test files included via each tsconfig's own
+reach) passed clean — the `node:sqlite` surface (`DatabaseSync`, `exec`, `prepare`,
+`isTransaction`) typechecked at the pinned floor major. **Exit 2a taken**: the pin lands,
+`pnpm-lock.yaml` moved with it, and `.github/dependabot.yml` gained an ignore rule
+(`update-types: ["version-update:semver-major"]` on `@types/node`) so the weekly grouped
+update does not bump the pin back; minors and patches still flow. A sanity run of
+`sqlite-store.test.ts` passed 6/6 under the pinned types. One disclosed, bounded transitive
+shift: `@types/pg` declares its own `@types/node` dependency as unconstrained (`"*"`), and
+vacating the workspace root's `26.2.0` let pnpm re-resolve that nested copy to `26.2.0`
+anyway (paired shift: `undici-types` `7.18.2` → `6.21.0`). No typecheck consequence:
+`@types/pg` imports no `'@types/node'`/`'node'` module paths directly, only builtins
+(`events`, `stream`, `tls`) that pnpm's hoisted layout resolves against the workspace
+root's `@types/node@22.20.1`, not the nested copy — both clean `tsc` runs and the sanity
+test confirm this in practice, not only in theory. **The honest bound, either way, restated
+here rather than only in the design document:** `^22` resolves to the latest 22.x typings,
+so an API added WITHIN the 22 line after 22.16 still typechecks while absent at the floor;
+the pin narrows the types-vs-floor gap by a major line, it does not close it, and the
+exact-floor CI leg (ubuntu @ 22.16.0) remains the runtime gate regardless.
+
+**Ruling 3's manifest fields, both derived from each manifest's own `repository.url`** —
+its `git+`-prefixed, `.git`-suffixed git URL stripped to an https base — so no literal
+external URL needed authoring in the design document, or here. `packages/record/package.json`
+gained a per-package `homepage` (the https base plus `/tree/main/packages/record#readme`),
+a `bugs.url` (the https base plus `/issues`), and `"keywords": ["decision-records",
+"confirmation", "hash-chain", "append-only", "tamper-evident", "audit",
+"human-in-the-loop"]`. `packages/store-postgres/package.json` gained the parallel
+`/tree/main/packages/store-postgres#readme` homepage, the same `bugs.url` base, and
+`"keywords": ["vidimera", "postgres", "postgresql", "store-adapter", "decision-records"]`.
+`publishConfig` was deliberately omitted, per ruling 3, rather than silently:
+`release.yml`'s `--access public` stays the single copy of that fact. The URLs point at a
+repository private until the cut — they 404 for outsiders today, which is fine, since the
+registry pages that render them exist only after the publish, which the checklist orders
+after the visibility flip. `package.json` is not contract-scanned, so the literal URLs it
+carries raise no standalone-contract question.
+
+**The gate set caught a task-4 defect before the exit commit — recorded as part of this
+increment's own gate story, not smoothed over.** The exit task's step-1 full gate-set run,
+executed in full against the branch tip at that time (`221c430`), surfaced
+`biome check --error-on-warnings .` failing with two errors: task 4's commit had added
+`"bugs": { "url": "…" }` to both manifests as a single-line JSON object, and Biome's own
+JSON formatter always expands a non-empty object onto multiple lines — the style every
+other nested object in both files (`repository`, `engines`, `exports`) already used. Task
+4's own report recorded a typecheck and the smoke test after its edit, but never re-ran
+`biome check`, so the violation shipped into the commit unnoticed. The exit task's own file
+scope (`CHANGELOG.md` and this file only) does not extend to `package.json`, so the finding
+was recorded rather than silently repaired from inside the exit brief; a dedicated
+fix-round commit, `7fb9324` ("bugs objects expanded to biome's form — content unchanged,
+smoke re-proven"), landed the two-line-per-file expansion before the exit commit was
+written, changing no content — the URLs, keywords, and field order task 4 recorded stand
+unchanged. This is the gate set doing exactly its job: a formatting defect caught and fixed
+before the cut, not after it ships inside a published tarball.
+
+**Gate outputs, as measured against this increment's own exit commit.** Every total below
+was measured directly against the tree at exit; `biome` specifically was RE-RUN after
+`7fb9324` landed rather than assumed fixed or carried forward from the earlier red result.
+`./node_modules/.bin/tsc -p packages/record --noEmit` and
+`./node_modules/.bin/tsc -p packages/store-postgres --noEmit` — both clean.
+`./node_modules/.bin/vitest run` — 67 test files, 832 tests, zero skips — unchanged from the
+pre-increment count, since this increment upgrades three assertions (one positive pin, two
+negatives) and adds no new test. `./node_modules/.bin/biome check --error-on-warnings .` —
+re-run after `7fb9324`: "Checked 135 files in 151ms. No fixes applied.", exit 0; the earlier
+run against `221c430` (two errors, both in the manifests above) is recorded above as the
+finding it was, not as a passing gate. `node scripts/contract-scan.mjs` — exit 0, silent.
+`node scripts/api-reference-sync.mjs` — exit 0, silent (the rename touched no exported
+name). `node scripts/docs-index-sync.mjs` — exit 0, silent, re-run after this section and
+the CHANGELOG entry were written. `./node_modules/.bin/tsc -p
+packages/record/tsconfig.build.json && ./node_modules/.bin/tsc -p
+packages/store-postgres/tsconfig.build.json` (what `pnpm build` runs) — clean, `dist/`
+emitted for both packages. `node scripts/smoke-pack.mjs` (what `pnpm smoke` runs) — exit 0,
+`smoke: OK - 4 transitions, confirmed + intact, 17 probes visible through ./probes; adapter
+resolved, peer range ^0.0.0, PostgresStore constructs (packaging-level only, by recorded
+bound)`.
+
+**The sweep recipe, both greps re-run against the exit commit.** First grep,
+`git grep -n "governedUnavailable\|GOVERNED feature not available" -- packages/ CLAUDE.md`:
+the design document's own refined bound (the plan's strict-empty sweep was ruled
+unsatisfiable — the mandated rename annotations themselves contain the old name) applies:
+tsc green (no live identifier, confirmed above) plus every remaining hit is a rename
+annotation or past-tense narration. The re-run returns FIVE hits — `CLAUDE.md:34`,
+`CLAUDE.md:241` (both rename annotations), `config.ts:108` (the HISTORY doc-comment,
+past-tense), `config.ts:600` (a rename annotation), `construction-validation.test.ts:20`
+(past-tense narration of when the `open()` guard lifted) — not the six the scoping
+session's own ruling text names. This is accounted for, not a shortfall: task 1's own Fix
+Round 1 (commit `070f96a`) corrected a sixth hit, `construction-validation.test.ts:586`,
+from a present-tense claim using the old name ("NO per-field `governedUnavailable` caller
+remains anywhere in this sweep") to the current name — exactly what the refined bound
+itself calls for, since a present-tense claim about the current tree must use the current
+name and only a rename annotation or past-tense narration may keep the old one. Five is the
+bound satisfied, measured after task 1's own later correction, not six under-delivered.
+Second grep, `git grep -n "governedUnavailable\|GOVERNED feature not available" --
+docs/process/`: fourteen hits, matching task 2's table above in substance at every site;
+the nine `implementation-status.md` hits at and after line 815 sit two lines later than
+task 2's own report recorded them, because task 2's own Fix Round 1 rewrapped line 815's
+one long line into three (net +2 lines) — a line-count artifact of that fix, not a content
+change, and every hit after that point shifts by the same two lines.
+
+**What stays outside, and why.** No deferral-register row moves: item 45's old register
+lineage (row 7, "corrected, not satisfied") is history, and this increment's decision lands
+here rather than as a new row; items 47 and 10 never had register rows of their own. No
+release-checklist box was ticked — this increment does not touch
+`docs/process/release-checklist.md` at all. No maturity marker moved, no public-surface
+name changed (the helper is internal, never exported), and no `docs/concept/` file was
+opened. `release.yml`'s `--access public` stays the single copy of that fact.
+
+**Cuts.** None. This increment reworded one internal error head (every seam's tail and
+accepted keys unchanged), pinned one devDependency major with a Dependabot guard, and added
+registry metadata to both manifests; it removed no capability and changed no seam's
+accepted keys or refusal behavior.
