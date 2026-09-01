@@ -7,7 +7,9 @@
   "license": "Apache-2.0",
   "author": "The Vidimera Authors",
   "homepage": "https://github.com/allafta/vidimera/tree/main/packages/record#readme",
-  "bugs": { "url": "https://github.com/allafta/vidimera/issues" },
+  "bugs": {
+    "url": "https://github.com/allafta/vidimera/issues"
+  },
   "keywords": [
     "decision-records",
     "confirmation",
