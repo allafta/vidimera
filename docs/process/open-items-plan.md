@@ -309,8 +309,9 @@ recorded choice); single-algorithm digest agility (room left, nothing pending); 
 prepared-signing-without-declaring-profile tolerance (stated in `create.ts`); the
 deliberately unfrozen construction and read-convenience surfaces (SPEC's own header);
 the CI matrix's exact-floor-on-ubuntu-only bound (phase-3 ruling 1, deliberate); and
-the four surviving `unknownOptionKey` (`governedUnavailable` until 2026-09-01) throws (permanent unknown-option-key caller
-guards in `finalize()`, `open()`, `decline()`, and `redeem.ts`'s shared
+the four surviving `unknownOptionKey` (`governedUnavailable` until
+2026-09-01) throws (permanent unknown-option-key caller guards in
+`finalize()`, `open()`, `decline()`, and `redeem.ts`'s shared
 `validateRedeemOptions` — not feature guards awaiting a lift). Also
 measured clean at survey time: zero TODO/FIXME markers in tracked code, zero test
 skips, an empty issue and PR tracker, and only dev-only patch drift outstanding, which

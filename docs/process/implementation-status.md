@@ -812,8 +812,10 @@ same commit as that behavior — down through the nine self-authored inversions 
 deletion-and-replacement (`ackMode`/`requiredAcks`) recorded above, to this tenth one —
 the guard-lifting era's own last inversion, not this document's last inversion overall (an
 eleventh, a different mechanic, follows below at the self-test-tier increment).
-`governedUnavailable` (`config.ts`) SURVIVES this exit (and was later renamed `unknownOptionKey`, its head reworded, at the registry-hygiene increment, 2026-09-01): it is not itself a
-per-field guard, and it still serves the two generic unknown-option-key throws
+`governedUnavailable` (`config.ts`) SURVIVES this exit (and was later
+renamed `unknownOptionKey`, its head reworded, at the registry-hygiene
+increment, 2026-09-01): it is not itself a per-field guard, and it still
+serves the two generic unknown-option-key throws
 (`kernel/finalize.ts`'s `finalizeOptionMessage`, `kernel/open.ts`'s own), neither of which
 names a single not-yet-enforceable field the way every guard this sequence swept did.
 
