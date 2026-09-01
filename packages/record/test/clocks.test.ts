@@ -10,7 +10,7 @@ import { createWithClock } from '../src/create.js';
 import { pendingWindow, resolveDueClock } from '../src/kernel/expiry.js';
 import { MemoryStore } from '../src/store/memory.js';
 import { SqliteStore } from '../src/store/sqlite.js';
-import type { AppendMeta } from '../src/store/store.js';
+import type { AppendMeta, Store } from '../src/store/store.js';
 import type { RecordState, Transition } from '../src/types.js';
 import { storeGenesis, storeNext } from './helpers/chain.js';
 import {
@@ -30,7 +30,7 @@ const T0 = Date.UTC(2026, 0, 1, 0, 0, 0);
 const HOUR = 3600_000;
 
 /** Opens+finalizes an effect-seam record under a controllable clock; returns the store. */
-async function confirmedAt(clockMs: { t: number }, store = new MemoryStore()) {
+async function confirmedAt(clockMs: { t: number }, store: Store = new MemoryStore()) {
   const handles = createWithClock(
     makeConfig([effectSeamProfile()], { store }),
     () => new Date(clockMs.t),
@@ -166,7 +166,7 @@ test('beginRedemption on a redeemBound-declaring profile: payload is exactly { t
 });
 
 /** Confirms then begins redemption under a controllable clock; returns the issued token. */
-async function redeemingAt(clock: { t: number }, store = new MemoryStore()) {
+async function redeemingAt(clock: { t: number }, store: Store = new MemoryStore()) {
   const { handles, recordId } = await confirmedAt(clock, store);
   const begun = await handles.operator.beginRedemption(recordId, CONTENT);
   assert.equal(begun.status, 'ok', 'fixture: the issuance must succeed');
@@ -199,9 +199,9 @@ test('ENLISTED: redeem(recordId, content, tx) against a due-confirmed record on 
   // rung's resolveDueClock call carries NO tx, but on SqliteStore the caller's tx IS the
   // store's own connection with an open transaction — the no-tx append would BEGIN a
   // second transaction on that connection and throw, turning a domain outcome into an
-  // adapter throw mid-host-transaction. Only direct redeem(recordId, content, tx) reaches
-  // the shared prologue enlisted (the token seams take no tx), so this is the one shape
-  // that can hit it.
+  // adapter throw mid-host-transaction. All three redemption seams reach the shared
+  // prologue enlisted (each carries a tx via opts.tx since the effect-result increment);
+  // this test pins the direct shape, and the two token-seam twins below pin the others.
   const clock = { t: T0 };
   const store = new SqliteStore(':memory:');
   const handles = createWithClock(
@@ -236,6 +236,62 @@ test('ENLISTED: redeem(recordId, content, tx) against a due-confirmed record on 
   const last = (await store.readChain(recordId)).at(-1);
   assert.ok(last !== undefined);
   assert.equal(last.kind, 'expired');
+});
+
+test('ENLISTED: beginRedemption(recordId, content, { tx }) against a due-confirmed record on SqliteStore refuses unredeemable-state with no edge, and an un-enlisted call still resolves it', async () => {
+  const clock = { t: T0 };
+  const store = new SqliteStore(':memory:');
+  const { handles, recordId } = await confirmedAt(clock, store);
+  clock.t = T0 + (CONFIRM_BOUND + 10) * 1000; // past the confirmed window's bound
+
+  const before = await store.readChain(recordId);
+  store.database.exec('BEGIN IMMEDIATE');
+  const outcome = await handles.operator.beginRedemption(recordId, CONTENT, {
+    tx: store.database,
+  });
+  assert.equal(store.database.isTransaction, true, "the host's transaction is still open");
+  store.database.exec('COMMIT'); // nothing was appended — an empty commit either way
+
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'unredeemable-state', 'never redemption-timeout on an enlisted call');
+  assert.equal(outcome.transitionRef, undefined, 'no edge — the enlisted call appends nothing');
+  assert.deepEqual(await store.readChain(recordId), before, 'the chain is untouched');
+
+  const resolved = await handles.operator.beginRedemption(recordId, CONTENT);
+  assert.equal(resolved.status, 'refused');
+  if (resolved.status !== 'refused') return;
+  assert.equal(resolved.code, 'unredeemable-state');
+  assert.equal((await store.readChain(recordId)).at(-1)?.kind, 'expired');
+});
+
+test('ENLISTED: completeRedemption(recordId, token, content, { tx }) against a due-redeeming record on SqliteStore refuses unredeemable-state with no edge, and an un-enlisted call still resolves it', async () => {
+  const clock = { t: T0 };
+  const store = new SqliteStore(':memory:');
+  const { handles, recordId, token } = await redeemingAt(clock, store);
+  clock.t = T0 + (REDEEM_BOUND + 10) * 1000; // past the redeeming window's bound
+
+  const before = await store.readChain(recordId);
+  store.database.exec('BEGIN IMMEDIATE');
+  const outcome = await handles.operator.completeRedemption(recordId, token, CONTENT, {
+    tx: store.database,
+  });
+  assert.equal(store.database.isTransaction, true, "the host's transaction is still open");
+  store.database.exec('COMMIT');
+
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'unredeemable-state', 'never redemption-timeout on an enlisted call');
+  assert.equal(outcome.transitionRef, undefined, 'no edge — the enlisted call appends nothing');
+  assert.deepEqual(await store.readChain(recordId), before, 'the chain is untouched');
+
+  // Un-enlisted re-invocation resolves the window: the edge lands and the caller gets the
+  // resolver's own verdict (the ~:239 pin's mapping — redemption-timeout, token dead).
+  const resolved = await handles.operator.completeRedemption(recordId, token, CONTENT);
+  assert.equal(resolved.status, 'refused');
+  if (resolved.status !== 'refused') return;
+  assert.equal(resolved.code, 'redemption-timeout');
+  assert.equal((await store.readChain(recordId)).at(-1)?.kind, 'redemption-failed');
 });
 
 test('THE UNKNOWN-OUTCOME PIN: a CORRECT token after the redeemBound elapsed — redemption-timeout, edge redemption-failed, token dead', async () => {
