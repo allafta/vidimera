@@ -2535,9 +2535,12 @@ entry. And no test anywhere supplies a verifier that throws or rejects: every `V
 the corpus returns a boolean, and the one throwing seam in the signing tests is a SIGNER,
 pinning the sign-before-append order, which is a different seam proving a different
 property. Third, and found by this increment's own review rather
-than claimed away: **no append site ties the returned transition reference to the appended
-edge's own digest.** The assertions accept any defined value, so a wrong digest would pass.
-An independent probe confirmed the equality holds in reality; no test states it. Fourth,
+than claimed away: **no signature-broken cell tied the returned transition reference to the
+appended edge's own digest** (over-broad as first written even then — the hash-broken cell
+had the equality pinned at chain-verify.test.ts since the step-1 corpus). The assertions
+accepted any defined value, so a wrong digest would have passed; an independent probe
+confirmed the equality held, and the truth-restoration increment (2026-09-01) upgraded all
+nine cells to equality against the chain head. Fourth,
 these tests prove enforcement, never that the enforcement is the right policy.
 
 **What stays outside, and why.** The orphan-growth finding takes register **row 22** rather

@@ -178,7 +178,11 @@ test('the redemption prologue refuses; cross-record claims fold into their own c
   assert.equal(red.status, 'refused');
   if (red.status !== 'refused') return;
   assert.equal(red.code, 'chain-compromise');
-  assert.notEqual(red.transitionRef, undefined, 'un-enlisted redeem appends the edge');
+  assert.equal(
+    red.transitionRef,
+    await a.store.chainHead(redeemId),
+    'un-enlisted redeem appends the edge — ref = its digest',
+  );
   const redChain = await a.handles.operator.readChain(redeemId);
   assert.equal(redChain.at(-1)?.kind, 'refused');
   // The un-enlisted twin of redeem.test.ts's ENLISTED signature-broken test, which asserts
@@ -362,7 +366,11 @@ test('decline refuses chain-compromise on a signature-broken signing record — 
   assert.equal(out.status, 'refused');
   if (out.status !== 'refused') return;
   assert.equal(out.code, 'chain-compromise');
-  assert.notEqual(out.transitionRef, undefined, 'an open record admits the edge');
+  assert.equal(
+    out.transitionRef,
+    await store.chainHead(recordId),
+    'an open record admits the edge — ref = its digest',
+  );
 
   // The DELTA, never the total: verifySignatures() consults the verifier too.
   assert.ok(calls() > callsBefore, 'the AL2 disjunct ran — the verifier was consulted');
@@ -399,7 +407,7 @@ test('decline on a NON-declaring leg over a signature-broken chain appends the c
   assert.equal(out.status, 'refused');
   if (out.status !== 'refused') return;
   assert.equal(out.code, 'chain-compromise');
-  assert.notEqual(out.transitionRef, undefined);
+  assert.equal(out.transitionRef, await store.chainHead(recordId));
   assert.ok(calls() > callsBefore, 'the AL2 disjunct ran');
 
   const after = await handles.operator.readChain(recordId);
@@ -435,7 +443,11 @@ test('acknowledge refuses chain-compromise on a signature-broken signing record 
   assert.equal(out.status, 'refused');
   if (out.status !== 'refused') return;
   assert.equal(out.code, 'chain-compromise');
-  assert.notEqual(out.transitionRef, undefined, 'an open record admits the edge');
+  assert.equal(
+    out.transitionRef,
+    await store.chainHead(recordId),
+    'an open record admits the edge — ref = its digest',
+  );
   assert.ok(calls() > callsBefore, 'the AL2 disjunct ran');
 
   const after = await handles.operator.readChain(recordId);
@@ -472,7 +484,11 @@ test('beginRedemption and completeRedemption refuse chain-compromise on a signat
     assert.equal(out.status, 'refused');
     if (out.status !== 'refused') return;
     assert.equal(out.code, 'chain-compromise');
-    assert.notEqual(out.transitionRef, undefined, 'un-enlisted: the edge appended');
+    assert.equal(
+      out.transitionRef,
+      await store.chainHead(recordId),
+      'un-enlisted: the edge appended — ref = its digest',
+    );
     assert.ok(calls() > callsBefore, 'the AL2 disjunct ran');
     const after = await handles.operator.readChain(recordId);
     assert.equal(after.length, before.length + 1);
@@ -499,7 +515,11 @@ test('beginRedemption and completeRedemption refuse chain-compromise on a signat
     assert.equal(out.status, 'refused');
     if (out.status !== 'refused') return;
     assert.equal(out.code, 'chain-compromise');
-    assert.notEqual(out.transitionRef, undefined, 'un-enlisted: the edge appended');
+    assert.equal(
+      out.transitionRef,
+      await store.chainHead(recordId),
+      'un-enlisted: the edge appended — ref = its digest',
+    );
     assert.ok(calls() > callsBefore, 'the AL2 disjunct ran');
     const after = await handles.operator.readChain(recordId);
     assert.equal(after.length, before.length + 1);

@@ -133,7 +133,7 @@ test('decline: a non-declaring leg over a HASH-BROKEN chain refuses chain-compro
   assert.equal(out.status, 'refused');
   if (out.status === 'refused') {
     assert.equal(out.code, 'chain-compromise');
-    assert.notEqual(out.transitionRef, undefined); // an open record admits the edge
+    assert.equal(out.transitionRef, await tamperedStore.chainHead(recordId)); // an open record admits the edge — ref = its digest
   }
   const after = await h2.operator.readChain(recordId);
   assert.equal(after.length, before.length + 1);

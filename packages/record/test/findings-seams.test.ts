@@ -231,7 +231,7 @@ test('a NON-declaring leg over a HASH-BROKEN chain refuses chain-compromise at b
   assert.equal(raise.status, 'refused');
   if (raise.status === 'refused') {
     assert.equal(raise.code, 'chain-compromise');
-    assert.notEqual(raise.transitionRef, undefined); // an open record admits the edge
+    assert.equal(raise.transitionRef, await store1.chainHead(recordId)); // an open record admits the edge — ref = its digest
   }
   const afterRaise = await h1.operator.readChain(recordId);
   assert.equal(afterRaise.length, beforeRaise.length + 1);
@@ -253,7 +253,7 @@ test('a NON-declaring leg over a HASH-BROKEN chain refuses chain-compromise at b
   assert.equal(ackOut.status, 'refused');
   if (ackOut.status === 'refused') {
     assert.equal(ackOut.code, 'chain-compromise');
-    assert.notEqual(ackOut.transitionRef, undefined); // an open record admits the edge
+    assert.equal(ackOut.transitionRef, await store2.chainHead(recordId)); // an open record admits the edge — ref = its digest
   }
   const afterAck = await h2.operator.readChain(recordId);
   assert.equal(afterAck.length, beforeAck.length + 1);
