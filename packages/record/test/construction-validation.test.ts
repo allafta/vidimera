@@ -583,7 +583,7 @@ test('a FULLY-LOADED two-leg profile declaring every once-governed field constru
   // kernel increment ever gated constructs cleanly, in ONE profile, under a full
   // signing config. The guard era that increment opened has now fully closed — each
   // field lifted behind its own behavior, each in the same commit as that behavior.
-  // NO per-field `governedUnavailable` caller remains anywhere in this sweep: the
+  // NO per-field `unknownOptionKey` caller remains anywhere in this sweep: the
   // generic unknown-option-key throws that DO still call it — `kernel/finalize.ts`'s
   // `finalizeOptionMessage` and `kernel/open.ts`'s own — are not feature guards (they
   // reject a caller-supplied key this build never documents at all, not a declared

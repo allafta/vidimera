@@ -147,7 +147,7 @@ test('decline: unknown option keys throw — policy is deliberately not accepted
       handles.operator.decline(recordId, identity(), CONTENT, facts(), {
         policy: { digest: DIGEST },
       } as never),
-    /unknown option key \(policy\) — decline\(\) accepts only consultations/,
+    /^Error: unknown option key \(policy\) — decline\(\) accepts only consultations/,
   );
 });
 
