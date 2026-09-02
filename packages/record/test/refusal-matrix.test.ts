@@ -575,8 +575,9 @@ test("supersedes-unverified: registry/type presence + class only in this file �
 // step-8 recovery increment, this same commit; registry-only in this file
 // (production-path coverage lives in recovery.test.ts, this increment's own file).
 // `consultation-stale` (SPEC §11.1/§14's freshness gate, the AL2 freshness increment) is
-// the twenty-fourth and LAST code — the guard era the kernel increment opened ends with
-// this lift. It is `refusal`-class, `terminalRefusals`-able, open-by-default for re-run,
+// the twenty-fourth code and the last of the guard era — the era the kernel increment opened
+// ends with this lift; the twenty-fifth, `record-contended`, is a registry amendment below,
+// not a guard lift. It is `refusal`-class, `terminalRefusals`-able, open-by-default for re-run,
 // the `consultation-failed` family's own register; SPEC §8's row names it precisely: "can
 // only fire with authority timestamps". Its producer is finalize's rung 5.5 freshness arm
 // (kernel/finalize.ts), real as of the AL2 freshness increment, this same commit;
@@ -647,7 +648,28 @@ test("consultation-stale: registry/type presence + class + appendsOn shape only 
   assert.equal(appendsOn(code, { terminalRefusals: [code] }), true);
 });
 
-test('every REGISTRY RefusalCode is accounted for in this matrix (9 production-path-tested here + unknown-leg registry-only + unsealable-state production-path-tested in seal.test.ts + effect-mismatch and already-redeemed production-path-tested in redeem.test.ts + redemption-timeout registry-only (production path: clocks.test.ts, third step-3 increment) + prior-leg-unverified registry-only (production path: multi-leg.test.ts, first step-4 increment) + sod-violation registry-only (production path: multi-leg.test.ts, second step-4 increment) + consultation-failed registry-only (production path: consultations.test.ts, second step-5 increment) + availability registry-only (production path: consultations.test.ts and policy-drift.test.ts, second step-5 and second step-6 increments) + ineligible registry-only (production path: consultations.test.ts, first step-6 increment) + policy-drift registry-only (production path: policy-drift.test.ts, second step-6 increment) + ack-missing registry-only (production path: findings.test.ts, second step-7 increment) + ack-stale registry-only (production path: findings.test.ts, second step-7 increment) + supersedes-unverified registry-only (production path: recovery.test.ts, the step-8 recovery increment) + consultation-stale registry-only (production path: freshness.test.ts, the AL2 freshness increment) = 24)', () => {
+// === record-contended (the record-contended increment, a SPEC §8 registry amendment) =========
+// `record-contended` (SPEC §8's conditional table: findings flow, §10.2) is `refusal`-class and a
+// never-appends member: a decision-progress or findings seam lost its append to a concurrent
+// finding or acknowledgment on the same record — nothing recorded, the record still open,
+// re-invocation re-evaluates against the new head. Registry-only in this file; production-path
+// coverage lives in terminality.test.ts (finalize/decline) and findings-seams.test.ts
+// (raiseFinding/acknowledge), where the race is driven through the kernel.
+
+test('record-contended: registry/type presence + class + never-appends shape only in this file — its producers are the four seams that can lose a seq race (kernel/finalize.ts, kernel/decline.ts, kernel/findings-seams.ts); production-path coverage lives in terminality.test.ts and findings-seams.test.ts', () => {
+  // `code: RefusalCode = 'record-contended'` is itself a COMPILE-TIME union-membership check
+  // (this file fails to type-check if 'record-contended' is ever removed from the union).
+  const code: RefusalCode = 'record-contended';
+  assert.equal(REGISTRY[code], 'refusal');
+  assert.equal(appendsOn(code, {}), false, 'never appends — nothing landed to record');
+  assert.equal(
+    appendsOn(code, { terminalRefusals: [code] }),
+    false,
+    'legal but inert in terminalRefusals, like every never-appends member',
+  );
+});
+
+test('every REGISTRY RefusalCode is accounted for in this matrix (9 production-path-tested here + unknown-leg registry-only + unsealable-state production-path-tested in seal.test.ts + effect-mismatch and already-redeemed production-path-tested in redeem.test.ts + redemption-timeout registry-only (production path: clocks.test.ts, third step-3 increment) + prior-leg-unverified registry-only (production path: multi-leg.test.ts, first step-4 increment) + sod-violation registry-only (production path: multi-leg.test.ts, second step-4 increment) + consultation-failed registry-only (production path: consultations.test.ts, second step-5 increment) + availability registry-only (production path: consultations.test.ts and policy-drift.test.ts, second step-5 and second step-6 increments) + ineligible registry-only (production path: consultations.test.ts, first step-6 increment) + policy-drift registry-only (production path: policy-drift.test.ts, second step-6 increment) + ack-missing registry-only (production path: findings.test.ts, second step-7 increment) + ack-stale registry-only (production path: findings.test.ts, second step-7 increment) + supersedes-unverified registry-only (production path: recovery.test.ts, the step-8 recovery increment) + consultation-stale registry-only (production path: freshness.test.ts, the AL2 freshness increment) + record-contended registry-only (production path: terminality.test.ts and findings-seams.test.ts, the record-contended increment) = 25)', () => {
   const allCodes = Object.keys(REGISTRY) as RefusalCode[];
-  assert.equal(allCodes.length, 24);
+  assert.equal(allCodes.length, 25);
 });

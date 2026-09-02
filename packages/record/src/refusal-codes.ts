@@ -74,7 +74,7 @@ export type RefusalCode =
   // increment — this same commit, so there is no two-touch here unlike
   // `redemption-timeout`'s/`prior-leg-unverified`'s own two-touch wording above.
   | 'supersedes-unverified'
-  // the twenty-fourth and LAST code of this build (the AL2 freshness increment): SPEC
+  // the twenty-fourth code, and the last of the guard era (the AL2 freshness increment): SPEC
   // §11.1/§14's consultation freshness gate — a bounded required kind whose obtained
   // `observedAt` claim is missing, future, or out-of-bound (an unparseable claim is
   // the intake's own throw, never this refusal — kernel/consultations.ts's shape check
@@ -83,7 +83,17 @@ export type RefusalCode =
   // §8's row: "can only fire with authority timestamps"). Producer: finalize's rung
   // 5.5 freshness arm (kernel/finalize.ts), real as of the AL2 freshness increment —
   // this same commit.
-  | 'consultation-stale';
+  | 'consultation-stale'
+  // the twenty-fifth code (the record-contended increment, a SPEC §8 registry amendment under
+  // its own sanction): SPEC §8's conditional table names it under the findings flow (§10.2) —
+  // a decision-progress or findings seam lost its append to a concurrent finding or
+  // acknowledgment on the same record; nothing recorded, the record still open, re-invocation
+  // re-evaluates against the new head. `refusal`-class, a never-appends member (legal but
+  // inert in `terminalRefusals`). Producers: the moved-head branch of the shared seq-conflict
+  // classifier (kernel/finalize.ts's `seqConflict`), reached from finalize's and decline's
+  // rung (6) and from the findings seams' rung (5) — real as of this increment, this same
+  // commit. The storage-fault branch of that classifier stays a throw.
+  | 'record-contended';
 // class map: chain-compromise → 'compromise'; availability → 'availability'; all others →
 // 'refusal'
 // record-not-open: class 'refusal', terminal-record category — finalize() against a non-open, intact-chain
@@ -145,6 +155,7 @@ export const REGISTRY: Record<RefusalCode, RefusalClass> = {
   'ack-stale': 'refusal',
   'supersedes-unverified': 'refusal',
   'consultation-stale': 'refusal',
+  'record-contended': 'refusal',
 };
 
 /**
@@ -176,6 +187,9 @@ export interface AppendDecisionLeg {
  * `supersedes-unverified` never appends for the same pre-record reason — its producer,
  * `kernel/supersedes.ts`'s `verifySupersedes`, is consumed by `open()`'s recovery rung,
  * real as of the step-8 recovery increment (this same commit).
+ * `record-contended` never appends for the plainest reason of all: nothing of the losing call
+ * landed — the store refused its stale sequence — and the record is still `open`, so there is
+ * no state change to record and no edge to leave (the record-contended increment).
  */
 const NEVER_APPENDS: ReadonlySet<RefusalCode> = new Set<RefusalCode>([
   'record-exists',
@@ -189,6 +203,7 @@ const NEVER_APPENDS: ReadonlySet<RefusalCode> = new Set<RefusalCode>([
   'redemption-timeout',
   'prior-leg-unverified',
   'supersedes-unverified',
+  'record-contended',
 ]);
 
 /**
