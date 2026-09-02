@@ -16,7 +16,8 @@
 //         byte-identical to a pre-findings implementation"
 //   (3) state/expiry (en passant)     -> leg-expired / record-not-open (never-append)
 //   (4) seam-specific semantic check  -> THROW (kind mutation; ack to absent findingId)
-//   (5) append, CAS target 'open'     -> a lost CAS refuses record-not-open
+//   (5) append, CAS target 'open'     -> state-mismatch refuses record-not-open; a seq loss with
+//         a moved head refuses record-contended (SPEC §8); an unmoved head throws
 //
 // The append's meta RE-SUPPLIES the open window's dueAt (SPEC §12: "present sets the
 // record's pending-clock column, absent clears it") — a mid-lifecycle append that
@@ -238,11 +239,13 @@ async function appendSeamTransition(
   if (!res.appended) {
     if (res.conflict === 'seq') {
       // The state did NOT move — the record is still open and another state-preserving
-      // append took this seq (a concurrent raise/ack, or a decision seam's batch). No
-      // refusal code is true of an open record, so this is the contention throw the batch
-      // seams give (a moved head), or a storage fault (an unmoved one) — never
-      // record-not-open, which would be false of it.
-      throw await appendSeqConflict(seam, ctx.store, last.recordId, chain.length);
+      // append took this seq (a concurrent raise/ack, or a decision seam's batch). The one
+      // code true of an open record whose head moved is `record-contended` (SPEC §8, the
+      // record-contended increment): a RETURNED refusal, never appends, re-invoke. An unmoved
+      // head is a storage fault and throws — never record-not-open, which would be false here.
+      const verdict = await appendSeqConflict(seam, ctx.store, last.recordId, chain.length);
+      if (verdict.contended) return refused('record-contended');
+      throw verdict.fault;
     }
     // `state-mismatch`: a racing writer moved the state between the read and this CAS — the
     // state the caller saw is gone; re-invocation re-reads (the established lost-race posture).

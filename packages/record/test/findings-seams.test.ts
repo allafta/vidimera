@@ -406,16 +406,16 @@ test('both seams admit an authority outside allowedAuthorities while finalize an
   );
 });
 
-test('two concurrent raiseFinding calls on one record: the loser throws a ContentionError — the record is still open, so record-not-open would be false of it', async () => {
+test('two concurrent raiseFinding calls on one record: the loser refuses record-contended — the record is still open, so record-not-open would be false of it', async () => {
   // The review's second round: phase 1 fixed the batch seams' seq loss but the single-append
   // seams kept mapping EVERY lost CAS to record-not-open. A seq loss means the state did not
   // move — the record is open, intact, and now carries the winner's finding — so the loser gets
-  // the same contention throw the batch seams give, and re-invocation lands its own finding.
+  // the same `record-contended` refusal the batch seams return, and re-invocation lands its own finding.
   const store = new MemoryStore();
   const handles = create(makeConfig([flowProfile()], { store }));
   const recordId = await openRecord(handles, CONTENT, 'test.flow.v1', SUBJECT);
 
-  const [a, b] = await Promise.allSettled([
+  const [a, b] = await Promise.all([
     handles.operator.raiseFinding(
       recordId,
       { findingId: 'f-a', kind: 'variance', findingDigest: D1 },
@@ -427,18 +427,21 @@ test('two concurrent raiseFinding calls on one record: the loser throws a Conten
       RAISER,
     ),
   ]);
-  const settled = [a, b];
-  const winners = settled.filter((r) => r.status === 'fulfilled');
-  const losers = settled.filter((r) => r.status === 'rejected');
-  assert.equal(winners.length, 1, 'exactly one finding lands');
-  assert.equal(losers.length, 1, 'exactly one call loses the seq race');
-  const winner = winners[0];
-  const loser = losers[0];
-  assert.ok(winner?.status === 'fulfilled' && winner.value.status === 'ok');
-  assert.ok(loser?.status === 'rejected' && loser.reason instanceof Error);
-  if (loser?.status !== 'rejected') return;
-  assert.equal((loser.reason as Error).name, 'ContentionError');
-  assert.match((loser.reason as Error).message, /raiseFinding: contention/);
+  const outcomes = [a, b];
+  const landed = outcomes.filter((o) => o.status === 'ok');
+  const contended = outcomes.filter((o) => o.status === 'refused');
+  assert.equal(landed.length, 1, 'exactly one finding lands');
+  assert.equal(
+    contended.length,
+    1,
+    'exactly one call loses the seq race — and REFUSES, never throws',
+  );
+  const loser = contended[0];
+  assert.ok(loser !== undefined && loser.status === 'refused');
+  if (loser?.status !== 'refused') return;
+  assert.equal(loser.code, 'record-contended');
+  assert.equal(loser.class, 'refusal');
+  assert.equal(loser.transitionRef, undefined, 'never appends — nothing of the losing call landed');
   assert.equal(
     (await handles.operator.getRecord(recordId))?.state,
     'open',
@@ -455,5 +458,48 @@ test('two concurrent raiseFinding calls on one record: the loser throws a Conten
   assert.deepEqual(
     (await handles.operator.readChain(recordId)).map((t) => t.kind),
     ['opened', 'finding-raised', 'finding-raised'],
+  );
+});
+
+test('two concurrent acknowledgments of one finding: the loser refuses record-contended and re-invocation lands its ack', async () => {
+  // `acknowledge` is the fourth producer of the code and the only one no earlier pin raced —
+  // the raiseFinding race above covers the seam's sibling, not this call (the record-contended
+  // increment; the spec review found the gap).
+  const store = new MemoryStore();
+  const handles = create(makeConfig([flowProfile()], { store }));
+  const recordId = await openRecord(handles, CONTENT, 'test.flow.v1', SUBJECT);
+  const raised = await handles.operator.raiseFinding(
+    recordId,
+    { findingId: 'f-1', kind: 'variance', findingDigest: D1 },
+    RAISER,
+  );
+  assert.equal(raised.status, 'ok');
+
+  const [a, b] = await Promise.all([
+    handles.operator.acknowledge(recordId, { findingId: 'f-1', findingDigest: D1 }, identity()),
+    handles.operator.acknowledge(
+      recordId,
+      { findingId: 'f-1', findingDigest: D1 },
+      identity({ principal: 'approver:2' }),
+    ),
+  ]);
+  const outcomes = [a, b];
+  assert.equal(outcomes.filter((o) => o.status === 'ok').length, 1, 'exactly one ack lands');
+  const loser = outcomes.find((o) => o.status === 'refused');
+  assert.ok(loser !== undefined && loser.status === 'refused', 'the other REFUSES, never throws');
+  if (loser?.status !== 'refused') return;
+  assert.equal(loser.code, 'record-contended');
+  assert.equal(loser.transitionRef, undefined);
+  assert.equal((await handles.operator.getRecord(recordId))?.state, 'open');
+
+  const again = await handles.operator.acknowledge(
+    recordId,
+    { findingId: 'f-1', findingDigest: D1 },
+    identity({ principal: 'approver:2' }),
+  );
+  assert.equal(again.status, 'ok', 're-invocation lands against the new head');
+  assert.deepEqual(
+    (await handles.operator.readChain(recordId)).map((t) => t.kind),
+    ['opened', 'finding-raised', 'acknowledged', 'acknowledged'],
   );
 });
