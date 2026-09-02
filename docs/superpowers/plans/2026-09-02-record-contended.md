@@ -580,7 +580,8 @@ git commit -m "record-contended 3/4: raiseFinding and acknowledge refuse record-
 - Modify: `docs/process/implementation-status.md` (current-state ~90 and ~108–109; a new section
   appended at the end)
 - Modify: `docs/process/next-phases.md:355–360`
-- Modify: `docs/superpowers/INDEX.md` (the count sentence: the plan now exists)
+- (Not this task: `docs/superpowers/INDEX.md` already names this plan and counts 44 — done when
+  the plan was committed; `docs-index-sync` in Step 6 confirms it.)
 
 **Interfaces:** none (documentation and one test header).
 
@@ -724,7 +725,7 @@ re-invoke (the integration guide has the shape).
 ```
 and replace `The full registry is 24 codes;` with `The full registry is 25 codes;`.
 
-- [ ] **Step 4: CHANGELOG, CLAUDE.md, next-phases, the increment index**
+- [ ] **Step 4: CHANGELOG, CLAUDE.md, next-phases**
 
 `CHANGELOG.md`: immediately before the line `### Changed` insert
 ```
@@ -765,11 +766,8 @@ then add after the list's last bullet:
 minted under its own sanction — `docs/superpowers/specs/2026-09-02-record-contended-design.md`.)
 ```
 
-`docs/superpowers/INDEX.md`: replace `One design awaits its plan\nbehind a sanction gate (the
-\`record-contended\` case, 2026-09-02, below), and three\nplans carry no spec:` with `Three
-plans carry no spec:` and `**41 files in \`specs/\`, 43 in \`plans/\`**` with `**41 files in
-\`specs/\`, 44 in \`plans/\`**`; in the record-contended row replace `plan follows the sanction
-grant` with `[plan](plans/2026-09-02-record-contended.md)`.
+`docs/superpowers/INDEX.md`: nothing to do — its row and its plan count (44) landed with this
+plan's own commit.
 
 - [ ] **Step 5: The status document**
 
