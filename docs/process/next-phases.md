@@ -274,6 +274,23 @@ flip from a hand-maintained enumeration into a grep recipe;
   trigger deliberately; root `typecheck` and `build` cover both packages, `vitest` is
   declared per-package, and the vitest config runs per-package projects. The row is retired.
 
+### Enlisted reads — register row 23, opened 2026-09-02
+
+The one item the 2026-09-02 code review deferred as its own increment rather than fixing in
+place. The `Store`'s five reads take no transaction handle, so an enlisted seam on
+`PostgresStore` reads committed state through the pool while its append rides the host's
+transaction; a host therefore cannot chain two enlisted seam calls on one record inside one
+transaction (`SqliteStore` is unaffected — its handle is the connection). The fix is an
+optional `tx` on the five read signatures, honored by Postgres, validated by SQLite, rejected
+by the memory backing, threaded by the redemption prologue and its residual re-read, with
+enlisted-read pins in both adapter suites — a provisional-interface change across eight files.
+A `COLLATE "C"` hardening on the text `due_at` comparison rides with it. Trigger (verbatim):
+"The first host that needs two enlisted seam calls on one record inside one transaction; or the
+first increment that changes any `Store` read signature; or the 1.0 freeze of the `Store`
+contract (`docs/concept/OPEN-QUESTIONS.md` §9's gate) — whichever lands first. Does not gate
+the 0.1 cut." It does not gate the cut, so it sits here beside the three rows that do rather
+than among them.
+
 ## What is deliberately outside the scope
 
 **AL3 anchoring (documented-only).** `docs/concept/SPEC.md` §14: "AL3 — Anchored (documented
@@ -328,6 +345,27 @@ decision pending now).
   activates only with a threat model where even key custody is in doubt." (Its present,
   inactive status is quoted above under "outside the scope"; the design questions for the day
   it activates are what remain open here.)
+
+Four further questions were surfaced by the 2026-09-02 code review and are recorded as
+**sanction-gated, not decided** — each would move a sealed enumeration or narrow a sealed rule,
+so each needs a fresh pass through `docs/concept/SCOPING-GUIDE.md` §§1–2; the argument for each
+is in its phase's commit message on `code-review-fixes`:
+
+- **A never-appends contention refusal code.** A `finalize`/`decline` whose batch lost a seq
+  race to a concurrent state-preserving append today throws an `Error` named `ContentionError`;
+  no registry code is true of an open, intact, undecided record, and the registry is
+  spec-fixed at twenty-four. The result-first shape is a new code.
+- **A per-leg raiser/acker authority allowlist**, consulted at ack-counting time. Today the
+  findings seams admit any well-formed transport identity — the informing population is
+  distinct from the deciders `allowedAuthorities` governs — and a host that wants the library
+  to enforce ack provenance has no field to declare it with.
+- **Content equality across legs at `open()`.** The prior-leg verifier compares no
+  `contentDigest`; the divergence is derivable from the recorded reference, and equality would
+  change no bytes and break no test, but it adds a condition to the verifier's enumerated list.
+- **Two-phase sidecar cleanup and orphan classification.** Ruled out today by the sidecar
+  contract's "the library performs no pruning" and by register row 22's third horn; the
+  `seq`-based split a host can compute (beyond-head means never landed; an occupied slot means
+  a competing signed transition) never changes a verdict.
 
 ### OQ §2 — decided in code; the recording gap closed 2026-08-19
 

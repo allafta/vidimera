@@ -148,6 +148,13 @@ Exceptions still happen — for *your* bugs: unknown ids, malformed inputs, cons
 contract violations, storage faults. Let them crash into your normal error handling; do not
 catch them into refusal handling.
 
+One exception is not your bug. A `finalize` or `decline` that loses its append to a concurrent
+`raiseFinding` or `acknowledge` on the same record throws an `Error` named `ContentionError`.
+Nothing was recorded and the record is still open. Re-invoke it: the ladder re-evaluates
+against the new head, so a required-kind finding raised in between now gates. If your surface
+shows the human the record before they decide, consider re-prompting first — the library will
+not confirm on their behalf over evidence they never saw, and neither should you.
+
 ## Recording a human decline
 
 A leg that opts in (`decline: true`) gets a second decision call beside `finalize`:
@@ -500,7 +507,7 @@ What you get, with its limits in the same breath:
   every *seam* that verifies a chain before acting folds signature verification into its
   own failure arm; and `operator.verifySignatures(recordId)` reports per-transition
   sign/verify status (reporting only — the gate lives at the seams, and the standalone
-  `verifyChain` audit read checks linkage only).
+  `verifyChain` audit read checks linkage and record identity only).
 - The library does **no crypto itself** — signer and verifier are your hooks, and the
   algorithm, key custody, and rotation (via `keyRef` naming) are yours. AL2 raises the bar
   against a rewriting insider exactly when the key sits outside that insider's boundary.

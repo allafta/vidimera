@@ -66,7 +66,8 @@ interface ConfirmProfile {
 
 interface LegSpec {
   id: string;
-  allowedAuthorities: string[];              // identity-authority allowlist
+  allowedAuthorities: string[];              // identity-authority allowlist — non-empty, distinct,
+                                             // non-empty strings; anything else throws at construction
   sod?: { notActorOf: string[] };            // prior legs this leg's actor must differ from
   proposer?: string;                         // a principal barred from finalizing this leg
   ackMode?: 'self' | 'counterparty' | 'any';
@@ -274,6 +275,14 @@ Domain refusals are returned, never thrown. Exceptions are reserved for caller/c
 errors and storage faults where nothing was recorded. `transitionRef` is present only when
 the refusal actually appended a transition.
 
+One exception is retryable by design rather than a bug. When `finalize` or `decline` loses its
+single batch append to a concurrent state-preserving append on the same record (a
+`raiseFinding` or `acknowledge` landing between the seam's chain read and its write), the seam
+throws an `Error` whose `name` is `'ContentionError'`. Nothing was recorded, the record is
+unchanged and still open, and re-invoking re-runs the whole gate ladder against the new head —
+so a required-kind finding raised in between now gates. The seam never retries the append
+itself. A genuine storage fault at the same site keeps its own, differently worded throw.
+
 ### Refusal codes
 
 24 codes against the current tree. Class `refusal` unless noted.
@@ -403,6 +412,9 @@ type Canonicalizer = (content: unknown) => unknown;     // YOUR projection, run 
 // the offline case: an archived chain — a sealed record's, say — replays and verifies
 // with no store and no handle.
 function replay(chain: readonly Transition[]): DecisionRecord;
+// verifyChain recomputes four things: the genesis link, every prevHash, seq continuity, and
+// record identity — every transition must name the genesis's recordId, so a spliced foreign
+// transition with recomputed links reports a break, not an intact chain.
 function verifyChain(chain: readonly Transition[]): ChainVerifyReport;
 ```
 
@@ -412,6 +424,9 @@ function verifyChain(chain: readonly Transition[]): ChainVerifyReport;
 class MemoryStore implements Store {}        // reference semantics; nothing durable
 class SqliteStore implements Store {         // embedded node:sqlite backing
   constructor(location: string);             // a file path, or ':memory:'
+  readonly database: DatabaseSync;           // the connection — the handle an enlisting tx passes
+  close(): void;                             // closes it; not a Store method (the other backings
+                                             // have nothing of their own to close)
 }
 
 interface Store {                            // behaviors stable; signatures provisional pre-1.0
@@ -487,7 +502,11 @@ interface SignatureReport {                              // verifySignatures()'s
 whose `transitionDigest` names no transition in the record's chain. That is a normal state,
 not corruption: the library signs *before* it appends, so a lost compare-and-swap or a crash
 leaves the entry behind, and a seam that refuses against a record admitting no append
-target leaves one on every such call. They are inert to verification — every reader
+target leaves one on every such call. Two further producers are ordinary operation, not
+failure: a `finalize`/`decline` that loses its batch to a concurrent append leaves one entry
+per batch element (the batch is signed before the store adjudicates it — the
+`ContentionError` case), and an `open()` whose expire-then-retry re-stamps its genesis under a
+moving clock leaves the first attempt's entry. They are inert to verification — every reader
 correlates from the chain to the sidecar, never the reverse, so an orphan is never read for
 a verdict — and they are safe to prune whenever no chain transition references them.
 The library performs no pruning, but it tells you which entries are dead:

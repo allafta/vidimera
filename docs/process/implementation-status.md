@@ -83,7 +83,23 @@ any one exit.
   which closed its redundant-signing half on behavior and left its orphan half open). See
   the dedicated sections at the end of this document for the full accounts; the numbers
   immediately below already include them.
-- **Measured against the current tree**: `pnpm test` — 67 test files, 821 tests, zero skips
+- **A further increment, past the build order, has landed: code-review fixes (six phases)** —
+  a 2026-09-02 code review of the tree at `d5fc3b9`, worked phase by phase on branch
+  `code-review-fixes`, one commit per phase with the argument in its message. Behavior moved in
+  four phases: a batch `seq` conflict at `finalize`/`decline` is contention under a conforming
+  Store (an `Error` named `ContentionError`, re-invoke), told from a storage fault by one
+  re-read; `withSigning`'s per-record memo is a bounded LRU; `verifyChain` checks record
+  identity, the kernel's "due" matches the stores' inclusive gate at the instant, and
+  `open()`'s retried genesis is re-stamped (one authorized inversion of the no-edge memo pin,
+  two mints to three); `SqliteStore` gains `close()` and a statement cache, `PostgresStore`'s
+  DDL serializes on an advisory lock, and `allowedAuthorities` joins the settled construction
+  class. Two phases pinned rulings without changing behavior (principal-only identity and the
+  seams' host-trusted identity; the verifier's silence on content across legs, as an omission).
+  Four scope questions are flagged as sanction-gated, not taken, and register row 23 opens for
+  the one item deferred as its own increment. No recorded byte, digest, or maturity marker moved.
+  See the dedicated section at the end of this document; the numbers immediately below already
+  include it.
+- **Measured against the current tree**: `pnpm test` — 67 test files, 855 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
   `pnpm lint` (`biome check .`) — 135 files checked, zero errors or warnings;
@@ -91,7 +107,9 @@ any one exit.
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 24 refusal codes, the twenty-fourth and
   last being `consultation-stale`; zero GOVERNED construction guards remain in `config.ts`.
-- **The live deferral-register rows**: three — row 1 (publish tooling, whose tooling landed
+- **The live deferral-register rows**: four — row 23 (the optional `tx` on the Store's five
+  reads, opened 2026-09-02 by the code-review-fixes increment; it does not gate the cut — its
+  own bullet in "Still outstanding" below) and the three that gate the cut: row 1 (publish tooling, whose tooling landed
   at the phase-2 packaging increment and which stays open until the release workflow is
   exercised once at the 0.1 cut); row 19 (the AL2 detached-signature sidecar pinning
   deferral, added by the byte-regression-pins increment, held open until the first
@@ -983,8 +1001,10 @@ row's trigger read: "Build step 2, when `appendBatch` lands: the batch becomes
 all-or-nothing and the mid-batch throw loses its only producer." The first half held; the
 second did not. A `seq` conflict is still producible — another writer can move the store's
 `max` between finalize's chain load and its batch send — so the throw survives, in
-simplified form: only the `seq` shape still reaches `batchConflict` (`kernel/finalize.ts`)
-and throws a storage fault naming the shape and index, with nothing recorded; an entry
+simplified form: only the `seq` shape still reaches `batchConflict` (`kernel/finalize.ts`;
+superseded 2026-09-02 by `batchSeqConflict`, which tells a concurrent writer from a storage
+fault — the code-review-fixes section below) and throws a storage fault naming the shape and
+index, with nothing recorded; an entry
 `state-mismatch` now refuses `record-not-open` instead, true of the record's state AND its
 never-appends registry entry both, for the first time at this seam, because the batch is
 all-or-nothing and applies nothing under either conflict shape. The asymmetry the retired
@@ -1243,6 +1263,16 @@ Carried in the deferral register, with triggers:
   `signatures:` hook in the operator's own deployment, where no in-repo event fires; or that
   seeks a sanction through `docs/concept/SCOPING-GUIDE.md` §§1–2 to decide C3 and C4 from
   the read chain, the third horn; or the 0.1 cut — whichever lands first."
+- **Row 23** — opened 2026-09-02 by the code-review-fixes increment: an optional
+  caller-transaction handle on the `Store`'s five reads, so an enlisted seam on `PostgresStore`
+  can read inside the host's transaction rather than committed state through the pool (today
+  a host cannot chain two enlisted seam calls on one record in one transaction — the second
+  call's chain read is stale and its compare-and-swap refuses). Deferred as its own increment;
+  a `COLLATE "C"` hardening on the text `due_at` comparison rides with it. Trigger (verbatim):
+  "The first host that needs two enlisted seam calls on one record inside one transaction; or
+  the first increment that changes any `Store` read signature; or the 1.0 freeze of the `Store`
+  contract (`docs/concept/OPEN-QUESTIONS.md` §9's gate) — whichever lands first. Does not gate
+  the 0.1 cut."
 
 Rows 17 and 18 both retired at the self-test-tier increment — step 8's own fourth and
 last tail item landed (see the CONTROLS §4 row and the boundary above for the full
@@ -4562,3 +4592,142 @@ name changed, and no `docs/concept/` file was opened.
 comment/docstring/title sites' vocabulary, re-measured one documentation sentence's
 figures, and added one reporting-only assertion to an existing test; it removed no
 capability and changed no seam's accepted keys, refusal behavior, or class.
+
+## Post-build-order increment — Code-review fixes (six phases)
+
+**The nineteenth post-build-order increment, exited (the six phase commits
+`4308e86`..`614c262` on `code-review-fixes`, the review-fixes commit `2297901`, and the
+follow-ups commit that lands this section).** A code review of
+the tree at `d5fc3b9` surfaced six clusters. Each was worked as its own phase under one protocol:
+the code quoted, two to three candidate resolutions with their trade-offs — correctness, recorded
+bytes, API surface, test impact — a ruling taken before any edit, the failing test written and
+watched failing first, and one commit whose message carries the argument. The six commit messages
+ARE the design record; no spec/plan pair was written, and this section names what moved rather
+than restating them. No `docs/concept/` file changed and no maturity marker moved. No sanction was
+sought: every change that would have needed one is flagged below as gated and not taken. No
+recorded chain, digest, or profile digest moved in any phase; `byte-stability.test.ts` is untouched.
+
+**What landed, by phase.**
+
+1. **Kernel concurrency** (`4308e86`). `finalize()` and `decline()` read the chain once and
+   suspend at `signatureLayerHolds` and `resolveDueClock` before their single `appendBatch`; a
+   state-preserving append (`raiseFinding`/`acknowledge`) landing in that window keeps the record
+   `open`, so the batch passes the entry compare-and-swap and fails the seq check honestly. Both
+   seams had mapped that to a throw asserting the race was unreachable under a single-writer
+   bound the Postgres adapter never had. A shared `batchSeqConflict` re-reads once (the
+   `residualRefusal` precedent): a moved head is an `Error` named `ContentionError` whose message
+   names re-invocation; an unmoved head keeps the storage-fault throw, now true. The seam never
+   re-sends the batch — a fresh-seq retry would skip rung (5.7) and confirm over a finding the
+   human never saw; the pins show re-invocation refusing `ack-missing` for a required kind and
+   confirming for a non-gating one. A never-appends contention refusal code is the durable shape
+   and is sanction-gated (below).
+2. **Identity comparison and gate consistency** (`17725fb`, tests only). Principal-only
+   comparison in `sodViolated` and `ackCounts`, and the findings seams' shape-only identity check,
+   were read by the review as gaps. Both are rulings the code already argued: pair-equality would
+   let one human re-authenticate under a second allowed authority and pass the SoD gate, and
+   raisers/ackers are the informing population every findings fixture already draws from a
+   service authority the leg never lists. Gating the seams on `allowedAuthorities` was measured
+   to break nine production-path tests. Three pins make the posture loud, each watched failing
+   against the change it guards.
+3. **Multi-leg content binding** (`afd0d79`, tests only). `verifyPriorLegs` compares no
+   `contentDigest` across legs. Neither a ruling nor pinned, and the only design statement on
+   record (id.ts's leg-folded stagedRef) presumes shared content is the normal case. Equality at
+   `open()` was measured to break no existing test and change no bytes, but it adds a condition
+   to the verifier's spec-enumerated list, the list the signature check joined under its own
+   increment — so it is sanction-gated. One pin records the admission and the fidelity property
+   that makes it tolerable: the divergence is derivable from the recorded reference alone.
+4. **Signing sidecar** (`8ecb088`). Sign-before-append stays — the reverse order turns a crash
+   between append and put into a permanent false `chain-compromise`. Two-phase cleanup and orphan
+   classification are ruled out by the sidecar contract's own "the library performs no pruning"
+   and by row 22's third horn; flagged. The decorator's per-record memo, unbounded per process, is
+   a bounded LRU (`SIGNING_MEMO_CAP`, ten thousand, not exported from the index), pinned through
+   a read-counting store: a hot record reads nothing, an evicted one re-reads its genesis once.
+5. **Chain verification and clock edges** (`9b251ba`). `verifyChain` checks record identity
+   (a spliced foreign transition with recomputed links is a break); a monotonic-`at` check was
+   rejected because finalize stamps a batch with one reading and a clock step would become a
+   false tamper verdict at every seam. The kernel's "due" is `now >= deadline` in
+   `resolveDueClock` and the enlisted `dueNow`, matching the stores' inclusive listing gate at the
+   instant. `open()`'s expire-then-retry re-stamps the retried genesis from a fresh reading and
+   rebuilds its meta from the same reading (`genesisMetaFor`), reusing the same object only when
+   the clock did not move. **One authorized inversion:** `no-edge-containment.test.ts`'s memo pin
+   measured two mints for the retry on the ground of object reuse; under its ticking clock the
+   retry is now a distinct transition — three mints for three puts, and the first attempt's entry
+   is a lost-genesis orphan the pin now asserts. The neighbouring put-always-runs invariant kept
+   every assertion; its clock now holds still within a call so the repeat it guards is still
+   exercised.
+6. **Adapters and config hygiene** (`614c262`). `SqliteStore.close()` (not a Store method) and a
+   per-text `StatementSync` cache pinned through a spy on the connection class's `prepare`.
+   `PostgresStore`'s lazy DDL runs on one checked-out client inside a transaction under a
+   schema-keyed advisory lock: five stores bootstrapping one fresh schema failed in the first
+   round with `duplicate key value violates unique constraint "pg_namespace_nspname_index"`
+   before the fix and succeed every round after. `validateAllowedAuthorities` applies the settled
+   class (non-empty, non-empty strings, distinct) — an empty list constructed and refused every
+   decision. Two items deferred: the optional `tx` on the Store's reads (register row 23, its own
+   increment) and `COLLATE "C"` on `due_at` (no live defect, no failing test here).
+
+**Gated, not taken — scope questions for the sealed set, recorded here and in
+`docs/process/next-phases.md` rather than as register rows, because none is deferred
+implementation work with a trigger:** a never-appends contention refusal code (the result-first
+shape phase 1's throw stands in for); a per-leg raiser/acker authority allowlist consulted at
+counting time; content equality across legs at `open()`; two-phase sidecar cleanup and orphan
+classification. Each needs a fresh sanction through `docs/concept/SCOPING-GUIDE.md` §§1–2.
+
+**The review of these six commits, and what it found (commit `2297901`).** The branch was
+reviewed before merge; three review angles completed (the orchestrating pass was cut off by a
+session limit, so every finding was re-verified by hand before acting), and five defects in
+the phases' own changes were fixed, each pinned by a test watched failing first: `close()`
+left the new statement cache holding finalized handles, so a warmed statement threw
+"statement has been finalized" rather than the not-open error the comment promised (the
+cache is cleared on close; the pin warms first); `validateAllowedAuthorities` folded a
+missing or non-array list into the empty-array message (its own message now, naming what
+was found); the signing memo's `memoSet` evicted on a re-insert, so two concurrent cold misses
+on one record cost two evictions (a re-insert now refreshes and evicts nothing); the
+diagnostic re-read `batchSeqConflict` performs could itself reject and replace the conflict
+report (caught; the report is thrown with the read's failure as its `cause`); and the
+Postgres recovery pin, re-pointed at the first connect when the DDL moved onto a client,
+left the transaction body's failure path unexercised (a second pin fails the first
+`CREATE TABLE` inside it). The same commit repaired every pointer the phases left stale —
+two `finalize.ts` arms and the findings seams' clock arm still grounding a lost-CAS refusal
+on the single-writer bound; `finalize-check-order.test.ts`'s (5.7)->(6) exclusion, whose
+premise the race fixtures removed (the pair is constructible only by a race and is pinned
+in `terminality.test.ts`: the losing call throws, re-invocation refuses `ack-missing`);
+`refusal-codes.ts`'s and `terminality.test.ts`'s `batchConflict` pointers; `create.ts`'s
+expiry-gate doc, still strict; and the no-edge memo pin's "documented lost-genesis class",
+now citing the sidecar contract clause that documents it.
+
+**Two orphan producers named, recorded in register row 22 without re-scoping it.** Under a
+signing profile the batch is signed before the store adjudicates it, so a contention loss
+leaves one sidecar entry per batch element; and a re-stamped retry leaves the first
+attempt's entry, on a SUCCESS path. Both are inside the class `signing/store.ts` already
+documents (a lost CAS leaves the entry behind), both are visible through
+`verifySignatures().orphans`, and neither is a no-edge refusal — so row 22's title stands,
+its producer inventory widens by a dated note, and its trigger does not move. The guide's
+orphan paragraph names both.
+
+**A code/spec difference, recorded rather than reconciled.** The kernel's clock predicate
+now reads `now >= deadline`, following SPEC §12's listing gate (`dueAt ≠ null AND dueAt ≤
+now`, inclusive, pinned by the conformance suite). SPEC §4's prose for the same edge — a due
+transition is appended at the next mutating seam that "observes the bound has passed" —
+reads as strictly-after, which is what the old kernel code implemented. The two sections
+disagree at exactly one millisecond; the kernel follows the one with a stated gate, and the
+wording tension is a finding for a future sealed-set clarification, not something this
+increment could edit.
+
+**Follow-ups, landed in the closing commit.** `docs/guide/api-reference.md`, `integrating.md`
+and `concepts.md` caught up (`ContentionError`, `SqliteStore.close()` and `database`,
+`verifyChain`'s fourth check, the `allowedAuthorities` rule); `CHANGELOG.md` gained one Changed
+and one Fixed entry; `CLAUDE.md`'s measured sentence re-measured and its live-rows parenthetical
+names row 23; three source comments (`kernel/finalize.ts` rung (2) and `refuseMaybeAppend`,
+`kernel/findings-seams.ts`'s clock rung) and one test header
+(`finalize-check-order.test.ts`) that asserted the single-writer bound reworded to the reachable
+truth; this section, the current-state bullets above, and register row 23.
+
+**Gate outputs, as measured against the closing commit.** `./node_modules/.bin/tsc -p
+packages/record --noEmit` and `-p packages/store-postgres --noEmit` — both clean.
+`./node_modules/.bin/vitest run` — 67 test files, 855 tests, zero skips (record 63 files / 787,
+store-postgres 4 files / 68 over the embedded server, which starts on this machine).
+`./node_modules/.bin/biome check --error-on-warnings .` — 135 files, no fixes, exit 0.
+`node scripts/contract-scan.mjs` — exit 0, silent. `node scripts/api-reference-sync.mjs` — exit
+0 (no exported name moved; `SIGNING_MEMO_CAP` is deliberately not on the index).
+`node scripts/docs-index-sync.mjs` — exit 0. The build tsconfigs and the packed-tarball smoke are
+recorded in the closing commit's message as run or as not runnable on the authoring machine.

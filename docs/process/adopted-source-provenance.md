@@ -207,8 +207,10 @@ payload carries `profileId`/`profileDigest`/`legId`/`subjectRef`/`contentDigest`
 every later gate binds against (`finalize`'s content-drift check reads `record.contentDigest`
 folded from this exact payload). `open.ts` deliberately **reuses the same
 `openedTransition` object** across the first append attempt and the expire-then-retry append
-(lines 116 and 157) — exactly the pattern that makes retained-reference aliasing easy to
-introduce by accident. A genesis payload edit is caught by chain-verify once a second
+(lines 116 and 157 at the time of this record; since the 2026-09-02 code-review fixes the
+retry is re-stamped from a fresh clock reading and reuses the object only when the clock did
+not move) — exactly the pattern that makes retained-reference aliasing easy to introduce by
+accident. A genesis payload edit is caught by chain-verify once a second
 transition exists (the seq-2 link), but on a one-transition record the genesis *is* the head
 and is therefore undetectable, same as item 1.
 

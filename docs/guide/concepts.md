@@ -126,7 +126,10 @@ type Outcome<T> =
 
 Exceptions are reserved for **caller and config errors** (unknown `recordId`, malformed
 input, a construction-time contract violation) and storage faults — cases where nothing
-was recorded and the caller has a bug or an outage, not a decision outcome.
+was recorded and the caller has a bug or an outage, not a decision outcome. One further
+exception is neither a bug nor an outage: a concurrent `raiseFinding` or `acknowledge` can
+cost `finalize` or `decline` its single batch append, which surfaces as an `Error` named
+`ContentionError` — nothing recorded, re-invoke (the integration guide has the shape).
 
 A refusal *may* append a `refused` transition — that is itself a recorded decision — or
 may leave the record open for retry. The rule: `chain-compromise` records itself wherever

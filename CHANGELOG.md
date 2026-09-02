@@ -137,6 +137,26 @@ is the summary, and that file wins on conflict.
 
 ### Changed
 
+- **Code-review fixes, six phases** (2026-09-02, branch `code-review-fixes`; each phase is
+  one commit whose message carries the argument). `finalize`/`decline` losing their single
+  batch append to a concurrent state-preserving append (`raiseFinding`/`acknowledge`) on the
+  same record now throw an `Error` named `ContentionError` — nothing recorded, re-invoke —
+  where they threw a storage-fault error whose message asserted the race was unreachable
+  under a single-writer bound the Postgres adapter never had; a genuine storage fault keeps
+  its own throw, told apart by a one-time re-read. `verifyChain` gains a fourth check, record
+  identity (every transition names the genesis's recordId), for the exported offline read.
+  The kernel's definition of "due" now matches the stores' inclusive listing gate at the exact
+  instant (`now >= deadline`), in `resolveDueClock` and the enlisted guard alike. `open()`'s
+  expire-then-retry re-stamps the retried genesis from a fresh clock reading, so the new
+  record never claims to have opened before the expiry edge that admitted it (under a moving
+  clock that is one extra signature mint on that path, and the first attempt's sidecar entry
+  becomes a lost-genesis orphan that `verifySignatures().orphans` names; the no-edge memo pin
+  was inverted, authorized, from two mints to three). `withSigning`'s per-record memo is a
+  bounded LRU of ten thousand. `allowedAuthorities` joins the settled construction class:
+  an empty list, an empty string, or a duplicate throws at construction. `SqliteStore` gains
+  `close()` and prepares each statement once. `PostgresStore`'s lazy DDL runs on one client
+  under a transaction-scoped advisory lock, closing a catalog race two processes bootstrapping
+  one schema could hit — reproduced deterministically before the fix.
 - **The unknown-option-key error head** (2026-09-01, the registry-hygiene increment): an
   unknown options-bag key at `open()`, `finalize()`, `decline()`, or any redemption seam
   now throws `unknown option key (<key>) — <the seam's accepted keys>` where it threw the
@@ -164,6 +184,16 @@ is the summary, and that file wins on conflict.
 
 ### Fixed
 
+- **Code-review pins and truth repairs** (2026-09-02, the same branch): principal-only
+  identity comparison in the SoD gate and the ack-counting predicate, and the findings seams'
+  host-trusted identity, pinned end to end as the rulings they already were; the prior-leg
+  verifier's silence on content across legs pinned as an omission awaiting a ruling, with the
+  divergence shown derivable from the recorded reference alone; three source comments and one
+  test header that asserted a single-writer bound reworded to the reachable truth; the guide
+  caught up (`ContentionError`, `SqliteStore.close()`, `verifyChain`'s fourth check, the
+  `allowedAuthorities` rule); `CLAUDE.md`'s measured sentence re-measured (67 files, 855
+  tests). Deferral-register row 23 opened for the one item deferred as its own increment: an
+  optional `tx` on the `Store`'s five reads (it does not gate the cut).
 - **Parked truths** (2026-09-02): `construction-validation.test.ts` stopped describing
   the current unknown-option-key throw in the guard era's vocabulary (five present-tense
   sites; the sixteen past-tense guard-era records stand); `CLAUDE.md`'s measured
