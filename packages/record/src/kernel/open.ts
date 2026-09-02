@@ -285,7 +285,10 @@ export async function open(
   // "without it, a lost redemption token strands the record... indefinitely" is the
   // redeemBound half; this is the confirmed half). Same expire-then-retry-ONCE shape
   // either way; resolveDueClock picks the window from the replayed state.
-  const ex = await resolveDueClock(store, blockerChain, resolved, now());
+  // One reading serves the blocker's resolution edge AND the retried genesis's stamp below,
+  // so the new record opens at the very instant the blocker expired — never before it.
+  const resolveNow = now();
+  const ex = await resolveDueClock(store, blockerChain, resolved, resolveNow);
   if (!ex.due) {
     // The blocker's window (open or confirmed) has NOT elapsed — no CAS was attempted;
     // the live record still holds -> record-exists.
@@ -299,17 +302,19 @@ export async function open(
   }
 
   // The blocker is expired (now terminal); retry the genesis open EXACTLY ONCE — RE-STAMPED
-  // from a fresh clock reading: the retried record must never claim to have opened before
-  // the expiry edge that admitted it, and its open window follows the same reading. When
-  // the clock has not moved the bytes are identical, so the SAME object is reused (one mint
-  // under signing — `signing/decorate.ts` keys its mint memo by object identity).
-  const retryAt = now().toISOString();
-  const retryTransition: Transition =
-    retryAt === openedTransition.at ? openedTransition : { ...openedTransition, at: retryAt };
+  // from the reading that stamped the expiry edge: the retried record opens at the instant
+  // the blocker expired, never before it, and its open window follows the same reading. When
+  // the clock has not moved the bytes are identical, so the SAME object and meta are reused
+  // (one mint under signing — `signing/decorate.ts` keys its mint memo by object identity).
+  const retryAt = resolveNow.toISOString();
+  const reuse = retryAt === openedTransition.at;
+  const retryTransition: Transition = reuse
+    ? openedTransition
+    : { ...openedTransition, at: retryAt };
   const retry = await store.appendTransition(
     null,
     retryTransition,
-    genesisMetaFor(retryTransition.at),
+    reuse ? genesisMeta : genesisMetaFor(retryAt),
   );
   if (retry.appended) {
     return ok({ recordId });

@@ -108,14 +108,14 @@ export class PostgresStore implements Store {
    * serialize and the loser finds the objects present. The lock's salt differs from the
    * genesis path's, so the two families never contend with each other. */
   async #runDdl(): Promise<void> {
-    const client = await this.#pool.connect();
-    try {
-      await client.query('BEGIN');
+    await this.#withPooledTx(async (client) => {
       await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 7))', [
         JSON.stringify(['ddl', this.#schema]),
       ]);
-      await client.query(`CREATE SCHEMA IF NOT EXISTS "${this.#schema}"`);
+      // One simple-protocol query for every CREATE — unparameterized, so the multi-statement
+      // form is legal, and the schema rides in the same round-trip as its tables.
       await client.query(`
+        CREATE SCHEMA IF NOT EXISTS "${this.#schema}";
         CREATE TABLE IF NOT EXISTS ${this.#t('staged')} (
           id         text PRIMARY KEY,
           draft_json text NOT NULL
@@ -138,16 +138,36 @@ export class PostgresStore implements Store {
           PRIMARY KEY (record_id, seq)
         );
       `);
+    });
+  }
+
+  /**
+   * The one pooled-transaction primitive: check out a client, BEGIN, run `body`, COMMIT;
+   * on failure ROLLBACK and surface the ORIGINAL error. A client whose ROLLBACK itself
+   * failed may be sitting in an aborted transaction, so it is released WITH that error —
+   * pg destroys such a client rather than handing it to the next borrower, whose first
+   * statement would otherwise fail with "current transaction is aborted". Shared by the
+   * no-tx write path (`#inTransaction`) and the DDL bootstrap (`#runDdl`), which is why it
+   * carries no readiness gate of its own.
+   */
+  async #withPooledTx<T>(body: (c: Queryable) => Promise<T>): Promise<T> {
+    const client = await this.#pool.connect();
+    let poisoned: Error | undefined;
+    try {
+      await client.query('BEGIN');
+      const result = await body(client);
       await client.query('COMMIT');
+      return result;
     } catch (err) {
       try {
         await client.query('ROLLBACK');
-      } catch {
-        // ROLLBACK itself can fail (e.g. the connection died) — surface the ORIGINAL error.
+      } catch (rollbackErr) {
+        poisoned = rollbackErr instanceof Error ? rollbackErr : new Error(String(rollbackErr));
       }
       throw err;
     } finally {
-      client.release();
+      if (poisoned === undefined) client.release();
+      else client.release(poisoned);
     }
   }
 
@@ -195,23 +215,7 @@ export class PostgresStore implements Store {
       const client = await this.#validateTx(tx);
       return body(client);
     }
-    const client = await this.#pool.connect();
-    try {
-      await client.query('BEGIN');
-      const result = await body(client);
-      await client.query('COMMIT');
-      return result;
-    } catch (err) {
-      try {
-        await client.query('ROLLBACK');
-      } catch {
-        // ROLLBACK itself can fail (e.g. the connection died) — swallow it and surface
-        // the ORIGINAL error, never this one.
-      }
-      throw err;
-    } finally {
-      client.release();
-    }
+    return this.#withPooledTx(body);
   }
 
   /** The record-row read every append gates on — locked (FOR UPDATE) so a concurrent

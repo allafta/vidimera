@@ -24,6 +24,7 @@ import { MemorySignatureStore } from '../src/signing/memory.js';
 import type { Signer, Verifier } from '../src/signing/store.js';
 import { MemoryStore } from '../src/store/memory.js';
 import type { Store } from '../src/store/store.js';
+import type { Transition } from '../src/types.js';
 import { storeGenesis, storeNext } from './helpers/chain.js';
 import { captureProfile, facts, identity, makeConfig, openRecord } from './helpers/profiles.js';
 
@@ -287,29 +288,50 @@ test('the signer receives exactly encodeTransition bytes; the enlisted tx passes
 // `withSigning` remembers, per recordId, whether the record signs, so a non-genesis append
 // need not re-read the genesis to find out. Unbounded, that map grew by one entry per record
 // for the life of the process. These two pins drive the decorator DIRECTLY over a
-// read-counting store — no kernel, no crypto (a trivial signer, since nothing here verifies)
-// — so ten thousand records cost milliseconds, and count the one observable the bound has:
+// read-counting O(1) stub store — no kernel, no crypto (a trivial signer, since nothing here
+// verifies) — so ten thousand records cost milliseconds, and count the one observable the bound has:
 // a hot record's append reads no chain, an evicted record's next append re-reads its genesis
 // exactly once and is still signed.
 
 const PROBE_PAYLOAD = { kind: 'probe', payloadDigest: `sha256:${'a'.repeat(64)}` };
 
-/** The decorator over a MemoryStore whose `readChain` calls are counted; a trivial signer. */
+/**
+ * The decorator over a MINIMAL O(1) store whose `readChain` calls are counted; a trivial
+ * signer. Not a MemoryStore: its C1 scan walks every record per genesis, which made ten
+ * thousand geneses O(n²) (the review measured over a second per pin). This stub keeps only
+ * what the memo pins observe — chains by recordId, appended in order, read back — and none
+ * of the Store contract's constraints, which the conformance suite owns elsewhere.
+ */
 function memoRig() {
-  const inner = new MemoryStore();
+  const chains = new Map<string, Transition[]>();
   let reads = 0;
   const counting: Store = {
-    putStaged: (s, tx) => inner.putStaged(s, tx),
-    getStaged: (r) => inner.getStaged(r),
-    appendTransition: (e, t, m, tx) => inner.appendTransition(e, t, m, tx),
-    appendBatch: (e, ts, m, tx) => inner.appendBatch(e, ts, m, tx),
-    readChain: (r) => {
-      reads += 1;
-      return inner.readChain(r);
+    putStaged: async () => undefined,
+    getStaged: async () => null,
+    appendTransition: async (_e, t) => {
+      const chain = chains.get(t.recordId) ?? [];
+      chain.push(t);
+      chains.set(t.recordId, chain);
+      return { appended: true, seq: t.seq, transitionDigest: transitionDigest(t) };
     },
-    chainHead: (r) => inner.chainHead(r),
-    listDue: (now) => inner.listDue(now),
-    findNonTerminal: (p, s) => inner.findNonTerminal(p, s),
+    appendBatch: async (_e, ts) => {
+      for (const t of ts) {
+        const chain = chains.get(t.recordId) ?? [];
+        chain.push(t);
+        chains.set(t.recordId, chain);
+      }
+      return { appended: true, transitionDigests: ts.map((t) => transitionDigest(t)) };
+    },
+    readChain: async (r) => {
+      reads += 1;
+      return [...(chains.get(r) ?? [])];
+    },
+    chainHead: async (r) => {
+      const last = chains.get(r)?.at(-1);
+      return last === undefined ? null : transitionDigest(last);
+    },
+    listDue: async () => [],
+    findNonTerminal: async () => null,
   };
   const signatures = new MemorySignatureStore();
   const signer: Signer = async () => ({ keyRef: 'key-1', signature: 'sig' });
@@ -412,4 +434,29 @@ test('the memo never evicts on a re-insert: two concurrent cold misses on ONE re
     ).appended,
   );
   assert.equal(reads.count(), 1, 'rec-1 paid for the one eviction');
+});
+
+test('the memo never learns from an EMPTY chain: a non-genesis append that arrives before its genesis does not pin the record as non-signing', async () => {
+  // The review's second round: `recordSigns` cached `signs = false` derived from an empty
+  // chain exactly like a real non-signing answer, so a record whose genesis had not yet
+  // landed was remembered as unsigned and its later genuine genesis landed with no sidecar
+  // entry — which the fail-closed layer reads as chain-compromise. Reachable through the
+  // public `withSigning` over a store with host-chosen recordIds; not through create().
+  const inner = new MemoryStore();
+  const signatures = new MemorySignatureStore();
+  const signer: Signer = async () => ({ keyRef: 'key-1', signature: 'sig' });
+  const store = withSigning({ signer, verifiers: {}, signatures }, inner, () => true);
+
+  const genesis = storeGenesis('rec-early', 'test.signed.v1', 'subject:early');
+  const early = storeNext(genesis, 'consultation-recorded', PROBE_PAYLOAD);
+  const refused = await store.appendTransition('open', early, { nonTerminal: true });
+  assert.equal(refused.appended, false, 'fixture: no record exists yet — the store refuses');
+
+  const landed = await store.appendTransition(null, genesis, { nonTerminal: true });
+  assert.equal(landed.appended, true);
+  assert.equal(
+    (await signatures.listByRecord('rec-early')).length,
+    1,
+    'the genesis is signed — the empty-chain read taught the memo nothing',
+  );
 });

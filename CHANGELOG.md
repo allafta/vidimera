@@ -184,6 +184,23 @@ is the summary, and that file wins on conflict.
 
 ### Fixed
 
+- **Code-review, second round** (2026-09-02, the same branch): the findings seams mapped
+  EVERY lost compare-and-swap to `record-not-open`, false of a record that lost only a seq
+  race and is still open — two concurrent `raiseFinding` calls now leave the loser with the
+  same `ContentionError` the decision seams throw, and re-invocation lands its finding; the
+  signing decorator no longer learns from an empty chain (a non-genesis append arriving before
+  its genesis had pinned the record as non-signing, so the genuine genesis landed unsigned and
+  the fail-closed layer read chain-compromise — reachable only through `withSigning` composed
+  directly with host-chosen ids); `SqliteStore`'s statement cache follows the connection, so
+  closing through the documented `database` handle no longer leaves finalized statements
+  behind; a Postgres client whose ROLLBACK failed is released as poisoned rather than handed
+  back to the pool in an aborted transaction; the DDL bootstrap and the no-tx write path share
+  one pooled-transaction primitive; the retried genesis is stamped from the same reading as
+  the expiry edge that admitted it; `verifyChain`'s documented check order now matches the
+  loop's, with the same-index precedence (seq, recordId, prevHash) pinned; the signing memo
+  skips its recency promotion for consecutive appends to one record; and the memo pins run
+  over an O(1) stub store instead of MemoryStore's linear exclusivity scan. Re-measured: 67
+  files, 860 tests.
 - **Code-review pins and truth repairs** (2026-09-02, the same branch): principal-only
   identity comparison in the SoD gate and the ack-counting predicate, and the findings seams'
   host-trusted identity, pinned end to end as the rulings they already were; the prior-leg
@@ -191,7 +208,7 @@ is the summary, and that file wins on conflict.
   divergence shown derivable from the recorded reference alone; three source comments and one
   test header that asserted a single-writer bound reworded to the reachable truth; the guide
   caught up (`ContentionError`, `SqliteStore.close()`, `verifyChain`'s fourth check, the
-  `allowedAuthorities` rule); `CLAUDE.md`'s measured sentence re-measured (67 files, 855
+  `allowedAuthorities` rule); `CLAUDE.md`'s measured sentence re-measured (67 files, 860
   tests). Deferral-register row 23 opened for the one item deferred as its own increment: an
   optional `tx` on the `Store`'s five reads (it does not gate the cut).
 - **Parked truths** (2026-09-02): `construction-validation.test.ts` stopped describing

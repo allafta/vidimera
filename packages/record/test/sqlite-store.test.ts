@@ -173,3 +173,15 @@ test('prepared statements are cached: repeated reads do not re-prepare — the p
     prepare.mockRestore();
   }
 });
+
+test('closing through the documented `database` handle also invalidates the statement cache: the next call throws not-open, never a finalized-statement error', async () => {
+  // The review's second round: `close()` cleared the cache, but the connection is also
+  // reachable through the `database` getter the guide documents for enlistment, and a host
+  // closing it there left every cached statement a finalized handle.
+  const store = new SqliteStore(':memory:');
+  const genesis = storeGenesis('rec-handle-close', 'profile.p1', 'subject:s1');
+  assert.equal((await store.appendTransition(null, genesis, { nonTerminal: true })).appended, true);
+  assert.equal((await store.readChain('rec-handle-close')).length, 1); // warm the cache
+  store.database.close();
+  await assert.rejects(store.readChain('rec-handle-close'), /not open/i);
+});

@@ -99,7 +99,7 @@ any one exit.
   the one item deferred as its own increment. No recorded byte, digest, or maturity marker moved.
   See the dedicated section at the end of this document; the numbers immediately below already
   include it.
-- **Measured against the current tree**: `pnpm test` — 67 test files, 855 tests, zero skips
+- **Measured against the current tree**: `pnpm test` — 67 test files, 860 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
   `pnpm lint` (`biome check .`) — 135 files checked, zero errors or warnings;
@@ -4596,8 +4596,9 @@ capability and changed no seam's accepted keys, refusal behavior, or class.
 ## Post-build-order increment — Code-review fixes (six phases)
 
 **The nineteenth post-build-order increment, exited (the six phase commits
-`4308e86`..`614c262` on `code-review-fixes`, the review-fixes commit `2297901`, and the
-follow-ups commit that lands this section).** A code review of
+`4308e86`..`614c262` on `code-review-fixes`, the review-fixes commit `2297901`, the
+follow-ups commit `c3ee557` that landed this section, and the second-round commit that
+closes it).** A code review of
 the tree at `d5fc3b9` surfaced six clusters. Each was worked as its own phase under one protocol:
 the code quoted, two to three candidate resolutions with their trade-offs — correctness, recorded
 bytes, API surface, test impact — a ruling taken before any edit, the failing test written and
@@ -4695,6 +4696,44 @@ in `terminality.test.ts`: the losing call throws, re-invocation refuses `ack-mis
 expiry-gate doc, still strict; and the no-edge memo pin's "documented lost-genesis class",
 now citing the sidecar contract clause that documents it.
 
+**A second review round, over the branch as it stood after the first (the closing commit).**
+Three further review angles completed — altitude, efficiency, and wrapper correctness — and
+were verified by hand the same way. Fixed, each pinned first: the findings seams mapped
+every lost compare-and-swap to `record-not-open`, which is false of a record that lost only
+a seq race and is still open — the exact untruth phase 1 removed from the batch seams; two
+concurrent `raiseFinding` calls now leave the loser with the same `ContentionError`, via a
+single-append twin of the batch helper, and re-invocation lands its finding. The signing
+decorator cached `signs = false` from an EMPTY chain, so a non-genesis append arriving before
+its genesis pinned the record as non-signing and the genuine genesis then landed unsigned,
+which the fail-closed layer reads as chain-compromise — reachable only through `withSigning`
+composed directly over host-chosen ids, never through `create()`; an empty chain now teaches
+the memo nothing. `SqliteStore`'s statement cache followed `close()` but not the connection,
+which the documented `database` handle also closes; the cache now follows the connection's
+own `isOpen`. A Postgres client whose ROLLBACK failed was released bare, so the pool could
+hand it to the next borrower inside an aborted transaction; it is released with the error,
+which pg treats as destroy — and the DDL bootstrap and the no-tx write path now share one
+pooled-transaction primitive instead of two copies of that plumbing. Taken without a failing
+test, as refactors under green pins: the retried genesis is stamped from the same reading
+as the expiry edge that admitted it (one clock read fewer, and the relation is now equality
+rather than not-before); the memo skips its recency promotion for consecutive appends to one
+record; `verifyChain`'s doc lists the checks in the order the loop runs them, with the
+same-index precedence (seq, then recordId, then prevHash) pinned by a splice that recomputes
+nothing — that pin passed on first run, since the loop's order was already right and only the
+doc had it reversed; and the memo pins run over an O(1) stub store instead of `MemoryStore`,
+whose linear exclusivity scan had made ten thousand geneses cost over a second per pin.
+Recorded rather than changed: the contention-versus-fault split is inferred from a re-read
+after adjudication, so a legitimate writer landing in that window makes a genuine fault read
+as contention — nothing lands either way and re-invocation re-evaluates, so the cost is a
+quieter diagnosis; the exact signal (the store reporting the head seq it adjudicated against)
+is named on register row 23. Also recorded there: a one-client pool deadlocks an enlisted
+first call, since the DDL bootstrap needs a client of its own (the guide now states the floor).
+Recorded as observations, not ruled on: the freshness bound and the pending-window clocks
+resolve the exact instant in opposite directions (fresh AT the bound, expired AT the deadline)
+— a separate clock family with its own wording, unexamined by this increment; and
+`validateAllowedAuthorities` is the fourth hand-written copy of the settled
+non-empty/distinct/non-empty-strings rule in `config.ts`, a simplification left for a session
+that can move all four together.
+
 **Two orphan producers named, recorded in register row 22 without re-scoping it.** Under a
 signing profile the batch is signed before the store adjudicates it, so a contention loss
 leaves one sidecar entry per batch element; and a re-stamped retry leaves the first
@@ -4724,8 +4763,8 @@ truth; this section, the current-state bullets above, and register row 23.
 
 **Gate outputs, as measured against the closing commit.** `./node_modules/.bin/tsc -p
 packages/record --noEmit` and `-p packages/store-postgres --noEmit` — both clean.
-`./node_modules/.bin/vitest run` — 67 test files, 855 tests, zero skips (record 63 files / 787,
-store-postgres 4 files / 68 over the embedded server, which starts on this machine).
+`./node_modules/.bin/vitest run` — 67 test files, 860 tests, zero skips (record 63 files / 791,
+store-postgres 4 files / 69 over the embedded server, which starts on this machine).
 `./node_modules/.bin/biome check --error-on-warnings .` — 135 files, no fixes, exit 0.
 `node scripts/contract-scan.mjs` — exit 0, silent. `node scripts/api-reference-sync.mjs` — exit
 0 (no exported name moved; `SIGNING_MEMO_CAP` is deliberately not on the index).

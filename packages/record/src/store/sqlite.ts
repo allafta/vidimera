@@ -138,6 +138,10 @@ export class SqliteStore implements Store {
   }
 
   private stmt(sql: string): StatementSync {
+    // The connection is also reachable through `database` (the enlistment handle), so a host
+    // may close it there: a cache that outlives its connection holds finalized handles. When
+    // the connection is closed, drop them and let `prepare` throw the not-open error.
+    if (!this.db.isOpen) this.statements.clear();
     let statement = this.statements.get(sql);
     if (statement === undefined) {
       statement = this.db.prepare(sql);

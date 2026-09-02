@@ -654,6 +654,32 @@ export async function batchSeqConflict(
   readLength: number,
   index: number,
 ): Promise<Error> {
+  return seqConflict(seam, store, recordId, readLength, index);
+}
+
+/**
+ * The single-append twin of `batchSeqConflict`, for the seams whose one `appendTransition`
+ * can lose a seq race to a concurrent state-preserving writer while the record stays `open`
+ * (`kernel/findings-seams.ts`'s `raiseFinding`/`acknowledge`, racing each other or a
+ * decision seam's batch). The same two honest stories, told apart the same way; the message
+ * says "append conflict" with no element index.
+ */
+export async function appendSeqConflict(
+  seam: 'raiseFinding' | 'acknowledge',
+  store: Store,
+  recordId: string,
+  readLength: number,
+): Promise<Error> {
+  return seqConflict(seam, store, recordId, readLength, undefined);
+}
+
+async function seqConflict(
+  seam: string,
+  store: Store,
+  recordId: string,
+  readLength: number,
+  index: number | undefined,
+): Promise<Error> {
   // The diagnostic re-read may itself fail (the store that just misreported may be dying):
   // its rejection must never REPLACE the conflict report, which is what tells the host that
   // nothing landed. Caught here and carried as the thrown error's `cause`.
@@ -664,7 +690,12 @@ export async function batchSeqConflict(
   } catch (err) {
     reReadFailure = err;
   }
-  if (fresh !== undefined && index === 0 && fresh.length > readLength) {
+  // ONE HONEST BOUND on the split: it is inferred from a read AFTER the store adjudicated, so a
+  // legitimate writer landing in that window makes a genuine storage fault at an unmoved head
+  // read as contention. Nothing landed either way and re-invocation re-evaluates, so the cost
+  // is a quieter diagnosis, never a wrong record; the exact signal would be the store reporting
+  // the head seq it adjudicated against (deferral-register row 23's increment names it).
+  if (fresh !== undefined && (index === undefined || index === 0) && fresh.length > readLength) {
     const err = new Error(
       `${seam}: contention — the chain head moved between this call's read (${readLength} ` +
         `transitions) and its append (${fresh.length} now): another writer landed a ` +
@@ -680,13 +711,15 @@ export async function batchSeqConflict(
       ? "the diagnostic re-read itself failed (its error rides as this one's cause), so a " +
         'concurrent writer can neither be established nor ruled out — treated as the storage ' +
         'fault it may be; re-invoke once the store answers'
-      : index === 0
+      : index === undefined || index === 0
         ? `a re-read finds ${fresh.length} transition(s) against the ${readLength} this call read — ` +
           'the head did not move, so no concurrent writer explains the conflict'
         : 'a kernel-built batch is seq-contiguous from the head it read, so a conflict past ' +
           'element 0 has no honest producer';
+  const site =
+    index === undefined ? 'append conflict' : `batch append conflict ('seq') at element ${index}`;
   const message =
-    `${seam}: batch append conflict ('seq') at element ${index}. A Store honouring the ` +
+    `${seam}: ${index === undefined ? `${site} ('seq')` : site}. A Store honouring the ` +
     `compare-and-swap contract cannot report this: ${why}. This is a storage fault. The ` +
     'batch is all-or-nothing: nothing was appended and the record is unchanged.';
   return reReadFailure === undefined

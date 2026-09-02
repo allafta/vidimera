@@ -518,7 +518,9 @@ as an obligation, not enforced: nothing in the library reads your implementation
 
 All of these names — plus `withSigning` (the store decorator) and the reference
 `MemorySignatureStore` — are exported from the entry point: the 2026-08-19 review moved
-the whole signing tier onto the root, beside the stores it mirrors.
+the whole signing tier onto the root, beside the stores it mirrors. The handle `withSigning`
+returns exposes exactly the eight `Store` methods: a `SqliteStore`'s `close()` and `database`
+stay on the instance you constructed, so keep that reference for shutdown and enlistment.
 
 ## Probes — the `./probes` subpath
 

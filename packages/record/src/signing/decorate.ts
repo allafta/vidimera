@@ -33,8 +33,9 @@ import type { SigningConfig } from './store.js';
  * The ceiling on `withSigning`'s per-record signs-or-not memo (one boolean per recordId the
  * decorator has seen). Unbounded, that map grew by one entry per record for the life of a
  * long-lived process. At the cap the least-recently-used record is evicted, and its next
- * append pays exactly one genesis re-read to re-derive the answer — the same read a cold
- * decorator restart already pays (see `recordSigns`). Ten thousand is far above any
+ * append pays exactly one chain re-read (`readChain`, the whole chain — the Store has no
+ * genesis-only read) to re-derive the answer — the same read a cold decorator restart
+ * already pays (see `recordSigns`). Ten thousand is far above any
  * plausible in-flight population and about a megabyte at the ceiling. Exported for the pins
  * in signing.test.ts, deliberately not from the package index.
  */
@@ -48,11 +49,17 @@ export function withSigning(
   // Bounded LRU over `Map`'s insertion order: a hit re-inserts its key so the record becomes
   // the newest entry; an insert at the cap evicts the oldest key first.
   const memo = new Map<string, boolean>();
+  let newest: string | undefined; // the most recently inserted or promoted key
   function memoGet(recordId: string): boolean | undefined {
     const known = memo.get(recordId);
     if (known === undefined) return undefined;
-    memo.delete(recordId);
-    memo.set(recordId, known);
+    if (recordId !== newest) {
+      // Promote on a hit — but consecutive appends to one record (a batch after its
+      // findings, the redemption legs) skip the delete+set: it is already the newest.
+      memo.delete(recordId);
+      memo.set(recordId, known);
+      newest = recordId;
+    }
     return known;
   }
   function memoSet(recordId: string, signs: boolean): void {
@@ -65,6 +72,7 @@ export function withSigning(
       if (oldest !== undefined) memo.delete(oldest);
     }
     memo.set(recordId, signs);
+    newest = recordId;
   }
 
   // One signer invocation per transition OBJECT, not per append attempt. Two call paths hand
@@ -106,8 +114,14 @@ export function withSigning(
       // cold): fall back to ONE genesis read rather than trusting the caller.
       const chain = await store.readChain(transition.recordId);
       const genesis = chain[0];
-      const profileId =
-        genesis === undefined ? undefined : (genesis.payload as { profileId?: unknown }).profileId;
+      if (genesis === undefined) {
+        // No record yet: the store will refuse this non-genesis append (state-mismatch), and
+        // an empty chain teaches the memo NOTHING — caching `false` here would pin the record
+        // as non-signing before its genuine genesis arrives, and that genesis would then land
+        // unsigned, which the fail-closed layer reads as chain-compromise.
+        return false;
+      }
+      const profileId = (genesis.payload as { profileId?: unknown }).profileId;
       signs = typeof profileId === 'string' && isSigningProfile(profileId);
     }
     memoSet(transition.recordId, signs);

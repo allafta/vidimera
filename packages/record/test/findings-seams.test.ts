@@ -405,3 +405,55 @@ test('both seams admit an authority outside allowedAuthorities while finalize an
     'the informing appends landed; the two decision refusals appended nothing (default leg)',
   );
 });
+
+test('two concurrent raiseFinding calls on one record: the loser throws a ContentionError — the record is still open, so record-not-open would be false of it', async () => {
+  // The review's second round: phase 1 fixed the batch seams' seq loss but the single-append
+  // seams kept mapping EVERY lost CAS to record-not-open. A seq loss means the state did not
+  // move — the record is open, intact, and now carries the winner's finding — so the loser gets
+  // the same contention throw the batch seams give, and re-invocation lands its own finding.
+  const store = new MemoryStore();
+  const handles = create(makeConfig([flowProfile()], { store }));
+  const recordId = await openRecord(handles, CONTENT, 'test.flow.v1', SUBJECT);
+
+  const [a, b] = await Promise.allSettled([
+    handles.operator.raiseFinding(
+      recordId,
+      { findingId: 'f-a', kind: 'variance', findingDigest: D1 },
+      RAISER,
+    ),
+    handles.operator.raiseFinding(
+      recordId,
+      { findingId: 'f-b', kind: 'variance', findingDigest: D2 },
+      RAISER,
+    ),
+  ]);
+  const settled = [a, b];
+  const winners = settled.filter((r) => r.status === 'fulfilled');
+  const losers = settled.filter((r) => r.status === 'rejected');
+  assert.equal(winners.length, 1, 'exactly one finding lands');
+  assert.equal(losers.length, 1, 'exactly one call loses the seq race');
+  const winner = winners[0];
+  const loser = losers[0];
+  assert.ok(winner?.status === 'fulfilled' && winner.value.status === 'ok');
+  assert.ok(loser?.status === 'rejected' && loser.reason instanceof Error);
+  if (loser?.status !== 'rejected') return;
+  assert.equal((loser.reason as Error).name, 'ContentionError');
+  assert.match((loser.reason as Error).message, /raiseFinding: contention/);
+  assert.equal(
+    (await handles.operator.getRecord(recordId))?.state,
+    'open',
+    'still open — record-not-open would have lied',
+  );
+
+  // Re-invocation of the loser lands, chained after the winner's finding.
+  const again = await handles.operator.raiseFinding(
+    recordId,
+    { findingId: 'f-b', kind: 'variance', findingDigest: D2 },
+    RAISER,
+  );
+  assert.equal(again.status, 'ok');
+  assert.deepEqual(
+    (await handles.operator.readChain(recordId)).map((t) => t.kind),
+    ['opened', 'finding-raised', 'finding-raised'],
+  );
+});

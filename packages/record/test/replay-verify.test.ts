@@ -428,3 +428,22 @@ test('verifyChain(): a FOREIGN recordId on a non-genesis transition is a break a
   assert.match(result.detail, /recordId/);
   assert.match(result.detail, /rec-foreign/);
 });
+
+test('verifyChain(): when recordId AND prevHash both break at one index, the detail names the recordId — the most specific diagnosis first', () => {
+  // The review's second round: the doc listed the checks in one order and the loop ran them in
+  // another, with only the relinked splice pinned. This splice recomputes NOTHING, so both the
+  // identity and the link fail at position 2; the precedence is now stated and pinned.
+  const [genesis, middle, last] = goodChain();
+  assert.ok(genesis !== undefined && middle !== undefined && last !== undefined);
+  const foreign: Transition = {
+    ...middle,
+    recordId: 'rec-foreign',
+    prevHash: `sha256:${'b'.repeat(64)}`,
+  };
+  const result = verifyChain([genesis, foreign, last]);
+  assert.equal(result.intact, false);
+  if (result.intact) return;
+  assert.equal(result.firstBreakSeq, 2);
+  assert.match(result.detail, /recordId mismatch/);
+  assert.doesNotMatch(result.detail, /prevHash mismatch/);
+});

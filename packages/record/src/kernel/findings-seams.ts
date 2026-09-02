@@ -39,7 +39,7 @@ import type {
   Transition,
 } from '../types.js';
 import { expiryDeadlineMs, resolveDueClock } from './expiry.js';
-import { appendChainCompromise, isValidIdentity } from './finalize.js';
+import { appendChainCompromise, appendSeqConflict, isValidIdentity } from './finalize.js';
 import { signatureLayerHolds } from './verify-signatures.js';
 
 /** SPEC §10.2's `finding` argument: `{ findingId, kind, findingDigest, magnitude? }`. */
@@ -211,6 +211,7 @@ async function loadOpenDeclaringRecord(
 /** Rung (5): the one mid-lifecycle append, state-preserving, dueAt re-supplied. */
 async function appendSeamTransition(
   ctx: KernelContext,
+  seam: 'raiseFinding' | 'acknowledge',
   chain: readonly Transition[],
   resolved: ResolvedProfile,
   kind: 'finding-raised' | 'acknowledged',
@@ -235,8 +236,16 @@ async function appendSeamTransition(
   };
   const res = await ctx.store.appendTransition('open', transition, meta);
   if (!res.appended) {
-    // A racing writer moved the state between the read and this CAS — the state the
-    // caller saw is gone; re-invocation re-reads (the established lost-race posture).
+    if (res.conflict === 'seq') {
+      // The state did NOT move — the record is still open and another state-preserving
+      // append took this seq (a concurrent raise/ack, or a decision seam's batch). No
+      // refusal code is true of an open record, so this is the contention throw the batch
+      // seams give (a moved head), or a storage fault (an unmoved one) — never
+      // record-not-open, which would be false of it.
+      throw await appendSeqConflict(seam, ctx.store, last.recordId, chain.length);
+    }
+    // `state-mismatch`: a racing writer moved the state between the read and this CAS — the
+    // state the caller saw is gone; re-invocation re-reads (the established lost-race posture).
     return refused('record-not-open');
   }
   return ok({ recordId: last.recordId, state: 'open', transitionRef: res.transitionDigest });
@@ -269,7 +278,14 @@ export async function raiseFinding(
     ...(finding.magnitude !== undefined ? { magnitude: finding.magnitude } : {}),
     raiser: identity,
   };
-  return appendSeamTransition(ctx, pre.chain, pre.resolved, 'finding-raised', payload);
+  return appendSeamTransition(
+    ctx,
+    'raiseFinding',
+    pre.chain,
+    pre.resolved,
+    'finding-raised',
+    payload,
+  );
 }
 
 export async function acknowledge(
@@ -299,5 +315,5 @@ export async function acknowledge(
     ...(ack.magnitude !== undefined ? { magnitude: ack.magnitude } : {}),
     acker: identity,
   };
-  return appendSeamTransition(ctx, pre.chain, pre.resolved, 'acknowledged', payload);
+  return appendSeamTransition(ctx, 'acknowledge', pre.chain, pre.resolved, 'acknowledged', payload);
 }

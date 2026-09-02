@@ -47,7 +47,10 @@ protection, so treat the operator handle like you treat your database handle.
 - **`PostgresStore(pool, { schema })`** — the server-SQL backing
   (`@vidimera/store-postgres`, this workspace's second package; landed 2026-08-19,
   retiring deferral register row 15): multi-connection-safe over a `pg.Pool` you own —
-  the store never creates or closes the pool. Requires PostgreSQL 11 or newer — the
+  the store never creates or closes the pool. Size it for at least two clients when you
+  enlist writes in your own transaction: the first call's schema bootstrap checks out a client
+  of its own while yours is held, and a one-client pool would wait forever. Requires PostgreSQL
+  11 or newer — the
   oldest server construct it uses is `hashtextextended` — and is exercised in this
   repository against PostgreSQL 18. Its suite runs against a real embedded Postgres and
   includes real multi-connection contention coverage.

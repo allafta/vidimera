@@ -171,3 +171,45 @@ test('recovery: a failure INSIDE the DDL transaction rolls back, releases the cl
   const genesis = storeGenesis('rec-ddl-recover', 'profile.p1', 'subject:ddl');
   assert.equal((await store.appendTransition(null, genesis, { nonTerminal: true })).appended, true);
 });
+
+test('a client whose ROLLBACK also fails is released as poisoned — `release(err)` — never returned idle to the pool', async () => {
+  // The review's second round: pg destroys a client only on `release(err)` (or a fatal
+  // socket error); a bare `release()` after a failed ROLLBACK hands the pool a client sitting
+  // in an aborted transaction, and the next borrower's first statement fails with 25P02.
+  const real = sharedPool();
+  const releases: unknown[][] = [];
+  let armed = true;
+  const flaky = {
+    query: (text: string, values?: unknown[]) => real.query(text, values),
+    async connect() {
+      const client = await real.connect();
+      return {
+        query(text: string, values?: unknown[]) {
+          if (armed && /CREATE TABLE/.test(text)) {
+            return Promise.reject(new Error('transient: mid-DDL'));
+          }
+          if (armed && text === 'ROLLBACK') {
+            armed = false;
+            return Promise.reject(new Error('rollback lost'));
+          }
+          return client.query(text, values);
+        },
+        release: (...args: unknown[]) => {
+          releases.push(args);
+          // The real client DID fail to roll back nothing (our wrapper faked it), so roll it
+          // back for real before handing it home — the pin is about what the STORE passed.
+          return client
+            .query('ROLLBACK')
+            .catch(() => undefined)
+            .then(() => client.release());
+        },
+      };
+    },
+  };
+  const { PostgresStore } = await import('../src/postgres-store.js');
+  const store = new PostgresStore(flaky as never, { schema: nextSchemaName() });
+  await assert.rejects(store.getStaged('s-any'), /mid-DDL/, 'the ORIGINAL error surfaces');
+  assert.equal(releases.length, 1, 'the client was released exactly once');
+  assert.ok(releases[0]?.[0] instanceof Error, 'released with an error — pg destroys the client');
+  assert.equal(await store.getStaged('s-any'), null, 'the next call bootstraps on a fresh client');
+});

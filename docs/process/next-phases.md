@@ -289,7 +289,10 @@ A `COLLATE "C"` hardening on the text `due_at` comparison rides with it. Trigger
 first increment that changes any `Store` read signature; or the 1.0 freeze of the `Store`
 contract (`docs/concept/OPEN-QUESTIONS.md` §9's gate) — whichever lands first. Does not gate
 the 0.1 cut." It does not gate the cut, so it sits here beside the three rows that do rather
-than among them.
+than among them. Two related signals ride with it: the `seq` conflict arms carrying the
+head seq the store adjudicated against, which would make the kernel's contention-versus-fault
+split exact rather than inferred from a later re-read; and a detected pool-size floor for
+enlisted use, which the guide states today.
 
 ## What is deliberately outside the scope
 

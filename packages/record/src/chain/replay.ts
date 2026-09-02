@@ -333,16 +333,18 @@ export type ChainVerifyReport =
 
 /**
  * `verifyChain(chain)` (SPEC §5 "Operator audit functions", the run of §5 that defines
- * both this and `replay`): recomputes every transition's digest linkage —
- *  1. genesis: `chain[0].prevHash` must equal `genesisPrevHash(chain[0].recordId)`;
- *  2. every subsequent `chain[i].prevHash` must equal `transitionDigest(chain[i-1])`
- *     (recomputed under `chain[i-1]`'s own recorded algorithm, via `encoding.ts`);
- *  3. seq continuity: `chain[i].seq` must equal `i + 1` for every `i` (1-based, +1
- *     per transition);
- *  4. record identity: every `chain[i].recordId` must equal `chain[0].recordId` — a chain
+ * both this and `replay`): recomputes every transition's digest linkage. Four checks, run
+ * at each index IN THIS ORDER, so when several fail at one index the detail names the most
+ * specific diagnosis first —
+ *  1. seq continuity: `chain[i].seq` must equal `i + 1` for every `i` (1-based, +1 per
+ *     transition);
+ *  2. record identity: every `chain[i].recordId` must equal `chain[0].recordId` — a chain
  *     is one record's. No store can persist a mixed chain (each backing keys the chain by
  *     the transition's own recordId), so this check exists for the exported offline read: a
- *     fabricated splice whose links were recomputed passes 1-3 and fails here.
+ *     fabricated splice whose links were recomputed passes every other check and fails here;
+ *  3. genesis: `chain[0].prevHash` must equal `genesisPrevHash(chain[0].recordId)`;
+ *  4. every subsequent `chain[i].prevHash` must equal `transitionDigest(chain[i-1])`
+ *     (recomputed under `chain[i-1]`'s own recorded algorithm, via `encoding.ts`).
  * Reports `{intact:true}` if every check passes, or `{intact:false, firstBreakSeq,
  * detail}` on the FIRST index (1-based) at which any check fails — later breaks in
  * the same chain are not reported.
