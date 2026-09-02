@@ -87,7 +87,8 @@ any one exit.
   a 2026-09-02 code review of the tree at `d5fc3b9`, worked phase by phase on branch
   `code-review-fixes`, one commit per phase with the argument in its message. Behavior moved in
   four phases: a batch `seq` conflict at `finalize`/`decline` is contention under a conforming
-  Store (an `Error` named `ContentionError`, re-invoke), told from a storage fault by one
+  Store (first an `Error` named `ContentionError`, since the record-contended increment the
+  returned refusal `record-contended`), told from a storage fault by one
   re-read; `withSigning`'s per-record memo is a bounded LRU; `verifyChain` checks record
   identity, the kernel's "due" matches the stores' inclusive gate at the instant, and
   `open()`'s retried genesis is re-stamped (one authorized inversion of the no-edge memo pin,
@@ -105,8 +106,9 @@ any one exit.
   `pnpm lint` (`biome check .`) — 135 files checked, zero errors or warnings;
   `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
-  `packages/record/src/refusal-codes.ts` carries 24 refusal codes, the twenty-fourth and
-  last being `consultation-stale`; zero GOVERNED construction guards remain in `config.ts`.
+  `packages/record/src/refusal-codes.ts` carries 25 refusal codes, the twenty-fifth being
+  `record-contended` (the record-contended increment); zero GOVERNED construction guards
+  remain in `config.ts`.
 - **The live deferral-register rows**: four — row 23 (the optional `tx` on the Store's five
   reads, opened 2026-09-02 by the code-review-fixes increment; it does not gate the cut — its
   own bullet in "Still outstanding" below) and the three that gate the cut: row 1 (publish tooling, whose tooling landed
@@ -4770,3 +4772,73 @@ store-postgres 4 files / 69 over the embedded server, which starts on this machi
 0 (no exported name moved; `SIGNING_MEMO_CAP` is deliberately not on the index).
 `node scripts/docs-index-sync.mjs` — exit 0. The build tsconfigs and the packed-tarball smoke are
 recorded in the closing commit's message as run or as not runnable on the authoring machine.
+
+## Post-build-order increment — `record-contended` (a SPEC §8 registry amendment)
+
+**The twentieth post-build-order increment, exited (branch `record-contended`, four commits,
+fast-forwarded to `main`).** The 2026-09-02 code review left a seam's lost sequence race
+surfacing as an `Error` named `ContentionError` — a throw where DECISIONS.md #10 says refusals
+are returned, taken only because no registry code was true of an open, intact, undecided record
+and the registry is spec-fixed. This increment minted the code. Its design and promotion case is
+`docs/superpowers/specs/2026-09-02-record-contended-design.md` (reviewed against the code by a
+second model before execution; eleven findings folded in, one escalated to the maintainer); its
+plan `docs/superpowers/plans/2026-09-02-record-contended.md`.
+
+**The sanction.** Granted 2026-09-02 by the maintainer in session, recorded against the design's
+§8, and re-granted the same day for the definitional touches the review surfaced. It licensed
+exactly: one SPEC §8 profile-conditional row (`record-contended`, findings flow §10.2,
+`[PROVEN]`); the code in §8's never-appends list AND the set's definition widened to name
+contention as its fourth category — in SPEC §8's defining clause, `GLOSSARY.md`'s Never-append
+set entry, and `DECISIONS.md` #15, so definition and list agree everywhere; one sentence at §9
+rung (6); one clause in §10.2's seam-discipline sentence; the ARCHITECTURE §5 ladder line and
+its (6) bullet. Nothing else under `docs/concept/` moved — CONTROLS.md, OPEN-QUESTIONS.md and
+CONCEPT.md are untouched, for the reasons the design states. This is the **tenth marker-bearing
+sealed-set edit** in the repository's lineage and the first that amends the registry rather than
+promoting a capability; the row landed `[PROVEN]` in the task that landed the text, after the
+behavior (Tasks 1–3), never ahead of it.
+
+**Tier and placement.** GOVERNED, under the findings flow: the only state-preserving appends
+between `opened` and a decision are `finding-raised` and `acknowledged` (`consultation-recorded`
+rides only inside decision batches that end state-leaving; `sealed` is gated on derived
+terminality), and all three backings adjudicate state before sequence, so a `seq` conflict at an
+`open` entry implies a findings-seam racer. On a profile with no findings flow no such writer
+exists — two finalizes racing lose at the entry compare-and-swap, which is `record-not-open` and
+true. The structural witness is the findings seams' own (2.5) declaring check, which throws on
+a non-declaring leg before any append.
+
+**What landed.** `refusal-codes.ts`: the twenty-fifth code, `refusal`-class, in `NEVER_APPENDS`.
+`kernel/finalize.ts`: the shared seq-conflict classifier returns a `SeqConflictVerdict`
+(contended, or a fault carrying the storage-fault error) instead of an `Error`; finalize and
+decline refuse `record-contended` on contended and throw the fault otherwise; `raiseFinding` and
+`acknowledge` (`kernel/findings-seams.ts`) likewise. The `ContentionError` name is gone; nothing
+published ever carried it. The storage-fault branches — unmoved head, conflict past element
+zero, failed re-read (with `cause`) — are unchanged throws. One correction to the plan's own
+expectation, recorded: it predicted a typecheck error between Tasks 2 and 3 at the findings
+seam; TypeScript accepts `throw` of any value, so the seam compiled while throwing the verdict
+object, an interim state inside the branch only, removed at Task 3.
+
+**Pins.** Five flipped from a thrown name to `status: 'refused'`, `code: 'record-contended'`,
+`class: 'refusal'`, no `transitionRef`, each keeping its post-state assertions — four in
+`terminality.test.ts` (finalize ×3 including both re-invocation outcomes, `ok` for a non-gating
+kind and `ack-missing` for a required one; decline ×1) and the concurrent-`raiseFinding` race in
+`findings-seams.test.ts`; one NEW race pin for `acknowledge`, the producer no earlier test had
+raced (the review found the gap). One registry-only pin added (`refusal-matrix.test.ts`); the two
+total-accounting pins moved to twenty-five. The two storage-fault pins now assert a plain
+`Error` positively. Every flipped or new pin was run RED against the throw first — Task 3's
+against the pre-Task-3 seam checked out from its own prior commit, after a scripting slip had
+committed the seam ahead of its pins; that commit was amended before anything left the branch.
+
+**Honest bounds, restated.** The contention-versus-fault split is still inferred from a re-read
+after the store adjudicated; the exact signal (`headSeq` on the store's conflict arms) is
+register row 23's. Under a signing profile a contention loss still leaves one sidecar entry per
+batch element (row 22's widened inventory). `refuseMaybeAppend`'s lost-CAS refusal at rung (5.7)
+can be stale after a concurrent acknowledgment (never false; recorded as a residual). A
+code/spec observation surfaced while editing §8's never-appends list and is recorded, not
+reconciled: the list omits `supersedes-unverified`, which the code's `NEVER_APPENDS` set carries
+and SPEC §2's recovery text treats as pre-record; the sanction did not license that sentence and
+it is left for a future consistency pass.
+
+**Gate outputs, as measured against the closing commit.** `tsc -p packages/record --noEmit` and
+`-p packages/store-postgres --noEmit` clean; `vitest run` — 67 files, 862 tests, zero skips
+(record 793, store-postgres 69); `biome check --error-on-warnings .` — 135 files, exit 0;
+`contract-scan`, `api-reference-sync`, `docs-index-sync` — exit 0.

@@ -151,12 +151,13 @@ Exceptions still happen — for *your* bugs: unknown ids, malformed inputs, cons
 contract violations, storage faults. Let them crash into your normal error handling; do not
 catch them into refusal handling.
 
-One exception is not your bug. A `finalize` or `decline` that loses its append to a concurrent
-`raiseFinding` or `acknowledge` on the same record throws an `Error` named `ContentionError`.
-Nothing was recorded and the record is still open. Re-invoke it: the ladder re-evaluates
-against the new head, so a required-kind finding raised in between now gates. If your surface
-shows the human the record before they decide, consider re-prompting first — the library will
-not confirm on their behalf over evidence they never saw, and neither should you.
+One refusal is neither an input problem nor a state change. A `finalize`, `decline`,
+`raiseFinding` or `acknowledge` that loses its append to a concurrent `raiseFinding` or
+`acknowledge` on the same record refuses `record-contended`. Nothing was recorded and the record
+is still open. Re-invoke it: the ladder re-evaluates against the new head, so a required-kind
+finding raised in between now gates. If your surface shows the human the record before they
+decide, consider re-prompting first — the library will not confirm on their behalf over
+evidence they never saw, and neither should you.
 
 ## Recording a human decline
 

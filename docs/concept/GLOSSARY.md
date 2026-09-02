@@ -85,7 +85,7 @@ The concept's vocabulary, in one place. Where a term is normative, the defining 
 - **Named magnitude** — the quantity an acknowledgment explicitly accepts ("accepted
   variance of $X"); an opaque string compared by exact equality (SPEC §10.2).
 - **Never-append set** — the fixed refusal codes that never write a `refused` edge
-  (pre-record, terminal-record, redemption/seal codes) (SPEC §8).
+  (pre-record, terminal-record, contention, and redemption/seal codes) (SPEC §8).
 - **Non-terminal flag** — the store-persisted, library-derived flag backing exclusivity;
   terminality is not a function of state alone (SPEC §12 C1).
 - **Operator** — the application/party that runs the library; the sole consumer of the

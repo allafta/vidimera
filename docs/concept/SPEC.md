@@ -547,6 +547,7 @@ defined with their sections:
 | `sod-violation` | multi-leg separation of duties (§10.1); `refusal`-class, `terminalRefusals`-able | [PROVEN] |
 | `prior-leg-unverified` | multi-leg (§10.1); a pre-record `open()`-seam sequencing refusal that never appends | [PROVEN] |
 | `ack-missing` / `ack-stale` | findings flow (§10.2); `refusal`-class, `terminalRefusals`-able, open-by-default | [PROVEN] |
+| `record-contended` | findings flow (§10.2); `refusal`-class — a decision-progress or findings seam lost its append to a concurrent finding or acknowledgment on the same record: nothing recorded, the record still `open`, re-invocation re-evaluates against the new head; never appends | [PROVEN] |
 | `policy-drift` | policy notarization (§10.3); `refusal`-class, `terminalRefusals`-able — a policy-declaring profile SHOULD list it (disposal-and-re-open recovery) | [PROVEN] |
 | `ineligible` | eligibility gating (§10.4); `refusal`-class, open-by-default so a different eligible actor may decide | [PROVEN] |
 | `consultation-failed` | required consultations (§11.1); `refusal`-class, open-by-default for re-run | [PROVEN] |
@@ -558,9 +559,10 @@ defined with their sections:
 single derivation (the **`appendsOn`** rule): `compromise` appends wherever the current state
 admits a state-leaving append (§5) — against already-terminal `expired`/`refused` or sealed
 records it is surfaced result-first with no edge; a fixed **never-appends** set — the
-pre-record, terminal-record, and redemption/seal codes (`record-exists`, `record-not-open`,
-`unknown-profile`, `unknown-leg`, `unredeemable-state`, `unsealable-state`, `effect-mismatch`,
-`already-redeemed`, `redemption-timeout`, `prior-leg-unverified`) — never appends; every other
+pre-record, terminal-record, contention, and redemption/seal codes (`record-exists`,
+`record-not-open`, `unknown-profile`, `unknown-leg`, `unredeemable-state`, `unsealable-state`,
+`effect-mismatch`, `already-redeemed`, `redemption-timeout`, `prior-leg-unverified`,
+`record-contended`) — never appends; every other
 `refusal`-class code appends `open → refused` **iff** the leg's `terminalRefusals` lists it —
 otherwise the record stays `open` for retry. Two codes are legal `terminalRefusals` members
 but inert: `leg-expired` (resolved at the state/expiry gate, ahead of the
@@ -649,7 +651,11 @@ expire if due) → **(3)** identity → **(3.5)** separation of duties → **(4)
 **(4.5)** policy-drift → **(5)** facts → **(5.5)** consultations/eligibility → **(5.7)** ack
 coverage **[PROVEN]** → **(6)** the success batch: one atomic, variable-arity
 `appendBatch([chain-verify, facts, …obtained consultations, confirmed])` — all-or-nothing, so
-a conflict never leaves a partial tail. Two validation *throws* sit deliberately ahead of the
+a conflict never leaves a partial tail: an entry conflict on state refuses `record-not-open`,
+and a sequence conflict against a head a concurrent finding or acknowledgment moved refuses
+`record-contended` (§10.2, never appends) — the seam never re-sends the batch, and
+re-invocation re-evaluates the ladder against the new head. Two validation *throws* sit
+deliberately ahead of the
 ladder, at different depths. Consultation shape throws at **argument intake**, before
 anything is loaded — that caller bug throws identically regardless of record state, ahead of
 every outcome including `chain-compromise`. The policy declared-iff-present throw fires at
@@ -835,7 +841,9 @@ the only appends between `opened` and the decision:
 Both seams follow the uniform seam discipline: mandatory pre-seam chain-verify; only `open`
 records accept the append — an already-`expired` or due-open record refuses `leg-expired`
 (the expired edge appended en passant where due), any other non-open state refuses
-`record-not-open` (never-append, §8); both seams throw on a record whose resolved leg
+`record-not-open` (never-append, §8), and an append that loses its sequence to a concurrent
+finding or acknowledgment refuses `record-contended` (never-append, §8) — the record unchanged
+and still open; both seams throw on a record whose resolved leg
 declares no findings flow — so a non-declaring profile can never acquire finding/ack
 transitions, and its chains are byte-identical to a pre-findings implementation.
 

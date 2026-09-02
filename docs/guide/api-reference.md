@@ -275,17 +275,17 @@ Domain refusals are returned, never thrown. Exceptions are reserved for caller/c
 errors and storage faults where nothing was recorded. `transitionRef` is present only when
 the refusal actually appended a transition.
 
-One exception is retryable by design rather than a bug. When `finalize` or `decline` loses its
-single batch append to a concurrent state-preserving append on the same record (a
-`raiseFinding` or `acknowledge` landing between the seam's chain read and its write), the seam
-throws an `Error` whose `name` is `'ContentionError'`. Nothing was recorded, the record is
-unchanged and still open, and re-invoking re-runs the whole gate ladder against the new head —
-so a required-kind finding raised in between now gates. The seam never retries the append
-itself. A genuine storage fault at the same site keeps its own, differently worded throw.
+One refusal describes a race rather than an input. When `finalize`, `decline`, `raiseFinding`
+or `acknowledge` loses its append to a concurrent state-preserving append on the same record (a
+finding raised or acknowledged between the seam's chain read and its write), it returns
+`{ status: 'refused', code: 'record-contended' }`: nothing was recorded, the record is unchanged
+and still open, and re-invoking re-runs the whole gate ladder against the new head — so a
+required-kind finding raised in between now gates. The seam never retries the append itself. A
+genuine storage fault at the same site stays a throw, told apart by a one-time re-read.
 
 ### Refusal codes
 
-24 codes against the current tree. Class `refusal` unless noted.
+25 codes against the current tree. Class `refusal` unless noted.
 
 | Code | Fires when |
 |---|---|
@@ -308,6 +308,7 @@ itself. A genuine storage fault at the same site keeps its own, differently word
 | `ineligible` | The eligibility check refused this actor |
 | `policy-drift` | The live policy digest differs from the bound one |
 | `ack-missing` / `ack-stale` | Findings-flow coverage: no ack, or no *counting* ack, for a required-kind finding |
+| `record-contended` | A decision or findings seam lost its append to a concurrent finding or acknowledgment on the same record — nothing recorded, the record still open; re-invoke (never appends; findings-flow profiles only) |
 | `consultation-stale` | A freshness-bounded consultation's `observedAt` claim is missing, future, or out of bound |
 
 Append behavior: `chain-compromise` appends wherever the state admits it; `availability`
@@ -505,7 +506,7 @@ leaves the entry behind, and a seam that refuses against a record admitting no a
 target leaves one on every such call. Two further producers are ordinary operation, not
 failure: a `finalize`/`decline` that loses its batch to a concurrent append leaves one entry
 per batch element (the batch is signed before the store adjudicates it — the
-`ContentionError` case), and an `open()` whose expire-then-retry re-stamps its genesis under a
+`record-contended` case), and an `open()` whose expire-then-retry re-stamps its genesis under a
 moving clock leaves the first attempt's entry. They are inert to verification — every reader
 correlates from the chain to the sidecar, never the reverse, so an orphan is never read for
 a verdict — and they are safe to prune whenever no chain transition references them.

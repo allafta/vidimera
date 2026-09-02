@@ -78,9 +78,10 @@ is not already implicit in the rationale).
     derivation.** Every code has a class or the build fails; whether a refusal appends is
     `appendsOn(code, leg)` in one place. — Registry drift and per-seam append improvisation
     are the failure modes; totality and centralization prevent both.
-15. **A fixed never-appends set.** Pre-record, terminal-record, and redemption/seal codes
-    never write a `refused` edge. — There is either no record to append to, or a terminal
-    chain that must not grow; appending "refusals" there fabricates history. — Inert
+15. **A fixed never-appends set.** Pre-record, terminal-record, contention, and
+    redemption/seal codes never write a `refused` edge. — There is either no record to append
+    to, a terminal chain that must not grow, or a lost sequence race whose call landed nothing;
+    appending "refusals" there fabricates history. — Inert
     `terminalRefusals` members are documented rather than silently accepted.
 
 ## The chain

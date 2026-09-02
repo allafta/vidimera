@@ -349,15 +349,11 @@ decision pending now).
   inactive status is quoted above under "outside the scope"; the design questions for the day
   it activates are what remain open here.)
 
-Four further questions were surfaced by the 2026-09-02 code review and are recorded as
+Three further questions were surfaced by the 2026-09-02 code review and are recorded as
 **sanction-gated, not decided** — each would move a sealed enumeration or narrow a sealed rule,
 so each needs a fresh pass through `docs/concept/SCOPING-GUIDE.md` §§1–2; the argument for each
 is in its phase's commit message on `code-review-fixes`:
 
-- **A never-appends contention refusal code.** A `finalize`/`decline` whose batch lost a seq
-  race to a concurrent state-preserving append today throws an `Error` named `ContentionError`;
-  no registry code is true of an open, intact, undecided record, and the registry is
-  spec-fixed at twenty-four. The result-first shape is a new code.
 - **A per-leg raiser/acker authority allowlist**, consulted at ack-counting time. Today the
   findings seams admit any well-formed transport identity — the informing population is
   distinct from the deciders `allowedAuthorities` governs — and a host that wants the library
@@ -369,6 +365,9 @@ is in its phase's commit message on `code-review-fixes`:
   contract's "the library performs no pruning" and by register row 22's third horn; the
   `seq`-based split a host can compute (beyond-head means never landed; an occupied slot means
   a competing signed transition) never changes a verdict.
+
+(A fourth, a never-appends contention refusal code, was decided the same day: `record-contended`,
+minted under its own sanction — `docs/superpowers/specs/2026-09-02-record-contended-design.md`.)
 
 ### OQ §2 — decided in code; the recording gap closed 2026-08-19
 

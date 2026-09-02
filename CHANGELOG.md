@@ -134,13 +134,25 @@ is the summary, and that file wins on conflict.
   Reporting only: no gate, verdict, or seam reads it, and deferral-register row 22's
   orphan-accumulation half stays open — the field makes the growth visible, it does not
   bound it.
+- **`record-contended`** (2026-09-02, the record-contended increment — a SPEC §8 registry
+  amendment under its own fresh sanction, the tenth marker-bearing sealed-set edit): the
+  twenty-fifth refusal code. A `finalize`, `decline`, `raiseFinding` or `acknowledge` that loses
+  its append to a concurrent finding or acknowledgment on the same record now returns
+  `{ status: 'refused', code: 'record-contended' }` — nothing recorded, the record still open,
+  re-invoke — where the code-review fixes earlier in this same unreleased span had thrown an
+  `Error` named `ContentionError`. Profile-conditional under the findings flow, the only source
+  of state-preserving appends; never appends (the never-appends set's definition widens to name
+  contention as its fourth category); a genuine storage fault at the same site keeps its
+  throw. The two `ContentionError` entries below describe that interim shape and are left as the
+  history they are.
 
 ### Changed
 
 - **Code-review fixes, six phases** (2026-09-02, branch `code-review-fixes`; each phase is
   one commit whose message carries the argument). `finalize`/`decline` losing their single
   batch append to a concurrent state-preserving append (`raiseFinding`/`acknowledge`) on the
-  same record now throw an `Error` named `ContentionError` — nothing recorded, re-invoke —
+  same record now throw an `Error` named `ContentionError` — nothing recorded, re-invoke; since
+  minted as the refusal `record-contended`, see Added —
   where they threw a storage-fault error whose message asserted the race was unreachable
   under a single-writer bound the Postgres adapter never had; a genuine storage fault keeps
   its own throw, told apart by a one-time re-read. `verifyChain` gains a fourth check, record
@@ -187,7 +199,8 @@ is the summary, and that file wins on conflict.
 - **Code-review, second round** (2026-09-02, the same branch): the findings seams mapped
   EVERY lost compare-and-swap to `record-not-open`, false of a record that lost only a seq
   race and is still open — two concurrent `raiseFinding` calls now leave the loser with the
-  same `ContentionError` the decision seams throw, and re-invocation lands its finding; the
+  same `ContentionError` the decision seams then threw (since the refusal `record-contended`),
+  and re-invocation lands its finding; the
   signing decorator no longer learns from an empty chain (a non-genesis append arriving before
   its genesis had pinned the record as non-signing, so the genuine genesis landed unsigned and
   the fail-closed layer read chain-compromise — reachable only through `withSigning` composed
@@ -207,7 +220,8 @@ is the summary, and that file wins on conflict.
   verifier's silence on content across legs pinned as an omission awaiting a ruling, with the
   divergence shown derivable from the recorded reference alone; three source comments and one
   test header that asserted a single-writer bound reworded to the reachable truth; the guide
-  caught up (`ContentionError`, `SqliteStore.close()`, `verifyChain`'s fourth check, the
+  caught up (`ContentionError`, since `record-contended`; `SqliteStore.close()`, `verifyChain`'s
+  fourth check, the
   `allowedAuthorities` rule); `CLAUDE.md`'s measured sentence re-measured (67 files, 860
   tests). Deferral-register row 23 opened for the one item deferred as its own increment: an
   optional `tx` on the `Store`'s five reads (it does not gate the cut).

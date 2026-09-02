@@ -29,7 +29,7 @@ packages: `@vidimera/record` and `@vidimera/store-postgres` (the server-SQL thir
 reference backing, tested against a real embedded Postgres the suite starts per run).
 Measured against the current
 tree: `pnpm test` — 67 test files, 860 tests, zero skips; `packages/record/src/refusal-codes.ts`
-carries 24 refusal codes; zero GOVERNED construction guards remain in `config.ts` — every
+carries 25 refusal codes; zero GOVERNED construction guards remain in `config.ts` — every
 field the feature-guard era installed has lifted behind real behavior at its own seam
 (`unknownOptionKey` — named `governedUnavailable` until the registry-hygiene increment —
 survives only for four generic unknown-option-key throw sites, in
@@ -217,7 +217,10 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   cells (commit `07dd900`) — the only non-SPEC move, and the build order's last. Three more
   followed, one per post-build-order promotion: recorded human decline (`801fe7e`), proposal
   provenance (`e974242`), and effect-result notarization (`35de662`), each moving SPEC.md,
-  CONTROLS.md and GLOSSARY.md tokens — nine marker-move commits in total, each a separate,
+  CONTROLS.md and GLOSSARY.md tokens, and the `record-contended` registry amendment (SPEC §8's
+  row and never-appends definition, its §9/§10.2 sentences, GLOSSARY.md, DECISIONS.md #15 and
+  ARCHITECTURE.md, landed with the behavior) — ten marker-bearing sealed-set commits in total,
+  each a separate,
   explicit, per-increment authorization, spent at the increment it covered. A new
   `docs/concept/` edit needs a FRESH sanction through `SCOPING-GUIDE.md` §§1–2's own
   tier-test and promotion-rule machinery, never assumed from a past one.

@@ -126,20 +126,21 @@ type Outcome<T> =
 
 Exceptions are reserved for **caller and config errors** (unknown `recordId`, malformed
 input, a construction-time contract violation) and storage faults — cases where nothing
-was recorded and the caller has a bug or an outage, not a decision outcome. One further
-exception is neither a bug nor an outage: a concurrent `raiseFinding` or `acknowledge` can
-cost `finalize` or `decline` its single batch append, which surfaces as an `Error` named
-`ContentionError` — nothing recorded, re-invoke (the integration guide has the shape).
+was recorded and the caller has a bug or an outage, not a decision outcome. A lost race is
+neither: a concurrent `raiseFinding` or `acknowledge` can cost `finalize`, `decline`, or a
+findings seam its append, which surfaces as the refusal `record-contended` — nothing recorded,
+re-invoke (the integration guide has the shape).
 
 A refusal *may* append a `refused` transition — that is itself a recorded decision — or
 may leave the record open for retry. The rule: `chain-compromise` records itself wherever
 the record's state still admits an append; a fixed never-appends set (the pre-record
-failures, the state-gate refusals, and every redemption-seam refusal) never does; every
+failures, the state-gate refusals, the contention refusal, and every redemption-seam refusal)
+never does; every
 other refusal appends `open → refused` only if the leg's `terminalRefusals` lists that
 code, and otherwise leaves the record open. `unavailable` (a required authority
 unreachable) never appends — an outage is not a decision.
 
-The full registry is 24 codes; the API reference lists them all. The ones you will meet
+The full registry is 25 codes; the API reference lists them all. The ones you will meet
 first: `content-drift`, `identity-authority-refused`, `consultation-missing`,
 `record-not-open`, `leg-expired`, `chain-compromise`.
 

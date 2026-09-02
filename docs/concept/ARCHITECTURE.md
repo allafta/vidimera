@@ -141,7 +141,9 @@ INTAKE   validate host consultations (throw)
  (5.5) consultations / eligibility  →  consultation-missing / consultation-failed
                                        / ineligible / availability
  (5.7) ack coverage                 →  ack-missing / ack-stale  (findings-flow only)
- (6)   success batch                →  ok  (one atomic appendBatch)
+ (6)   success batch                →  ok  (one atomic appendBatch) / record-contended
+                                       (findings-flow only: the head moved under a concurrent
+                                       finding or ack)
 ```
 
 Why each gate sits where it does:
@@ -170,7 +172,9 @@ Why each gate sits where it does:
   append) makes an ack-coverage judgment premature.
 - **(6) success batch** — one atomic, variable-arity
   `appendBatch([chain-verify, facts, …obtained consultations, confirmed])`; all-or-nothing,
-  so a conflict never leaves a partial tail of stray transitions.
+  so a conflict never leaves a partial tail of stray transitions. A sequence conflict against
+  a head a concurrent finding or acknowledgment moved refuses `record-contended` (findings-flow
+  only; never appends) — the seam never re-sends, and re-invocation re-evaluates the ladder.
 
 The two validation *throws* are deliberately placed at different depths: the intake throw
 wins over everything; the profile-resolution throw follows chain verification, so
