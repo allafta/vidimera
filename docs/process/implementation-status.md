@@ -4372,3 +4372,193 @@ opened. `release.yml`'s `--access public` stays the single copy of that fact.
 accepted keys unchanged), pinned one devDependency major with a Dependabot guard, and added
 registry metadata to both manifests; it removed no capability and changed no seam's
 accepted keys or refusal behavior.
+
+## Post-build-order increment — Parked truths (four items from both 2026-09-01 reviews)
+
+**The eighteenth post-build-order increment, exited (commits `da8f99e`..`7cb7c8f`, closed
+by the record commit that follows them).** The ordinal counts every section above in
+order, excluding only the documentation-only signature-enforcement-coverage findings
+note, the same rule the seventeen before it used. **No sanction was needed and none was
+sought**: nothing in `docs/concept/` moves, no maturity marker moves, no register row or
+checklist box moves, and the public surface does not change. Design:
+`docs/superpowers/specs/2026-09-02-parked-truths-design.md`; plan:
+`docs/superpowers/plans/2026-09-02-parked-truths.md`.
+
+**What the increment is.** Four items parked with rulings, rather than fixed in place, by
+both 2026-09-01 final reviews — three (items A, B, C below) by the registry-hygiene
+increment's whole-branch review, one (item D) by the truth-restoration increment's final
+review the same day. Both reviews' session ledgers are deleted per that process's own
+discipline, so the design document (dated 2026-09-02) is the durable statement of what
+each review found and ruled; this account and that design document are now the only
+record of them. One `packages/*/src/` edit changes an adopter-visible ERROR STRING (item
+C) — the same last-chance-before-0.1 logic both parent increments ran on: after the
+publish, that string is immutable for 0.1 and an adopter could come to match on it.
+Everything else is comments, one documentation sentence, and two test assertions.
+
+**Item A — `construction-validation.test.ts` spoke of the current throw in the guard
+era's vocabulary.** The registry-hygiene sweep's own grep patterns (`governedUnavailable`,
+the full old head) could not see bare-word mentions, and five present-tense sites
+survived it. The vocabulary rule applied is the one the registry-hygiene sweep already
+used, extended to bare words: past-tense narration of the guard era stays verbatim;
+present-tense description of the CURRENT thrown string moves to unknown-option-key
+vocabulary. All twenty-one bare-`GOVERNED` mentions in the file, measured against base
+`da8f99e`, five moved and sixteen ruled to stand — the full per-hit table, carried here
+from task 2's own report:
+
+| Line | Context | Classification | Tense | Status |
+|---|---|---|---|---|
+| 3 | `build once guarded with a GOVERNED throw (the guard-era head...` | Header history | PAST | STAYS |
+| 7 | `no longer has any live GOVERNED-throw pin of its own` | Header history | PAST | STAYS |
+| 8 | `` `assertGoverned`/`GOVERNED` helpers this file once carried are gone `` | Header history, dead helpers | PAST | STAYS |
+| 15 | `(non-GOVERNED) error` → `error (never the unknown-option-key string)` | Present-tense current throw description | PRESENT | **MOVED** |
+| 19 | `options key was the one GOVERNED guard living outside this file's` | Header history, per-field guard | PAST | STAYS |
+| 23 | `generic unknown-key GOVERNED throw` → `throw (its GOVERNED head reworded at...)` | Reframed from present to past-tense context | PRESENT→PAST | **MOVED** |
+| 75 | `(NOT the GOVERNED string)` → `(NOT the unknown-option-key string)` | Present-tense current throw description | PRESENT | **MOVED** |
+| 102 | `=== GOVERNED throws — one per not-yet-enforceable field ===` | Era-naming banner, describes the guard era | PAST | STAYS |
+| 105 | `INVERTED, at the live-capture increment: the kernel increment pinned a GOVERNED` | INVERTED record, guard-era history | PAST | STAYS |
+| 142 | `INVERTED, at the first step-4 increment: the kernel increment pinned a GOVERNED` | INVERTED record, guard-era history | PAST | STAYS |
+| 146 | `per-leg `sod`/`proposer` were GOVERNED until the second step-4` | Guard-era history, transition record | PAST | STAYS |
+| 169 | `INVERTED, at the second step-4 increment: the kernel increment pinned a GOVERNED` | INVERTED record, guard-era history | PAST | STAYS |
+| 219 | `The single-leg shape was GOVERNED before the second step-4 increment` | Guard-era history, transition record | PAST | STAYS |
+| 242 | `GOVERNED before the second step-4 increment; now STRUCTURAL per the ruling` | Guard-era history, transition record | PAST | STAYS |
+| 293 | `INVERTED, at the second step-5 increment: the kernel increment pinned a GOVERNED` | INVERTED record, guard-era history | PAST | STAYS |
+| 329 | `kernel increment pinned a GOVERNED throw here while no gate consumed` | INVERTED record, guard-era history | PAST | STAYS |
+| 450 | `INVERTED, at the first step-6 increment: the kernel increment pinned a GOVERNED` | INVERTED record, guard-era history | PAST | STAYS |
+| 483 | `kernel increment pinned a GOVERNED throw here while nothing bound or compared` | INVERTED record, guard-era history | PAST | STAYS |
+| 509 | `GOVERNED throw here (its `redeeming` edges could not carry §4's declared` | INVERTED record, guard-era history | PAST | STAYS |
+| 636 | `(not the GOVERNED string)` → `(not the unknown-option-key string)` | Present-tense current throw description (banner) | PRESENT | **MOVED** |
+| 638 | `(NOT the GOVERNED string)` → `(NOT the unknown-option-key string)` | Present-tense current throw description (test title) | PRESENT | **MOVED** |
+
+Five sites moved (lines 15, 23, 75, 636, 638): a comment, a comment reframed to
+past-tense context, a docstring, a section banner, and a test title — no assertion logic
+changed at any of the five. The remaining sixteen are past-tense narration of the guard
+era (header history, the lifted-guard record at line 19, the `:102` era-naming banner,
+the eight INVERTED-at-increment records, and three transition records) and stay verbatim.
+`./node_modules/.bin/vitest run packages/record/test/construction-validation.test.ts` —
+37 tests passed, unchanged before and after, since no assertion moved.
+
+**Item B — `CLAUDE.md`'s measured sentence was stale.** The test-count clause read "67
+test files, 821 tests" while the suite had measured 832 since the truth-restoration
+increment, and this increment's own two new tests move it again; the sentence's
+neighboring parenthetical (the construction-guard and throw-site count) had been updated
+by the registry-hygiene increment while the test-count clause two words earlier sat
+outside that envelope. The refusal-code count in the same sentence ("24 refusal codes")
+was NOT stale — see the cross-check episode below, where a defective measurement recipe
+briefly suggested otherwise. The sentence now reads "67 test files, 833 tests, zero
+skips" with "carries 24 refusal codes" unchanged; nothing else in the sentence or file
+moved.
+
+**Item C — `beginRedemption`'s unknown-option-key tail needed a charitable reading.**
+`kernel/redeem.ts`'s shared `validateRedeemOptions` minted `` `${seam}() accepts only tx
+and result in this build. Contract: §11.2, §12.` `` for all three redemption seams, but
+`beginRedemption` never accepts a `result` — the key loop admits it and the very next
+check refuses it unconditionally at issuance, with its own dedicated message ("opts.result
+is not admitted at issuance…", which is true and unchanged). An adopter reading the
+unknown-key string alone at that seam was told issuance accepts a key it always refuses.
+The tail is now seam-dependent — `beginRedemption`:
+
+```
+beginRedemption() accepts only tx in this build — a result is refused at issuance and
+belongs to completeRedemption (SPEC §11.2). Contract: §11.2, §12.
+```
+
+`redeem` / `completeRedemption` (unchanged):
+
+```
+${seam}() accepts only tx and result in this build. Contract: §11.2, §12.
+```
+
+The key loop still `continue`s on `result` for all three seams, so passing `result` to
+`beginRedemption` still produces the DEDICATED refusal, never the unknown-key one — both
+sides are pinned in `redeem-token.test.ts` by one test with two `assert.rejects` calls:
+an anchored positive match on the new `beginRedemption` head-plus-tail form (red-first
+against the pre-split shared tail, captured in task 1's own report), and a
+`doesNotMatch`/dedicated-message assertion on a present `result`, so the two messages'
+division of labor is pinned, not narrated. `redeem()`'s own tail pin
+(`effect-result.test.ts` ~:107) already covered the shared variant and needed no change.
+
+**Item D — the key-retirement pin counted orphans outside the register's own
+vocabulary.** The truth-restoration increment's key-retirement baseline
+(`no-edge-containment.test.ts`) proved one-orphan-per-refusing-call by
+`listByRecord().length` growth against a flat chain — semantically equivalent, but the
+deferral register and the sidecar-orphans report speak in `verifySignatures().orphans`.
+The parking ruling said: add the report-vocabulary assertion at that file's next touch,
+and this increment takes the trigger deliberately. Inside the BASELINE test's per-call
+loop, after the existing sidecar-growth assertion:
+
+```ts
+const report = await rig.handles.operator.verifySignatures(recordId);
+assert.equal(report.orphans.length, call, 'the report names each minted orphan');
+```
+
+`rig.handles` is the full verifier registry, not the retired instance, so the read is the
+operator's ordinary audit read; `orphans` is derived chain-vs-sidecar and
+verifier-independent either way. Fire-checked by temporarily asserting `call - 1`: the
+assertion failed with `1 !== 0` on the first call, confirmed live, then reverted. The
+existing `listByRecord` growth assertions stay — the two counts agreeing in the same run
+is the point. Reporting vocabulary only: **row 22a is unchanged**, said here so nobody
+reads the stronger assertion as movement — no containment claim of any kind is added.
+
+**The task-2 commit-message amend, recorded as part of this increment's own gate
+story.** Task 2's original commit subject baked in a miscount ("seventeen") against the
+brief's mandated "sixteen" ruled-to-stand sites; the tip was unpushed and the tree's
+content was already correct — the report's own table always totaled 5 moved + 16 stand =
+21 — so a message-only amend was authorized, the same precedent used for a prior
+BOM-only amend, and applied: `3b59ef8` → `371c56c`, verified tree-identical before and
+after by diffstat. The corrected subject is what `git log` shows on this branch today.
+
+**Item B's cross-check episode, recorded as part of this increment's own gate story —
+the measurement discipline working, not a defect in the tree.** Step 1's brief-mandated
+recipe for the refusal-code count,
+`awk '/^export const REGISTRY/,/^};/' packages/record/src/refusal-codes.ts | grep -c
+"':"`, printed **22** against `packages/record/src/refusal-codes.ts`. Cross-checked, per
+the brief's own instruction, against the `RefusalCode` union's arms: **24**, matching the
+file's own self-numbering comments (`ack-missing`/`ack-stale` are named "the twenty-first
+and twenty-second codes," `supersedes-unverified` "the twenty-third," and
+`consultation-stale` "the twenty-fourth and LAST code of this build"). 22 ≠ 24: per the
+brief's explicit "if the two disagree, STOP and report," the task stopped before touching
+`CLAUDE.md`, reported the disagreement rather than resolving it, and offered a diagnosis
+without acting on it. A controller ruling then confirmed that diagnosis: `REGISTRY`
+(`Record<RefusalCode, RefusalClass>`, compiler-enforced total per the file's own doc
+comment) has exactly 24 entries, but two of its keys — `availability` and `ineligible` —
+are valid bare identifiers and so are written UNQUOTED in the object literal; the
+recipe's `grep -c "':"` matches only a quote immediately followed by a colon, so it
+silently misses both, undercounting by exactly 2. **The ruling: the awk recipe was
+defective, not the tree.** The authoritative refusal-code figure is 24, and `CLAUDE.md`'s
+existing "24 refusal codes" claim was never stale on that axis — only the test-count
+clause two words earlier was. Stopping on the disagreement, rather than picking a number,
+is recorded here as the mandated behavior it was, not a delay.
+
+**The measured figures, from step 1's full gate run against branch `parked-truths`,
+tip `7cb7c8f`, before this section was written.**
+`./node_modules/.bin/vitest run` — 67 test files, 833 tests, zero skips — up from the
+pre-increment 67 files/832 tests by exactly the one new test item C's pin adds (task 1's
+`redeem-token.test.ts` test with two `assert.rejects` calls; task 2 changed no test, only
+comments, a docstring, a banner, and a title; task 3 added one assertion inside an
+existing test's existing per-call loop, not a new test). Refusal-code count: 24 (the
+cross-check episode above). `./node_modules/.bin/tsc -p packages/record --noEmit` and
+`./node_modules/.bin/tsc -p packages/store-postgres --noEmit` — both clean.
+`./node_modules/.bin/biome check --error-on-warnings .` — "Checked 135 files in 259ms. No
+fixes applied.", exit 0. `node scripts/contract-scan.mjs`, `node
+scripts/api-reference-sync.mjs`, `node scripts/docs-index-sync.mjs` — all exit 0, silent
+(docs-index-sync re-run again after this section and the CHANGELOG entries were written,
+since the scan reaches this file's own new content only once it is written).
+`./node_modules/.bin/tsc -p packages/record/tsconfig.build.json && ./node_modules/.bin/tsc
+-p packages/store-postgres/tsconfig.build.json` (what `pnpm build` runs) — clean, `dist/`
+emitted for both packages. `node scripts/smoke-pack.mjs` (what `pnpm smoke` runs) — exit
+0, "smoke: OK - 4 transitions, confirmed + intact, 17 probes visible through ./probes;
+adapter resolved, peer range ^0.0.0, PostgresStore constructs (packaging-level only, by
+recorded bound)".
+
+**What stays outside, and why.** No deferral-register row moved: item D's own text says
+so plainly — row 22a is unchanged, since the new `verifySignatures().orphans` assertion
+is reporting vocabulary added to an existing BASELINE test, never a containment claim of
+any kind. No release-checklist box was ticked; this increment does not touch
+`docs/process/release-checklist.md` at all. No maturity marker moved, no public-surface
+name changed, and no `docs/concept/` file was opened.
+`packages/record/test/byte-stability.test.ts` was not opened, let alone edited.
+
+**Cuts.** None. This increment split one error-message tail by seam, moved five
+comment/docstring/title sites' vocabulary, re-measured one documentation sentence's
+figures, and added one reporting-only assertion to an existing test; it removed no
+capability and changed no seam's accepted keys, refusal behavior, or class.

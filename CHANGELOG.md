@@ -145,6 +145,14 @@ is the summary, and that file wins on conflict.
   has, was recorded as unpinned prose, and this reword lands before 0.1 — the package's
   first release, none having shipped yet — ships the string an adopter could come to match
   on. The new head IS pinned. Each seam's tail is unchanged.
+- **`beginRedemption`'s unknown-option-key tail** (2026-09-02, the parked-truths
+  increment): an unknown key at issuance now says `beginRedemption() accepts only tx in
+  this build — a result is refused at issuance and belongs to completeRedemption (SPEC
+  §11.2)` where it shared the family-wide "accepts only tx and result" sentence —
+  issuance never accepted a result (the dedicated refusal for a present one is
+  unchanged), and this was the one seam whose unknown-key sentence needed a charitable
+  reading. Pinned on both sides: the new tail, and that a present result still gets the
+  dedicated message, never the unknown-key one.
 - **Manifest metadata** (same increment): both packages gain `homepage`, `bugs`, and
   `keywords` so the 0.1 registry pages render links and are keyword-findable;
   `publishConfig` deliberately omitted (the release workflow passes `--access public`
@@ -156,6 +164,13 @@ is the summary, and that file wins on conflict.
 
 ### Fixed
 
+- **Parked truths** (2026-09-02): `construction-validation.test.ts` stopped describing
+  the current unknown-option-key throw in the guard era's vocabulary (five present-tense
+  sites; the sixteen past-tense guard-era records stand); `CLAUDE.md`'s measured
+  sentence re-measured (67 files, 833 tests; the refusal-code count stood at 24 as
+  measured); the key-retirement orphan pin now also counts
+  `verifySignatures().orphans` — the register's own vocabulary, reporting only, row 22a
+  unchanged.
 - **Truth restoration** (2026-09-01, post-build-order): every stale shipped-source and
   test sentence found by the pre-cut sweep repaired against what the tree actually does —
   the retired naming-review pointer (`operator-surface.ts`), the Node floor (`id.ts`), the
