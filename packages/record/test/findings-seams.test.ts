@@ -367,3 +367,41 @@ test('the dueAt re-supply pin: a raised-on record still lists as due at its open
       'seam re-supplied dueAt, so the sweep still sees the open window',
   );
 });
+
+test('both seams admit an authority outside allowedAuthorities while finalize and decline refuse that same identity — deciders and informers are different populations', async () => {
+  // The review's phase 2 ruling, pinned where the asymmetry lives: rung (3) of the two
+  // decision seams reads the leg's `allowedAuthorities` (SPEC §6); the findings seams read
+  // only the identity's shape (`validateSeamIdentity`), because a raiser or acker is the
+  // host's informing population — the review-surface checker's kind, "informs, never
+  // decides" — and listing them as deciders would widen who may confirm.
+  const store = new MemoryStore();
+  const handles = create(makeConfig([flowProfile({ decline: true })], { store }));
+  const recordId = await openRecord(handles, CONTENT, 'test.flow.v1', SUBJECT);
+  const unlisted = { principal: 'auditor:9', authority: 'oidc:unlisted' };
+
+  const raised = await handles.operator.raiseFinding(
+    recordId,
+    { findingId: 'f-1', kind: 'variance', findingDigest: D1 },
+    unlisted,
+  );
+  assert.equal(raised.status, 'ok', 'raiseFinding admits the unlisted authority');
+  const acked = await handles.operator.acknowledge(
+    recordId,
+    { findingId: 'f-1', findingDigest: D1 },
+    unlisted,
+  );
+  assert.equal(acked.status, 'ok', 'acknowledge admits the unlisted authority');
+
+  const confirm = await handles.operator.finalize(recordId, unlisted, CONTENT, facts());
+  assert.equal(confirm.status, 'refused');
+  if (confirm.status === 'refused') assert.equal(confirm.code, 'identity-authority-refused');
+  const declined = await handles.operator.decline(recordId, unlisted, CONTENT, facts());
+  assert.equal(declined.status, 'refused');
+  if (declined.status === 'refused') assert.equal(declined.code, 'identity-authority-refused');
+
+  assert.deepEqual(
+    (await handles.operator.readChain(recordId)).map((t) => t.kind),
+    ['opened', 'finding-raised', 'acknowledged'],
+    'the informing appends landed; the two decision refusals appended nothing (default leg)',
+  );
+});

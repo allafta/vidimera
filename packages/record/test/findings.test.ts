@@ -402,3 +402,59 @@ test('terminalRefusals can end the leg on ack-missing: the refusal appends and t
   assert.equal(rec?.state, 'refused');
   assert.equal(rec?.refusalCode, 'ack-missing');
 });
+
+// === the seams' identity posture, pinned end to end (the review's phase 2 ruling) ==========
+//
+// `allowedAuthorities` governs who may DECIDE — finalize/decline's rung (3), SPEC §6 — and
+// raisers/ackers are a different population: this file's own RAISER is a service authority
+// the leg never lists, and the seams admit any well-formed transport identity the host
+// establishes. Whether an ack counts is `ackCounts`'s principal-only comparison, so an
+// unlisted authority neither helps nor hurts an ack — only the principal does. Both halves
+// were implied by fixtures and pinned nowhere end to end, so a change to either could have
+// passed silently; these two tests make it loud.
+
+const UNLISTED_AUTHORITY = 'oidc:unlisted';
+
+test('an ack from an authority the leg does not list COUNTS under counterparty — allowedAuthorities gates deciders, not ackers', async () => {
+  const store = new MemoryStore();
+  const handles = create(makeConfig([flowProfile({ ackMode: 'counterparty' })], { store }));
+  const recordId = await openRecord(handles, CONTENT2, 'test.flow.v1', 'subject:gate-f');
+  await handles.operator.raiseFinding(
+    recordId,
+    { findingId: 'f-1', kind: 'variance', findingDigest: D1 },
+    RAISER,
+  );
+  const acked = await handles.operator.acknowledge(
+    recordId,
+    { findingId: 'f-1', findingDigest: D1 },
+    { principal: 'auditor:9', authority: UNLISTED_AUTHORITY },
+  );
+  assert.equal(acked.status, 'ok', 'the seam admits an authority the leg does not list');
+  const out = await handles.operator.finalize(recordId, identity(), CONTENT2, facts());
+  assert.equal(out.status, 'ok', 'a different principal is a counterparty whatever its authority');
+});
+
+test('the raiser principal under an unlisted authority does NOT count under counterparty — the same person re-authenticated, principal-only end to end', async () => {
+  const store = new MemoryStore();
+  const handles = create(makeConfig([flowProfile({ ackMode: 'counterparty' })], { store }));
+  const recordId = await openRecord(handles, CONTENT2, 'test.flow.v1', 'subject:gate-g');
+  await handles.operator.raiseFinding(
+    recordId,
+    { findingId: 'f-1', kind: 'variance', findingDigest: D1 },
+    RAISER,
+  );
+  const acked = await handles.operator.acknowledge(
+    recordId,
+    { findingId: 'f-1', findingDigest: D1 },
+    { principal: RAISER.principal, authority: UNLISTED_AUTHORITY },
+  );
+  assert.equal(acked.status, 'ok', 'recorded — fidelity, not validity; counting is the gate’s');
+  const out = await handles.operator.finalize(recordId, identity(), CONTENT2, facts());
+  assert.equal(out.status, 'refused');
+  if (out.status !== 'refused') return;
+  assert.equal(
+    out.code,
+    'ack-stale',
+    'a different authority does not make the raiser a counterparty',
+  );
+});
