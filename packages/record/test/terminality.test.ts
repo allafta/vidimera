@@ -16,6 +16,7 @@ import { test } from 'vitest';
 import { transitionDigest } from '../src/chain/encoding.js';
 import type { ConfirmProfile, LegSpec } from '../src/config.js';
 import { create } from '../src/create.js';
+import type { Outcome } from '../src/outcome.js';
 import { MemoryStore } from '../src/store/memory.js';
 import type { AppendMeta, AppendResult, BatchResult, Store } from '../src/store/store.js';
 import type { Digest, RecordState, StagedDraft, Transition } from '../src/types.js';
@@ -151,10 +152,10 @@ test('finalize() throws a storage fault when the batch reports a seq conflict, w
         `expected the batch conflict throw naming shape and index, got: ${err.message}`,
       );
       assert.match(err.message, /nothing was appended/, 'the message must say nothing landed');
-      assert.notEqual(
+      assert.equal(
         err.name,
-        'ContentionError',
-        'a fabricated conflict over an unmoved head is a storage fault, never contention',
+        'Error',
+        'a fabricated conflict over an unmoved head is a plain storage-fault throw, never a refusal',
       );
       return true;
     },
@@ -210,7 +211,7 @@ test('a seq conflict whose diagnostic re-read ALSO fails still surfaces the conf
     () => handles.operator.finalize(recordId, identity(), CONTENT, facts()),
     (err: unknown) => {
       assert.ok(err instanceof Error);
-      assert.notEqual(err.name, 'ContentionError', 'contention cannot be established');
+      assert.equal(err.name, 'Error', 'contention cannot be established — the fault throws');
       assert.match(err.message, /batch append conflict \('seq'\) at element 0/);
       assert.match(err.message, /re-read/, 'the message says the diagnostic read itself failed');
       assert.match(err.message, /nothing was appended/, 'the all-or-nothing assurance survives');
@@ -276,7 +277,8 @@ test("finalize()'s batch digests are the ones finalize itself computed", async (
 // argued about — there is no longer a "conflict after something already landed" for a code to
 // misrepresent, because `appendBatch`'s entry CAS is all-or-nothing. The throw-not-refuse
 // mapping this note inverted TO is still the mapping in force (`batchSeqConflict`, above — which,
-// since the code-review fixes, tells a moved head, `ContentionError`, from a storage fault), but it
+// since the code-review fixes, tells a moved head — now the refusal `record-contended` — from a
+// storage fault), but it
 // no longer needs the enumerate-the-union argument that took two failed attempts to write
 // correctly — a `seq` conflict throws and a `state-mismatch` refuses, full stop, because
 // nothing is ever partially applied for either shape to misrepresent. The test this note
@@ -403,9 +405,9 @@ test("finalize() refuses record-not-open when the batch's entry compare-and-swap
 // append (`raiseFinding`/`acknowledge`) landing in that window keeps the record `open`, so the
 // batch passes the store's entry compare-and-swap and fails its seq check honestly — the head
 // moved. The store honoured its contract; only the kernel's mapping of the result is on trial
-// here. Nothing of the losing call lands, so the mapping must (a) not misrepresent the record
-// with a refusal code that is false of it, and (b) be distinguishable from a storage fault, so a
-// host can re-invoke rather than page someone.
+// here. Nothing of the losing call lands, so the mapping must (a) name the record truthfully —
+// `record-contended`, the code the record-contended increment minted for exactly this — and (b)
+// stay distinguishable from a storage fault, which keeps its throw.
 
 const RACE_RAISER = { principal: 'checker:race', authority: 'mtls:checker' };
 const RACE_DIGEST = `sha256:${'a'.repeat(64)}`;
@@ -487,30 +489,20 @@ async function armedRace(kind: string, extra: Partial<LegSpec> = {}) {
   return { handles, recordId };
 }
 
-/** The contention throw's shape: named, truthful about what landed, and naming the remedy. */
-function isContentionError(seam: 'finalize' | 'decline') {
-  return (err: unknown): boolean => {
-    assert.ok(err instanceof Error);
-    assert.equal(err.name, 'ContentionError', 'a host must be able to tell contention apart');
-    assert.ok(err.message.startsWith(`${seam}: `), `the message names the seam: ${err.message}`);
-    assert.doesNotMatch(
-      err.message,
-      /storage fault/,
-      'a conforming store that lost a race to another writer is not a storage fault',
-    );
-    assert.match(err.message, /nothing was appended/, 'the message must say nothing landed');
-    assert.match(err.message, /re-invoke/i, 'the message names re-invocation as the remedy');
-    return true;
-  };
+/** The contention outcome's shape (the record-contended increment): a RETURNED refusal, never a
+ * throw — `record-contended`, refusal-class, never-appends, so no transitionRef. */
+function assertContended(outcome: Outcome<unknown>): void {
+  assert.equal(outcome.status, 'refused', 'contention is a refusal, not an exception');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'record-contended');
+  assert.equal(outcome.class, 'refusal');
+  assert.equal(outcome.transitionRef, undefined, 'a never-appends code carries no transitionRef');
 }
 
-test('finalize() throws a ContentionError, not a storage fault, when a state-preserving append lands between its chain read and its batch: nothing of the call landed', async () => {
+test('finalize() refuses record-contended, not a storage fault, when a state-preserving append lands between its chain read and its batch: nothing of the call landed', async () => {
   const { handles, recordId } = await armedRace('note');
 
-  await assert.rejects(
-    () => handles.operator.finalize(recordId, identity(), CONTENT, facts()),
-    isContentionError('finalize'),
-  );
+  assertContended(await handles.operator.finalize(recordId, identity(), CONTENT, facts()));
 
   const chain = await handles.operator.readChain(recordId);
   assert.deepEqual(
@@ -525,13 +517,10 @@ test('finalize() throws a ContentionError, not a storage fault, when a state-pre
   );
 });
 
-test('after a contention loss, re-invoking finalize() confirms when the raced finding kind is NOT in requiredAcks — the ladder re-evaluates against the new head', async () => {
+test('after a record-contended refusal, re-invoking finalize() confirms when the raced finding kind is NOT in requiredAcks — the ladder re-evaluates against the new head', async () => {
   const { handles, recordId } = await armedRace('note'); // requiredAcks is ['variance']
 
-  await assert.rejects(
-    () => handles.operator.finalize(recordId, identity(), CONTENT, facts()),
-    isContentionError('finalize'),
-  );
+  assertContended(await handles.operator.finalize(recordId, identity(), CONTENT, facts()));
 
   const again = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
   assert.equal(again.status, 'ok', 'a non-gating finding does not block the re-invocation');
@@ -545,13 +534,10 @@ test('after a contention loss, re-invoking finalize() confirms when the raced fi
   );
 });
 
-test('after a contention loss, re-invoking finalize() refuses ack-missing when the raced finding kind IS in requiredAcks — fail-closed through rung (5.7), never a silent batch retry', async () => {
+test('after a record-contended refusal, re-invoking finalize() refuses ack-missing when the raced finding kind IS in requiredAcks — fail-closed through rung (5.7), never a silent batch retry', async () => {
   const { handles, recordId } = await armedRace('variance'); // requiredAcks is ['variance']
 
-  await assert.rejects(
-    () => handles.operator.finalize(recordId, identity(), CONTENT, facts()),
-    isContentionError('finalize'),
-  );
+  assertContended(await handles.operator.finalize(recordId, identity(), CONTENT, facts()));
 
   const again = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
   assert.equal(again.status, 'refused', 'the gating finding the confirmer never saw blocks');
@@ -565,13 +551,10 @@ test('after a contention loss, re-invoking finalize() refuses ack-missing when t
   );
 });
 
-test('decline() throws the same ContentionError on the same race: nothing of the call landed, the record is still open', async () => {
+test('decline() refuses the same record-contended on the same race: nothing of the call landed, the record is still open', async () => {
   const { handles, recordId } = await armedRace('variance', { decline: true });
 
-  await assert.rejects(
-    () => handles.operator.decline(recordId, identity(), CONTENT, facts()),
-    isContentionError('decline'),
-  );
+  assertContended(await handles.operator.decline(recordId, identity(), CONTENT, facts()));
 
   assert.deepEqual(
     (await handles.operator.readChain(recordId)).map((t) => t.kind),

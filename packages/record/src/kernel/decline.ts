@@ -287,9 +287,11 @@ export async function decline(
   );
   if (!res.appended) {
     if (res.conflict === 'seq') {
-      // Shared with finalize: a moved head is a `ContentionError` (re-invoke), an unmoved
-      // head a storage fault — see `batchSeqConflict`'s doc comment for the split.
-      throw await batchSeqConflict('decline', store, recordId, chain.length, res.index);
+      // Shared with finalize: a moved head refuses `record-contended` (re-invoke), an unmoved
+      // head throws a storage fault — see `batchSeqConflict`'s doc comment for the split.
+      const verdict = await batchSeqConflict('decline', store, recordId, chain.length, res.index);
+      if (verdict.contended) return refused('record-contended');
+      throw verdict.fault;
     }
     return refused('record-not-open');
   }

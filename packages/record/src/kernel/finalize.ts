@@ -89,11 +89,11 @@
 //     conforming Store: a state-preserving append (`kernel/findings-seams.ts`'s
 //     `raiseFinding`/`acknowledge`) landing between this call's chain read and its batch keeps
 //     the record `open`, so the entry CAS passes and the store correctly refuses the stale seq.
-//     No refusal code is true of that record (open, intact, undecided), so the seam THROWS, and
-//     `batchSeqConflict` re-reads once to tell the two honest stories apart: a moved head is a
-//     `ContentionError` (re-invoke — the ladder re-evaluates against the new head, so a
-//     finding the confirmer never saw gates through rung (5.7) when its kind is required); an
-//     unmoved head is a storage fault. Either way nothing was recorded, so both throws sit
+//     `batchSeqConflict` re-reads once to tell the two honest stories apart: a moved head
+//     refuses `record-contended` (SPEC §8, the record-contended increment — a RETURNED refusal,
+//     never appends; re-invoke, and the ladder re-evaluates against the new head, so a finding
+//     the confirmer never saw gates through rung (5.7) when its kind is required); an unmoved
+//     head is a storage fault and THROWS. Either way nothing was recorded, so the throw sits
 //     inside DECISIONS.md #10's "nothing was recorded" exception rather than beside it. The
 //     seam never re-sends the batch itself: a fresh-seq retry would confirm over evidence the
 //     human did not see.
@@ -596,7 +596,9 @@ export async function finalize(
   );
   if (!res.appended) {
     if (res.conflict === 'seq') {
-      throw await batchSeqConflict('finalize', store, recordId, chain.length, res.index);
+      const verdict = await batchSeqConflict('finalize', store, recordId, chain.length, res.index);
+      if (verdict.contended) return refused('record-contended');
+      throw verdict.fault;
     }
     // `state-mismatch`. The batch applied nothing, so `record-not-open` is true of the
     // record AND honours its never-appends entry — both, for the first time at this seam.
@@ -617,10 +619,21 @@ export async function finalize(
 // --- helpers ---------------------------------------------------------------------------
 
 /**
- * The batch `seq`-conflict mapping — rung (6)'s single append, shared with `kernel/decline.ts`
+ * The two honest stories a `seq` conflict can tell, told apart by one advisory re-read (the
+ * `kernel/redeem.ts` `residualRefusal` precedent): CONTENDED — a conforming Store adjudicated
+ * this call's append against a head another writer had moved, so the caller refuses
+ * `record-contended` (SPEC §8: never appends; the record is unchanged and still open); or a
+ * FAULT — the head did not move, or the conflict sits past element 0, or the re-read itself
+ * failed — carrying the storage-fault error the caller throws (DECISIONS.md #11).
+ */
+export type SeqConflictVerdict = { contended: true } | { contended: false; fault: Error };
+
+/**
+ * The batch `seq`-conflict classifier — rung (6)'s single append, shared with `kernel/decline.ts`
  * (EXPORTED for it, the second caller). Only the `seq` shape reaches here: a `state-mismatch`
  * means the record is not open, which `record-not-open` describes truthfully since nothing was
- * appended, so it is returned result-first at both call sites.
+ * appended, so it is returned result-first at both call sites. This function returns a verdict,
+ * never throws: the caller refuses `record-contended` or throws the carried fault.
  *
  * A `seq` conflict has TWO honest producers, and the caller cannot tell them apart from the
  * result alone, so this helper re-reads the chain ONCE — advisory, no append, the
@@ -630,10 +643,10 @@ export async function finalize(
  *    adjudicated this call's batch against a head another writer had moved. The entry CAS
  *    passed, so whatever landed was state-preserving (a `raiseFinding`/`acknowledge`) and the
  *    record is still `open`, intact and undecided — no refusal code is true of it, and the
- *    `unavailable` arm's `authority` names no one here. The throw carries `name =
- *    'ContentionError'` so a host can retry it programmatically without parsing prose, and
- *    its message names re-invocation as the remedy: the ladder then re-evaluates against the
- *    new head, so a finding the confirmer never saw gates through rung (5.7) if its kind is
+ *    `unavailable` arm's `authority` names no one here — so the record-contended increment
+ *    minted `record-contended` (SPEC §8, never appends), which the caller RETURNS: a host
+ *    matches on the code and re-invokes, and the ladder then re-evaluates against the new
+ *    head, so a finding the confirmer never saw gates through rung (5.7) if its kind is
  *    required. The seam deliberately does NOT re-send the batch with a fresh seq — that would
  *    skip (5.7) and confirm over evidence the human did not see.
  *  - STORAGE FAULT (everything else): the head did not move, yet the store reported a
@@ -641,7 +654,8 @@ export async function finalize(
  *    from the head it read — cannot produce under a conforming Store. DECISIONS.md #11 makes a
  *    storage fault a loud throw.
  *
- * Both throws sit inside DECISIONS.md #10's "storage faults where nothing was recorded" scope:
+ * The fault's throw sits inside DECISIONS.md #10's "storage faults where nothing was recorded"
+ * scope, and the refusal is #10's result-first rule kept:
  * the batch is all-or-nothing, so neither leaves anything on the chain. A writer landing
  * between the store's adjudication and this re-read can only widen the growth this helper
  * observes, never shrink it — chains only grow — so the contention branch stays true under a
@@ -653,7 +667,7 @@ export async function batchSeqConflict(
   recordId: string,
   readLength: number,
   index: number,
-): Promise<Error> {
+): Promise<SeqConflictVerdict> {
   return seqConflict(seam, store, recordId, readLength, index);
 }
 
@@ -661,15 +675,16 @@ export async function batchSeqConflict(
  * The single-append twin of `batchSeqConflict`, for the seams whose one `appendTransition`
  * can lose a seq race to a concurrent state-preserving writer while the record stays `open`
  * (`kernel/findings-seams.ts`'s `raiseFinding`/`acknowledge`, racing each other or a
- * decision seam's batch). The same two honest stories, told apart the same way; the message
- * says "append conflict" with no element index.
+ * decision seam's batch). The same two honest stories, told apart the same way and returned as
+ * the same verdict — the caller refuses `record-contended` or throws the fault; the fault's
+ * message says "append conflict" with no element index.
  */
 export async function appendSeqConflict(
   seam: 'raiseFinding' | 'acknowledge',
   store: Store,
   recordId: string,
   readLength: number,
-): Promise<Error> {
+): Promise<SeqConflictVerdict> {
   return seqConflict(seam, store, recordId, readLength, undefined);
 }
 
@@ -679,7 +694,7 @@ async function seqConflict(
   recordId: string,
   readLength: number,
   index: number | undefined,
-): Promise<Error> {
+): Promise<SeqConflictVerdict> {
   // The diagnostic re-read may itself fail (the store that just misreported may be dying):
   // its rejection must never REPLACE the conflict report, which is what tells the host that
   // nothing landed. Caught here and carried as the thrown error's `cause`.
@@ -696,15 +711,7 @@ async function seqConflict(
   // is a quieter diagnosis, never a wrong record; the exact signal would be the store reporting
   // the head seq it adjudicated against (deferral-register row 23's increment names it).
   if (fresh !== undefined && (index === undefined || index === 0) && fresh.length > readLength) {
-    const err = new Error(
-      `${seam}: contention — the chain head moved between this call's read (${readLength} ` +
-        `transitions) and its append (${fresh.length} now): another writer landed a ` +
-        "state-preserving append in between, and the store correctly refused this call's " +
-        'stale seq. The batch is all-or-nothing: nothing was appended by this call and the ' +
-        'record is unchanged by it. Re-invoke to re-evaluate the gate ladder against the new head.',
-    );
-    err.name = 'ContentionError';
-    return err;
+    return { contended: true };
   }
   const why =
     fresh === undefined
@@ -722,9 +729,9 @@ async function seqConflict(
     `${seam}: ${index === undefined ? `${site} ('seq')` : site}. A Store honouring the ` +
     `compare-and-swap contract cannot report this: ${why}. This is a storage fault. The ` +
     'batch is all-or-nothing: nothing was appended and the record is unchanged.';
-  return reReadFailure === undefined
-    ? new Error(message)
-    : new Error(message, { cause: reReadFailure });
+  const fault =
+    reReadFailure === undefined ? new Error(message) : new Error(message, { cause: reReadFailure });
+  return { contended: false, fault };
 }
 
 /**
