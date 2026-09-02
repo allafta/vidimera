@@ -265,6 +265,8 @@ test('BASELINE — key retirement: dropping the keyRef from the verifier registr
       sidecarBefore + call,
       `one orphan per refusing call (call ${call})`,
     );
+    const report = await rig.handles.operator.verifySignatures(recordId);
+    assert.equal(report.orphans.length, call, 'the report names each minted orphan');
   }
 });
 
