@@ -320,7 +320,10 @@ function validateRedeemOptions(
     throw new Error(
       unknownOptionKey(
         key,
-        `${seam}() accepts only tx and result in this build. Contract: §11.2, §12.`,
+        seam === 'beginRedemption'
+          ? 'beginRedemption() accepts only tx in this build — a result is refused at ' +
+              'issuance and belongs to completeRedemption (SPEC §11.2). Contract: §11.2, §12.'
+          : `${seam}() accepts only tx and result in this build. Contract: §11.2, §12.`,
       ),
     );
   }

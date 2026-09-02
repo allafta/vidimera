@@ -862,3 +862,28 @@ test('ENLISTED completeRedemption over a tampered chain: chain-compromise result
   sqlite.database.exec('ROLLBACK'); // must not throw
   assert.deepEqual(await sqlite.readChain(recordId), before, 'the chain is unchanged');
 });
+
+test('beginRedemption: an unknown option key gets the seam-true tail, and a PRESENT result gets the dedicated issuance refusal — never the unknown-key message', async () => {
+  const { recordId, handles } = await confirmedEffectRecord();
+
+  // The unknown-key message, seam-true: issuance honors tx alone.
+  await assert.rejects(
+    () => handles.operator.beginRedemption(recordId, CONTENT, { nope: 1 } as never),
+    /^Error: unknown option key \(nope\) — beginRedemption\(\) accepts only tx in this build/,
+  );
+
+  // A present result is a DIFFERENT refusal — the dedicated issuance message, which the
+  // tail points toward; the unknown-key head must not appear.
+  await assert.rejects(
+    () =>
+      handles.operator.beginRedemption(recordId, CONTENT, {
+        result: { digest: `sha256:${'a'.repeat(64)}` },
+      } as never),
+    (err: unknown) => {
+      assert.ok(err instanceof Error);
+      assert.match(err.message, /not admitted at issuance/);
+      assert.doesNotMatch(err.message, /unknown option key/);
+      return true;
+    },
+  );
+});
