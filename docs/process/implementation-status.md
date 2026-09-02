@@ -4439,9 +4439,9 @@ the eight INVERTED-at-increment records, and three transition records) and stay 
 
 **Item B — `CLAUDE.md`'s measured sentence was stale.** The test-count clause read "67
 test files, 821 tests" while the suite had measured 832 since the truth-restoration
-increment, and this increment's own two new tests move it again; the sentence's
+increment, and this increment's own one new test moves it again; the sentence's
 neighboring parenthetical (the construction-guard and throw-site count) had been updated
-by the registry-hygiene increment while the test-count clause two words earlier sat
+by the registry-hygiene increment while the test-count clause two clauses earlier sat
 outside that envelope. The refusal-code count in the same sentence ("24 refusal codes")
 was NOT stale — see the cross-check episode below, where a defective measurement recipe
 briefly suggested otherwise. The sentence now reads "67 test files, 833 tests, zero
