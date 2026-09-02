@@ -6,13 +6,15 @@
 // second open() is blocked with `record-exists`. Also pins the atomic-batch bound:
 // finalize()'s success append is ONE all-or-nothing `appendBatch` call in this build — a
 // conflict at its entry compare-and-swap applies NOTHING, leaving the chain exactly as it
-// was, and surfaces as `record-not-open` (a `state-mismatch`) or a storage-fault throw (a
-// `seq`).
+// was, and surfaces as `record-not-open` (a `state-mismatch`) or a throw (a `seq`): a
+// CONTENTION error when a re-read shows the head genuinely moved under a conforming store, a
+// storage-fault error when it shows nothing landed.
 
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
 import { transitionDigest } from '../src/chain/encoding.js';
+import type { ConfirmProfile, LegSpec } from '../src/config.js';
 import { create } from '../src/create.js';
 import { MemoryStore } from '../src/store/memory.js';
 import type { AppendMeta, AppendResult, BatchResult, Store } from '../src/store/store.js';
@@ -149,6 +151,11 @@ test('finalize() throws a storage fault when the batch reports a seq conflict, w
         `expected the batch conflict throw naming shape and index, got: ${err.message}`,
       );
       assert.match(err.message, /nothing was appended/, 'the message must say nothing landed');
+      assert.notEqual(
+        err.name,
+        'ContentionError',
+        'a fabricated conflict over an unmoved head is a storage fault, never contention',
+      );
       return true;
     },
   );
@@ -326,6 +333,191 @@ test("finalize() refuses record-not-open when the batch's entry compare-and-swap
     'confirmed',
     'the record really is non-open — `record-not-open` is true of this state, not merely returned',
   );
+});
+
+// === the batch's seq conflict under a CONFORMING store: contention, not a storage fault ====
+//
+// The window is real: finalize() and decline() read the chain once, then suspend at
+// `signatureLayerHolds` and `resolveDueClock` before their one `appendBatch`. A state-preserving
+// append (`raiseFinding`/`acknowledge`) landing in that window keeps the record `open`, so the
+// batch passes the store's entry compare-and-swap and fails its seq check honestly — the head
+// moved. The store honoured its contract; only the kernel's mapping of the result is on trial
+// here. Nothing of the losing call lands, so the mapping must (a) not misrepresent the record
+// with a refusal code that is false of it, and (b) be distinguishable from a storage fault, so a
+// host can re-invoke rather than page someone.
+
+const RACE_RAISER = { principal: 'checker:race', authority: 'mtls:checker' };
+const RACE_DIGEST = `sha256:${'a'.repeat(64)}`;
+
+/** captureProfile with the leg's findings flow declared (both-or-neither pair). */
+function flowProfile(requiredAcks: string[], extra: Partial<LegSpec> = {}): ConfirmProfile {
+  const p = captureProfile({ id: 'test.flow.v1' });
+  const leg = p.legs[0];
+  if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
+  p.legs[0] = { ...leg, ackMode: 'any', requiredAcks, ...extra };
+  return p;
+}
+
+/**
+ * A Store wrapper that fires a one-shot `race` hook BEFORE forwarding the first `appendBatch`
+ * to its inner `MemoryStore`. The hook drives a GENUINE second writer through the kernel — a
+ * `raiseFinding` over this same wrapper — so the edge that lands is the seam's own, under the
+ * inner store's real compare-and-swap, not a hand-built imitation. Every other method delegates.
+ *
+ * The `assert.equal` inside the hook is a fixture PRECONDITION, load-bearing for the same
+ * reason `RaceThenAppendStore`'s are: if the raced finding silently failed to land, the batch
+ * would succeed and the test would pass while testing nothing.
+ */
+class RaceFindingThenBatchStore implements Store {
+  readonly inner = new MemoryStore();
+  race: (() => Promise<void>) | undefined;
+  putStaged(s: StagedDraft): Promise<void> {
+    return this.inner.putStaged(s);
+  }
+  getStaged(r: string): Promise<StagedDraft | null> {
+    return this.inner.getStaged(r);
+  }
+  readChain(r: string): Promise<Transition[]> {
+    return this.inner.readChain(r);
+  }
+  chainHead(r: string): Promise<Digest | null> {
+    return this.inner.chainHead(r);
+  }
+  appendTransition(
+    expected: RecordState | null,
+    transition: Transition,
+    meta: AppendMeta,
+  ): Promise<AppendResult> {
+    return this.inner.appendTransition(expected, transition, meta);
+  }
+  async appendBatch(
+    expectedCurrentState: RecordState,
+    transitions: readonly Transition[],
+    meta: AppendMeta,
+  ): Promise<BatchResult> {
+    const race = this.race;
+    if (race !== undefined) {
+      this.race = undefined;
+      await race();
+    }
+    return this.inner.appendBatch(expectedCurrentState, transitions, meta);
+  }
+  listDue(now: Date): Promise<string[]> {
+    return this.inner.listDue(now);
+  }
+  findNonTerminal(p: string, s: string): Promise<string | null> {
+    return this.inner.findNonTerminal(p, s);
+  }
+}
+
+/** Opens a record on a findings-declaring profile and arms the race with a finding of `kind`. */
+async function armedRace(kind: string, extra: Partial<LegSpec> = {}) {
+  const store = new RaceFindingThenBatchStore();
+  const handles = create(makeConfig([flowProfile(['variance'], extra)], { store }));
+  const recordId = await openRecord(handles, CONTENT, 'test.flow.v1', DEFAULT_SUBJECT_REF);
+  store.race = async () => {
+    const out = await handles.operator.raiseFinding(
+      recordId,
+      { findingId: 'f-race', kind, findingDigest: RACE_DIGEST },
+      RACE_RAISER,
+    );
+    assert.equal(out.status, 'ok', 'fixture: the racing raiseFinding must genuinely land');
+  };
+  return { handles, recordId };
+}
+
+/** The contention throw's shape: named, truthful about what landed, and naming the remedy. */
+function isContentionError(seam: 'finalize' | 'decline') {
+  return (err: unknown): boolean => {
+    assert.ok(err instanceof Error);
+    assert.equal(err.name, 'ContentionError', 'a host must be able to tell contention apart');
+    assert.ok(err.message.startsWith(`${seam}: `), `the message names the seam: ${err.message}`);
+    assert.doesNotMatch(
+      err.message,
+      /storage fault/,
+      'a conforming store that lost a race to another writer is not a storage fault',
+    );
+    assert.match(err.message, /nothing was appended/, 'the message must say nothing landed');
+    assert.match(err.message, /re-invoke/i, 'the message names re-invocation as the remedy');
+    return true;
+  };
+}
+
+test('finalize() throws a ContentionError, not a storage fault, when a state-preserving append lands between its chain read and its batch: nothing of the call landed', async () => {
+  const { handles, recordId } = await armedRace('note');
+
+  await assert.rejects(
+    () => handles.operator.finalize(recordId, identity(), CONTENT, facts()),
+    isContentionError('finalize'),
+  );
+
+  const chain = await handles.operator.readChain(recordId);
+  assert.deepEqual(
+    chain.map((t) => t.kind),
+    ['opened', 'finding-raised'],
+    'only the racing writer edge is on the chain — this call appended nothing',
+  );
+  assert.equal(
+    (await handles.operator.getRecord(recordId))?.state,
+    'open',
+    'the record is still open — which is exactly why no existing refusal code is true of it',
+  );
+});
+
+test('after a contention loss, re-invoking finalize() confirms when the raced finding kind is NOT in requiredAcks — the ladder re-evaluates against the new head', async () => {
+  const { handles, recordId } = await armedRace('note'); // requiredAcks is ['variance']
+
+  await assert.rejects(
+    () => handles.operator.finalize(recordId, identity(), CONTENT, facts()),
+    isContentionError('finalize'),
+  );
+
+  const again = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(again.status, 'ok', 'a non-gating finding does not block the re-invocation');
+  if (again.status !== 'ok') return;
+  assert.equal(again.value.state, 'confirmed');
+  const chain = await handles.operator.readChain(recordId);
+  assert.deepEqual(
+    chain.map((t) => t.kind),
+    ['opened', 'finding-raised', 'consultation-recorded', 'consultation-recorded', 'confirmed'],
+    'the re-invocation chains its batch after the raced finding — one batch, not two',
+  );
+});
+
+test('after a contention loss, re-invoking finalize() refuses ack-missing when the raced finding kind IS in requiredAcks — fail-closed through rung (5.7), never a silent batch retry', async () => {
+  const { handles, recordId } = await armedRace('variance'); // requiredAcks is ['variance']
+
+  await assert.rejects(
+    () => handles.operator.finalize(recordId, identity(), CONTENT, facts()),
+    isContentionError('finalize'),
+  );
+
+  const again = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(again.status, 'refused', 'the gating finding the confirmer never saw blocks');
+  if (again.status !== 'refused') return;
+  assert.equal(again.code, 'ack-missing');
+  assert.equal(again.transitionRef, undefined, 'ack-missing is open-by-default here: no edge');
+  assert.deepEqual(
+    (await handles.operator.readChain(recordId)).map((t) => t.kind),
+    ['opened', 'finding-raised'],
+    'neither call appended — the record waits for the ack, still open',
+  );
+});
+
+test('decline() throws the same ContentionError on the same race: nothing of the call landed, the record is still open', async () => {
+  const { handles, recordId } = await armedRace('variance', { decline: true });
+
+  await assert.rejects(
+    () => handles.operator.decline(recordId, identity(), CONTENT, facts()),
+    isContentionError('decline'),
+  );
+
+  assert.deepEqual(
+    (await handles.operator.readChain(recordId)).map((t) => t.kind),
+    ['opened', 'finding-raised'],
+    'only the racing writer edge is on the chain — this call appended nothing',
+  );
+  assert.equal((await handles.operator.getRecord(recordId))?.state, 'open');
 });
 
 // === redeem(): unredeemable-state on a capture-only profile; the DIRECT-shape redemption on

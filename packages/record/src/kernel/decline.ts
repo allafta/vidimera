@@ -30,6 +30,7 @@ import { validateConsultations } from './consultations.js';
 import { resolveDueClock } from './expiry.js';
 import {
   appendChainCompromise,
+  batchSeqConflict,
   type Facts,
   isValidFacts,
   isValidIdentity,
@@ -286,12 +287,9 @@ export async function decline(
   );
   if (!res.appended) {
     if (res.conflict === 'seq') {
-      throw new Error(
-        `decline: batch append conflict ('seq') at element ${res.index}. Under this build's ` +
-          'single-writer bound, with a Store honouring the compare-and-swap contract, no ' +
-          'conflict is reachable here — a storage fault; the batch is all-or-nothing: ' +
-          'nothing was appended and the record is unchanged.',
-      );
+      // Shared with finalize: a moved head is a `ContentionError` (re-invoke), an unmoved
+      // head a storage fault — see `batchSeqConflict`'s doc comment for the split.
+      throw await batchSeqConflict('decline', store, recordId, chain.length, res.index);
     }
     return refused('record-not-open');
   }
