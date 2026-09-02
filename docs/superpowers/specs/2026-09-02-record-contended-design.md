@@ -194,7 +194,9 @@ not taken here: the refusal there is never false, only possibly stale.
 **GRANTED 2026-09-02** by the maintainer, in session, on the words "continue as recommended"
 given in answer to the explicit grant-or-withhold question on this document. The grant
 licenses exactly the touches listed below and nothing else; it is spent when the increment
-exits.
+exits. **Re-granted 2026-09-02** for the three definitional touches the spec review surfaced
+(SPEC §8's defining clause, `GLOSSARY.md`'s entry, `DECISIONS.md` #15), on the maintainer's
+words in session.
 
 - **SPEC §8, profile-conditional table:** one new row after `ack-missing` / `ack-stale` —
   `record-contended` | findings flow (§10.2); `refusal`-class; a decision-progress or findings
@@ -219,6 +221,11 @@ exits.
   restate that definition; `record-contended` (an open, undecided record; no redemption, no
   seal) is none of the three. Joining the list without widening the definition leaves the
   sealed set contradicting itself in three places.
+- **Widened at review, re-granted (below):** the never-appends DEFINITION gains the contention
+  code as a fourth category in all three places that state it — SPEC §8's defining clause
+  ("the pre-record, terminal-record, contention, and redemption/seal codes"), `GLOSSARY.md`'s
+  Never-append set entry, and `DECISIONS.md` #15 (its reason gains "or a lost sequence race
+  whose call landed nothing") — so the set's definition and its list agree everywhere.
 - **Not touched, said plainly so a reviewer can disagree:** `CONTROLS.md` (its findings row
   describes the control's gate codes, not the seams' concurrency outcome); `GLOSSARY.md` (no
   per-code entries); `OPEN-QUESTIONS.md` (no open question decides this); `CONCEPT.md` (the

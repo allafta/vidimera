@@ -624,6 +624,8 @@ git commit -m "record-contended 3/4: raiseFinding and acknowledge refuse record-
 - Modify: `docs/concept/SPEC.md` (§8 table at line 549; never-appends list at 561–563; §9
   rung (6) at 651–652; §10.2 at 837–838) — exactly the touches spec §8 licenses
 - Modify: `docs/concept/ARCHITECTURE.md:144` and `:171–173`
+- Modify: `docs/concept/GLOSSARY.md:87–88` and `docs/concept/DECISIONS.md:81–83` (the re-granted
+  definitional touches)
 - Modify: `packages/record/test/finalize-check-order.test.ts:37–42`
 - Modify: `docs/guide/api-reference.md` (~279–286, 288, after 310, 508), `docs/guide/integrating.md`
   (~153–160), `docs/guide/concepts.md` (~130–132, 142)
@@ -647,6 +649,17 @@ git commit -m "record-contended 3/4: raiseFinding and acknowledge refuse record-
 insert
 ```
 | `record-contended` | findings flow (§10.2); `refusal`-class — a decision-progress or findings seam lost its append to a concurrent finding or acknowledgment on the same record: nothing recorded, the record still `open`, re-invocation re-evaluates against the new head; never appends | [PROVEN] |
+```
+
+§8 never-appends DEFINITION, lines 560–561 (re-granted): replace
+```
+records it is surfaced result-first with no edge; a fixed **never-appends** set — the
+pre-record, terminal-record, and redemption/seal codes (`record-exists`, `record-not-open`,
+```
+with
+```
+records it is surfaced result-first with no edge; a fixed **never-appends** set — the
+pre-record, terminal-record, contention, and redemption/seal codes (`record-exists`, `record-not-open`,
 ```
 
 §8 never-appends list, lines 562–563: replace
@@ -688,6 +701,35 @@ with
 finding or acknowledgment refuses `record-contended` (never-append, §8) — the record unchanged
 and still open; both seams throw on a record whose resolved leg
 ```
+
+`docs/concept/GLOSSARY.md:87–88`: replace
+```
+- **Never-append set** — the fixed refusal codes that never write a `refused` edge
+  (pre-record, terminal-record, redemption/seal codes) (SPEC §8).
+```
+with
+```
+- **Never-append set** — the fixed refusal codes that never write a `refused` edge
+  (pre-record, terminal-record, contention, and redemption/seal codes) (SPEC §8).
+```
+
+`docs/concept/DECISIONS.md:81–83`: replace
+```
+15. **A fixed never-appends set.** Pre-record, terminal-record, and redemption/seal codes
+    never write a `refused` edge. — There is either no record to append to, or a terminal
+    chain that must not grow; appending "refusals" there fabricates history. — Inert
+```
+with
+```
+15. **A fixed never-appends set.** Pre-record, terminal-record, contention, and
+    redemption/seal codes never write a `refused` edge. — There is either no record to append
+    to, a terminal chain that must not grow, or a lost sequence race whose call landed nothing;
+    appending "refusals" there fabricates history. — Inert
+```
+
+`docs/guide/concepts.md:136–137` (the guide's restatement, not sealed): replace `(the pre-record
+failures, the state-gate refusals, and every redemption-seam refusal)` with `(the pre-record
+failures, the state-gate refusals, the contention refusal, and every redemption-seam refusal)`.
 
 `docs/concept/ARCHITECTURE.md:144`: replace
 ```
@@ -902,7 +944,7 @@ plan's.)
 
 ```bash
 ./node_modules/.bin/biome check --error-on-warnings . && ./node_modules/.bin/tsc -p packages/record --noEmit && ./node_modules/.bin/tsc -p packages/store-postgres --noEmit && ./node_modules/.bin/vitest run && node scripts/contract-scan.mjs && node scripts/api-reference-sync.mjs && node scripts/docs-index-sync.mjs
-git add docs/concept/SPEC.md docs/concept/ARCHITECTURE.md packages/record/test/finalize-check-order.test.ts docs/guide CHANGELOG.md CLAUDE.md docs/process/implementation-status.md docs/process/next-phases.md docs/process/deferral-register.md
+git add docs/concept/SPEC.md docs/concept/ARCHITECTURE.md docs/concept/GLOSSARY.md docs/concept/DECISIONS.md packages/record/test/finalize-check-order.test.ts docs/guide CHANGELOG.md CLAUDE.md docs/process/implementation-status.md docs/process/next-phases.md docs/process/deferral-register.md
 git commit -m "record-contended 4/4: the sanctioned SPEC §8/§9/§10.2 and ARCHITECTURE text lands with the behavior; guide, changelog and records catch up"
 ```
 Then report the measured totals and stop; fast-forwarding `main` is the maintainer's call.
