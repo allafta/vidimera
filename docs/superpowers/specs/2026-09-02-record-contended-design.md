@@ -168,6 +168,11 @@ the head; only the terminal edge is best-effort, and re-invocation lands it.
 
 ## 8. Sanction requested (the exact sealed-set touches, licensed only by a fresh grant)
 
+**GRANTED 2026-09-02** by the maintainer, in session, on the words "continue as recommended"
+given in answer to the explicit grant-or-withhold question on this document. The grant
+licenses exactly the touches listed below and nothing else; it is spent when the increment
+exits.
+
 - **SPEC §8, profile-conditional table:** one new row after `ack-missing` / `ack-stale` —
   `record-contended` | findings flow (§10.2); `refusal`-class; a decision-progress or findings
   seam lost its append to a concurrent finding or acknowledgment on the same record — nothing
