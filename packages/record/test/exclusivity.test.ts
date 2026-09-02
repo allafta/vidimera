@@ -423,3 +423,57 @@ test('an expire-CAS state-mismatch (a race flipped the blocker) -> record-exists
     'exactly one genesis attempt — no retry after the expire-CAS mismatch',
   );
 });
+
+test('the expire-then-retry RE-STAMPS the retried genesis: the new record never claims to have opened before the expiry edge that admitted it, and its dueAt follows the new stamp', async () => {
+  // A TICKING clock — every reading advances one second — so the build-time stamp and the
+  // retry-time stamp differ, the shape a real clock has (the review's phase 5). Before this
+  // pin the retry reused the first attempt's transition verbatim, so the new record's `at`
+  // predated the blocker's `expired` edge by the seam's own latency: a cross-record causal
+  // inversion the library itself produced, and a `dueAt` derived from the stale stamp.
+  let ms = Date.parse(T0);
+  const clock = () => {
+    ms += 1000;
+    return new Date(ms);
+  };
+  const store = new MemoryStore();
+  const { agent, operator } = createWithClock(
+    makeConfig([captureProfile({ ttl: TTL_SECONDS })], { store }),
+    clock,
+  );
+  const staged = await agent.stage(
+    { subject: 'week-1', total: 40 },
+    'test.capture.v1',
+    DEFAULT_SUBJECT_REF,
+  );
+  assert.equal(staged.status, 'ok');
+  if (staged.status !== 'ok') return;
+  const first = await operator.open(staged.value.stagedRef);
+  assert.equal(first.status, 'ok');
+  if (first.status !== 'ok') return;
+
+  ms += TTL_SECONDS * 1000 * 2; // past the blocker's open window
+  const second = await operator.open(staged.value.stagedRef);
+  assert.equal(second.status, 'ok', 'the lapsed blocker is auto-expired and the new open admitted');
+  if (second.status !== 'ok') return;
+
+  const expiredEdge = (await operator.readChain(first.value.recordId))[1];
+  const genesisB = (await operator.readChain(second.value.recordId))[0];
+  assert.ok(expiredEdge !== undefined && genesisB !== undefined);
+  assert.equal(expiredEdge.kind, 'expired');
+  assert.ok(
+    Date.parse(genesisB.at) >= Date.parse(expiredEdge.at),
+    `the retried genesis (${genesisB.at}) is not stamped before the expiry edge (${expiredEdge.at}) that admitted it`,
+  );
+  // The open window follows the SAME fresh reading: due exactly at genesis.at + ttl, not
+  // one millisecond before — a re-stamped `at` with a stale dueAt would list early here.
+  const dueMs = Date.parse(genesisB.at) + TTL_SECONDS * 1000;
+  assert.equal(
+    (await store.listDue(new Date(dueMs - 1))).includes(second.value.recordId),
+    false,
+    'not due one ms before genesis.at + ttl',
+  );
+  assert.ok(
+    (await store.listDue(new Date(dueMs))).includes(second.value.recordId),
+    'due exactly at genesis.at + ttl',
+  );
+});

@@ -234,18 +234,23 @@ export async function open(
     isFinalLeg(legIndex, profile.legs.length),
     effectSeam,
   );
-  const deadlineMs = expiryDeadlineMs(openedTransition.at, profile.expiry);
-  const genesisMeta: AppendMeta = {
-    nonTerminal: openedNonTerminal,
-    // SPEC §12: presence sets the pending-clock column. This genesis append is the open
-    // ttl window's producer. The effect-seam `confirmToRedeem` window and the `redeeming`
-    // window are §9.1's other two clocks; both have their own producers as of the third
-    // step-3 increment (finalize's success batch; beginRedemption), and this seam now
-    // OBSERVES the confirmed window too — the C1 exclusivity branch below resolves a
-    // due-confirmed blocker en passant, the same expire-then-retry shape as the open
-    // window it already handled.
-    ...(deadlineMs === null ? {} : { dueAt: new Date(deadlineMs).toISOString() }),
+  // The genesis meta for a genesis stamped `atIso` — computed from the stamp it rides with,
+  // so a re-stamped retry (below) carries a window that follows its own reading.
+  const genesisMetaFor = (atIso: string): AppendMeta => {
+    const deadlineMs = expiryDeadlineMs(atIso, profile.expiry);
+    return {
+      nonTerminal: openedNonTerminal,
+      // SPEC §12: presence sets the pending-clock column. This genesis append is the open
+      // ttl window's producer. The effect-seam `confirmToRedeem` window and the `redeeming`
+      // window are §9.1's other two clocks; both have their own producers as of the third
+      // step-3 increment (finalize's success batch; beginRedemption), and this seam now
+      // OBSERVES the confirmed window too — the C1 exclusivity branch below resolves a
+      // due-confirmed blocker en passant, the same expire-then-retry shape as the open
+      // window it already handled.
+      ...(deadlineMs === null ? {} : { dueAt: new Date(deadlineMs).toISOString() }),
+    };
   };
+  const genesisMeta = genesisMetaFor(openedTransition.at);
 
   const first = await store.appendTransition(null, openedTransition, genesisMeta);
   if (first.appended) {
@@ -293,8 +298,19 @@ export async function open(
     return refused('record-exists');
   }
 
-  // The blocker is expired (now terminal); retry the genesis open EXACTLY ONCE.
-  const retry = await store.appendTransition(null, openedTransition, genesisMeta);
+  // The blocker is expired (now terminal); retry the genesis open EXACTLY ONCE — RE-STAMPED
+  // from a fresh clock reading: the retried record must never claim to have opened before
+  // the expiry edge that admitted it, and its open window follows the same reading. When
+  // the clock has not moved the bytes are identical, so the SAME object is reused (one mint
+  // under signing — `signing/decorate.ts` keys its mint memo by object identity).
+  const retryAt = now().toISOString();
+  const retryTransition: Transition =
+    retryAt === openedTransition.at ? openedTransition : { ...openedTransition, at: retryAt };
+  const retry = await store.appendTransition(
+    null,
+    retryTransition,
+    genesisMetaFor(retryTransition.at),
+  );
   if (retry.appended) {
     return ok({ recordId });
   }

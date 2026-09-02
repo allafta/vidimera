@@ -65,9 +65,11 @@ export function withSigning(
 
   // One signer invocation per transition OBJECT, not per append attempt. Two call paths hand
   // the SAME transition object to `appendTransition` more than once: the compromise append's
-  // candidate walk, and open()'s expire-then-retry. The bytes are identical, so the signature
-  // is identical and the sidecar upserts one key either way — the repeat buys nothing and, on
-  // a host whose signer is a remote key service, costs a round-trip each time.
+  // candidate walk, and open()'s expire-then-retry when the clock has not moved between the
+  // attempt and the retry (a moved clock re-stamps the retry — distinct bytes, minted on its
+  // own). The bytes are identical, so the signature is identical and the sidecar upserts one
+  // key either way — the repeat buys nothing and, on a host whose signer is a remote key
+  // service, costs a round-trip each time.
   //
   // Keyed by object identity, NOT by digest, and it memoizes the SIGNER's promise, not this
   // function's. A digest-keyed memo would weaken the pinned guarantee from "this append is

@@ -409,3 +409,22 @@ test('verifyChain(): a chain independently rebuilt via transitionDigest()/genesi
   };
   assert.deepEqual(verifyChain([opened, confirmed]), { intact: true });
 });
+
+test('verifyChain(): a FOREIGN recordId on a non-genesis transition is a break at that position even when every digest still links — a chain is one record', () => {
+  // The fabricated-splice shape an offline audit of an archived chain can meet (the review's
+  // phase 5): position 2 claims another record and every link is RECOMPUTED, so seq and
+  // prevHash both pass. No store can persist this — each backing keys the chain by the
+  // transition's own recordId — so only the exported audit read ever sees it.
+  const [genesis, middle, last] = goodChain();
+  assert.ok(genesis !== undefined && middle !== undefined && last !== undefined);
+  const foreign: Transition = { ...middle, recordId: 'rec-foreign' };
+  const relinked: Transition = { ...last, prevHash: transitionDigest(foreign) };
+  const spliced = [genesis, foreign, relinked];
+
+  const result = verifyChain(spliced);
+  assert.equal(result.intact, false, 'a record is one recordId — the splice is a break');
+  if (result.intact) return;
+  assert.equal(result.firstBreakSeq, 2, 'reported at the foreign transition, not after it');
+  assert.match(result.detail, /recordId/);
+  assert.match(result.detail, /rec-foreign/);
+});

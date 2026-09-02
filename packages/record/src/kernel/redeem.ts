@@ -173,7 +173,7 @@ async function refuseCorrespondenceMismatch(
  */
 function dueNow(chain: readonly Transition[], resolved: ResolvedProfile, now: Date): boolean {
   const win = pendingWindow(chain, resolved);
-  return win.window !== 'none' && win.deadlineMs < now.getTime();
+  return win.window !== 'none' && win.deadlineMs <= now.getTime();
 }
 
 /**

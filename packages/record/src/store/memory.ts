@@ -233,11 +233,12 @@ export class MemoryStore implements Store {
       state: 'open',
       nonTerminal: meta.nonTerminal,
       dueAt: meta.dueAt,
-      // Clone on write: `open()` deliberately reuses the same `openedTransition` object
-      // across its first attempt and an expire-then-retry (kernel/open.ts's `first` and
-      // `retry` genesis appends, both `store.appendTransition(null, openedTransition, …)`;
-      // named rather than line-pinned, because the previous pin here went stale) — the
-      // caller's object must not become a live write handle into what gets persisted here.
+      // Clone on write: `open()` reuses the same `openedTransition` object across its first
+      // attempt and an expire-then-retry when the clock has not moved between them
+      // (kernel/open.ts's `first` and `retry` genesis appends; a moved clock re-stamps the
+      // retry as a distinct object; named rather than line-pinned, because the previous pin
+      // here went stale) — the caller's object must not become a live write handle into
+      // what gets persisted here.
       chain: [structuredClone(transition)],
       sealed: false,
     });

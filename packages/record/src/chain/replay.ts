@@ -338,7 +338,11 @@ export type ChainVerifyReport =
  *  2. every subsequent `chain[i].prevHash` must equal `transitionDigest(chain[i-1])`
  *     (recomputed under `chain[i-1]`'s own recorded algorithm, via `encoding.ts`);
  *  3. seq continuity: `chain[i].seq` must equal `i + 1` for every `i` (1-based, +1
- *     per transition).
+ *     per transition);
+ *  4. record identity: every `chain[i].recordId` must equal `chain[0].recordId` — a chain
+ *     is one record's. No store can persist a mixed chain (each backing keys the chain by
+ *     the transition's own recordId), so this check exists for the exported offline read: a
+ *     fabricated splice whose links were recomputed passes 1-3 and fails here.
  * Reports `{intact:true}` if every check passes, or `{intact:false, firstBreakSeq,
  * detail}` on the FIRST index (1-based) at which any check fails — later breaks in
  * the same chain are not reported.
@@ -366,6 +370,7 @@ export function verifyChain(chain: readonly Transition[]): ChainVerifyReport {
   }
 
   let expectedPrevHash: Digest | undefined;
+  const genesisRecordId = chain[0]?.recordId;
 
   for (const [i, transition] of chain.entries()) {
     const expectedSeq = i + 1;
@@ -376,6 +381,14 @@ export function verifyChain(chain: readonly Transition[]): ChainVerifyReport {
         intact: false,
         firstBreakSeq: expectedSeq,
         detail: `expected seq ${expectedSeq} at chain position ${expectedSeq}, found seq ${transition.seq}`,
+      };
+    }
+
+    if (transition.recordId !== genesisRecordId) {
+      return {
+        intact: false,
+        firstBreakSeq: expectedSeq,
+        detail: `recordId mismatch at seq ${expectedSeq}: expected '${genesisRecordId}' (the genesis recordId — a chain is one record's), found '${transition.recordId}'`,
       };
     }
 

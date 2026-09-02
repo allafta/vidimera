@@ -115,7 +115,9 @@ export async function resolveDueClock(
   now: Date,
 ): Promise<ResolveResult> {
   const win = pendingWindow(chain, resolved);
-  if (win.window === 'none' || win.deadlineMs >= now.getTime()) return { due: false };
+  // Due when `now >= deadline` — the same inclusive instant SPEC §12's listing gate
+  // (`dueAt ≤ now`) uses, so a record the sweep lists is a record every seam resolves.
+  if (win.window === 'none' || win.deadlineMs > now.getTime()) return { due: false };
 
   const bound = new Date(win.deadlineMs).toISOString();
   const last = chain.at(-1);

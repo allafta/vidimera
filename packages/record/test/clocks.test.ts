@@ -616,3 +616,60 @@ test('resolveDueClock derives the leg index: the expired append is terminal (non
   );
   assert.equal((await spy.readChain('rec-legindex')).at(-1)?.kind, 'expired');
 });
+
+// === the exact-instant edge: one definition of due (the review's phase 5) ===================
+//
+// The store's listing gate is `dueAt ≤ now` (SPEC §12, pinned inclusive by the conformance
+// suite and due-listing.test.ts). The kernel's resolution once read the same instant as NOT
+// yet due, so for one millisecond the sweep listed a record no seam would expire. The kernel
+// now agrees with the listing: due when `now >= deadline`, in `resolveDueClock` and in the
+// enlisted guard that mirrors it.
+
+test('at now === deadline the store lists the record AND the kernel resolves it; one millisecond earlier neither does', async () => {
+  const clock = { t: T0 };
+  const { recordId, store } = await confirmedAt(clock);
+  const deadline = T0 + CONFIRM_BOUND * 1000;
+  const resolved = {
+    profile: effectSeamProfile(),
+    canonicalizer: (c: unknown) => c,
+    effectSeam: true,
+  };
+  const chain = await store.readChain(recordId);
+
+  assert.deepEqual(await store.listDue(new Date(deadline - 1)), [], 'not listed one ms early');
+  assert.deepEqual(
+    await resolveDueClock(store, chain, resolved, new Date(deadline - 1)),
+    { due: false },
+    'not resolved one ms early',
+  );
+  assert.deepEqual(await store.listDue(new Date(deadline)), [recordId], 'listed at the instant');
+  const res = await resolveDueClock(store, chain, resolved, new Date(deadline));
+  assert.equal(res.due, true, 'resolved at the same instant — the kernel agrees with the listing');
+  if (!res.due) return;
+  assert.equal(res.result.appended, true);
+  assert.equal((await store.readChain(recordId)).at(-1)?.kind, 'expired');
+});
+
+test('ENLISTED at the exact instant: redeem(tx) at now === deadline refuses unredeemable-state with no edge — the enlisted guard shares the kernel definition of due', async () => {
+  const clock = { t: T0 };
+  const store = new SqliteStore(':memory:');
+  const handles = createWithClock(
+    makeConfig([effectSeamProfile()], { store }),
+    () => new Date(clock.t),
+  );
+  const recordId = await openRecord(handles, CONTENT, 'test.effect.v1', DEFAULT_SUBJECT_REF);
+  const done = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(done.status, 'ok', 'fixture: the record must confirm');
+  clock.t = T0 + CONFIRM_BOUND * 1000; // exactly the bound — listed as due by the store
+
+  const before = await store.readChain(recordId);
+  store.database.exec('BEGIN IMMEDIATE');
+  const outcome = await handles.operator.redeem(recordId, CONTENT, { tx: store.database });
+  store.database.exec('COMMIT');
+
+  assert.equal(outcome.status, 'refused', 'due at the instant: never a redemption');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'unredeemable-state');
+  assert.equal(outcome.transitionRef, undefined, 'no edge inside the host transaction');
+  assert.deepEqual(await store.readChain(recordId), before, 'the chain is untouched');
+});

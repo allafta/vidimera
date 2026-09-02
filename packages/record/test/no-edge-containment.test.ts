@@ -434,7 +434,17 @@ test('MEMO — the compromise walk mints ONCE per refusing call where it minted 
   assert.equal(new Set(puts).size, 1, 'all three puts upsert ONE digest — byte-identical entries');
 });
 
-test("MEMO — open()'s expire-then-retry hands the SAME genesis object to both appends: one mint for it where there were two", async () => {
+// INVERTED (the review's phase 5, authorized): this pin measured TWO mints for the
+// expire-then-retry, on the ground that the retry handed the decorator the SAME genesis object
+// as the first attempt. That reuse carried a stale `at`: the retried record claimed to have
+// opened before the expiry edge that admitted it (exclusivity.test.ts pins the corrected
+// stamp). The retry is now re-stamped from a fresh reading whenever the clock moved — and this
+// file's clock ticks on every reading — so the retry is a DISTINCT transition with distinct
+// bytes, which must be minted on its own: three mints for three puts, and the first attempt's
+// entry is left behind as an orphan of the documented lost-genesis class. Under a clock that
+// did not move the bytes are identical, the same object is reused, and the old count holds;
+// that case is not what this file's rig produces.
+test("MEMO, inverted — open()'s expire-then-retry RE-STAMPS the retry when the clock moved: a distinct transition, so three mints for three puts, and the first attempt's entry is an orphan", async () => {
   const clock = movableClock();
   const rig = countingSigningSetup([], { clock: clock.now });
   // The rig's capture profile declares `ttl: 3600` through `captureProfile()`'s default expiry.
@@ -449,15 +459,23 @@ test("MEMO — open()'s expire-then-retry hands the SAME genesis object to both 
   assert.equal(replay(await rig.store.readChain(blocker)).state, 'expired', 'blocker expired');
 
   // Three appends happen: the genesis attempt that loses C1 to the blocker, the blocker's
-  // `expired` edge, and the genesis RETRY — the same `openedTransition` object as the first
-  // attempt. Three puts, therefore; but only TWO distinct transitions, so two mints. Before
-  // the memo this measured three mints.
+  // `expired` edge, and the genesis RETRY — re-stamped, since this rig's clock advanced
+  // between the attempt and the retry, so a distinct transition. Three puts and three mints.
   assert.equal(rig.putCalls() - putBefore, 3, 'three puts: attempt, expire, retry');
-  assert.equal(rig.signerCalls() - signerBefore, 2, 'two mints: the genesis object once');
+  assert.equal(
+    rig.signerCalls() - signerBefore,
+    3,
+    'three mints: the re-stamped retry is new bytes',
+  );
   const report = await rig.handles.operator.verifySignatures(second);
   assert.ok(
     report.transitions.every((t) => t.signed && t.verified),
-    'the new genesis is signed',
+    'the landed (re-stamped) genesis is signed and verifies',
+  );
+  assert.equal(
+    report.orphans.length,
+    1,
+    "the first attempt's entry names a genesis that never landed — one lost-genesis orphan",
   );
 });
 
@@ -467,7 +485,18 @@ test('INVARIANT (green before the memo, and it must stay green) — the put ALWA
   // were rejected: those skip the write on a repeat and land an UNSIGNED transition whenever
   // the earlier entry is not there. Today's code satisfies this already; a future rewrite
   // toward either rejected shape is what this pin would catch.
-  const clock = movableClock();
+  //
+  // The clock HOLDS STILL within a call (advanced only between calls): the attempt and the
+  // retry then share one object and one digest, which is the repeat this invariant is about.
+  // Under a clock that moves between readings the retry is re-stamped into a distinct
+  // transition (the inverted MEMO pin above) and this fixture would exercise no repeat at all.
+  let ms = Date.parse('2026-08-29T00:00:00Z');
+  const clock = {
+    now: () => new Date(ms),
+    advance: (deltaMs: number) => {
+      ms += deltaMs;
+    },
+  };
   const rig = countingSigningSetup([], { clock: clock.now });
   const subjectRef = 'subject:noedge-swallow';
   await openRecord(rig.handles, CONTENT, PROFILE_ID, subjectRef);
