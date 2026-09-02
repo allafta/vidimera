@@ -31,7 +31,7 @@
 // CLI flag at 22.13, and `isTransaction` — which `validateTx` relies on — arrived at 22.16
 // (and 24.0).
 
-import { DatabaseSync } from 'node:sqlite';
+import { DatabaseSync, type StatementSync } from 'node:sqlite';
 import { transitionDigest } from '../chain/encoding.js';
 import type { Digest, RecordState, StagedDraft, Transition } from '../types.js';
 import { type GenesisPayload, isCompromiseCarveOut, isStateLeaving, stateOf } from './semantics.js';
@@ -74,6 +74,9 @@ CREATE TABLE IF NOT EXISTS transitions (
  */
 export class SqliteStore implements Store {
   private readonly db: DatabaseSync;
+  /** One prepared statement per SQL text, prepared on first use and reused: `StatementSync`
+   * is reusable across runs and across transactions, so re-preparing per call bought nothing. */
+  private readonly statements = new Map<string, StatementSync>();
 
   constructor(location: string) {
     this.db = new DatabaseSync(location);
@@ -121,6 +124,25 @@ export class SqliteStore implements Store {
     return this.db;
   }
 
+  /**
+   * Closes the adapter's own connection. Deliberately NOT a `Store` method: the memory
+   * backing has nothing to close and the Postgres backing never owns its pool, so it lives
+   * on this class alone. After it every call throws (node:sqlite's own not-open error); the
+   * file-backed chain is what the durability pin shows survives to a reopen.
+   */
+  close(): void {
+    this.db.close();
+  }
+
+  private stmt(sql: string): StatementSync {
+    let statement = this.statements.get(sql);
+    if (statement === undefined) {
+      statement = this.db.prepare(sql);
+      this.statements.set(sql, statement);
+    }
+    return statement;
+  }
+
   private validateTx(tx: DatabaseSync): void {
     if (tx !== this.db) {
       throw new Error(
@@ -148,15 +170,15 @@ export class SqliteStore implements Store {
   }
 
   private recordRow(recordId: string): RecordRow | undefined {
-    return this.db
-      .prepare('SELECT id, state, non_terminal, sealed FROM records WHERE id = ?')
-      .get(recordId) as RecordRow | undefined;
+    return this.stmt('SELECT id, state, non_terminal, sealed FROM records WHERE id = ?').get(
+      recordId,
+    ) as RecordRow | undefined;
   }
 
   private maxSeq(recordId: string): number {
-    const row = this.db
-      .prepare('SELECT COALESCE(MAX(seq), 0) AS m FROM transitions WHERE record_id = ?')
-      .get(recordId) as { m: number };
+    const row = this.stmt(
+      'SELECT COALESCE(MAX(seq), 0) AS m FROM transitions WHERE record_id = ?',
+    ).get(recordId) as { m: number };
     return row.m;
   }
 
@@ -164,32 +186,33 @@ export class SqliteStore implements Store {
    * one-predicate discipline `store/memory.ts` uses (SPEC §12: "the same record
    * `findNonTerminal` returns"). */
   private liveNonTerminalId(profileId: string, subjectRef: string): string | null {
-    const row = this.db
-      .prepare(
-        'SELECT id FROM records WHERE profile_id = ? AND subject_ref = ? AND non_terminal = 1',
-      )
-      .get(profileId, subjectRef) as { id: string } | undefined;
+    const row = this.stmt(
+      'SELECT id FROM records WHERE profile_id = ? AND subject_ref = ? AND non_terminal = 1',
+    ).get(profileId, subjectRef) as { id: string } | undefined;
     return row?.id ?? null;
   }
 
   private insertTransition(t: Transition): void {
-    this.db
-      .prepare('INSERT INTO transitions (record_id, seq, transition_json) VALUES (?, ?, ?)')
-      .run(t.recordId, t.seq, JSON.stringify(t));
+    this.stmt('INSERT INTO transitions (record_id, seq, transition_json) VALUES (?, ?, ?)').run(
+      t.recordId,
+      t.seq,
+      JSON.stringify(t),
+    );
   }
 
   async putStaged(staged: StagedDraft, tx?: DatabaseSync): Promise<void> {
     // Idempotent, first-write-wins (SPEC §12) — literally ON CONFLICT DO NOTHING, the SQL
     // semantics the memory backing's comment names as its model.
     this.inTransaction(tx, () => {
-      this.db
-        .prepare('INSERT INTO staged (id, draft_json) VALUES (?, ?) ON CONFLICT(id) DO NOTHING')
-        .run(staged.id, JSON.stringify(staged));
+      this.stmt('INSERT INTO staged (id, draft_json) VALUES (?, ?) ON CONFLICT(id) DO NOTHING').run(
+        staged.id,
+        JSON.stringify(staged),
+      );
     });
   }
 
   async getStaged(stagedRef: string): Promise<StagedDraft | null> {
-    const row = this.db.prepare('SELECT draft_json FROM staged WHERE id = ?').get(stagedRef) as
+    const row = this.stmt('SELECT draft_json FROM staged WHERE id = ?').get(stagedRef) as
       | { draft_json: string }
       | undefined;
     // Fresh value (SPEC §12): parsing from text mints a new object graph per call.
@@ -224,18 +247,16 @@ export class SqliteStore implements Store {
       return { appended: false, conflict: 'seq' };
     }
     const digest = transitionDigest(transition);
-    this.db
-      .prepare(
-        'INSERT INTO records (id, profile_id, subject_ref, state, non_terminal, due_at, sealed) VALUES (?, ?, ?, ?, ?, ?, 0)',
-      )
-      .run(
-        transition.recordId,
-        payload.profileId,
-        payload.subjectRef,
-        'open',
-        meta.nonTerminal ? 1 : 0,
-        meta.dueAt ?? null,
-      );
+    this.stmt(
+      'INSERT INTO records (id, profile_id, subject_ref, state, non_terminal, due_at, sealed) VALUES (?, ?, ?, ?, ?, ?, 0)',
+    ).run(
+      transition.recordId,
+      payload.profileId,
+      payload.subjectRef,
+      'open',
+      meta.nonTerminal ? 1 : 0,
+      meta.dueAt ?? null,
+    );
     this.insertTransition(transition);
     return { appended: true, seq: transition.seq, transitionDigest: digest };
   }
@@ -267,17 +288,15 @@ export class SqliteStore implements Store {
     const digest = transitionDigest(transition);
     this.insertTransition(transition);
     const nextState = stateOf(transition.kind);
-    this.db
-      .prepare(
-        'UPDATE records SET state = ?, non_terminal = ?, due_at = ?, sealed = ? WHERE id = ?',
-      )
-      .run(
-        nextState ?? row.state,
-        meta.nonTerminal ? 1 : 0,
-        meta.dueAt ?? null,
-        row.sealed === 1 || transition.kind === 'sealed' ? 1 : 0,
-        transition.recordId,
-      );
+    this.stmt(
+      'UPDATE records SET state = ?, non_terminal = ?, due_at = ?, sealed = ? WHERE id = ?',
+    ).run(
+      nextState ?? row.state,
+      meta.nonTerminal ? 1 : 0,
+      meta.dueAt ?? null,
+      row.sealed === 1 || transition.kind === 'sealed' ? 1 : 0,
+      transition.recordId,
+    );
     return { appended: true, seq: transition.seq, transitionDigest: digest };
   }
 
@@ -343,35 +362,31 @@ export class SqliteStore implements Store {
       for (const t of transitions) {
         this.insertTransition(t);
       }
-      this.db
-        .prepare(
-          'UPDATE records SET state = ?, non_terminal = ?, due_at = ?, sealed = ? WHERE id = ?',
-        )
-        .run(
-          state,
-          meta.nonTerminal ? 1 : 0,
-          meta.dueAt ?? null,
-          transitions.some((t) => t.kind === 'sealed') ? 1 : 0,
-          first.recordId,
-        );
+      this.stmt(
+        'UPDATE records SET state = ?, non_terminal = ?, due_at = ?, sealed = ? WHERE id = ?',
+      ).run(
+        state,
+        meta.nonTerminal ? 1 : 0,
+        meta.dueAt ?? null,
+        transitions.some((t) => t.kind === 'sealed') ? 1 : 0,
+        first.recordId,
+      );
       return { appended: true, transitionDigests: digests };
     });
   }
 
   async readChain(recordId: string): Promise<Transition[]> {
-    const rows = this.db
-      .prepare('SELECT transition_json FROM transitions WHERE record_id = ? ORDER BY seq')
-      .all(recordId) as { transition_json: string }[];
+    const rows = this.stmt(
+      'SELECT transition_json FROM transitions WHERE record_id = ? ORDER BY seq',
+    ).all(recordId) as { transition_json: string }[];
     // Fresh values (SPEC §12): every call parses a new object graph from text.
     return rows.map((r) => JSON.parse(r.transition_json) as Transition);
   }
 
   async chainHead(recordId: string): Promise<Digest | null> {
-    const row = this.db
-      .prepare(
-        'SELECT transition_json FROM transitions WHERE record_id = ? ORDER BY seq DESC LIMIT 1',
-      )
-      .get(recordId) as { transition_json: string } | undefined;
+    const row = this.stmt(
+      'SELECT transition_json FROM transitions WHERE record_id = ? ORDER BY seq DESC LIMIT 1',
+    ).get(recordId) as { transition_json: string } | undefined;
     if (row === undefined) return null;
     return transitionDigest(JSON.parse(row.transition_json) as Transition);
   }
@@ -385,9 +400,9 @@ export class SqliteStore implements Store {
     // IS chronological order. A second-precision RFC3339 string ('…T12:00:00Z') would
     // diverge under this comparison; nothing here produces one. No ordering of the
     // returned ids is promised.
-    const rows = this.db
-      .prepare('SELECT id FROM records WHERE due_at IS NOT NULL AND due_at <= ?')
-      .all(now.toISOString()) as { id: string }[];
+    const rows = this.stmt('SELECT id FROM records WHERE due_at IS NOT NULL AND due_at <= ?').all(
+      now.toISOString(),
+    ) as { id: string }[];
     return rows.map((r) => r.id);
   }
 

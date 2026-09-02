@@ -101,9 +101,21 @@ export class PostgresStore implements Store {
     return this.#ready;
   }
 
+  /** The DDL runs on ONE checked-out client, inside a transaction that first takes a
+   * transaction-scoped advisory lock keyed by the schema name: `CREATE … IF NOT EXISTS`
+   * alone races on the catalog when two processes bootstrap one schema at once (the loser
+   * can see a unique violation despite the IF NOT EXISTS); behind the lock the bootstraps
+   * serialize and the loser finds the objects present. The lock's salt differs from the
+   * genesis path's, so the two families never contend with each other. */
   async #runDdl(): Promise<void> {
-    await this.#pool.query(`CREATE SCHEMA IF NOT EXISTS "${this.#schema}"`);
-    await this.#pool.query(`
+    const client = await this.#pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 7))', [
+        JSON.stringify(['ddl', this.#schema]),
+      ]);
+      await client.query(`CREATE SCHEMA IF NOT EXISTS "${this.#schema}"`);
+      await client.query(`
         CREATE TABLE IF NOT EXISTS ${this.#t('staged')} (
           id         text PRIMARY KEY,
           draft_json text NOT NULL
@@ -126,6 +138,17 @@ export class PostgresStore implements Store {
           PRIMARY KEY (record_id, seq)
         );
       `);
+      await client.query('COMMIT');
+    } catch (err) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        // ROLLBACK itself can fail (e.g. the connection died) — surface the ORIGINAL error.
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   /**

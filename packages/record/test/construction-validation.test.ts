@@ -703,3 +703,23 @@ test('structural: the legal-but-inert registry members SPEC §8 names still cons
   const handles = create(cfgWithLeg({ terminalRefusals: ['leg-expired', 'availability'] }));
   assert.equal(typeof handles.operator.finalize, 'function');
 });
+
+test('structural: allowedAuthorities rejects empty, empty-string, and duplicate entries — the declarable-but-dead twin of the inert trap', () => {
+  // The settled fail-closed class (the review's phase 6): an empty list constructed and then
+  // refused every finalize and decline with identity-authority-refused — a leg no identity
+  // could ever decide. Same three rules as requiredConsultations, minus the reserved-kind arm
+  // (authorities are the host's own namespace).
+  const p = captureProfile();
+  const leg = p.legs[0];
+  if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
+  const withAuthorities = (authorities: string[]) => ({
+    ...p,
+    legs: [{ ...leg, allowedAuthorities: authorities }],
+  });
+  assertStructural(withAuthorities([]), /empty array/i);
+  assertStructural(withAuthorities(['']), /missing or empty authority/i);
+  assertStructural(withAuthorities(['session:test-app', 'session:test-app']), /duplicate/i);
+  assert.doesNotThrow(() =>
+    create(makeConfig([withAuthorities(['session:test-app', 'mtls:review-surface'])])),
+  );
+});

@@ -71,19 +71,20 @@ test('recovery: a transient failure during lazy DDL does not brick the store —
   // The review finding this pins shut: a memoized #ready promise that caches a REJECTION
   // replays the stale error forever, so one startup blip permanently bricks the
   // instance — against the backing's own production posture. The flaky pool fails the
-  // FIRST query (the DDL), then behaves; the store must fail that first call loudly and
-  // then recover on the next.
+  // FIRST connect (the DDL's own client checkout — the DDL runs on one checked-out client
+  // inside a transaction, the review's phase 6), then behaves; the store must fail that
+  // first call loudly and then recover on the next.
   const real = sharedPool();
   let failed = false;
   const flaky = {
-    query(text: string, values?: unknown[]) {
+    query: (text: string, values?: unknown[]) => real.query(text, values),
+    connect() {
       if (!failed) {
         failed = true;
         return Promise.reject(new Error('transient: connection refused'));
       }
-      return real.query(text, values);
+      return real.connect();
     },
-    connect: () => real.connect(),
   };
   const { PostgresStore } = await import('../src/postgres-store.js');
   const store = new PostgresStore(flaky as never, { schema: nextSchemaName() });
@@ -115,4 +116,26 @@ test('payload posture: a function-valued member is dropped CONSISTENTLY with the
     'the function member is gone from the persisted payload',
   );
   assert.equal(verifyChain(chain).intact, true, 'and the digests still verify');
+});
+
+test('lazy DDL under concurrent first use on ONE schema: every bootstrap succeeds — the advisory lock serializes CREATE … IF NOT EXISTS across connections', async () => {
+  // Postgres's known catalog race (the review's phase 6): two connections running
+  // `CREATE SCHEMA/TABLE IF NOT EXISTS` at once can leave the loser with a unique violation
+  // on the catalog despite the IF NOT EXISTS. Behind a transaction-scoped advisory lock keyed
+  // by the schema name the bootstraps serialize and the loser finds the objects present.
+  // Stated plainly: without the lock this pin is a probabilistic tripwire (it fails only when
+  // the race lands); with it, every round is deterministic.
+  const { PostgresStore } = await import('../src/postgres-store.js');
+  for (let round = 0; round < 10; round += 1) {
+    const schema = nextSchemaName();
+    const stores = Array.from({ length: 5 }, () => new PostgresStore(sharedPool(), { schema }));
+    const results = await Promise.allSettled(stores.map((s) => s.getStaged('s-bootstrap')));
+    for (const r of results) {
+      assert.equal(
+        r.status,
+        'fulfilled',
+        r.status === 'rejected' ? `round ${round}: ${String(r.reason)}` : '',
+      );
+    }
+  }
 });

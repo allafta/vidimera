@@ -10,7 +10,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { afterEach, test } from 'vitest';
+import { afterEach, test, vi } from 'vitest';
 
 import { verifyChain } from '../src/chain/replay.js';
 import { SqliteStore } from '../src/store/sqlite.js';
@@ -126,4 +126,45 @@ test('payload posture: a function-valued member is dropped CONSISTENTLY with the
     'the function member is gone from the persisted payload',
   );
   assert.equal(verifyChain(chain).intact, true, 'and the digests still verify');
+});
+
+test('close(): closes the adapter connection — a later call throws, and the file-backed chain survives to a reopen', async () => {
+  // Backing-specific by design (the review's phase 6): `close` is not a Store method — the
+  // memory backing has nothing to close and the Postgres backing never owns its pool — so it
+  // lives on this class alone, beside the `database` getter callers reached through before.
+  const path = tempDbPath();
+  const store = new SqliteStore(path);
+  const genesis = storeGenesis('rec-close', 'profile.p1', 'subject:s1');
+  assert.equal((await store.appendTransition(null, genesis, { nonTerminal: true })).appended, true);
+  store.close();
+  await assert.rejects(store.readChain('rec-close'), /not open|closed/i);
+
+  const reopened = new SqliteStore(path);
+  assert.equal((await reopened.readChain('rec-close')).length, 1, 'closed cleanly — durable');
+  reopened.close();
+});
+
+test('prepared statements are cached: repeated reads do not re-prepare — the prepare count is bounded by the distinct statements, not the calls', async () => {
+  // Observable through the connection class itself: `prepare` is a prototype method, so a spy
+  // on it counts every preparation this store performs without any injection seam.
+  const prepare = vi.spyOn(DatabaseSync.prototype, 'prepare');
+  try {
+    const store = new SqliteStore(':memory:');
+    const genesis = storeGenesis('rec-prep', 'profile.p1', 'subject:s1');
+    assert.equal(
+      (await store.appendTransition(null, genesis, { nonTerminal: true })).appended,
+      true,
+    );
+    const before = prepare.mock.calls.length;
+    for (let i = 0; i < 20; i += 1) await store.readChain('rec-prep');
+    for (let i = 0; i < 20; i += 1) await store.chainHead('rec-prep');
+    const prepared = prepare.mock.calls.length - before;
+    assert.ok(
+      prepared <= 2,
+      `forty reads over two distinct statements prepared ${prepared} times — one per statement, ever`,
+    );
+    assert.equal((await store.readChain('rec-prep')).length, 1, 'the cached statement still reads');
+  } finally {
+    prepare.mockRestore();
+  }
 });

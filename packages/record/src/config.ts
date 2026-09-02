@@ -148,6 +148,40 @@ function assertNoStrayRedemptionKeys(profileId: string, where: string, obj: obje
   }
 }
 
+/**
+ * Structural `allowedAuthorities` validation — the settled fail-closed class
+ * (`validateRequiredConsultations`'s three rules, minus the reserved-kind arm: authorities
+ * are the host's own namespace): non-empty, every entry a non-empty string, pairwise
+ * distinct. An empty list constructed and then refused every finalize and decline with
+ * `identity-authority-refused` — a leg no identity could ever decide, the declarable-but-dead
+ * twin of the inert trap this class exists to close (SPEC §9.1: inert feature configuration
+ * is a construction error).
+ */
+function validateAllowedAuthorities(profile: ConfirmProfile, leg: LegSpec): void {
+  const authorities = leg.allowedAuthorities;
+  if (!Array.isArray(authorities) || authorities.length === 0) {
+    throw new Error(
+      `invalid profile '${profile.id}': leg '${leg.id}' declares allowedAuthorities as an empty array — ` +
+        'no identity could ever decide the leg (non-empty by the fail-closed ruling)',
+    );
+  }
+  const seen = new Set<string>();
+  for (const authority of authorities) {
+    if (typeof authority !== 'string' || authority.length === 0) {
+      throw new Error(
+        `invalid profile '${profile.id}': leg '${leg.id}' declares a missing or empty authority in allowedAuthorities`,
+      );
+    }
+    if (seen.has(authority)) {
+      throw new Error(
+        `invalid profile '${profile.id}': leg '${leg.id}' lists '${authority}' twice in allowedAuthorities — ` +
+          'entries must be pairwise distinct (duplicate)',
+      );
+    }
+    seen.add(authority);
+  }
+}
+
 /** Per-leg GOVERNED guards: every not-yet-enforceable leg control throws. NONE remain as
  * of the AL2 freshness increment — `freshness` was the last (`validateFreshness`, below,
  * replaces it with this build's own fail-closed structural posture). This function is
@@ -513,12 +547,13 @@ function validateFindingsFlow(profile: ConfirmProfile, leg: LegSpec): void {
  *     fail-closed guard that stops a silently-inert `signing: false` from constructing;
  *     profile-level, run before the leg loop;
  *  6. the stray-redemption-key check (inside `validateLeg` — no per-leg GOVERNED guard
- *     remains there, see below), then structural SoD shape validation
+ *     remains there, see below), then structural allowedAuthorities validation
+ *     (`validateAllowedAuthorities`), structural SoD shape validation
  *     (`validateSodShape`), structural requiredConsultations validation
  *     (`validateRequiredConsultations`), structural eligibility validation
  *     (`validateEligibility`), structural decline validation (`validateDecline`),
  *     structural freshness validation (`validateFreshness`), and structural
- *     findings-flow validation (`validateFindingsFlow`), all six after;
+ *     findings-flow validation (`validateFindingsFlow`), all seven after;
  *  7. structural: stray redemption key on the profile itself;
  *  8. structural: `reverify` on a non-live profile — live capture's own control,
  *     misdeclared onto a staged profile (SPEC §9.2's live mode).
@@ -642,6 +677,7 @@ export function validateProfile(profile: ConfirmProfile): void {
   }
   for (const [index, leg] of profile.legs.entries()) {
     validateLeg(profile.id, leg);
+    validateAllowedAuthorities(profile, leg);
     validateSodShape(profile, index, leg);
     validateRequiredConsultations(profile, leg);
     validateEligibility(profile, leg);
