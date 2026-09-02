@@ -39,7 +39,12 @@ host retries on a string. This document mints the code.
   `opened` and a decision are `finding-raised` and `acknowledged`, so on a profile that
   declares no findings flow no writer exists to lose a sequence race to — two finalizes racing
   each other lose at the **entry** compare-and-swap, which is `record-not-open` and true. The
-  default host runs the KERNEL alone and cannot reach this code.
+  default host runs the KERNEL alone and cannot reach this code. (Precisely: four transition
+  kinds are state-preserving — `consultation-recorded`, `sealed`, `finding-raised`,
+  `acknowledged` — but `consultation-recorded` rides only inside a decision batch that ends
+  state-leaving, and `sealed` is gated on derived terminality, so only the findings seams
+  can land a state-preserving append on an `open` record; and all three backings adjudicate
+  state before sequence, so a `seq` conflict at an `open` entry implies such a racer.)
 - **Not a new capability — a missing outcome of a promoted one.** The findings flow is
   `[PROVEN]`; this amends the registry so its seams' concurrency outcome has a truthful,
   machine-readable name. The promotion rule is applied to the amendment all the same.
@@ -89,7 +94,13 @@ host retries on a string. This document mints the code.
 `record-contended` — a decision-progress or findings seam lost its append to a concurrent
 state-preserving append on the same record (a finding raised or acknowledged between the seam's
 chain read and its write). The record is unchanged by the call and still `open`; nothing was
-recorded; re-invocation re-evaluates against the new head. Class `refusal`. A member of the
+recorded; re-invocation re-evaluates against the new head. Class `refusal` — argued, since
+§8's defining sentence for the class speaks of an attempt that "fails on its inputs" where
+"retrying with corrected inputs is legitimate": here the inputs were right and the READ was
+stale, and the correction is the re-read, not the inputs. The class still fits because its
+operational contract is exactly what holds — the record stays `open`, a retry is legitimate,
+no edge lands — and the two alternatives are plainly wrong (`availability` is an unreachable
+authority; `compromise` is tampering). A member of the
 never-appends set: no `refused` edge, no `transitionRef`, and — like every never-appends
 code — a legal but inert `terminalRefusals` member (`appendsOn` returns `false` for the set
 before it consults the leg).
@@ -128,20 +139,28 @@ fault carrying the storage-fault error. Each caller refuses or throws on that di
 code of this build" is reworded to its truth (the last of the AL2 freshness increment; this
 document's code is the twenty-fifth). `refusal-matrix.test.ts`'s total-accounting pin moves to
 twenty-five, naming this code's production-path home (`terminality.test.ts` and
-`findings-seams.test.ts`).
+`findings-seams.test.ts`); `outcome-model.test.ts`'s total pin moves with it, and
+`refusal-matrix.test.ts`'s own "twenty-fourth and LAST" comment is reworded.
 
 ## 5. Interactions, all falling out of existing machinery
 
-- **Gate order (5.7) → (6).** Constructible only by a race, and pinned: with a required-kind
-  finding raced in between, the losing `finalize` refuses `record-contended` (rung 5.7 saw the
-  old head) and the re-invocation refuses `ack-missing`; with a non-gating kind, the
-  re-invocation confirms. `finalize-check-order.test.ts`'s header names the pair and its home.
+- **Gate order (5.7) → (6).** Constructible only by a race, and pinned in
+  `terminality.test.ts`: with a required-kind finding raced in between, the losing `finalize`
+  refuses `record-contended` (rung 5.7 saw the old head) and the re-invocation refuses
+  `ack-missing`; with a non-gating kind, the re-invocation confirms. Note the inversion this
+  pair carries: on the losing call the LATER rung's code surfaces, because (5.7) ran against
+  the stale head — the adjacent-pair definition ("the earlier code wins when one record's data
+  trips both") does not apply to a pair only a race can construct. Today
+  `finalize-check-order.test.ts`'s header says the conflict throws, excludes the pair, and
+  names no home; it is rewritten to name the pair, the carve-out, and the home.
 - **Loser-agrees-with-reinvocation.** Unlike the redemption family's residual, re-invocation
   here may *succeed*; the code is honest about exactly that — nothing landed, the head moved,
   run again. It does not predict the re-run's verdict, and must not.
 - **Reach.** On a profile with no findings flow the only reachable rung-(6) conflict is an
-  entry `state-mismatch` → `record-not-open`; the existing entry-CAS race pin on a plain
-  capture profile is the unreachability witness.
+  entry `state-mismatch` → `record-not-open`. The structural witness is the findings seams'
+  own (2.5) declaring check, which throws on a non-declaring leg before any append — so no
+  state-preserving racer exists there; the plain-profile entry-CAS race pin shows a
+  state-changing racer yields `record-not-open`, which is the other half of the picture.
 - **The decorated store.** Under a signing profile the batch is signed before the store
   adjudicates it, so a contention loss leaves one sidecar entry per element — the orphan
   class register row 22 already names (widened 2026-09-02); `verifySignatures().orphans`
@@ -163,8 +182,12 @@ twenty-five, naming this code's production-path home (`terminality.test.ts` and
 
 No fourth `Outcome` arm. No kernel-internal retry (human anchor). No `headSeq` on the store's
 conflict arms (row 23). No alias or deprecation path for `ContentionError` (never published).
-No change to `refuseMaybeAppend`'s lost-CAS posture: its refusal verdict is true regardless of
-the head; only the terminal edge is best-effort, and re-invocation lands it.
+No change to `refuseMaybeAppend`'s lost-CAS posture. Its verdict is true of the head the call
+read, and for every rung but (5.7) it is head-independent; at (5.7) a concurrent acknowledgment
+may have covered the finding since, so a sequence-lost `ack-missing`/`ack-stale` is a
+conservative refusal — no edge landed, the record stays open, re-invocation re-evaluates.
+Mapping that one loss to `record-contended` as well is defensible and recorded as a residual,
+not taken here: the refusal there is never false, only possibly stale.
 
 ## 8. Sanction requested (the exact sealed-set touches, licensed only by a fresh grant)
 
@@ -190,6 +213,12 @@ exits.
   record unchanged and still open.
 - **ARCHITECTURE §5:** the ladder's rung-(6) line gains "/ record-contended (findings-flow
   only)" and its (6) bullet gains the same clause.
+- **Found at review, ruled separately (see the dated note below §8):** the never-appends
+  set is not only a list — SPEC §8 DEFINES it as "the pre-record, terminal-record, and
+  redemption/seal codes", and `GLOSSARY.md`'s Never-append set entry and `DECISIONS.md` #15
+  restate that definition; `record-contended` (an open, undecided record; no redemption, no
+  seal) is none of the three. Joining the list without widening the definition leaves the
+  sealed set contradicting itself in three places.
 - **Not touched, said plainly so a reviewer can disagree:** `CONTROLS.md` (its findings row
   describes the control's gate codes, not the seams' concurrency outcome); `GLOSSARY.md` (no
   per-code entries); `OPEN-QUESTIONS.md` (no open question decides this); `CONCEPT.md` (the
@@ -201,11 +230,15 @@ exits.
 ## 9. Tests
 
 - **The moved-head branch, all four producers, RED first:** the four `terminality.test.ts`
-  contention pins and the `findings-seams.test.ts` race pin flip from a thrown name to
+  contention pins and the `findings-seams.test.ts` `raiseFinding` race pin flip from a thrown
+  name to a refusal, and `acknowledge` — which no existing pin races — gains its own: two
+  concurrent acknowledgments of one finding, the loser refusing `record-contended`. All to
   `status: 'refused'`, `code: 'record-contended'`, `class: 'refusal'`, no `transitionRef`;
   each keeps its post-state assertions (chain unchanged by the call, record `open`).
 - **The throws that stay:** the fabricated-conflict pin (unmoved head → storage-fault
-  message) and the failed-re-read pin (conflict report with `cause`) unchanged.
+  message) and the failed-re-read pin (conflict report with `cause`) keep their throws; their
+  `err.name !== 'ContentionError'` assertions, vacuous once the name is gone, become
+  `err.name === 'Error'` — throw, not refusal, pinned positively.
 - **Gate order:** the (5.7) → (6) race pin keeps both re-invocation outcomes (`ok` for a
   non-gating kind, `ack-missing` for a required one), now against a refusal rather than a
   throw.
@@ -218,12 +251,19 @@ exits.
 ## 10. Records and guide (the same commit)
 
 `docs/guide/api-reference.md`: the codes table gains the row and its count reads twenty-five;
-the `ContentionError` paragraph becomes the code's. `integrating.md` and `concepts.md`: the same
-paragraphs. `CHANGELOG.md`: the Unreleased entries that describe the throw describe the code
-instead (nothing shipped; no migration note). `CLAUDE.md`: twenty-five codes; ten marker-bearing
-edits. `docs/process/implementation-status.md`: the increment's section and the current-state
-block. `docs/process/next-phases.md`: the first sanction-gated bullet retires. The register is
-untouched (row 23's `headSeq` note already names the exact-signal follow-up).
+the `ContentionError` paragraph becomes the code's, and the orphan paragraph's "the
+`ContentionError` case" becomes the code's too. `integrating.md`: the same paragraph.
+`concepts.md`: the same sentence, and its "The full registry is 24 codes" reads twenty-five.
+`CHANGELOG.md`: one Added entry for the code; the two Unreleased entries that describe the
+throw gain a pointer to it (nothing shipped; no migration note). `CLAUDE.md`: twenty-five
+codes; ten marker-bearing edits. `docs/process/implementation-status.md`: the increment's
+section and the current-state block. `docs/process/next-phases.md`: the first sanction-gated
+bullet retires. `docs/process/deferral-register.md`: row 22's phrase "the `ContentionError`
+path" becomes "the `record-contended` path" — the name disappears everywhere; the row's
+scope, trigger and number do not move. Source comments the shape change makes false move with
+it: the rung-(6) header and both classifier doc comments in `kernel/finalize.ts`, the
+`decline.ts` call-site comment, `findings-seams.ts`'s ladder header line for rung (5) ("a lost
+CAS refuses record-not-open") and its call-site comment.
 
 ## What this does not claim
 

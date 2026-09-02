@@ -453,6 +453,12 @@ and replace `Both throws sit inside DECISIONS.md #10's "storage faults where not
 recorded" scope:` with `The fault's throw sits inside DECISIONS.md #10's "storage faults where
 nothing was recorded" scope, and the refusal is #10's result-first rule kept:`.
 
+In `appendSeqConflict`'s doc comment (~658–666), replace `The same two honest stories, told
+apart the same way; the message\n * says "append conflict" with no element index.` with
+`The same two honest stories, told apart the same way and returned as the same verdict — the
+caller refuses \`record-contended\` or throws the fault; the fault's message says "append
+conflict" with no element index.` (keep the comment's line-wrapping).
+
 - [ ] **Step 4: Run terminality, then the whole record project, to verify**
 
 Run: `./node_modules/.bin/vitest run --project record packages/record/test/terminality.test.ts`
@@ -509,7 +515,51 @@ and replace its body from `const [a, b] = await Promise.allSettled([` through th
   assert.equal(loser.transitionRef, undefined, 'never appends — nothing of the losing call landed');
 ```
 Keep the remaining assertions of the test (state still `open`; re-invocation lands; the chain
-is `['opened', 'finding-raised', 'finding-raised']`) unchanged. Also update the test's leading
+is `['opened', 'finding-raised', 'finding-raised']`) unchanged.
+
+Then append a NEW pin for the producer no existing test races, `acknowledge`:
+```ts
+test('two concurrent acknowledgments of one finding: the loser refuses record-contended and re-invocation lands its ack', async () => {
+  // `acknowledge` is the fourth producer of the code and the only one no earlier pin raced —
+  // the raiseFinding race above covers the seam's sibling, not this call (the record-contended
+  // increment; the spec review found the gap).
+  const store = new MemoryStore();
+  const handles = create(makeConfig([flowProfile()], { store }));
+  const recordId = await openRecord(handles, CONTENT, 'test.flow.v1', SUBJECT);
+  const raised = await handles.operator.raiseFinding(
+    recordId,
+    { findingId: 'f-1', kind: 'variance', findingDigest: D1 },
+    RAISER,
+  );
+  assert.equal(raised.status, 'ok');
+
+  const [a, b] = await Promise.all([
+    handles.operator.acknowledge(recordId, { findingId: 'f-1', findingDigest: D1 }, identity()),
+    handles.operator.acknowledge(recordId, { findingId: 'f-1', findingDigest: D1 }, identity({ principal: 'approver:2' })),
+  ]);
+  const outcomes = [a, b];
+  assert.equal(outcomes.filter((o) => o.status === 'ok').length, 1, 'exactly one ack lands');
+  const loser = outcomes.find((o) => o.status === 'refused');
+  assert.ok(loser !== undefined && loser.status === 'refused', 'the other REFUSES, never throws');
+  if (loser?.status !== 'refused') return;
+  assert.equal(loser.code, 'record-contended');
+  assert.equal(loser.transitionRef, undefined);
+  assert.equal((await handles.operator.getRecord(recordId))?.state, 'open');
+
+  const again = await handles.operator.acknowledge(recordId, { findingId: 'f-1', findingDigest: D1 }, identity({ principal: 'approver:2' }));
+  assert.equal(again.status, 'ok', 're-invocation lands against the new head');
+  assert.deepEqual(
+    (await handles.operator.readChain(recordId)).map((t) => t.kind),
+    ['opened', 'finding-raised', 'acknowledged', 'acknowledged'],
+  );
+});
+```
+(`identity` is already imported in this file from `./helpers/profiles.js`.)
+
+Also in Step 3, fix the seam file's ladder header — `packages/record/src/kernel/findings-seams.ts:19` —
+replace `//   (5) append, CAS target 'open'     -> a lost CAS refuses record-not-open` with
+`//   (5) append, CAS target 'open'     -> state-mismatch refuses record-not-open; a seq loss with
+//         a moved head refuses record-contended (SPEC §8); an unmoved head throws`. Also update the test's leading
 comment: replace `so the loser gets\n  // the same contention throw the batch seams give, and
 re-invocation lands its own finding.` with `so the loser gets\n  // the same \`record-contended\`
 refusal the batch seams return, and re-invocation lands its own finding.`
@@ -517,8 +567,9 @@ refusal the batch seams return, and re-invocation lands its own finding.`
 - [ ] **Step 2: Run the file to verify the pin fails**
 
 Run: `./node_modules/.bin/vitest run --project record packages/record/test/findings-seams.test.ts`
-Expected: FAIL — `Promise.all` rejects with the current `ContentionError` throw (the report shows
-the thrown error), so the test fails before its first assertion.
+Expected: FAIL ×2 — in both the flipped `raiseFinding` pin and the new `acknowledge` pin,
+`Promise.all` rejects with the current `ContentionError` throw (the report shows the thrown
+error), so each fails before its first assertion.
 
 - [ ] **Step 3: Make the seam refuse**
 
@@ -553,8 +604,9 @@ Run: `./node_modules/.bin/vitest run --project record packages/record/test/findi
 Expected: PASS.
 
 Run: `./node_modules/.bin/tsc -p packages/record --noEmit && ./node_modules/.bin/vitest run --project record`
-Expected: typecheck clean (Task 2's expected error is gone); 63 files, 792 tests passing (791
-before this increment, plus Task 1's registry-only test; every flipped pin counts once).
+Expected: typecheck clean (Task 2's expected error is gone); 63 files, 793 tests passing (791
+before this increment, plus Task 1's registry-only test and Task 3's `acknowledge` race pin;
+every flipped pin counts once).
 
 - [ ] **Step 5: Gates, then commit**
 
@@ -580,6 +632,7 @@ git commit -m "record-contended 3/4: raiseFinding and acknowledge refuse record-
 - Modify: `docs/process/implementation-status.md` (current-state ~90 and ~108–109; a new section
   appended at the end)
 - Modify: `docs/process/next-phases.md:355–360`
+- Modify: `docs/process/deferral-register.md` (row 22's phrase "the `ContentionError` path" only)
 - (Not this task: `docs/superpowers/INDEX.md` already names this plan and counts 44 — done when
   the plan was committed; `docs-index-sync` in Step 6 confirms it.)
 
@@ -677,8 +730,12 @@ with
 //       landed. A `seq` conflict at that same entry refuses `record-contended` when a re-read
 //       shows the head moved (the record-contended increment), and THROWS a storage fault when
 //       it did not (kernel/finalize.ts's `batchSeqConflict`); the throw is not a refusal code
-//       and cannot enter an order pair. Both rung-(6) refusals still need a concurrent writer
-//       landing between the read and the batch: there is no way to construct a RECORD whose
+//       and cannot enter an order pair. Both rung-(6) refusals need a concurrent writer landing
+//       between the read and the batch, so the (5.7)->(6) pair is constructible ONLY by a race
+//       and is pinned where the race is driven — terminality.test.ts's raced-finding tests —
+//       with a carve-out from this file's own definition: on the LOSING call the LATER rung's
+//       code surfaces (`record-contended`), because (5.7) ran against the stale head, and it is
+//       the RE-INVOCATION that refuses `ack-missing`. There is no way to construct a RECORD whose
 //       data trips it,
 ```
 Then run `./node_modules/.bin/vitest run --project record packages/record/test/finalize-check-order.test.ts` — Expected: PASS (comment-only change).
@@ -749,6 +806,9 @@ Replace line ~190's `same \`ContentionError\` the decision seams throw,` with `s
 Replace line ~210's `(\`ContentionError\`, \`SqliteStore.close()\`,` with `(\`ContentionError\`,
 since \`record-contended\`; \`SqliteStore.close()\`,`.
 
+`docs/process/deferral-register.md`, row 22: replace `(the \`ContentionError\` path)` with
+`(the \`record-contended\` path)` — the name disappears everywhere; nothing else on the row moves.
+
 `CLAUDE.md:32`: replace `carries 24 refusal codes;` with `carries 25 refusal codes;`.
 `CLAUDE.md:220`: replace `CONTROLS.md and GLOSSARY.md tokens — nine marker-move commits in
 total, each a separate,` with `CONTROLS.md and GLOSSARY.md tokens, and the `record-contended`
@@ -803,8 +863,8 @@ a capability; the row landed `[PROVEN]` in the task that landed the text, after 
 **Tier and placement.** GOVERNED, under the findings flow: the only state-preserving appends
 between `opened` and a decision are `finding-raised` and `acknowledged`, so on a profile with no
 findings flow no writer exists to lose a sequence race to — two finalizes racing lose at the
-entry compare-and-swap, which is `record-not-open` and true. The plain-profile entry-CAS race pin
-in `terminality.test.ts` is the unreachability witness.
+entry compare-and-swap, which is `record-not-open` and true. The structural witness is the
+findings seams' own (2.5) declaring check, which throws on a non-declaring leg before any append.
 
 **What landed.** `refusal-codes.ts`: the twenty-fifth code, `refusal`-class, in `NEVER_APPENDS`.
 `kernel/finalize.ts`: the shared seq-conflict classifier returns a `SeqConflictVerdict`
@@ -831,8 +891,8 @@ which the code's `NEVER_APPENDS` set carries and SPEC §2's recovery text treats
 the sanction did not license that sentence and it is left for a future consistency pass.
 
 **Gate outputs, as measured against the closing commit.** `tsc -p packages/record --noEmit` and
-`-p packages/store-postgres --noEmit` clean; `vitest run` — 67 files, 861 tests, zero skips
-(record 792, store-postgres 69); `biome check --error-on-warnings .` — 135 files, exit 0;
+`-p packages/store-postgres --noEmit` clean; `vitest run` — 67 files, 862 tests, zero skips
+(record 793, store-postgres 69); `biome check --error-on-warnings .` — 135 files, exit 0;
 `contract-scan`, `api-reference-sync`, `docs-index-sync` — exit 0.
 ```
 (If the measured totals differ at the closing commit, write the measured figures — never the
@@ -842,7 +902,7 @@ plan's.)
 
 ```bash
 ./node_modules/.bin/biome check --error-on-warnings . && ./node_modules/.bin/tsc -p packages/record --noEmit && ./node_modules/.bin/tsc -p packages/store-postgres --noEmit && ./node_modules/.bin/vitest run && node scripts/contract-scan.mjs && node scripts/api-reference-sync.mjs && node scripts/docs-index-sync.mjs
-git add docs/concept/SPEC.md docs/concept/ARCHITECTURE.md packages/record/test/finalize-check-order.test.ts docs/guide CHANGELOG.md CLAUDE.md docs/process/implementation-status.md docs/process/next-phases.md docs/superpowers/INDEX.md
+git add docs/concept/SPEC.md docs/concept/ARCHITECTURE.md packages/record/test/finalize-check-order.test.ts docs/guide CHANGELOG.md CLAUDE.md docs/process/implementation-status.md docs/process/next-phases.md docs/process/deferral-register.md
 git commit -m "record-contended 4/4: the sanctioned SPEC §8/§9/§10.2 and ARCHITECTURE text lands with the behavior; guide, changelog and records catch up"
 ```
 Then report the measured totals and stop; fast-forwarding `main` is the maintainer's call.
