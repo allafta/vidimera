@@ -283,9 +283,10 @@ export async function finalize(
     // Lost the CAS to a racing writer: this refuses `record-not-open` even when the
     // winner resolved a `confirmed` window to `expired` (re-invocation would say
     // `leg-expired` there instead) — a deliberate divergence from the redemption
-    // family's loser-agrees-with-reinvocation discipline, tolerated because it is
-    // unreachable under this build's stated single-writer bound; the plain state
-    // verdict returned here is still true of the record regardless of which window raced.
+    // family's loser-agrees-with-reinvocation discipline, tolerated because the race is
+    // rare (a concurrent resolver on a multi-connection backing) and harmless: the plain
+    // state verdict returned here is still true of the record regardless of which window
+    // raced, and re-invocation reports the fresh state.
     return refused('record-not-open');
   }
   if (record.state !== 'open') {
@@ -653,8 +654,17 @@ export async function batchSeqConflict(
   readLength: number,
   index: number,
 ): Promise<Error> {
-  const fresh = await store.readChain(recordId);
-  if (index === 0 && fresh.length > readLength) {
+  // The diagnostic re-read may itself fail (the store that just misreported may be dying):
+  // its rejection must never REPLACE the conflict report, which is what tells the host that
+  // nothing landed. Caught here and carried as the thrown error's `cause`.
+  let fresh: readonly Transition[] | undefined;
+  let reReadFailure: unknown;
+  try {
+    fresh = await store.readChain(recordId);
+  } catch (err) {
+    reReadFailure = err;
+  }
+  if (fresh !== undefined && index === 0 && fresh.length > readLength) {
     const err = new Error(
       `${seam}: contention — the chain head moved between this call's read (${readLength} ` +
         `transitions) and its append (${fresh.length} now): another writer landed a ` +
@@ -666,16 +676,22 @@ export async function batchSeqConflict(
     return err;
   }
   const why =
-    index === 0
-      ? `a re-read finds ${fresh.length} transition(s) against the ${readLength} this call read — ` +
-        'the head did not move, so no concurrent writer explains the conflict'
-      : 'a kernel-built batch is seq-contiguous from the head it read, so a conflict past ' +
-        'element 0 has no honest producer';
-  return new Error(
+    fresh === undefined
+      ? "the diagnostic re-read itself failed (its error rides as this one's cause), so a " +
+        'concurrent writer can neither be established nor ruled out — treated as the storage ' +
+        'fault it may be; re-invoke once the store answers'
+      : index === 0
+        ? `a re-read finds ${fresh.length} transition(s) against the ${readLength} this call read — ` +
+          'the head did not move, so no concurrent writer explains the conflict'
+        : 'a kernel-built batch is seq-contiguous from the head it read, so a conflict past ' +
+          'element 0 has no honest producer';
+  const message =
     `${seam}: batch append conflict ('seq') at element ${index}. A Store honouring the ` +
-      `compare-and-swap contract cannot report this: ${why}. This is a storage fault. The ` +
-      'batch is all-or-nothing: nothing was appended and the record is unchanged.',
-  );
+    `compare-and-swap contract cannot report this: ${why}. This is a storage fault. The ` +
+    'batch is all-or-nothing: nothing was appended and the record is unchanged.';
+  return reReadFailure === undefined
+    ? new Error(message)
+    : new Error(message, { cause: reReadFailure });
 }
 
 /**
@@ -841,8 +857,9 @@ export async function appendChainCompromise(
  * A refusal-class refusal that appends `open→refused` (terminal, payload `{code}`-only) IFF the
  * leg's `terminalRefusals` lists `code` (the `appendsOn` rule), else no append (the record stays
  * open). On an append: refuse WITH the appended edge's digest. On a failed append CAS (a race
- * out of `open` — not producible under this build's single-writer bound): refuse without a
- * transitionRef (best-effort; nothing was recorded). `code` excludes `'availability'` — that
+ * out of `open` by a concurrent writer — reachable on a multi-connection backing): refuse
+ * without a transitionRef (best-effort; nothing was recorded, and re-invocation re-reads).
+ * `code` excludes `'availability'` — that
  * class never rides a `refused` edge (SPEC §8), and every call site here passes a
  * refusal/compromise-class literal; the second step-5 increment's narrowing of `refused()`
  * made the exclusion compile-time, so this parameter follows it.

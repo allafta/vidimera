@@ -187,8 +187,8 @@ async function loadOpenDeclaringRecord(
     // due, or the CAS lost to a racing writer: `record-not-open` either way — true of
     // the record's state regardless (the same divergence from the redemption family's
     // loser-agrees-with-reinvocation discipline finalize.ts's own rung (2) comment
-    // records, tolerated for the same reason: unreachable under this build's stated
-    // single-writer bound).
+    // records, tolerated for the same reason: the race is rare and the verdict stays
+    // true of the record; re-invocation reports the fresh state).
     const due = await resolveDueClock(store, chain, resolved, now());
     if (due.due && due.result.appended) {
       return {

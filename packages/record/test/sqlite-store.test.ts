@@ -136,8 +136,13 @@ test('close(): closes the adapter connection — a later call throws, and the fi
   const store = new SqliteStore(path);
   const genesis = storeGenesis('rec-close', 'profile.p1', 'subject:s1');
   assert.equal((await store.appendTransition(null, genesis, { nonTerminal: true })).appended, true);
+  // Warm the read statement BEFORE closing: with the per-text statement cache, a statement
+  // prepared earlier must not survive close() as a finalized handle that throws a different
+  // error — the review caught the pin passing only because readChain had never been prepared.
+  assert.equal((await store.readChain('rec-close')).length, 1);
   store.close();
-  await assert.rejects(store.readChain('rec-close'), /not open|closed/i);
+  await assert.rejects(store.readChain('rec-close'), /not open/i);
+  await assert.rejects(store.getStaged('anything'), /not open/i);
 
   const reopened = new SqliteStore(path);
   assert.equal((await reopened.readChain('rec-close')).length, 1, 'closed cleanly — durable');

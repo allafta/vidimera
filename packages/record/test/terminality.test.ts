@@ -164,6 +164,66 @@ test('finalize() throws a storage fault when the batch reports a seq conflict, w
   assert.deepEqual(after, before, 'the throw reports a batch that applied nothing');
 });
 
+/**
+ * A Store that fabricates a `seq` conflict and then FAILS every read: the diagnostic re-read
+ * `batchSeqConflict` performs to tell contention from a storage fault cannot complete. The
+ * review caught the re-read's own rejection replacing the conflict report entirely — a host
+ * lost both the storage-fault classification and the assurance that nothing landed.
+ */
+class FaultThenDeadStore implements Store {
+  private readonly inner = new MemoryStore();
+  private dead = false;
+  putStaged(s: StagedDraft): Promise<void> {
+    return this.inner.putStaged(s);
+  }
+  getStaged(r: string): Promise<StagedDraft | null> {
+    return this.inner.getStaged(r);
+  }
+  async readChain(r: string): Promise<Transition[]> {
+    if (this.dead) throw new Error('store dead: connection lost');
+    return this.inner.readChain(r);
+  }
+  chainHead(r: string): Promise<Digest | null> {
+    return this.inner.chainHead(r);
+  }
+  appendTransition(e: RecordState | null, t: Transition, m: AppendMeta): Promise<AppendResult> {
+    return this.inner.appendTransition(e, t, m);
+  }
+  async appendBatch(): Promise<BatchResult> {
+    this.dead = true;
+    return { appended: false, conflict: 'seq', index: 0 };
+  }
+  listDue(now: Date): Promise<string[]> {
+    return this.inner.listDue(now);
+  }
+  findNonTerminal(p: string, s: string): Promise<string | null> {
+    return this.inner.findNonTerminal(p, s);
+  }
+}
+
+test('a seq conflict whose diagnostic re-read ALSO fails still surfaces the conflict report — nothing landed — with the re-read failure as its cause', async () => {
+  const store = new FaultThenDeadStore();
+  const handles = create(makeConfig([captureProfile()], { store }));
+  const recordId = await openRecord(handles, CONTENT, 'test.capture.v1', DEFAULT_SUBJECT_REF);
+
+  await assert.rejects(
+    () => handles.operator.finalize(recordId, identity(), CONTENT, facts()),
+    (err: unknown) => {
+      assert.ok(err instanceof Error);
+      assert.notEqual(err.name, 'ContentionError', 'contention cannot be established');
+      assert.match(err.message, /batch append conflict \('seq'\) at element 0/);
+      assert.match(err.message, /re-read/, 'the message says the diagnostic read itself failed');
+      assert.match(err.message, /nothing was appended/, 'the all-or-nothing assurance survives');
+      const cause = (err as { cause?: unknown }).cause;
+      assert.ok(
+        cause instanceof Error && /store dead/.test(cause.message),
+        'the re-read failure rides as cause',
+      );
+      return true;
+    },
+  );
+});
+
 test("finalize()'s batch digests are the ones finalize itself computed", async () => {
   // The batch has no per-append round trip, so finalize computes each prevHash locally via
   // `transitionDigest`. That makes the store's returned digests a free cross-check on the
@@ -215,7 +275,8 @@ test("finalize()'s batch digests are the ones finalize itself computed", async (
 // APPENDED, this build step: `midBatchConflict` is gone, and with it the case this note
 // argued about — there is no longer a "conflict after something already landed" for a code to
 // misrepresent, because `appendBatch`'s entry CAS is all-or-nothing. The throw-not-refuse
-// mapping this note inverted TO is still the mapping in force (`batchConflict`, above), but it
+// mapping this note inverted TO is still the mapping in force (`batchSeqConflict`, above — which,
+// since the code-review fixes, tells a moved head, `ContentionError`, from a storage fault), but it
 // no longer needs the enumerate-the-union argument that took two failed attempts to write
 // correctly — a `seq` conflict throws and a `state-mismatch` refuses, full stop, because
 // nothing is ever partially applied for either shape to misrepresent. The test this note

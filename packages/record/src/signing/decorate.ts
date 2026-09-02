@@ -56,7 +56,11 @@ export function withSigning(
     return known;
   }
   function memoSet(recordId: string, signs: boolean): void {
-    if (memo.size >= SIGNING_MEMO_CAP) {
+    if (memo.has(recordId)) {
+      // A re-insert (two cold misses on one record raced through the genesis re-read):
+      // refresh recency, evict nothing — the key already occupies its slot.
+      memo.delete(recordId);
+    } else if (memo.size >= SIGNING_MEMO_CAP) {
       const oldest = memo.keys().next().value;
       if (oldest !== undefined) memo.delete(oldest);
     }

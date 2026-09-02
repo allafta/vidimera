@@ -139,3 +139,35 @@ test('lazy DDL under concurrent first use on ONE schema: every bootstrap succeed
     }
   }
 });
+
+test('recovery: a failure INSIDE the DDL transaction rolls back, releases the client, and the next call bootstraps whole — no half-built schema is memoized', async () => {
+  // The review caught the recovery pin above driving only the connect failure once the DDL
+  // moved onto a checked-out client, leaving the BEGIN/lock/DDL/ROLLBACK/release body itself
+  // unexercised on its failure path. This pool wrapper hands out a client whose FIRST
+  // `CREATE TABLE` statement fails, so the failure lands inside the transaction.
+  const real = sharedPool();
+  let failed = false;
+  const flaky = {
+    query: (text: string, values?: unknown[]) => real.query(text, values),
+    async connect() {
+      const client = await real.connect();
+      return {
+        query(text: string, values?: unknown[]) {
+          if (!failed && /CREATE TABLE/.test(text)) {
+            failed = true;
+            return Promise.reject(new Error('transient: mid-DDL'));
+          }
+          return client.query(text, values);
+        },
+        release: () => client.release(),
+      };
+    },
+  };
+  const { PostgresStore } = await import('../src/postgres-store.js');
+  const store = new PostgresStore(flaky as never, { schema: nextSchemaName() });
+
+  await assert.rejects(store.getStaged('s-any'), /mid-DDL/);
+  assert.equal(await store.getStaged('s-any'), null, 'the retry bootstraps the schema whole');
+  const genesis = storeGenesis('rec-ddl-recover', 'profile.p1', 'subject:ddl');
+  assert.equal((await store.appendTransition(null, genesis, { nonTerminal: true })).appended, true);
+});

@@ -159,7 +159,16 @@ function assertNoStrayRedemptionKeys(profileId: string, where: string, obj: obje
  */
 function validateAllowedAuthorities(profile: ConfirmProfile, leg: LegSpec): void {
   const authorities = leg.allowedAuthorities;
-  if (!Array.isArray(authorities) || authorities.length === 0) {
+  if (!Array.isArray(authorities)) {
+    // A non-TS caller omitting the field or passing one string: its own message, never the
+    // empty-array one — the operator must be pointed at the shape they actually wrote.
+    throw new Error(
+      `invalid profile '${profile.id}': leg '${leg.id}' declares no allowedAuthorities list ` +
+        `(found ${authorities === undefined ? 'nothing' : typeof authorities}) — every leg names ` +
+        'the transport authorities that may decide it (SPEC §6)',
+    );
+  }
+  if (authorities.length === 0) {
     throw new Error(
       `invalid profile '${profile.id}': leg '${leg.id}' declares allowedAuthorities as an empty array — ` +
         'no identity could ever decide the leg (non-empty by the fail-closed ruling)',

@@ -34,11 +34,12 @@
 //       rung, unlike (4.5)/(5.5))
 //   (6) success batch  -> record-not-open, but ONLY on a conflict at the batch's single entry
 //       compare-and-swap, where the batch is all-or-nothing so nothing of the call has
-//       landed. A `seq` conflict at that same entry THROWS a storage fault instead
-//       (kernel/finalize.ts's `batchConflict`), and a throw is not a refusal code — it cannot
-//       enter an order pair at all. The surviving refusal still needs a store that violates
-//       this build step's single-writer bound: there is no way to construct a RECORD whose
-//       data trips it, so (5.7)->(6) is NOT jointly constructible here and is excluded below
+//       landed. A `seq` conflict at that same entry THROWS instead — a `ContentionError` when
+//       a re-read shows the head moved, a storage fault when it did not
+//       (kernel/finalize.ts's `batchSeqConflict`) — and a throw is not a refusal code — it
+//       cannot enter an order pair at all. The surviving refusal still needs a concurrent
+//       writer landing between the read and the batch: there is no way to construct a RECORD
+//       whose data trips it, so (5.7)->(6) is NOT jointly constructible here and is excluded below
 //       (the second step-7 increment's rung 5.7 now sits where (5.5)->(6) used to be
 //       adjacent; the same unreachability argument carries over unchanged to the new
 //       adjacent pair).

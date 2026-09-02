@@ -127,10 +127,13 @@ export class SqliteStore implements Store {
   /**
    * Closes the adapter's own connection. Deliberately NOT a `Store` method: the memory
    * backing has nothing to close and the Postgres backing never owns its pool, so it lives
-   * on this class alone. After it every call throws (node:sqlite's own not-open error); the
-   * file-backed chain is what the durability pin shows survives to a reopen.
+   * on this class alone. After it every call throws node:sqlite's own not-open error — the
+   * statement cache is cleared here too, since a cached `StatementSync` outlives its
+   * connection only as a finalized handle that would throw a different error; the file-backed
+   * chain is what the durability pin shows survives to a reopen.
    */
   close(): void {
+    this.statements.clear();
     this.db.close();
   }
 

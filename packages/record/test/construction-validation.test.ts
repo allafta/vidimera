@@ -723,3 +723,26 @@ test('structural: allowedAuthorities rejects empty, empty-string, and duplicate 
     create(makeConfig([withAuthorities(['session:test-app', 'mtls:review-surface'])])),
   );
 });
+
+test('structural: a MISSING or non-array allowedAuthorities names that shape — never the empty-array message', () => {
+  // The review caught the non-array case folded into the empty-array branch: a JS caller who
+  // omitted the field, or passed one string, was told they declared an empty array.
+  const p = captureProfile();
+  const leg = p.legs[0];
+  if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
+  const withValue = (value: unknown) => ({
+    ...p,
+    legs: [{ ...leg, allowedAuthorities: value } as unknown as LegSpec],
+  });
+  for (const value of [undefined, 'session:test-app', 7]) {
+    assert.throws(
+      () => create(makeConfig([withValue(value)])),
+      (err: unknown) => {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /declares no allowedAuthorities list/);
+        assert.doesNotMatch(err.message, /empty array/, `a ${typeof value} is not an empty array`);
+        return true;
+      },
+    );
+  }
+});

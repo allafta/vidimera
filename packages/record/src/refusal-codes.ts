@@ -91,7 +91,8 @@ export type RefusalCode =
 //   appends, no transitionRef, no transitionRef-bearing edge. One further producer sits off the gate
 //   ladder: rung (6)'s entry conflict, where finalize()'s success batch is all-or-nothing and its entry
 //   compare-and-swap fails before anything is appended — kernel/finalize.ts's rung (6) comment and
-//   `batchConflict`'s doc comment. Because the batch applied nothing, the code is true of both the
+//   `batchSeqConflict`'s doc comment (the `seq` shape's own mapping: contention or a storage fault,
+//   never this code). Because the batch applied nothing, the code is true of both the
 //   record's state and this registry's never-appends rule at that site, for the first time here.
 // unknown-leg: class 'refusal'. SPEC §8 names two producers — a caller-named leg absent
 //   from the profile at `stage()`, and a staged draft's leg absent from the profile it

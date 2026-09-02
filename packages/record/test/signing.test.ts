@@ -372,3 +372,44 @@ test('the memo is LRU, not FIFO: a hit refreshes the record, so a full memo evic
   assert.ok((await store.appendTransition('open', n1, { nonTerminal: true })).appended);
   assert.equal(reads.count(), 1, 'rec-1, untouched since its genesis, is the one evicted');
 });
+
+test('the memo never evicts on a re-insert: two concurrent cold misses on ONE record cost one eviction, not two', async () => {
+  // The review caught `memoSet` evicting whenever the memo was full, before checking whether
+  // the key was already present — reachable because the genesis re-read is an await between
+  // the miss and the insert, so two appends on one evicted record both miss and both insert.
+  const { store, reads } = memoRig();
+  const g0 = await landGenesis(store, 0);
+  for (let i = 1; i <= SIGNING_MEMO_CAP; i += 1) await landGenesis(store, i); // rec-0 evicted; full
+
+  // Two appends on the evicted rec-0, dispatched together: both miss and both re-read.
+  const a = storeNext(g0, 'consultation-recorded', PROBE_PAYLOAD);
+  const b = storeNext(a, 'consultation-recorded', PROBE_PAYLOAD);
+  const [ra, rb] = await Promise.all([
+    store.appendTransition('open', a, { nonTerminal: true }),
+    store.appendTransition('open', b, { nonTerminal: true }),
+  ]);
+  assert.ok(ra.appended && rb.appended, 'fixture: both appends land, in order');
+
+  // Exactly one eviction happened: rec-2 (next-oldest) is still hot, rec-1 (the oldest) is cold.
+  // Probe the hot record FIRST — probing the cold one first would insert it and evict rec-2 itself.
+  const g1 = storeGenesis('rec-1', 'test.signed.v1', 'subject:memo-1');
+  const g2 = storeGenesis('rec-2', 'test.signed.v1', 'subject:memo-2');
+  reads.reset();
+  assert.ok(
+    (
+      await store.appendTransition('open', storeNext(g2, 'consultation-recorded', PROBE_PAYLOAD), {
+        nonTerminal: true,
+      })
+    ).appended,
+  );
+  assert.equal(reads.count(), 0, 'rec-2 was not evicted by the second, redundant insert');
+  reads.reset();
+  assert.ok(
+    (
+      await store.appendTransition('open', storeNext(g1, 'consultation-recorded', PROBE_PAYLOAD), {
+        nonTerminal: true,
+      })
+    ).appended,
+  );
+  assert.equal(reads.count(), 1, 'rec-1 paid for the one eviction');
+});

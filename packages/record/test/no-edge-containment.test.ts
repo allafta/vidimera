@@ -441,7 +441,8 @@ test('MEMO — the compromise walk mints ONCE per refusing call where it minted 
 // stamp). The retry is now re-stamped from a fresh reading whenever the clock moved — and this
 // file's clock ticks on every reading — so the retry is a DISTINCT transition with distinct
 // bytes, which must be minted on its own: three mints for three puts, and the first attempt's
-// entry is left behind as an orphan of the documented lost-genesis class. Under a clock that
+// entry is left behind as an orphan of the class `signing/store.ts` documents (a lost CAS or a
+// crash leaves the entry behind; `verifySignatures().orphans` names it). Under a clock that
 // did not move the bytes are identical, the same object is reused, and the old count holds;
 // that case is not what this file's rig produces.
 test("MEMO, inverted — open()'s expire-then-retry RE-STAMPS the retry when the clock moved: a distinct transition, so three mints for three puts, and the first attempt's entry is an orphan", async () => {

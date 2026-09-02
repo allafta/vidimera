@@ -74,7 +74,8 @@ export interface ResolvedProfile {
  * shape.
  *
  * `now` is the injected clock the kernel reads for RFC3339 `at` timestamps and for the
- * en-passant expiry gate (`openedAt + ttl < now`). It defaults to real time
+ * en-passant expiry gate (`openedAt + ttl <= now` — inclusive at the instant, the stores'
+ * own listing gate). It defaults to real time
  * (`() => new Date()`) via `create()`; `createWithClock()` overrides it so expiry tests
  * are deterministic WITHOUT sleeping. Deliberately NOT a public `Config` field and NOT
  * re-exported from `index.ts` — the clock seam stays off the published surface
