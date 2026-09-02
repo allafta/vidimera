@@ -29,12 +29,39 @@ import type { AppendMeta, AppendResult, BatchResult, Store } from '../store/stor
 import type { StagedDraft, Transition } from '../types.js';
 import type { SigningConfig } from './store.js';
 
+/**
+ * The ceiling on `withSigning`'s per-record signs-or-not memo (one boolean per recordId the
+ * decorator has seen). Unbounded, that map grew by one entry per record for the life of a
+ * long-lived process. At the cap the least-recently-used record is evicted, and its next
+ * append pays exactly one genesis re-read to re-derive the answer — the same read a cold
+ * decorator restart already pays (see `recordSigns`). Ten thousand is far above any
+ * plausible in-flight population and about a megabyte at the ceiling. Exported for the pins
+ * in signing.test.ts, deliberately not from the package index.
+ */
+export const SIGNING_MEMO_CAP = 10_000;
+
 export function withSigning(
   signing: SigningConfig,
   store: Store,
   isSigningProfile: (profileId: string) => boolean,
 ): Store {
+  // Bounded LRU over `Map`'s insertion order: a hit re-inserts its key so the record becomes
+  // the newest entry; an insert at the cap evicts the oldest key first.
   const memo = new Map<string, boolean>();
+  function memoGet(recordId: string): boolean | undefined {
+    const known = memo.get(recordId);
+    if (known === undefined) return undefined;
+    memo.delete(recordId);
+    memo.set(recordId, known);
+    return known;
+  }
+  function memoSet(recordId: string, signs: boolean): void {
+    if (memo.size >= SIGNING_MEMO_CAP) {
+      const oldest = memo.keys().next().value;
+      if (oldest !== undefined) memo.delete(oldest);
+    }
+    memo.set(recordId, signs);
+  }
 
   // One signer invocation per transition OBJECT, not per append attempt. Two call paths hand
   // the SAME transition object to `appendTransition` more than once: the compromise append's
@@ -62,7 +89,7 @@ export function withSigning(
   const signerResult = new WeakMap<Transition, Promise<{ keyRef: string; signature: string }>>();
 
   async function recordSigns(transition: Transition): Promise<boolean> {
-    const known = memo.get(transition.recordId);
+    const known = memoGet(transition.recordId);
     if (known !== undefined) return known;
     let signs: boolean;
     if (transition.seq === 1 && transition.kind === 'opened') {
@@ -77,7 +104,7 @@ export function withSigning(
         genesis === undefined ? undefined : (genesis.payload as { profileId?: unknown }).profileId;
       signs = typeof profileId === 'string' && isSigningProfile(profileId);
     }
-    memo.set(transition.recordId, signs);
+    memoSet(transition.recordId, signs);
     return signs;
   }
 

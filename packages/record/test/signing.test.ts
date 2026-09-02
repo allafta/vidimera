@@ -19,9 +19,12 @@ import { test } from 'vitest';
 
 import { transitionDigest } from '../src/chain/encoding.js';
 import { create, createWithClock } from '../src/create.js';
+import { SIGNING_MEMO_CAP, withSigning } from '../src/signing/decorate.js';
 import { MemorySignatureStore } from '../src/signing/memory.js';
 import type { Signer, Verifier } from '../src/signing/store.js';
 import { MemoryStore } from '../src/store/memory.js';
+import type { Store } from '../src/store/store.js';
+import { storeGenesis, storeNext } from './helpers/chain.js';
 import { captureProfile, facts, identity, makeConfig, openRecord } from './helpers/profiles.js';
 
 const CONTENT = { subject: 'week-1', total: 40 };
@@ -277,4 +280,95 @@ test('the signer receives exactly encodeTransition bytes; the enlisted tx passes
   // The enlisted-passthrough pin lives in the sqlite suite (redeem.test.ts's own
   // ENLISTED SIGNING test, added alongside this file in the AL2 mint increment) —
   // this file pins the byte contract only.
+});
+
+// === the decorator's per-record memo is bounded (the review's phase 4) ====================
+//
+// `withSigning` remembers, per recordId, whether the record signs, so a non-genesis append
+// need not re-read the genesis to find out. Unbounded, that map grew by one entry per record
+// for the life of the process. These two pins drive the decorator DIRECTLY over a
+// read-counting store — no kernel, no crypto (a trivial signer, since nothing here verifies)
+// — so ten thousand records cost milliseconds, and count the one observable the bound has:
+// a hot record's append reads no chain, an evicted record's next append re-reads its genesis
+// exactly once and is still signed.
+
+const PROBE_PAYLOAD = { kind: 'probe', payloadDigest: `sha256:${'a'.repeat(64)}` };
+
+/** The decorator over a MemoryStore whose `readChain` calls are counted; a trivial signer. */
+function memoRig() {
+  const inner = new MemoryStore();
+  let reads = 0;
+  const counting: Store = {
+    putStaged: (s, tx) => inner.putStaged(s, tx),
+    getStaged: (r) => inner.getStaged(r),
+    appendTransition: (e, t, m, tx) => inner.appendTransition(e, t, m, tx),
+    appendBatch: (e, ts, m, tx) => inner.appendBatch(e, ts, m, tx),
+    readChain: (r) => {
+      reads += 1;
+      return inner.readChain(r);
+    },
+    chainHead: (r) => inner.chainHead(r),
+    listDue: (now) => inner.listDue(now),
+    findNonTerminal: (p, s) => inner.findNonTerminal(p, s),
+  };
+  const signatures = new MemorySignatureStore();
+  const signer: Signer = async () => ({ keyRef: 'key-1', signature: 'sig' });
+  const store = withSigning({ signer, verifiers: {}, signatures }, counting, () => true);
+  return {
+    store,
+    signatures,
+    reads: { count: () => reads, reset: () => (reads = 0) },
+  };
+}
+
+async function landGenesis(store: Store, i: number) {
+  const g = storeGenesis(`rec-${i}`, 'test.signed.v1', `subject:memo-${i}`);
+  const res = await store.appendTransition(null, g, { nonTerminal: true });
+  assert.ok(res.appended, `fixture: genesis rec-${i} must land`);
+  return g;
+}
+
+test('the per-record memo is BOUNDED: past SIGNING_MEMO_CAP distinct records the oldest is evicted — its next append re-reads the genesis once, and is still signed', async () => {
+  const { store, signatures, reads } = memoRig();
+  const g0 = await landGenesis(store, 0);
+  const n1 = storeNext(g0, 'consultation-recorded', PROBE_PAYLOAD);
+  reads.reset();
+  assert.ok((await store.appendTransition('open', n1, { nonTerminal: true })).appended);
+  assert.equal(reads.count(), 0, 'hot: the memo answers and the decorator reads no chain');
+
+  for (let i = 1; i <= SIGNING_MEMO_CAP; i += 1) await landGenesis(store, i);
+
+  const n2 = storeNext(n1, 'consultation-recorded', PROBE_PAYLOAD);
+  reads.reset();
+  assert.ok((await store.appendTransition('open', n2, { nonTerminal: true })).appended);
+  assert.equal(reads.count(), 1, 'cold: evicted, so exactly one genesis re-read — never more');
+  assert.equal(
+    (await signatures.listByRecord('rec-0')).length,
+    3,
+    'every rec-0 append is signed, whether the memo was hot or cold',
+  );
+});
+
+test('the memo is LRU, not FIFO: a hit refreshes the record, so a full memo evicts the least-recently-used record instead', async () => {
+  const { store, reads } = memoRig();
+  const g0 = await landGenesis(store, 0);
+  const g1 = await landGenesis(store, 1);
+  for (let i = 2; i < SIGNING_MEMO_CAP; i += 1) await landGenesis(store, i); // memo: exactly CAP
+
+  // A hit on rec-0 refreshes it — it is no longer the oldest entry.
+  const n0 = storeNext(g0, 'consultation-recorded', PROBE_PAYLOAD);
+  reads.reset();
+  assert.ok((await store.appendTransition('open', n0, { nonTerminal: true })).appended);
+  assert.equal(reads.count(), 0);
+
+  // One more distinct record forces an eviction: the LRU entry is rec-1, not rec-0.
+  await landGenesis(store, SIGNING_MEMO_CAP);
+  reads.reset();
+  const n0b = storeNext(n0, 'consultation-recorded', PROBE_PAYLOAD);
+  assert.ok((await store.appendTransition('open', n0b, { nonTerminal: true })).appended);
+  assert.equal(reads.count(), 0, 'rec-0 was refreshed by its hit and survives the eviction');
+  reads.reset();
+  const n1 = storeNext(g1, 'consultation-recorded', PROBE_PAYLOAD);
+  assert.ok((await store.appendTransition('open', n1, { nonTerminal: true })).appended);
+  assert.equal(reads.count(), 1, 'rec-1, untouched since its genesis, is the one evicted');
 });
