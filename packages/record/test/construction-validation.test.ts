@@ -12,15 +12,16 @@
 // "is accepted at construction" tests; the sequence's SECOND entry — the replay-fold
 // inversion (`replay()`'s `redemption-failed` throw becoming a fold) — is argued at
 // `replay-verify.test.ts`'s own pin instead, not here.
-// Structural rejections still throw a DIFFERENT (non-GOVERNED) error: at least one leg
-// is required, a stray redemption key placed outside a `redeem` block,
+// Structural rejections still throw a DIFFERENT error (never the unknown-option-key
+// string): at least one leg is required, a stray redemption key placed outside a `redeem` block,
 // `reverify` on a non-live profile, an unresolved `canonicalizerRef`, a duplicate
 // profile id, and every settled-class field validator below. `open()`'s `supersedes`
 // options key was the one GOVERNED guard living outside this file's construction-time
 // scope (`kernel/open.ts`, reusing the same `governedUnavailable` helper); it lifted
 // at the step-8 recovery increment — recovery.test.ts's own intake test pins the
 // guard's absence (a well-formed `supersedes` refuses or succeeds on its merits)
-// alongside the generic unknown-key GOVERNED throw that SURVIVES this file's own
+// alongside the generic unknown-key throw (its GOVERNED head reworded at the
+// registry-hygiene increment) that SURVIVES this file's own
 // sweep (`kernel/finalize.ts`'s `finalizeOptionMessage` and `kernel/open.ts`'s own —
 // neither is a per-field feature guard; both reject a caller-supplied key this build
 // never documents at all).
@@ -72,7 +73,7 @@ function cfg(profile: ConfirmProfile) {
   return makeConfig([profile]);
 }
 
-/** Assert `create` throws a STRUCTURAL error (NOT the GOVERNED string) matching `re`. */
+/** Assert `create` throws a STRUCTURAL error (NOT the unknown-option-key string) matching `re`. */
 function assertStructural(cfgProfile: ConfirmProfile, re: RegExp): void {
   assert.throws(
     () => create(makeConfig([cfgProfile])),
@@ -633,9 +634,9 @@ test('a FULLY-LOADED two-leg profile declaring every once-governed field constru
   assert.doesNotThrow(() => create({ ...makeConfig([fullyLoaded]), signing: stubSigningConfig() }));
 });
 
-// === structural rejections (a DIFFERENT error, not the GOVERNED string) ================
+// === structural rejections (a DIFFERENT error, not the unknown-option-key string) ======
 
-test('structural: legs.length === 0 throws a structural "at least one leg" error (NOT the GOVERNED string)', () => {
+test('structural: legs.length === 0 throws a structural "at least one leg" error (NOT the unknown-option-key string)', () => {
   assertStructural({ ...captureProfile(), legs: [] }, /at least one leg/i);
 });
 
