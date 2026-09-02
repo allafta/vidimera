@@ -489,6 +489,7 @@ test('two concurrent acknowledgments of one finding: the loser refuses record-co
   assert.ok(loser !== undefined && loser.status === 'refused', 'the other REFUSES, never throws');
   if (loser?.status !== 'refused') return;
   assert.equal(loser.code, 'record-contended');
+  assert.equal(loser.class, 'refusal');
   assert.equal(loser.transitionRef, undefined);
   assert.equal((await handles.operator.getRecord(recordId))?.state, 'open');
 

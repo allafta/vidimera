@@ -141,9 +141,7 @@ INTAKE   validate host consultations (throw)
  (5.5) consultations / eligibility  →  consultation-missing / consultation-failed
                                        / ineligible / availability
  (5.7) ack coverage                 →  ack-missing / ack-stale  (findings-flow only)
- (6)   success batch                →  ok  (one atomic appendBatch) / record-contended
-                                       (findings-flow only: the head moved under a concurrent
-                                       finding or ack)
+ (6)   success batch                →  ok  (one atomic appendBatch) / record-contended (findings-flow only)
 ```
 
 Why each gate sits where it does:

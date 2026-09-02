@@ -6,9 +6,9 @@
 // second open() is blocked with `record-exists`. Also pins the atomic-batch bound:
 // finalize()'s success append is ONE all-or-nothing `appendBatch` call in this build — a
 // conflict at its entry compare-and-swap applies NOTHING, leaving the chain exactly as it
-// was, and surfaces as `record-not-open` (a `state-mismatch`) or a throw (a `seq`): a
-// CONTENTION error when a re-read shows the head genuinely moved under a conforming store, a
-// storage-fault error when it shows nothing landed.
+// was, and surfaces as `record-not-open` (a `state-mismatch`) or, on a `seq` conflict, as the
+// refusal `record-contended` when a re-read shows the head genuinely moved under a conforming
+// store (the record-contended increment) or a storage-fault THROW when it shows nothing landed.
 
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
@@ -275,13 +275,13 @@ test("finalize()'s batch digests are the ones finalize itself computed", async (
 //
 // APPENDED, this build step: `midBatchConflict` is gone, and with it the case this note
 // argued about — there is no longer a "conflict after something already landed" for a code to
-// misrepresent, because `appendBatch`'s entry CAS is all-or-nothing. The throw-not-refuse
-// mapping this note inverted TO is still the mapping in force (`batchSeqConflict`, above — which,
-// since the code-review fixes, tells a moved head — now the refusal `record-contended` — from a
-// storage fault), but it
-// no longer needs the enumerate-the-union argument that took two failed attempts to write
-// correctly — a `seq` conflict throws and a `state-mismatch` refuses, full stop, because
-// nothing is ever partially applied for either shape to misrepresent. The test this note
+// misrepresent, because `appendBatch`'s entry CAS is all-or-nothing. The mapping this note
+// inverted TO — throw, never a misrepresenting refusal — held until the record-contended
+// increment, which split the `seq` shape by one re-read (`batchSeqConflict`, above): a moved
+// head is the RETURNED refusal `record-contended`, true of the record, and only an unmoved
+// head still throws as the storage fault it is. The note's own point survives intact: no code
+// that is FALSE of the record is ever returned, and nothing is ever partially applied for
+// either shape to misrepresent — a `state-mismatch` refuses `record-not-open`. The test this note
 // guarded (`ConfirmBlockingStore`'s fabricated confirmed-append conflict) is gone with the
 // three-append sequence it fabricated a conflict inside of; `BatchConflictStore`'s tests above
 // pin the same throw-vs-refuse split at the batch's one entry CAS instead — the same place

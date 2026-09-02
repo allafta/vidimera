@@ -655,8 +655,8 @@ a conflict never leaves a partial tail: an entry conflict on state refuses `reco
 and a sequence conflict against a head a concurrent finding or acknowledgment moved refuses
 `record-contended` (§10.2, never appends) — the seam never re-sends the batch, and
 re-invocation re-evaluates the ladder against the new head. Two validation *throws* sit
-deliberately ahead of the
-ladder, at different depths. Consultation shape throws at **argument intake**, before
+deliberately ahead of the ladder, at different depths. Consultation shape throws at
+**argument intake**, before
 anything is loaded — that caller bug throws identically regardless of record state, ahead of
 every outcome including `chain-compromise`. The policy declared-iff-present throw fires at
 **profile resolution**, which follows the chain load and its verification — so against a

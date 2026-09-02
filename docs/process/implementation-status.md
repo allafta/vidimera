@@ -100,7 +100,7 @@ any one exit.
   the one item deferred as its own increment. No recorded byte, digest, or maturity marker moved.
   See the dedicated section at the end of this document; the numbers immediately below already
   include it.
-- **Measured against the current tree**: `pnpm test` — 67 test files, 860 tests, zero skips
+- **Measured against the current tree**: `pnpm test` — 67 test files, 862 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
   `pnpm lint` (`biome check .`) — 135 files checked, zero errors or warnings;
@@ -4619,7 +4619,8 @@ recorded chain, digest, or profile digest moved in any phase; `byte-stability.te
    seams had mapped that to a throw asserting the race was unreachable under a single-writer
    bound the Postgres adapter never had. A shared `batchSeqConflict` re-reads once (the
    `residualRefusal` precedent): a moved head is an `Error` named `ContentionError` whose message
-   names re-invocation; an unmoved head keeps the storage-fault throw, now true. The seam never
+   names re-invocation (since minted as the refusal `record-contended` — the twentieth
+   increment, below); an unmoved head keeps the storage-fault throw, now true. The seam never
    re-sends the batch — a fresh-seq retry would skip rung (5.7) and confirm over a finding the
    human never saw; the pins show re-invocation refusing `ack-missing` for a required kind and
    confirming for a non-gating one. A never-appends contention refusal code is the durable shape
@@ -4703,8 +4704,9 @@ Three further review angles completed — altitude, efficiency, and wrapper corr
 were verified by hand the same way. Fixed, each pinned first: the findings seams mapped
 every lost compare-and-swap to `record-not-open`, which is false of a record that lost only
 a seq race and is still open — the exact untruth phase 1 removed from the batch seams; two
-concurrent `raiseFinding` calls now leave the loser with the same `ContentionError`, via a
-single-append twin of the batch helper, and re-invocation lands its finding. The signing
+concurrent `raiseFinding` calls now leave the loser with the same `ContentionError` (since the
+refusal `record-contended`, below), via a single-append twin of the batch helper, and
+re-invocation lands its finding. The signing
 decorator cached `signs = false` from an EMPTY chain, so a non-genesis append arriving before
 its genesis pinned the record as non-signing and the genuine genesis then landed unsigned,
 which the fail-closed layer reads as chain-compromise — reachable only through `withSigning`
@@ -4775,8 +4777,8 @@ recorded in the closing commit's message as run or as not runnable on the author
 
 ## Post-build-order increment — `record-contended` (a SPEC §8 registry amendment)
 
-**The twentieth post-build-order increment, exited (branch `record-contended`, four commits,
-fast-forwarded to `main`).** The 2026-09-02 code review left a seam's lost sequence race
+**The twentieth post-build-order increment, exited (branch `record-contended`, cut from `main`
+at `708b557`: four task commits and one review fold-in).** The 2026-09-02 code review left a seam's lost sequence race
 surfacing as an `Error` named `ContentionError` — a throw where DECISIONS.md #10 says refusals
 are returned, taken only because no registry code was true of an open, intact, undecided record
 and the registry is spec-fixed. This increment minted the code. Its design and promotion case is
@@ -4834,11 +4836,26 @@ register row 23's. Under a signing profile a contention loss still leaves one si
 batch element (row 22's widened inventory). `refuseMaybeAppend`'s lost-CAS refusal at rung (5.7)
 can be stale after a concurrent acknowledgment (never false; recorded as a residual). A
 code/spec observation surfaced while editing §8's never-appends list and is recorded, not
-reconciled: the list omits `supersedes-unverified`, which the code's `NEVER_APPENDS` set carries
-and SPEC §2's recovery text treats as pre-record; the sanction did not license that sentence and
-it is left for a future consistency pass.
+reconciled: the list omits `supersedes-unverified`, which the code's `NEVER_APPENDS` set carries —
+and the string occurs nowhere in SPEC.md at all, §8's registry table included; SPEC §2 defers
+"the non-terminal-predecessor refusal shape" to OPEN-QUESTIONS.md rather than naming the code.
+So the code is absent from the normative registry entirely, a pre-existing gap on `main`; the
+sanction did not license those sentences and it is left for a future consistency pass.
 
 **Gate outputs, as measured against the closing commit.** `tsc -p packages/record --noEmit` and
 `-p packages/store-postgres --noEmit` clean; `vitest run` — 67 files, 862 tests, zero skips
 (record 793, store-postgres 69); `biome check --error-on-warnings .` — 135 files, exit 0;
 `contract-scan`, `api-reference-sync`, `docs-index-sync` — exit 0.
+
+**The branch review, before merge.** A second model reviewed the four commits against the spec
+and the sanction: every classifier call site handles both verdict arms, no `ContentionError`
+remains outside historical narration, every `docs/concept/` hunk maps to a licensed touch, and
+the definition, list, GLOSSARY and DECISIONS agree. Twelve record-level findings were folded in
+as the fifth commit: this file's header and inversion note in `terminality.test.ts` still spoke
+of a throw; the `acknowledge` race pin now asserts class as the others do; two test totals read
+860 where the tree measures 862; the increment index still said "awaiting sanction"; the
+ARCHITECTURE ladder line was trimmed to exactly the licensed text, its explanatory clause having
+exceeded the grant's wording; a re-flow orphan in SPEC §9 was re-wrapped (bytes of that
+sentence only, content identical); the `supersedes-unverified` observation above was
+sharpened; the two historical `ContentionError` statements in the previous section gained
+forward pointers; and this header no longer presumes how the branch is integrated.

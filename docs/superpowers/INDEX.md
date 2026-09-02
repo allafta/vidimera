@@ -78,4 +78,4 @@ close.
 | 2026-09-01 | Truth restoration in shipped source and tests | Post-build-order (no step) | [design](specs/2026-09-01-truth-restoration-design.md) | [plan](plans/2026-09-01-truth-restoration.md) |
 | 2026-09-01 | Registry-facing hygiene | Post-build-order (no step) | [design](specs/2026-09-01-registry-hygiene-design.md) | [plan](plans/2026-09-01-registry-hygiene.md) |
 | 2026-09-02 | Parked truths | Post-build-order (no step) | [design](specs/2026-09-02-parked-truths-design.md) | [plan](plans/2026-09-02-parked-truths.md) |
-| 2026-09-02 | `record-contended` — a §8 registry amendment (design and promotion case, awaiting sanction) | Post-build-order (no step) | [design](specs/2026-09-02-record-contended-design.md) | [plan](plans/2026-09-02-record-contended.md) |
+| 2026-09-02 | `record-contended` — a §8 registry amendment (design and promotion case; sanction granted, re-granted for the definition, and spent) | Post-build-order (no step) | [design](specs/2026-09-02-record-contended-design.md) | [plan](plans/2026-09-02-record-contended.md) |
