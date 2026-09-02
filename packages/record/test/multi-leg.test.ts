@@ -1141,3 +1141,68 @@ test("a non-declaring multi-leg profile is untouched by the gate: the maker's ac
   const done = await handles.operator.finalize(opened.value.recordId, identity(), CONTENT, facts());
   assert.equal(done.status, 'ok');
 });
+
+// === content across legs: the verifier compares none — pinned as an OMISSION, not a ruling ==
+//
+// `verifyPriorLegs` checks a prior's intactness, signature layer, recomputed head, profileId,
+// subjectRef, leg order and `confirmed` state (kernel/prior-legs.ts), and never its
+// `contentDigest`, so a checker leg may open and confirm over content the maker never saw.
+// Nothing on record says whether a profile's legs bind one artifact: id.ts folds the legId
+// into the stagedRef precisely because two legs staging IDENTICAL content would otherwise
+// collide — the derivation presumes shared content is the normal case — and nothing enforces it.
+// This test pins what holds TODAY so a change in either direction is authorized rather than
+// slipped in: the admission, and the fidelity property that makes it tolerable — the
+// divergence is derivable from the recorded reference alone, because the successor's genesis
+// pins the prior's `chainHead` and that pins the prior's own `contentDigest`. Closing the
+// omission (equality at open() refusing `prior-leg-unverified`, or a per-profile switch)
+// would add a condition to the verifier's spec-enumerated list and needs its own sanction; it
+// would change no recorded bytes, since every pinned multi-leg flow binds identical content.
+
+test('a checker leg opens and confirms over DIFFERENT content than the maker confirmed — admitted today, and the divergence is derivable from the recorded reference alone', async () => {
+  const store = new MemoryStore();
+  const handles = create(makeConfig([twoLegProfile()], { store }));
+  const { makerId, makerHead } = await makerConcluded(handles, store); // the maker bound CONTENT
+
+  const OTHER_CONTENT = { subject: 'week-1', total: 41 };
+  const staged = await handles.agent.stage(
+    OTHER_CONTENT,
+    'test.twoleg.v1',
+    SUBJECT,
+    'checker-decide',
+  );
+  assert.equal(staged.status, 'ok');
+  if (staged.status !== 'ok') return;
+  const opened = await handles.operator.open(staged.value.stagedRef, {
+    priorRecordRefs: [{ recordId: makerId, chainHead: makerHead }],
+  });
+  assert.equal(opened.status, 'ok', 'the verifier compares no content — the reference verifies');
+  if (opened.status !== 'ok') return;
+  const done = await handles.operator.finalize(
+    opened.value.recordId,
+    identity({ principal: 'approver:2' }),
+    OTHER_CONTENT,
+    facts(),
+  );
+  assert.equal(done.status, 'ok', "rung (4) binds the checker's OWN draft, not the maker's");
+
+  // Fidelity: a reader holding only the successor reaches the prior's bound content through
+  // the recorded reference, and sees the two legs disagree.
+  const checker = replay(await store.readChain(opened.value.recordId));
+  const ref = checker.priorRecordRefs?.[0];
+  assert.ok(ref !== undefined, 'the successor records the verified reference');
+  const priorChain = await store.readChain(ref.recordId);
+  const priorHead = priorChain.at(-1);
+  assert.ok(priorHead !== undefined);
+  assert.equal(
+    transitionDigest(priorHead),
+    ref.chainHead,
+    'the recorded head pins the prior chain',
+  );
+  const prior = replay(priorChain);
+  assert.equal(prior.contentDigest, (await handles.operator.getRecord(makerId))?.contentDigest);
+  assert.notEqual(
+    prior.contentDigest,
+    checker.contentDigest,
+    'the divergence is visible from the two recorded digests alone — fidelity, not validity',
+  );
+});
