@@ -113,10 +113,10 @@ any one exit.
   proved only that the step ran; this document's gate outputs were measured locally and
   stand. See the dedicated section at the end of this document; the numbers immediately
   below already include it.
-- **Measured against the current tree**: `pnpm test` — 69 test files, 870 tests, zero skips
+- **Measured against the current tree**: `pnpm test` — 72 test files, 889 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
-  `pnpm lint` (`biome check .`) — 138 files checked, zero errors or warnings;
+  `pnpm lint` (`biome check .`) — 141 files checked, zero errors or warnings;
   `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 25 refusal codes, the twenty-fifth being
@@ -5084,3 +5084,83 @@ a refusing guard under `continue-on-error` shows as a successful step, its verdi
 log. The flipped sentences are kept in `docs/analysis/2026-09-03-release-rehearsal.md` as a
 worked example to copy and re-verify. The branch was deleted after the record was written;
 nothing from it merged.
+
+## Post-build-order increment — The security-findings pass (four findings, two code fixes)
+
+**The twenty-second post-build-order increment, exited (branch `security-findings-2026-09-03`,
+cut from `main` at `d7d6dcb`: three code commits — `5a56892`, `bc0a2e1`, `c3bfdf0` — and this
+record).** Not a capability: an owner-driven security review of `@vidimera/record` reported four
+findings in one message, each with the route taken, and this increment verified each against the
+tree before changing anything, then acted on them in severity order. The full account, with the
+red-first evidence quoted per commit and each finding's lineage in the earlier reviews, is
+`docs/analysis/2026-09-03-security-findings.md`; this section is the ledger.
+
+**Finding 1, the verifier registry — confirmed and fixed (`5a56892`).** The one real defect.
+`kernel/verify-signatures.ts` resolved a sidecar entry's `keyRef` with a bare index into the
+host's `verifiers` object and read the verifier's answer for truthiness. A bare index walks the
+prototype chain: a forged entry whose `keyRef` named `toString` or `constructor` resolved to a
+callable answering a truthy value over any bytes and any signature, so a sidecar written by a
+storage-side insider holding no key verified whole and every enforcement site confirmed the
+record — AL2's own purpose (SPEC §14, "storage-writing insiders") defeated, inside `SECURITY.md`'s
+stated scope. The same trap `resolveCanonicalizer` closed at the 2026-08-03 step-1 review, in
+the one registry that arrived after that review; a sweep found no other unguarded read. The
+lookup is now `Object.hasOwn` and a verification is the literal `true` (a truthy status string or
+object from a host's verifier no longer verifies either). `test/verifier-registry.test.ts` pins
+the family; red first, `3 failed | 4 passed (7)`.
+
+**Finding 3, identity objects persisted verbatim — confirmed, and INVERTED (`bc0a2e1`): the
+TWELFTH self-authored inversion in this document's own numbered sequence.** `isValidIdentity`
+checked a non-empty `principal` and `authority` and nothing more, and every seam persisted the
+object it was handed; `kernel/consultations.ts` recorded the posture in so many words — extra
+keys "reach the digested payload as host attestation" — shared by the `confirmed` actor, the
+raiser, the acker and both checkers since the kernel increment (the 2026-08-30 catalogue's item
+51 tracked the checker half). Argued at the validator's own site: SPEC §6 defines the shape;
+§6 and §13 build erasure on the principal being a pseudonym held outside the chain; the extra keys
+are exactly where a host leaks an e-mail address or a bearer token into a digested, immutable
+transition; attestation no seam reads is not a capability anyone lost. Tighter conformance to §6,
+no SPEC change — but this build's own earlier stance reversed, so it is numbered. An identity is
+now exactly `{ principal, authority, proofRef? }` (own keys within that set, non-empty strings,
+`proofRef` absent, explicitly `undefined`, or a string); each seam keeps its existing posture
+toward an invalid one — `identity-authority-refused` at finalize and decline, a thrown caller
+error at the findings seams and the obtained-consultation checker, `consultation-missing` from
+the facts gate. Red first, `6 failed (6)`; the record project's other 806 tests unaffected. Item
+51 closes, wider than filed.
+
+**Finding 2, enforcement reads live configuration — confirmed as behavior, a recorded posture;
+the report now says so (`c3bfdf0`); the fail-open stays, pinned as a bound.** `signingDeclared`
+is computed from the genesis `profileId` resolved against THIS instance's registry — the
+id-resolution posture and the rehoming residual this document has named since the enforcement
+increment (OPEN-QUESTIONS §1's decided granularity; catalogue items 33 and 60). The review's
+route: a same-id profile without `signing: true`, on an instance with no `config.signing`, reads
+a signing record as plain AL1 and finalizes it, and the report said only `signingDeclared: false`.
+What the review added: the in-tree asymmetry with the policy-drift arm, which fails closed on the
+identical same-id flip and argues so in place; a route that needs no recompute where item 60
+assumed one; the evidence already in the chain — the genesis `profileDigest` covers `signing`;
+and helpers the host could not reach, since neither was exported. What landed, no sanction
+needed: `SignatureReport.genesisProfile` — `matches` / `drifted` (both digests) / `unresolvable`
+— computed only in `verifySignatures` so the gate primitive pays nothing; `signingDeclared`
+documented as live-computed; `profileDigest` and `projectProfile` exported. Red first,
+`6 failed (6)`. What did NOT land: refusing on drift, which adds to SPEC §8's registry and §9's
+ladder and moves OPEN-QUESTIONS §1's decided text — a fresh sanction, recorded as the fourth
+entry of `next-phases.md`'s sanction-gated list. `test/profile-drift-report.test.ts` pins the
+review's own route with its fail-open AS A BOUND, so that when it moves it moves on purpose.
+
+**Finding 4, any authority may raise or acknowledge — by design, pinned, already recorded.**
+SPEC §10.2's raiser "MAY be an automated checker's", counting is "by principal-only comparison
+against the raiser", and §4 scopes `allowedAuthorities` to a leg's actor;
+`test/findings-seams.test.ts` pins "deciders and informers are different populations". The
+residual the review points at is the first entry of `next-phases.md`'s sanction-gated list,
+surfaced by the 2026-09-02 code review; that entry now notes the independent re-derivation.
+Nothing changed.
+
+**Observed, not acted on.** Every full run on this branch printed `TypeError: done is not a
+function` from `embedded-postgres` after vitest's summary and the JSON report, with `vitest exit:
+0` and the report gate `ok`; no commit here touches `packages/store-postgres`. Recorded in the
+analysis for deferral register row 24's owner.
+
+**Gate outputs, as measured against the closing commit.** `pnpm test:ci` — 889 tests in 72
+files, zero skips (`ok — 889 tests in 72 files (77 suites): 889 passed, 0 failed, 0 skipped,
+0 todo`); `pnpm typecheck` — both packages clean; `biome check --error-on-warnings .` — 141
+files, exit 0; `contract-scan`, `api-reference-sync`, `docs-index-sync` — exit 0. From `d7d6dcb`'s
+69 files and 870 tests: 70/877 after the verifier fix, 71/883 after the identity shape, 72/889
+after the drift report.

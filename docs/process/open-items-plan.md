@@ -265,9 +265,13 @@ scoping.
       discipline as everything else pre-1.0.
 - [ ] **The rehoming-residual closures — consider, not owed.** The AL2 rehoming
       residual is a recorded limit, deliberately unclosed (`verifySignatures` reports
-      the truth either way); its two named closures — a deployment registering only
-      signing profiles, or a profileDigest-pinning tightening — are candidates a 1.0
-      review should weigh, not debts.
+      the truth either way — and since 2026-09-03 its `genesisProfile` field reports the
+      drift itself, `matches` / `drifted` with both digests / `unresolvable`, with
+      `profileDigest`/`projectProfile` exported for the offline comparison); its two named
+      closures — a deployment registering only signing profiles, or a profileDigest-pinning
+      tightening — are candidates a 1.0 review should weigh, not debts. With the report in
+      place the tightening's one remaining question is whether to REFUSE on drift;
+      `packages/record/test/profile-drift-report.test.ts` pins today's fail-open as a bound.
 
 **Dormant, with named triggers — watched, not worked:** OPEN-QUESTIONS §6's registry
 candidates (`unknown-staged`/`unknown-record` mint only if a real host hits the
