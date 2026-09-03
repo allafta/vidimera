@@ -97,12 +97,13 @@ function makerConfirmedChain(
     actorless?: boolean;
   },
 ): Transition[] {
+  const profile = twoLegShape(overrides?.profileId);
   return buildChain(recordId, [
     {
       kind: 'opened',
       payload: {
         profileId: overrides?.profileId ?? 'test.twoleg.v1',
-        profileDigest: `sha256:${'0'.repeat(64)}`,
+        profileDigest: profileDigest(profile),
         legId: overrides?.legId ?? 'maker-decide',
         subjectRef: overrides?.subjectRef ?? SUBJECT,
         contentDigest: `sha256:${'1'.repeat(64)}`,
