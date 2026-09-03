@@ -117,8 +117,10 @@ function validateInput(
 function validateSeamIdentity(seam: string, identity: IdentityAssertion): void {
   if (!isValidIdentity(identity)) {
     throw new Error(
-      `${seam}: a malformed identity (missing or empty principal/authority) is a caller error — ` +
-        'an empty principal could never satisfy any ackMode (fail-closed both sides), the inert-input trap',
+      `${seam}: a malformed identity (not exactly { principal, authority, proofRef? } with a ` +
+        'non-empty principal and authority) is a caller error — an empty principal could never ' +
+        'satisfy any ackMode (fail-closed both sides), the inert-input trap; an extra key is ' +
+        'what a host leaks a secret through (SPEC §6)',
     );
   }
 }

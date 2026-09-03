@@ -986,21 +986,43 @@ export function sodViolated(
   return leg.proposer !== undefined && leg.proposer === identity.principal;
 }
 
+const IDENTITY_KEYS: ReadonlySet<string> = new Set(['principal', 'authority', 'proofRef']);
+
 /**
- * A finalize identity is valid iff it is an object carrying a non-empty `principal` AND a
- * non-empty `authority` string. The arg is typed `IdentityAssertion`, but the library must
- * fail closed against a malformed/absent arg supplied at runtime (a payload-carried or empty
- * id) — hence the defensive runtime shape check.
+ * An identity is valid iff it is EXACTLY an IdentityAssertion (SPEC §6): an object whose own
+ * keys are a subset of `{ principal, authority, proofRef }`, with `principal` and `authority`
+ * non-empty strings and `proofRef` either absent, an explicit `undefined` (the shape an
+ * optional field takes under a spread), or a string. The arg is typed `IdentityAssertion`,
+ * but the library must fail closed against a malformed/absent arg supplied at runtime (a
+ * payload-carried or empty id) — hence the defensive runtime shape check.
+ *
+ * The exact-shape half is the TWELFTH self-authored inversion in the status record's own
+ * numbered sequence, argued here at its site. From the kernel increment until the
+ * security-findings pass (2026-09-03) the recorded posture was the opposite: extra keys on
+ * an `actor`, a `checker`, a `raiser` or an `acker` were not rejected and reached the
+ * digested payload as host attestation (kernel/consultations.ts, as it then read), and every
+ * seam persisted the object it was handed — `payload: { actor: identity }`. The inversion's
+ * argument: those extra keys are exactly where a host leaks an e-mail address, a display
+ * name or a bearer token into a digested, immutable transition, in a record whose erasure
+ * story (SPEC §6, §13) rests on the principal being a pseudonym resolvable OUTSIDE the
+ * chain. An immutable chain cannot un-swallow what it took, and attestation no seam reads is
+ * not a capability anyone lost. Every caller keeps its own posture toward an invalid
+ * identity — finalize and decline refuse `identity-authority-refused`, the findings seams and
+ * an obtained consultation's checker throw, `facts.checker` fails the facts gate; only what
+ * counts as valid moved. Pinned in `test/identity-shape.test.ts`.
  */
 export function isValidIdentity(identity: IdentityAssertion): boolean {
-  const i = identity as unknown as { principal?: unknown; authority?: unknown } | null | undefined;
+  const i = identity as unknown as Record<string, unknown> | null | undefined;
+  if (i == null || typeof i !== 'object') return false;
+  for (const key of Object.keys(i)) {
+    if (!IDENTITY_KEYS.has(key)) return false;
+  }
   return (
-    i != null &&
-    typeof i === 'object' &&
     typeof i.principal === 'string' &&
     i.principal.length > 0 &&
     typeof i.authority === 'string' &&
-    i.authority.length > 0
+    i.authority.length > 0 &&
+    (i.proofRef === undefined || typeof i.proofRef === 'string')
   );
 }
 

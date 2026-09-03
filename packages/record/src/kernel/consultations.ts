@@ -132,12 +132,14 @@ export function validateConsultations(
         );
       }
     }
-    // The exact-shape rule enforced by the two key-set loops above is ENTRY-shape-scoped
-    // only: `checker` itself is validated by `isValidIdentity` (a non-empty `principal` and
-    // `authority`) but is not, in turn, exact-shaped — the same recorded posture as the
-    // `confirmed` payload's `actor` and `facts.checker` since the kernel increment. Extra
-    // keys inside a supplied checker object are not rejected; they reach the digested
-    // payload as host attestation, not as anything this validator itself vouches for.
+    // The exact-shape rule enforced by the two key-set loops above covers the ENTRY; the
+    // `checker` inside it is exact-shaped in turn by `isValidIdentity`, since the
+    // security-findings pass (2026-09-03). Until then this comment recorded the opposite
+    // posture, shared with the `confirmed` payload's `actor` and `facts.checker` since the
+    // kernel increment: extra keys inside a supplied checker were not rejected and reached
+    // the digested payload as host attestation. The inversion is argued at
+    // `isValidIdentity`'s own site (kernel/finalize.ts); this throw's posture — a caller
+    // error, nothing appended — is unchanged.
     if (!isValidIdentity(record.checker as never)) {
       throw new Error(
         `${seam}: consultations[${index}] (obtained '${kind}') has a malformed checker identity — a caller error (SPEC §11.1)`,

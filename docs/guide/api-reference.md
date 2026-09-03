@@ -320,6 +320,16 @@ trapped configuring a control that can never fire.
 
 ## Core types
 
+**`IdentityAssertion` is exact.** Every seam that takes one — the finalize/decline actor, the
+finding raiser and acker, an obtained consultation's `checker`, `facts.checker` — rejects an
+object carrying any key other than `principal`, `authority` and `proofRef`, or a `proofRef`
+that is not a string (an explicit `undefined` is fine). Build it from the three fields; never
+pass a session or user object through. The chain is immutable and digested, and an extra key
+is how an e-mail address or a bearer token ends up in it for good (SPEC §6, §13). At
+`finalize`/`decline` the rejection is the refusal `identity-authority-refused`; at
+`raiseFinding`/`acknowledge` and for a consultation's `checker` it is a thrown caller error;
+for `facts.checker` it is `consultation-missing`.
+
 ```ts
 type Digest = string;                        // "sha256:<hex>"
 

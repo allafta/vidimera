@@ -148,6 +148,24 @@ is the summary, and that file wins on conflict.
 
 ### Changed
 
+- **An identity is exactly `{ principal, authority, proofRef? }`** (2026-09-03, branch
+  `security-findings-2026-09-03`, found by the same security review as the verifier fix under
+  Fixed): every seam that takes an `IdentityAssertion` — `finalize`/`decline`'s actor,
+  `raiseFinding`/`acknowledge`'s identity, an obtained consultation's `checker`, and
+  `facts.checker` — now rejects an object carrying any other key, or a `proofRef` that is not
+  a string (an explicit `undefined` is admitted, the shape an optional field takes under a
+  spread). Until now the one validator checked a non-empty `principal` and `authority` and
+  nothing more, and every seam persisted the object verbatim into a digested, immutable
+  transition — the recorded posture called the extra keys host attestation. This inverts that
+  posture (the twelfth self-authored inversion, argued at `isValidIdentity`'s own site in
+  `kernel/finalize.ts`): the extra keys are exactly where a host leaks an e-mail address or a
+  bearer token into a chain whose erasure story rests on the principal being a pseudonym held
+  outside it. Each seam keeps its existing posture toward an invalid identity — the refusal
+  `identity-authority-refused` at `finalize`/`decline`, a thrown caller error at the findings
+  seams and the obtained-consultation checker, `consultation-missing` from the facts gate;
+  only what counts as valid moved. A host that passed a richer object must now project it
+  down to the three fields. Pinned in `packages/record/test/identity-shape.test.ts` (red
+  first: all six against the old validator).
 - **Code-review fixes, six phases** (2026-09-02, branch `code-review-fixes`; each phase is
   one commit whose message carries the argument). `finalize`/`decline` losing their single
   batch append to a concurrent state-preserving append (`raiseFinding`/`acknowledge`) on the

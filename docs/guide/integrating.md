@@ -125,6 +125,12 @@ with the payload. The library enforces the leg's `allowedAuthorities` allowlist;
 *truthfulness* of the assertion is exactly as good as your transport layer, and the record
 inherits that bound — which is why `authority` names the mechanism.
 
+And pass exactly those fields. The library rejects an identity carrying any key other than
+`principal`, `authority` and `proofRef` (at `finalize`/`decline` as the refusal
+`identity-authority-refused`) — so a session or user object passed through wholesale fails
+closed rather than writing its e-mail addresses and tokens into a chain that cannot forget
+them.
+
 ## Handling outcomes
 
 One shape to handle everywhere:
