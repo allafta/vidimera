@@ -36,7 +36,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: dry run — the pre-release guard and both publish steps are skipped
         if: ${{ inputs.dry_run }}
-        run: echo "dry run: the tree may still be private and 0.0.0; nothing will be published"
+        run: |
+          echo "dry run: the tree may still be private and 0.0.0; nothing will be published"
       # The release-day guard: refuse any package still carrying the pre-release shape.
       - name: guard — versions bumped and private dropped, both packages
         if: ${{ !inputs.dry_run }}
