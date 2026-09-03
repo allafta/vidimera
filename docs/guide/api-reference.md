@@ -361,6 +361,7 @@ type TransitionKind =
 interface DecisionRecord {                   // the replay fold — derived, never stored
   id: string;
   profileId: string;
+  profileDigest: Digest;                     // the profile's data-only projection digest bound at genesis (SPEC §4); the seams compare their registered profile against it
   legId: string;
   subjectRef: string;
   contentDigest: Digest;
