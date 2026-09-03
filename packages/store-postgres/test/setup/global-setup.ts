@@ -1,12 +1,14 @@
 // Project-scoped vitest globalSetup: one embedded Postgres per `pnpm test` run. Runs in
 // the main process before workers fork, so the DSN set on process.env is inherited by
 // every worker. There is deliberately NO skip path: if the server cannot start, the
-// suite fails loudly — the zero-skips discipline.
+// suite fails loudly — the zero-skips discipline. Running in the main process is also
+// why `embedded-postgres` is loaded through `loadEmbeddedPostgres` below and never
+// imported at the top of this module.
 import { mkdtempSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import EmbeddedPostgres from 'embedded-postgres';
+import type EmbeddedPostgres from 'embedded-postgres';
 
 async function freePort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -24,6 +26,27 @@ async function freePort(): Promise<number> {
   });
 }
 
+/**
+ * Loads `embedded-postgres` without letting it take the process's exit code. The library
+ * registers an `async-exit-hook` handler at module load, and that hook's `beforeExit`
+ * listener exits with code 0 once the event loop drains — clobbering the non-zero
+ * `process.exitCode` vitest sets for a failed run. A globalSetup module runs in vitest's
+ * main process, so a plain top-level import here made every failed `pnpm test` exit 0, on
+ * every CI leg, from the adapter's first commit until the CI test-gate repair (2026-09-03).
+ * Only the `beforeExit` listener the import added is removed: the library's `exit` and
+ * signal hooks stay, so its graceful shutdown of a server still running at an abnormal exit
+ * is untouched. Exported for the pins in `global-setup-exit-hooks.test.ts`, which fail the
+ * day the library stops needing this.
+ */
+export async function loadEmbeddedPostgres(): Promise<typeof EmbeddedPostgres> {
+  const before = new Set(process.listeners('beforeExit'));
+  const { default: ctor } = await import('embedded-postgres');
+  for (const listener of process.listeners('beforeExit')) {
+    if (!before.has(listener)) process.removeListener('beforeExit', listener);
+  }
+  return ctor;
+}
+
 export default async function setup(): Promise<() => Promise<void>> {
   // The documented external-server seam: a pre-provided URL wins, and the embedded
   // server never spawns. This exists because a real environment can be unable to run
@@ -36,7 +59,8 @@ export default async function setup(): Promise<() => Promise<void>> {
     return async () => {};
   }
   const port = await freePort();
-  const pg = new EmbeddedPostgres({
+  const Embedded = await loadEmbeddedPostgres();
+  const pg = new Embedded({
     databaseDir: mkdtempSync(join(tmpdir(), 'vidimera-pg-')),
     user: 'vidimera',
     password: 'vidimera',
