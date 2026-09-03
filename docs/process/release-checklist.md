@@ -144,8 +144,11 @@ a list rather than as code.
       design until the 0.1 cut"). Both are found by the tier-1 recipe in the next item;
       neither was named by any earlier version of this list. A third hit, inside the
       publish-tooling entry ("The package stays `private: true` until the 0.1 cut by
-      design"), is that entry's own narration of what it did and stays as written —
-      rule on it, do not flip it.
+      design"), is that entry's own narration of what it did — but it matches two tier-1
+      patterns, and tier 1 must come back empty, so "stays as written" (this item's
+      instruction until 2026-09-03) contradicted the recipe. **Reword it in the past tense
+      without the literal patterns**; the rehearsal's wording: "The manifests kept their
+      private flag until this cut, by design." (`docs/analysis/2026-09-03-release-rehearsal.md`).
 - [ ] Flip the docset's "unpublished" caveats to the published truth. **Find the sites by
       running the recipe, not by reading a list.** This item was an enumeration of named
       sites until 2026-09-01, and an enumeration maintained by hand across a growing docset
@@ -167,6 +170,11 @@ a list rather than as code.
       # hit must have been looked at.
       git grep -nE 'from source|this workspace|deep import|pre-0\.1' -- README.md CHANGELOG.md CONTRIBUTING.md SECURITY.md docs/README.md 'docs/guide/*.md' 'packages/*/README.md'
       ```
+
+      **Rehearsed 2026-09-03 at `74a5828`** (`docs/analysis/2026-09-03-release-rehearsal.md`):
+      tier 1 returned 16 hits in 9 files before the flips and EMPTY after; tier 2 went from
+      22 to 16, every remaining hit ruled to stay. The record carries every flipped sentence
+      as a worked example to copy and re-verify, never to paste unread.
 
       **Worked example, measured 2026-09-01 at `565f7b4`** — tier 1 returned 16 hits in 9
       files and tier 2 returned 22, together covering: `README.md`'s status paragraph,
@@ -225,8 +233,12 @@ about to write to. Do these in the same sitting as the dispatch, not the week be
       only way the job's YAML and its gate chain execute on the release runner before the
       real dispatch. It was first dispatched
       2026-09-03 against the pre-release tree (run 33713900951: every gate green, the guard
-      and both publish steps skipped, both tarballs packed), which proves the job's
-      structure, not the release commit's tree, so this box is release day's own.
+      and both publish steps skipped, both tarballs packed), then against a release-shaped
+      rehearsal branch (run 33718633361: the guard PASSED, both tarballs named 0.1.0 —
+      `docs/analysis/2026-09-03-release-rehearsal.md`). Neither is the release commit's
+      tree, so this box is release day's own. **Read the guard step's log, not its colour:**
+      with `continue-on-error` a refusing guard still shows as a successful step; only the
+      log carries `refusing to publish …` and its exit code.
 - [ ] **Prove publish rights against the live scope, not just token validity.** This sharpens
       the token item in the section above rather than repeating it: a token that authenticates
       and a token that may publish to `@vidimera` are different facts, and only the second one

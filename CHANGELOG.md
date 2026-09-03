@@ -224,7 +224,11 @@ is the summary, and that file wins on conflict.
   parses every workflow with `yaml` and asserts the facts the documents rely on, after
   GitHub's parser had rejected the dry-run input's first push and nothing in this tree could
   have said why; and the dry run's guard now reports without blocking, so a dry run against
-  a release-shaped tree shows it passing.
+  a release-shaped tree shows it passing — which a release-day rehearsal then did
+  (`docs/analysis/2026-09-03-release-rehearsal.md`): the checklist's file changes executed on
+  a throwaway branch, the docset recipe run to empty, every gate green, the dry run's guard
+  passing on the release shape with both tarballs named 0.1.0, one checklist
+  self-contradiction found and amended, and the flipped sentences kept as a worked example.
 - **Code-review, second round** (2026-09-02, the same branch): the findings seams mapped
   EVERY lost compare-and-swap to `record-not-open`, false of a record that lost only a seq
   race and is still open — two concurrent `raiseFinding` calls now leave the loser with the

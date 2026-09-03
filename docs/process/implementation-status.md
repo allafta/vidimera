@@ -5066,3 +5066,21 @@ in a dry run, so a dry run against a release-shaped tree shows it passing, which
 below needs. Bounds, in the file's header: parse and shape only; GitHub's schema — allowed
 keys, action pins, expression syntax — is not checked, so a typo inside an `if` still passes
 here and fails there. Measured: 69 files, 870 tests; `biome check` 138 files.
+
+*The release-day rehearsal (branch `release-rehearsal`, never merged; the record on `main`).*
+The checklist's "File changes" section, executed as written on a throwaway branch cut from
+`main` at `74a5828`: both versions to 0.1.0, both `private` flags dropped, the CHANGELOG
+section cut with its two flips, the docset flip recipe run — tier 1 from 16 hits in 9 files
+(the worked example's numbers exactly) to empty, tier 2 from 22 to 16 with every remaining hit
+ruled to stay — the README snippet and CLAUDE.md skim, every gate green locally (the smoke line
+reading `peer range ^0.1.0`), no tag. The release workflow dispatched in dry-run mode against
+the branch (run 33718633361): the guard passed on the release shape, every gate ran, both
+tarballs packed as `vidimera-record-0.1.0.tgz` and `vidimera-store-postgres-0.1.0.tgz`. Three
+findings, each now written where release day will read it: the checklist contradicted itself
+on the publish-tooling entry's narration (kept as written by one item, forbidden by the
+recipe's empty-tier-1 rule — resolved by rewording in the past tense without the literal
+patterns, and the item amended); a stale test count hid inside the getting-started caveat; and
+a refusing guard under `continue-on-error` shows as a successful step, its verdict only in the
+log. The flipped sentences are kept in `docs/analysis/2026-09-03-release-rehearsal.md` as a
+worked example to copy and re-verify. The branch was deleted after the record was written;
+nothing from it merged.
