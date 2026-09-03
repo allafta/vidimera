@@ -113,10 +113,10 @@ any one exit.
   proved only that the step ran; this document's gate outputs were measured locally and
   stand. See the dedicated section at the end of this document; the numbers immediately
   below already include it.
-- **Measured against the current tree**: `pnpm test` — 68 test files, 864 tests, zero skips
+- **Measured against the current tree**: `pnpm test` — 69 test files, 870 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
-  `pnpm lint` (`biome check .`) — 137 files checked, zero errors or warnings;
+  `pnpm lint` (`biome check .`) — 138 files checked, zero errors or warnings;
   `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 25 refusal codes, the twenty-fifth being
@@ -4993,7 +4993,9 @@ brainstormed and taken together on the owner's choice, with a fifth left as an o
 outside the repository (reporting the hazard upstream).
 
 *The release workflow's dry run.* `release.yml` gains a `dry_run` dispatch input. With it on,
-the pre-release guard and both publish steps are skipped, a one-line step says so, every gate
+the pre-release guard runs but reports without blocking (a same-day change — the first version
+skipped it, which meant a dry run against a release-shaped tree could never show it passing),
+both publish steps are skipped, a one-line step says so, every gate
 runs unchanged — the report gate included — and a dry-run-only step runs the publish steps'
 own `pnpm pack` commands in their own directories. It proves the job's structure and its gate
 chain on the release runner, which had never executed; it proves nothing about the publish,
@@ -5043,3 +5045,24 @@ honest part of the table: two are documented bounds of the gates (a warning is n
 `example.com` is allowed by design; the api gate reads one export shape), one was a
 mis-aimed induce — each now written down where a reader who repeats the sweep will look
 first.
+
+*The workflow-file parse gate (branch `workflow-parse-gate`, the same day).* The dry-run input's
+first push was rejected by GitHub's YAML parser and nothing in this tree could have said why:
+no YAML parser lived here. `yaml` (2.9.0) joins the workspace dev dependencies through pnpm
+11.18.0 so the lockfile moved consistently for the frozen install, and
+`scripts/test/workflows.test.mjs` — six tests, in the record project beside the other script
+tests — parses every file in `.github/workflows/` and asserts the facts the documents rely on:
+every job has steps and every step is exactly one of `uses` or a non-empty `run`; `release.yml`
+declares a boolean `dry_run` input, its guard carries `continue-on-error` on that input and no
+`if`, both publish steps are conditioned on it, and every gate precedes them in order; `ci.yml`
+keeps the four-leg matrix with the exact floor 22.16.0 and runs `test:ci` with the report gate
+as the very next step; the parser refuses the exact defect GitHub refused (a plain scalar
+carrying a colon-space) and accepts its block-scalar form; and the shape check itself refuses
+fixtures with no steps, no trigger, or a step with neither or both of `uses` and `run`. Red was
+observed first: against the guard as merged that morning (`if: !inputs.dry_run`, no
+`continue-on-error`) the release assertion failed, and the guard change that made it pass is
+the same commit's second half — the guard now runs in both modes and reports without blocking
+in a dry run, so a dry run against a release-shaped tree shows it passing, which the rehearsal
+below needs. Bounds, in the file's header: parse and shape only; GitHub's schema — allowed
+keys, action pins, expression syntax — is not checked, so a typo inside an `if` still passes
+here and fails there. Measured: 69 files, 870 tests; `biome check` 138 files.

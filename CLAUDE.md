@@ -28,7 +28,7 @@ release-readiness reconciliation pass over the publish-facing docset. The worksp
 packages: `@vidimera/record` and `@vidimera/store-postgres` (the server-SQL third
 reference backing, tested against a real embedded Postgres the suite starts per run).
 Measured against the current
-tree: `pnpm test` — 68 test files, 864 tests, zero skips; `packages/record/src/refusal-codes.ts`
+tree: `pnpm test` — 69 test files, 870 tests, zero skips; `packages/record/src/refusal-codes.ts`
 carries 25 refusal codes; zero GOVERNED construction guards remain in `config.ts` — every
 field the feature-guard era installed has lifted behind real behavior at its own seam
 (`unknownOptionKey` — named `governedUnavailable` until the registry-hygiene increment —
@@ -203,8 +203,13 @@ contract-scan, `api-sync`, `docs-index-sync`, `lint:strict`), and a `test` matri
 (ubuntu @ 24), and Windows/macOS @ 22 — with pnpm caching, read-only token permissions,
 and one cancel-on-supersede concurrency group per ref. `.github/workflows/release.yml` is
 the dispatch-only, provenance-attested publish workflow (both packages, record first,
-behind the same report gate), unexercised until the 0.1 cut; `docs/process/release-checklist.md` is release day's
-authoritative list.
+behind the same report gate), unexercised for real until the 0.1 cut — its `dry_run` input runs every gate
+and packs both tarballs with the guard reporting but not blocking and both publish steps skipped;
+`docs/process/release-checklist.md` is release day's authoritative list.
+`scripts/test/workflows.test.mjs` parses every workflow file with `yaml` and asserts the facts the
+documents rely on (the dry-run input, the report gate's place, the exact-floor leg) — parse and
+shape only; GitHub's schema is not checked, and GitHub's parser rejected a workflow edit on
+2026-09-03 before any parser in this tree could have.
 `.github/workflows/first-use.yml` is the dispatch-only clean-runner first-use proof: a `pack`
 job uploads both packed tarballs and `scripts/first-use.mjs` as one artifact, and a
 `first-use` job with NO checkout step installs them into a scratch project on the declared

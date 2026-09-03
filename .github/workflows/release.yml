@@ -7,8 +7,8 @@
 # of that. Publishing goes tarball-first (`pnpm pack`, then `npm publish <tarball>`) so
 # pnpm rewrites the adapter's `workspace:*` peer range to the real version. Requires the
 # NPM_TOKEN repository secret (an npm automation token for the @vidimera scope).
-# `dry_run: true` runs the same job with the guard and both publish steps skipped and the
-# publish steps' own pack commands in their place: it proves the job's structure and every
+# `dry_run: true` runs the same job with the guard reporting but not blocking, both publish
+# steps skipped, and the publish steps' own pack commands in their place: it proves the job's structure and every
 # gate on the release runner — never the publish, the provenance attestation, or the token
 # — and it does not retire deferral-register row 1, whose trigger is the real publish.
 name: Release
@@ -34,13 +34,14 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: dry run — the pre-release guard and both publish steps are skipped
+      - name: dry run — the pre-release guard reports without blocking; both publish steps are skipped
         if: ${{ inputs.dry_run }}
         run: |
-          echo "dry run: the tree may still be private and 0.0.0; nothing will be published"
-      # The release-day guard: refuse any package still carrying the pre-release shape.
+          echo "dry run: the guard below reports without blocking; nothing will be published"
+      # The release-day guard: refuse any package still carrying the pre-release shape. In a
+      # dry run it still runs and still reports, but the job continues past its refusal.
       - name: guard — versions bumped and private dropped, both packages
-        if: ${{ !inputs.dry_run }}
+        continue-on-error: ${{ inputs.dry_run }}
         run: |
           node -e "
             for (const pkg of ['record', 'store-postgres']) {

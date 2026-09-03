@@ -219,9 +219,11 @@ things the repository can see (`private`, `0.0.0`) and nothing about the registr
 about to write to. Do these in the same sitting as the dispatch, not the week before.
 
 - [ ] **Dispatch the release workflow once in dry-run mode** (`dry_run: true`) against the
-      release commit's tree and read it green: the guard and both publish steps are skipped,
-      every gate runs, and both tarballs pack — the only way the job's YAML and its gate
-      chain execute on the release runner before the real dispatch. It was first dispatched
+      release commit's tree and read it green: the guard reports without blocking (on a
+      pre-release tree it refuses and the run continues; on the release commit's tree it must
+      pass), both publish steps are skipped, every gate runs, and both tarballs pack — the
+      only way the job's YAML and its gate chain execute on the release runner before the
+      real dispatch. It was first dispatched
       2026-09-03 against the pre-release tree (run 33713900951: every gate green, the guard
       and both publish steps skipped, both tarballs packed), which proves the job's
       structure, not the release commit's tree, so this box is release day's own.

@@ -219,7 +219,12 @@ is the summary, and that file wins on conflict.
   steps, dispatched once so the never-yet-executed job has run; deferral-register row 24
   records the embedded-postgres exit-hook workaround with its trigger; the 2026-08-19 CI
   design record carries a dated addendum; and every remaining CI tool's exit code was
-  shown non-zero on its own failure class, with the table in the status document.
+  shown non-zero on its own failure class, with the table in the status document. Then a
+  workflow-file parse gate (branch `workflow-parse-gate`): `scripts/test/workflows.test.mjs`
+  parses every workflow with `yaml` and asserts the facts the documents rely on, after
+  GitHub's parser had rejected the dry-run input's first push and nothing in this tree could
+  have said why; and the dry run's guard now reports without blocking, so a dry run against
+  a release-shaped tree shows it passing.
 - **Code-review, second round** (2026-09-02, the same branch): the findings seams mapped
   EVERY lost compare-and-swap to `record-not-open`, false of a record that lost only a seq
   race and is still open — two concurrent `raiseFinding` calls now leave the loser with the
