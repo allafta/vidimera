@@ -1,9 +1,13 @@
 // @vidimera/record — profile-digest.ts: the DATA-ONLY profile projection and its
 // `profileDigest` (SPEC §4 "`profileDigest`"). The `opened` transition records
 // `profileDigest` in its payload so a later comparison can detect a profile that
-// drifted out from under an open record. In this build the helper + its properties
-// are what ship; there is no automated drift detector yet — comparison is a host
-// concern until one is built.
+// drifted out from under an open record. Since the security-findings pass (2026-09-03)
+// `verifySignatures(recordId).genesisProfile` performs that comparison and reports it
+// (matches / drifted / unresolvable, with the digests), and both helpers below are
+// exported from the entry point so a host can make the same comparison offline over an
+// archived chain. Still no GATE reads the comparison: a drifted profile refuses nothing
+// — a recorded residual whose fail-close would change the refusal ladder and so waits on
+// a fresh sanction (`kernel/verify-signatures.ts`, the `genesisProfile` field's own note).
 
 import { canonicalize, digest } from './canonical.js';
 import type { ConfirmProfile } from './config.js';

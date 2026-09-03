@@ -145,6 +145,21 @@ is the summary, and that file wins on conflict.
   contention as its fourth category); a genuine storage fault at the same site keeps its
   throw. The two `ContentionError` entries below describe that interim shape and are left as the
   history they are.
+- **`SignatureReport.genesisProfile`, and the exported `profileDigest`/`projectProfile`**
+  (2026-09-03, branch `security-findings-2026-09-03`, from the same security review): the
+  report now says whether the profile this instance holds under the genesis `profileId` is the
+  one the record was opened under — `matches`, `drifted` (both digests), or `unresolvable`. The
+  review's route: `signingDeclared` has always been computed from the LIVE profile, so a
+  same-id profile that dropped `signing: true` reads a signing record as plain AL1 and
+  finalizes it, and the report said only `signingDeclared: false`, which a reader takes as
+  "not a signing record". The chain carried the evidence all along — the genesis
+  `profileDigest` covers `signing` — but nothing compared it, and the helpers a host would need
+  to compare it offline were not exported. Now both are true. Reporting only, like `orphans`:
+  no gate reads the field and the drifted sibling still finalizes — that fail-open is the
+  rehoming residual the record already names (a fail-close changes the refusal registry and
+  OPEN-QUESTIONS §1's decided text, so it waits on a fresh sanction), and
+  `packages/record/test/profile-drift-report.test.ts` pins it as a bound beside the new field
+  (red first: the field absent, the exports missing).
 
 ### Changed
 

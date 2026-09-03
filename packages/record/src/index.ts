@@ -50,6 +50,10 @@ export type { AckInput, FindingInput } from './kernel/findings-seams.js';
 export type { SignatureReport } from './kernel/verify-signatures.js';
 export type { OperatorSurface } from './operator-surface.js';
 export type { Outcome } from './outcome.js';
+// --- the profile binding helpers (SPEC §4's `profileDigest`): the data-only projection and
+// its digest, exported so a host can compare an archived chain's genesis binding against the
+// profile it holds — the same comparison `verifySignatures().genesisProfile` reports ---
+export { profileDigest, projectProfile } from './profile-digest.js';
 export type { RefusalCode } from './refusal-codes.js';
 // --- the AL2 signing tier (SPEC §14) — root-reachable beside the stores it mirrors:
 // the host-supplied hooks and registry types, the decorator, and the provisional

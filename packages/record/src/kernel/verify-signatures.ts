@@ -9,7 +9,10 @@
 // now widens that same check to also consult this layer on a signing record, folding a
 // bad layer into each site's OWN existing failure arm — this file adds no new refusal
 // code and appends nothing itself. The read stays a read: `verifySignatures` never
-// gates, whatever `signatureLayerHolds` reports elsewhere for the same chain.
+// gates, whatever `signatureLayerHolds` reports elsewhere for the same chain. Since the
+// security-findings pass (2026-09-03) the report also carries `genesisProfile`: whether
+// the live profile the verdicts were computed against is the one the record was opened
+// under, by the `opened` payload's own `profileDigest` (SPEC §4) — reporting only, again.
 //
 // Chain-driven, deliberately: an orphan sidecar entry (no matching chain transition)
 // is invisible to BOTH consumers by CONSTRUCTION, not by a filter — the loop below walks
@@ -20,11 +23,20 @@
 // non-signing record's layer has nothing to hold it to.
 
 import { encodeTransition, transitionDigest } from '../chain/encoding.js';
+import type { ConfirmProfile } from '../config.js';
 import type { KernelContext } from '../create.js';
+import { profileDigest } from '../profile-digest.js';
 import type { Digest, Transition } from '../types.js';
 
 export interface SignatureReport {
   recordId: string;
+  /**
+   * Whether the genesis profile, resolved against THIS instance's registry, declares
+   * `signing: true`. Computed from the LIVE profile, never from the chain: a same-id profile
+   * that omits `signing` — or an instance that does not hold the id at all — reads `false`
+   * here for a record that WAS opened under a signing profile. `genesisProfile` below says
+   * whether the live profile is the one the record was opened under; read the two together.
+   */
   signingDeclared: boolean;
   transitions: {
     seq: number;
@@ -46,6 +58,47 @@ export interface SignatureReport {
    * naming orphans does not bound them.
    */
   orphans: Digest[];
+  /**
+   * The genesis profile as the chain binds it and as THIS instance holds it. `matches`: the
+   * live profile's data-only projection digests to the `opened` payload's `profileDigest`.
+   * `drifted`: the id resolves here, but to a profile whose projection digests differently —
+   * `signing` is one of the covered fields, so a same-id profile that dropped it lands here,
+   * and so does any other declarative edit between open and now. `unresolvable`: this
+   * instance does not hold the genesis `profileId` (or the genesis carries no string id or
+   * binding), so there is nothing to compare. REPORTING ONLY, like `orphans`: no gate reads
+   * it and `signatureLayerHolds` never computes it; a drifted non-signing sibling still
+   * finalizes — the recorded residual, which `test/profile-drift-report.test.ts` pins AS A
+   * BOUND so that it moves on purpose. Fail-closing it changes the SPEC §8 refusal registry
+   * and the §9 ladder, and OPEN-QUESTIONS §1's decided granularity text, so it waits on a
+   * fresh sanction. The comparison itself is what SPEC §4 promised the binding for ("the
+   * governing profile is detectable on replay").
+   */
+  genesisProfile:
+    | { resolution: 'matches'; profileId: string; digest: Digest }
+    | { resolution: 'drifted'; profileId: string; boundDigest: Digest; liveDigest: Digest }
+    | {
+        resolution: 'unresolvable';
+        profileId: string | undefined;
+        boundDigest: Digest | undefined;
+      };
+}
+
+/** The raw genesis resolution `layerVerdicts` hands back; only `verifySignatures` digests it. */
+interface GenesisResolution {
+  profileId: string | undefined;
+  boundDigest: Digest | undefined;
+  live: ConfirmProfile | undefined;
+}
+
+function resolveGenesisProfile(r: GenesisResolution): SignatureReport['genesisProfile'] {
+  const { profileId, boundDigest, live } = r;
+  if (profileId === undefined || boundDigest === undefined || live === undefined) {
+    return { resolution: 'unresolvable', profileId, boundDigest };
+  }
+  const liveDigest = profileDigest(live);
+  return liveDigest === boundDigest
+    ? { resolution: 'matches', profileId, digest: boundDigest }
+    : { resolution: 'drifted', profileId, boundDigest, liveDigest };
 }
 
 /**
@@ -60,21 +113,30 @@ export interface SignatureReport {
  * `signingDeclared` reads the GENESIS transition's own `profileId`, resolved against
  * THIS instance's profile registry — the id-resolution posture named at the two
  * call sites below: an instance that cannot resolve the genesis profile treats the
- * chain as non-signing rather than guessing.
+ * chain as non-signing rather than guessing. The same resolution is handed back raw
+ * (`resolution`: the claimed id, the bound `profileDigest`, the live profile when the id
+ * resolves) so `verifySignatures` can report whether the live profile IS the one the
+ * record was opened under; `signatureLayerHolds` never digests it — reporting only.
  */
 async function layerVerdicts(
   ctx: KernelContext,
   chain: readonly Transition[],
 ): Promise<{
   signingDeclared: boolean;
+  resolution: GenesisResolution;
   transitions: SignatureReport['transitions'];
   orphans: Digest[];
 }> {
   const genesis = chain[0];
-  const profileId =
-    genesis === undefined ? undefined : (genesis.payload as { profileId?: unknown }).profileId;
-  const signingDeclared =
-    typeof profileId === 'string' && ctx.profiles.get(profileId)?.profile.signing === true;
+  const payload =
+    genesis === undefined
+      ? undefined
+      : (genesis.payload as { profileId?: unknown; profileDigest?: unknown });
+  const profileId = typeof payload?.profileId === 'string' ? payload.profileId : undefined;
+  const boundDigest =
+    typeof payload?.profileDigest === 'string' ? payload.profileDigest : undefined;
+  const live = profileId === undefined ? undefined : ctx.profiles.get(profileId)?.profile;
+  const signingDeclared = live?.signing === true;
 
   const recordId = genesis?.recordId;
   const entries =
@@ -128,7 +190,7 @@ async function layerVerdicts(
   // keys costs no further read.
   const chainDigests = new Set(transitions.map((t) => t.transitionDigest));
   const orphans = [...byDigest.keys()].filter((d) => !chainDigests.has(d)).sort();
-  return { signingDeclared, transitions, orphans };
+  return { signingDeclared, resolution: { profileId, boundDigest, live }, transitions, orphans };
 }
 
 export async function verifySignatures(
@@ -142,8 +204,14 @@ export async function verifySignatures(
         'resolves to no chain is a caller error, not a domain refusal (SPEC §8)',
     );
   }
-  const { signingDeclared, transitions, orphans } = await layerVerdicts(ctx, chain);
-  return { recordId, signingDeclared, transitions, orphans };
+  const { signingDeclared, resolution, transitions, orphans } = await layerVerdicts(ctx, chain);
+  return {
+    recordId,
+    signingDeclared,
+    transitions,
+    orphans,
+    genesisProfile: resolveGenesisProfile(resolution),
+  };
 }
 
 /**

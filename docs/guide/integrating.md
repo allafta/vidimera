@@ -522,7 +522,13 @@ What you get, with its limits in the same breath:
   algorithm, key custody, and rotation (via `keyRef` naming) are yours. AL2 raises the bar
   against a rewriting insider exactly when the key sits outside that insider's boundary.
 - A `signing: true` profile on an instance without `config.signing` throws at
-  construction — a loud error, never a silent downgrade to AL1.
+  construction — a loud error, never a silent downgrade to AL1. The one downgrade
+  construction cannot catch is the profile itself losing `signing: true` under the same id:
+  the signature layer decides whether it applies from the profile the *instance* holds, so
+  that instance reads an existing signing record as plain AL1 and will finalize it.
+  `operator.verifySignatures(recordId).genesisProfile` reports `drifted` there, with the
+  bound and live digests; nothing refuses, by recorded decision, until a sanctioned change
+  says otherwise — so alert on `drifted` for any record you believed signed.
 - No signature material enters the chain — signatures live in the detached sidecar, and a
   signed chain's bytes differ from an unsigned profile's only through the declaring
   profile's own genesis `profileDigest` (and its hash-chain derivations) — so enabling AL2

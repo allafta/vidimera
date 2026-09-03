@@ -427,6 +427,14 @@ function replay(chain: readonly Transition[]): DecisionRecord;
 // record identity — every transition must name the genesis's recordId, so a spliced foreign
 // transition with recomputed links reports a break, not an intact chain.
 function verifyChain(chain: readonly Transition[]): ChainVerifyReport;
+
+// The profile binding (SPEC §4's `profileDigest`): the data-only projection of a profile —
+// every declarative field, every function member stripped — and its digest, which is what the
+// `opened` payload's `profileDigest` holds. Exported so you can compare an archived chain's
+// genesis binding against the profile you hold; `verifySignatures(recordId).genesisProfile`
+// makes the same comparison for a live record.
+function projectProfile(profile: ConfirmProfile): unknown;
+function profileDigest(profile: ConfirmProfile): Digest;
 ```
 
 ## Stores
@@ -506,8 +514,28 @@ interface SignatureReport {                              // verifySignatures()'s
                  keyRef?: string; verified: boolean }[];
   orphans: Digest[];                                     // sidecar digests naming no chain
                                                          // transition — sorted; reporting only
+  genesisProfile:                                        // the genesis profile, as the chain binds
+    | { resolution: 'matches'; profileId: string; digest: Digest }        // it and as THIS
+    | { resolution: 'drifted'; profileId: string;                          // instance holds it;
+        boundDigest: Digest; liveDigest: Digest }                          // reporting only
+    | { resolution: 'unresolvable'; profileId: string | undefined;
+        boundDigest: Digest | undefined };
 }
 ```
+
+**`signingDeclared` is computed from the live profile, and `genesisProfile` says whether that
+profile is the one the record was opened under.** The genesis `profileId` is resolved against
+the profiles *this instance* holds; a same-id profile that has since dropped `signing: true`
+— or an instance that does not hold the id at all — makes a signing record read
+`signingDeclared: false`, and a same-id non-signing instance will finalize it as plain AL1.
+`genesisProfile` qualifies that reading: `matches` when the live profile's data-only
+projection digests to the genesis `profileDigest`, `drifted` when the id resolves to a
+profile that digests differently (`signing` is a covered field, so is every other declarative
+field — a `ttl` edit lands here too), `unresolvable` when there is nothing to compare against.
+Reporting only, exactly as `orphans` is: nothing refuses on drift. That fail-open is a
+recorded residual — closing it changes the refusal registry and waits on a fresh sanction —
+so read the two fields together, and treat `drifted` on a record you believed signed as a
+configuration event to investigate.
 
 **A `Verifier` answers the literal `true`, or the transition is unverified.** The layer
 compares with `=== true`: a truthy status string or object is reported `verified: false` and
