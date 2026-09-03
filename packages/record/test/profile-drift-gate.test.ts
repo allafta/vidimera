@@ -419,18 +419,18 @@ test('recovery (supersedes): a confirmed predecessor whose profile the sibling d
   assert.equal(r2.status, 'ok', 'declined is terminal regardless of profile — nothing to hold');
 });
 
-test('open(): a due open blocker under a drifted sibling stands — record-exists, no expired edge — while the same subject under a NEW profile id opens at once', async () => {
+test("open(): a blocker the drifted sibling's shorter ttl would call due — but which is not due under its own rules — stands: record-exists, no expired edge; the same subject under a NEW profile id opens at once", async () => {
   const clock = { t: Date.UTC(2026, 0, 1) };
   const store = new MemoryStore();
   const holder = createWithClock(
-    makeConfig([base({ ttl: 60 })], { store }),
+    makeConfig([base({ ttl: 3600 })], { store }),
     () => new Date(clock.t),
   );
   const blockerId = await openRecord(holder, CONTENT, ID, 'subject:gate-13');
   clock.t += 120 * 1000;
 
   const sibling = createWithClock(
-    makeConfig([base({ ttl: 3600 })], { store }),
+    makeConfig([base({ ttl: 60 })], { store }),
     () => new Date(clock.t),
   );
   const before = await chainLength(store, blockerId);
@@ -443,7 +443,7 @@ test('open(): a due open blocker under a drifted sibling stands — record-exist
   assert.equal(
     await chainLength(store, blockerId),
     before,
-    'the blocker is not expired by an instance that does not hold its profile',
+    "the blocker is neither expired under the sibling's ttl nor touched: an instance that does not hold its profile writes nothing",
   );
 
   const V2 = 'test.drift.gate.v2';
