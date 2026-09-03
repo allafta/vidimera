@@ -4987,3 +4987,52 @@ arrived as 1. Both red on purpose, once, before the branch's own head went green
 report's suites count every `describe` block as well as every file); `biome check
 --error-on-warnings .` — 137 files, exit 0; `contract-scan`, `api-reference-sync`,
 `docs-index-sync` — exit 0.
+
+**The follow-ups, the same day (branch `ci-followups`).** Four items the repair surfaced,
+brainstormed and taken together on the owner's choice, with a fifth left as an owner act
+outside the repository (reporting the hazard upstream).
+
+*The release workflow's dry run.* `release.yml` gains a `dry_run` dispatch input. With it on,
+the pre-release guard and both publish steps are skipped, a one-line step says so, every gate
+runs unchanged — the report gate included — and a dry-run-only step runs the publish steps'
+own `pnpm pack` commands in their own directories. It proves the job's structure and its gate
+chain on the release runner, which had never executed; it proves nothing about the publish,
+the provenance attestation, or the token, and it does not retire register row 1, whose
+trigger is the real publish. The release checklist gains a pre-flight box for one dry-run
+dispatch against the release commit's tree, and its branch-protection item now also asks for
+required status checks. It was dispatched once on `main` after this branch merged; the run id
+is recorded below.
+
+*Register row 24.* The `embedded-postgres` exit-hook workaround, with its trigger: the hazard
+pin failing, or the library being replaced. A new live row ripples through every document
+that counts them — `CLAUDE.md`, this document's current-state bullet and outstanding list,
+and `next-phases.md` — all moved here, each marking the row as not gating the cut.
+
+*The CI design record's addendum.* `docs/analysis/2026-08-19-phase-3-ci.md` carries a dated
+addendum at its end; its body stands.
+
+*The exit-code evidence sweep.* The failing-test canary (run 33708203890) proved that a
+failing step fails the job on every leg, so what remained unproven for the other CI steps was
+each tool's own exit code on its own failure class. Each was induced locally against the
+current tree and the tree restored (clean `git status` after every row):
+
+| Step | Induced failure | Exit | Note |
+|---|---|---|---|
+| `pnpm typecheck` | a type error in a `packages/record/test/` file | 1 | |
+| `pnpm build` | a type error in `packages/record/src/` | 1 | |
+| `pnpm lint` | a `debugger` statement | 1 | |
+| `pnpm lint:strict` | the same | 1 | |
+| `pnpm lint` | an unused variable | 0 | a warning class; plain lint does not fail on warnings, which is why `lint:strict` exists — it exits 1 on the same file |
+| `pnpm contract-scan` | a tracked markdown with an `example.com` URL | 0 | the scan's documented exception for the spec's worked examples (`allowedHost`), not an inert gate |
+| `pnpm contract-scan` | the same with an npmjs URL | 1 | `path:line:text` printed |
+| `pnpm api-sync` | an `export const` appended to `index.ts` | 0 | the gate parses only `export { … } from` clauses, the barrel's shape, as its header states |
+| `pnpm api-sync` | a re-export of a name absent from the reference | 1 | `name-not-documented` printed |
+| `pnpm docs-index-sync` | a tracked plan absent from `INDEX.md` | 1 | |
+| `pnpm smoke` | a new `import` condition appended to record's `.` export | 0 | an ineffective induce, not the gate: Node matches export conditions in key order and `default` came first |
+| `pnpm smoke` | every `.js` target of record's `.` export pointing at a missing file | 1 | `smoke: FAILED at consumer script (exit 1)` |
+
+Every tool exits non-zero on a real instance of its failure class. The three zeros are the
+honest part of the table: two are documented bounds of the gates (a warning is not an error;
+`example.com` is allowed by design; the api gate reads one export shape), one was a
+mis-aimed induce — each now written down where a reader who repeats the sweep will look
+first.
