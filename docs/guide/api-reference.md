@@ -499,6 +499,14 @@ interface SignatureReport {                              // verifySignatures()'s
 }
 ```
 
+**A `Verifier` answers the literal `true`, or the transition is unverified.** The layer
+compares with `=== true`: a truthy status string or object is reported `verified: false` and
+refuses at every enforcement site, exactly as a throwing verifier does. And `verifiers` is
+read as own keys only (`Object.hasOwn`): a sidecar entry whose `keyRef` is not a key you
+registered — including one naming an inherited `Object.prototype` member such as `toString` —
+resolves no verifier and fails closed. The sidecar is storage, and storage is what this layer
+exists to distrust.
+
 **An implementer must tolerate orphans.** A conforming `SignatureStore` will hold entries
 whose `transitionDigest` names no transition in the record's chain. That is a normal state,
 not corruption: the library signs *before* it appends, so a lost compare-and-swap or a crash

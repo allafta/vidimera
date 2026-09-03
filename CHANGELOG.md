@@ -196,6 +196,23 @@ is the summary, and that file wins on conflict.
 
 ### Fixed
 
+- **The verifier registry could be satisfied with no key** (2026-09-03, branch
+  `security-findings-2026-09-03`, found by a security review of the tree): `verifySignatures`
+  and the enforcement primitive behind every seam looked a sidecar entry's `keyRef` up with a
+  bare index into the host's `verifiers` object, and a plain object's bare index walks the
+  prototype chain. A forged entry whose `keyRef` named an inherited `Object.prototype` member
+  resolved to that member instead of missing; two of them (`toString`, `constructor`) return a
+  truthy value when called with transition bytes and any signature, and the layer read
+  truthiness — so a sidecar written by a storage-side insider holding no signing key verified
+  whole, and every enforcement site confirmed the record. This is exactly the trap
+  `resolveCanonicalizer` closed at the 2026-08-03 review, in the one registry that arrived
+  after it. The lookup is now `Object.hasOwn` (an own key of the registry, never an inherited
+  member), and a verification is the literal `true` — a host verifier answering a truthy
+  status string or object no longer verifies either. `packages/record/test/verifier-registry.test.ts`
+  pins the family: the two members that passed (red first, against the unfixed tree), the four
+  that already failed closed, and the non-boolean answer. Squarely inside `SECURITY.md`'s
+  stated scope ("The signature layer (AL2) reporting a transition verified when it is not");
+  pre-publication, so there is no advisory to issue.
 - **The CI test gate was inert** (2026-09-03, branch `ci-windows-test-gate`): every `pnpm test`
   step in the CI matrix and the release workflow concluded success whatever the tests did, on
   every OS, since the adapter's first commit. `embedded-postgres` registers an `async-exit-hook`

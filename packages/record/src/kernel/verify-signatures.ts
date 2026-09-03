@@ -92,10 +92,24 @@ async function layerVerdicts(
       continue;
     }
     let verified = false;
-    const verifier = ctx.signing?.verifiers[entry.keyRef];
+    // `Object.hasOwn`, never a bare index — the same load-bearing guard as `canonical.ts`'s
+    // `resolveCanonicalizer`, for a sharper reason here: `verifiers` is a plain object keyed
+    // by the host's opaque keyRefs, and `entry.keyRef` is sidecar DATA, which under this
+    // layer's own threat model (SPEC §14, "storage-writing insiders") the adversary writes.
+    // A bare index walks the prototype chain, so a forged entry naming an inherited
+    // Object.prototype member (`toString`, `constructor`) resolved to a callable that returns
+    // a truthy value over any bytes and any signature — counted as verified with no key
+    // involved. The literal-`true` comparison is the other half of the same fail-closed
+    // reading: `Verifier` promises a boolean, and a status string or object a host's verifier
+    // answers instead is not a verification. `test/verifier-registry.test.ts` pins both.
+    const verifiers = ctx.signing?.verifiers;
+    const verifier =
+      verifiers !== undefined && Object.hasOwn(verifiers, entry.keyRef)
+        ? verifiers[entry.keyRef]
+        : undefined;
     if (verifier !== undefined) {
       try {
-        verified = await verifier(encodeTransition(t), entry.signature);
+        verified = (await verifier(encodeTransition(t), entry.signature)) === true;
       } catch {
         verified = false; // a throwing verifier is fail-closed reporting, never a throw out
       }
@@ -138,7 +152,8 @@ export async function verifySignatures(
  * or unresolvable in THIS instance (the id-resolution posture the build takes
  * everywhere) — or when EVERY transition carries a sidecar entry whose keyRef resolves
  * and whose verifier passes over the canonical bytes. `false` on any miss, unresolvable
- * keyRef, failing or THROWING verifier — fail closed. AL1 intactness is the CALLER's
+ * keyRef (an OWN key of the registry, never an inherited member), failing, THROWING, or
+ * non-boolean-answering verifier — fail closed. AL1 intactness is the CALLER's
  * first check; this layer runs only on intact chains. The rehoming residual is named in
  * the status doc: the obligation keys on the genesis's own profileId claim.
  */
