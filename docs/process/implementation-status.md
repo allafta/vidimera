@@ -122,9 +122,11 @@ any one exit.
   `packages/record/src/refusal-codes.ts` carries 25 refusal codes, the twenty-fifth being
   `record-contended` (the record-contended increment); zero GOVERNED construction guards
   remain in `config.ts`.
-- **The live deferral-register rows**: four — row 23 (the optional `tx` on the Store's five
+- **The live deferral-register rows**: five — row 23 (the optional `tx` on the Store's five
   reads, opened 2026-09-02 by the code-review-fixes increment; it does not gate the cut — its
-  own bullet in "Still outstanding" below) and the three that gate the cut: row 1 (publish tooling, whose tooling landed
+  own bullet in "Still outstanding" below), row 24 (the `embedded-postgres` exit-hook
+  workaround, opened 2026-09-03 by the CI test-gate follow-ups; it does not gate the cut — its
+  trigger is the hazard pin failing or the library being replaced) and the three that gate the cut: row 1 (publish tooling, whose tooling landed
   at the phase-2 packaging increment and which stays open until the release workflow is
   exercised once at the 0.1 cut); row 19 (the AL2 detached-signature sidecar pinning
   deferral, added by the byte-regression-pins increment, held open until the first
@@ -1288,6 +1290,14 @@ Carried in the deferral register, with triggers:
   the first increment that changes any `Store` read signature; or the 1.0 freeze of the `Store`
   contract (`docs/concept/OPEN-QUESTIONS.md` §9's gate) — whichever lands first. Does not gate
   the 0.1 cut."
+- **Row 24** — opened 2026-09-03 by the CI test-gate follow-ups: the `embedded-postgres`
+  exit-hook workaround in the adapter's vitest global setup (`loadEmbeddedPostgres` imports the
+  library dynamically and removes exactly the `beforeExit` listener the import adds, because
+  `async-exit-hook` exits 0 from that listener over vitest's exit code). Test infrastructure
+  only; no published package carries it. Trigger (verbatim): "The hazard pin failing — the
+  library, or its exit hook, no longer exits 0 over the process's exit code — or the library
+  being replaced; either removes the workaround and both pins together. Does not gate the 0.1
+  cut."
 
 Rows 17 and 18 both retired at the self-test-tier increment — step 8's own fourth and
 last tail item landed (see the CONTROLS §4 row and the boundary above for the full

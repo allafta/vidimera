@@ -294,6 +294,22 @@ head seq the store adjudicated against, which would make the kernel's contention
 split exact rather than inferred from a later re-read; and a detected pool-size floor for
 enlisted use, which the guide states today.
 
+### The embedded-postgres exit-hook workaround — register row 24, opened 2026-09-03
+
+The one deferral the CI test-gate repair left behind. `embedded-postgres` registers an
+`async-exit-hook` handler at module load, and that library's `beforeExit` listener exits the
+process with code 0 over the non-zero exit code vitest sets for a failed run; imported at the
+top of the adapter's vitest global setup, in vitest's main process, it made every failed
+`pnpm test` exit 0 on every CI leg. The repair works around it in the global setup —
+`loadEmbeddedPostgres` imports the library dynamically and removes exactly the listener the
+import adds — and pins the hazard itself in a child process, so the day the library stops
+needing the workaround is the day that pin fails. The upstream fix is not made here: the
+workaround is test infrastructure only, and no published package carries the library.
+Trigger (verbatim): "The hazard pin failing — the library, or its exit hook, no longer exits 0
+over the process's exit code — or the library being replaced; either removes the workaround
+and both pins together. Does not gate the 0.1 cut." Like row 23, it sits here beside the
+three rows that gate the cut rather than among them.
+
 ## What is deliberately outside the scope
 
 **AL3 anchoring (documented-only).** `docs/concept/SPEC.md` §14: "AL3 — Anchored (documented

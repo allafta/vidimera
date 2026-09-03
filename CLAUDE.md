@@ -55,10 +55,11 @@ removed.
 `docs/process/implementation-status.md` is the authoritative account of what this build
 does and does not implement, step by step, with gate outputs and the outstanding list —
 read it rather than trusting any count here, which is a claim with a shelf life and no way
-to fail loudly. `docs/process/next-phases.md` names what gates the next cut (three of the four live
+to fail loudly. `docs/process/next-phases.md` names what gates the next cut (three of the five live
 deferral-register rows — row 23, the optional `tx` on the Store's five reads opened 2026-09-02
-by the code-review-fixes increment, does NOT gate it; the three that do are row 1, publish tooling, held open until the release workflow runs
-once; row 19, the AL2 detached-signature sidecar pinning deferral; and row 22, orphan
+by the code-review-fixes increment, and row 24, the `embedded-postgres` exit-hook workaround
+opened 2026-09-03 by the CI test-gate follow-ups, do NOT gate it; the three that do are row 1, publish tooling, held open until the release workflow runs
+once for real (its `dry_run` dispatch exercises the job but does not retire the row); row 19, the AL2 detached-signature sidecar pinning deferral; and row 22, orphan
 sidecar growth on the no-edge refusal path, opened by the AL2 signature-enforcement
 coverage increment that retired rows 20 and 21, restated 2026-08-28 with a measured
 containment inventory, and re-scoped 2026-08-29 to its orphan half alone once the no-edge
