@@ -301,6 +301,15 @@ afterEach(() => {
  * wrapper so `handles` (built once per probe, over the STABLE wrapper) transparently
  * sees the reopened connection afterward.
  */
+/**
+ * Per-test budget for the four tests that drive `makeSqliteRestartDriver()`: each runs the full
+ * probe set over a real file-backed SQLite store with a genuine close-and-reopen, and on the
+ * Windows CI runner that IO takes 3.5-5s against vitest's 5s default — run 33703094044 timed
+ * one out at exactly 5000ms while the other three legs finished in under a second. The budget
+ * is generous on purpose: a pass here is decided by the probe verdicts, never by the clock.
+ */
+const SQLITE_RESTART_TIMEOUT_MS = 20_000;
+
 function makeSqliteRestartDriver(): ProbeDriver {
   let active: { path: string; sqlite: SqliteStore; swap: (next: Store) => void } | undefined;
   return {
@@ -670,7 +679,9 @@ test('the full-featured (in-memory) driver: every registered probe passes EXCEPT
   assert.equal(report.unusedWaivers.length, 0);
 });
 
-test('a SQLite-backed restart driver: state-survives-restart passes against REAL close-and-reopen persistence', async () => {
+test('a SQLite-backed restart driver: state-survives-restart passes against REAL close-and-reopen persistence', {
+  timeout: SQLITE_RESTART_TIMEOUT_MS,
+}, async () => {
   const driver = makeSqliteRestartDriver();
   const report = await runProbes(driver);
   const result = report.results.find((r) => r.id === 'state-survives-restart');
@@ -887,7 +898,9 @@ test('an EXPIRED waiver converts NOTHING and is flagged in expiredWaivers', asyn
   assert.equal(report.unusedWaivers.length, 0, 'an expired waiver is not ALSO reported unused');
 });
 
-test('a waiver on a probe that PASSES outright is unused (never converts a pass) and is not expired', async () => {
+test('a waiver on a probe that PASSES outright is unused (never converts a pass) and is not expired', {
+  timeout: SQLITE_RESTART_TIMEOUT_MS,
+}, async () => {
   // makeSqliteRestartDriver, not makeFullDriver: every probe genuinely passes against
   // it (including state-survives-restart), so the ONLY thing left unsatisfied would be
   // the waiver's own bookkeeping — exactly what this test isolates.
@@ -922,7 +935,9 @@ test('runProbes throws on a malformed waiver expires — missing offset, or unpa
   );
 });
 
-test('assertSatisfied does not throw when satisfied and no waivers are expired', async () => {
+test('assertSatisfied does not throw when satisfied and no waivers are expired', {
+  timeout: SQLITE_RESTART_TIMEOUT_MS,
+}, async () => {
   // makeSqliteRestartDriver, not makeFullDriver: every probe genuinely passes against
   // it, so `satisfied` is true with no help from a waiver.
   const driver = makeSqliteRestartDriver();
@@ -941,7 +956,9 @@ test('assertSatisfied throws naming every fail/not-driven result when unsatisfie
   assert.throws(() => assertSatisfied(report), /sod-refuses.*not-driven/s);
 });
 
-test("assertSatisfied throws on an expired waiver even when every OTHER probe passes (the row's own governance point)", async () => {
+test("assertSatisfied throws on an expired waiver even when every OTHER probe passes (the row's own governance point)", {
+  timeout: SQLITE_RESTART_TIMEOUT_MS,
+}, async () => {
   // makeSqliteRestartDriver, not makeFullDriver: every probe genuinely passes against
   // it, so the expired waiver below is the ONLY thing standing between this report and
   // a clean `assertSatisfied`.
