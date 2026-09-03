@@ -4,3 +4,4 @@ dist/
 coverage/
 *.tsbuildinfo
 .superpowers/
+.vitest-results.json

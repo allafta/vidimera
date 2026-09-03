@@ -37,7 +37,11 @@ jobs:
           "
       # Every gate the repository has, then the artifact gates.
       - run: pnpm typecheck
-      - run: pnpm test
+      # The test gate reads vitest's own JSON report rather than trusting the step's exit code —
+      # a code that has to survive vitest, pnpm and the runner's shell in turn, and was silently 0
+      # for every failed run until the CI test-gate repair (scripts/ci-assert-tests.mjs).
+      - run: pnpm test:ci
+      - run: node scripts/ci-assert-tests.mjs .vitest-results.json
       - run: pnpm build
       - run: pnpm smoke
       - run: pnpm lint:strict

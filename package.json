@@ -13,6 +13,7 @@
     "lint:fix": "biome check --write .",
     "lint:strict": "biome check --error-on-warnings .",
     "test": "vitest run",
+    "test:ci": "vitest run --reporter=default --reporter=json --outputFile=.vitest-results.json",
     "smoke": "node scripts/smoke-pack.mjs",
     "contract-scan": "node scripts/contract-scan.mjs",
     "api-sync": "node scripts/api-reference-sync.mjs",
