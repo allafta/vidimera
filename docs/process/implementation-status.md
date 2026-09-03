@@ -113,7 +113,7 @@ any one exit.
   proved only that the step ran; this document's gate outputs were measured locally and
   stand. See the dedicated section at the end of this document; the numbers immediately
   below already include it.
-- **Measured against the current tree**: `pnpm test` — 73 test files, 903 tests, zero skips
+- **Measured against the current tree**: `pnpm test` — 73 test files, 905 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
   `pnpm lint` (`biome check .`) — 143 files checked, zero errors or warnings;
@@ -5235,7 +5235,11 @@ en-passant exceptions, found while writing the plan — is NOT landed: its re-gr
 and the enumeration is false by omission until it is, named here so no reader mistakes the
 omission for an oversight.
 
-**Gate outputs, as measured against the closing commit.** `pnpm test:ci` — 903 tests in
-73 files, zero skips (`ok — 903 tests in 73 files (78 suites): 903 passed, 0 failed, 0
+**Gate outputs, as measured against the closing commit.** `pnpm test:ci` — 905 tests in
+73 files, zero skips (`ok — 905 tests in 73 files (78 suites): 905 passed, 0 failed, 0
 skipped, 0 todo`); `pnpm typecheck` — both packages clean; `biome check --error-on-warnings .`
-— 143 files, exit 0; `contract-scan`, `api-reference-sync`, `docs-index-sync` — exit 0.
+— 143 files, exit 0; `contract-scan`, `api-reference-sync`, `docs-index-sync` — exit 0. The
+count moved from 903 to 905 after this section was first written: the whole-branch review's
+own final fix wave added two pins, a reads-never-refuse pin
+(`profile-drift-gate.test.ts`) and a separation-of-duties unit pin (`multi-leg.test.ts`),
+re-measured here on the fixed head.
