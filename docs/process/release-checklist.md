@@ -222,8 +222,9 @@ about to write to. Do these in the same sitting as the dispatch, not the week be
       release commit's tree and read it green: the guard and both publish steps are skipped,
       every gate runs, and both tarballs pack — the only way the job's YAML and its gate
       chain execute on the release runner before the real dispatch. It was first dispatched
-      2026-09-03 against the pre-release tree, which proves the job's structure, not the
-      release commit's tree, so this box is release day's own.
+      2026-09-03 against the pre-release tree (run 33713900951: every gate green, the guard
+      and both publish steps skipped, both tarballs packed), which proves the job's
+      structure, not the release commit's tree, so this box is release day's own.
 - [ ] **Prove publish rights against the live scope, not just token validity.** This sharpens
       the token item in the section above rather than repeating it: a token that authenticates
       and a token that may publish to `@vidimera` are different facts, and only the second one

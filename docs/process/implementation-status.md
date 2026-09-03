@@ -5000,8 +5000,15 @@ chain on the release runner, which had never executed; it proves nothing about t
 the provenance attestation, or the token, and it does not retire register row 1, whose
 trigger is the real publish. The release checklist gains a pre-flight box for one dry-run
 dispatch against the release commit's tree, and its branch-protection item now also asks for
-required status checks. It was dispatched once on `main` after this branch merged; the run id
-is recorded below.
+required status checks. It was dispatched once on `main` after this branch merged — run
+33713900951, green: every gate ran on the release runner (the report gate reading `864
+tests in 68 files`, smoke `OK`), the guard and both publish steps skipped, both tarballs
+packed. Not before one more gate had been seen red: the file's first push was rejected by
+GitHub's parser, because the dry-run notice's plain scalar carried `dry run: the tree` — a
+colon-space — which surfaced as a push-event failure of a dispatch-only workflow (run
+33713746413) and a refused dispatch ("Workflow does not have 'workflow_dispatch' trigger");
+the block-scalar fix is `806d0d4`. No local YAML parser exists in this tree, so GitHub's
+parse is the only one there is; the checklist's dry-run box is where that fact bites next.
 
 *Register row 24.* The `embedded-postgres` exit-hook workaround, with its trigger: the hazard
 pin failing, or the library being replaced. A new live row ripples through every document
