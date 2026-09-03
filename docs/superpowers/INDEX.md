@@ -18,7 +18,7 @@ the increment was written, which the code and the status doc may have since move
 A reader chasing current behavior reads the code and the status doc; a reader chasing how
 a past decision was reached reads the matching row below.
 
-**41 files in `specs/`, 44 in `plans/`** — not one-to-one. Three
+**42 files in `specs/`, 44 in `plans/`** — not one-to-one. Three
 plans carry no spec: the two step-1 completion/remediation plans
 (`2026-08-03-autonomous-step-1-completion.md`, `2026-08-03-step-1-remediation.md`) and
 this housekeeping plan's own (`2026-08-18-post-build-order-housekeeping.md`). Each is
@@ -79,3 +79,4 @@ close.
 | 2026-09-01 | Registry-facing hygiene | Post-build-order (no step) | [design](specs/2026-09-01-registry-hygiene-design.md) | [plan](plans/2026-09-01-registry-hygiene.md) |
 | 2026-09-02 | Parked truths | Post-build-order (no step) | [design](specs/2026-09-02-parked-truths-design.md) | [plan](plans/2026-09-02-parked-truths.md) |
 | 2026-09-02 | `record-contended` — a §8 registry amendment (design and promotion case; sanction granted, re-granted for the definition, and spent) | Post-build-order (no step) | [design](specs/2026-09-02-record-contended-design.md) | [plan](plans/2026-09-02-record-contended.md) |
+| 2026-09-03 | The profile-drift gate — `unknown-profile` widened to the record's binding (design and sanction case; sanction AWAITING) | Post-build-order (no step) | [design](specs/2026-09-03-profile-drift-gate-design.md) | plan to follow |
