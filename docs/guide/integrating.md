@@ -539,7 +539,7 @@ What you get, with its limits in the same breath:
   record's profile at all, so every seam refuses `unknown-profile`, never-append, and
   `operator.verifySignatures(recordId).genesisProfile` reports `drifted` with the bound and
   live digests so you can see why. Recover by restoring the profile's declarative fields
-  exactly, or by giving the edit a new id (see "Profile design" below).
+  exactly, or by giving the edit a new id (see "Profile design" above).
 - No signature material enters the chain — signatures live in the detached sidecar, and a
   signed chain's bytes differ from an unsigned profile's only through the declaring
   profile's own genesis `profileDigest` (and its hash-chain derivations) — so enabling AL2

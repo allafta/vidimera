@@ -28,7 +28,7 @@ release-readiness reconciliation pass over the publish-facing docset. The worksp
 packages: `@vidimera/record` and `@vidimera/store-postgres` (the server-SQL third
 reference backing, tested against a real embedded Postgres the suite starts per run).
 Measured against the current
-tree: `pnpm test` — 72 test files, 889 tests, zero skips; `packages/record/src/refusal-codes.ts`
+tree: `pnpm test` — 73 test files, 903 tests, zero skips; `packages/record/src/refusal-codes.ts`
 carries 25 refusal codes; zero GOVERNED construction guards remain in `config.ts` — every
 field the feature-guard era installed has lifted behind real behavior at its own seam
 (`unknownOptionKey` — named `governedUnavailable` until the registry-hygiene increment —
@@ -240,7 +240,11 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   row and never-appends definition, its §9/§10.2 sentences, GLOSSARY.md, DECISIONS.md #15 and
   ARCHITECTURE.md, landed with the behavior) — ten marker-bearing sealed-set commits in total,
   each a separate,
-  explicit, per-increment authorization, spent at the increment it covered. A new
+  explicit, per-increment authorization, spent at the increment it covered. One sanctioned
+  corrective-and-widening edit followed with no marker move — the profile-drift gate
+  (2026-09-03), which widened `unknown-profile`'s producer text and the sentences it
+  falsified across SPEC §§4, 8, 9, 10.1, 10.3 and the legend, OPEN-QUESTIONS §§1–2, CONTROLS,
+  GLOSSARY and DECISIONS #5, under the grant recorded in its design's §8. A new
   `docs/concept/` edit needs a FRESH sanction through `SCOPING-GUIDE.md` §§1–2's own
   tier-test and promotion-rule machinery, never assumed from a past one.
   `docs/process/implementation-status.md` is the substitute exit record for every step

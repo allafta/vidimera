@@ -366,7 +366,8 @@ decision pending now).
   it activates are what remain open here.)
 
 Three further questions were surfaced by the 2026-09-02 code review, and a fourth by the
-2026-09-03 security review; all are recorded as **sanction-gated, not decided** — each would
+2026-09-03 security review; three remain **sanction-gated, not decided** and the fourth was
+decided and landed — each would
 move a sealed enumeration or narrow a sealed rule, so each needs a fresh pass through
 `docs/concept/SCOPING-GUIDE.md` §§1–2. The argument for the first three is in its phase's
 commit message on `code-review-fixes`; for the fourth, in
@@ -378,16 +379,12 @@ commit message on `code-review-fixes`; for the fourth, in
   to enforce ack provenance has no field to declare it with. Re-derived independently by the
   2026-09-03 security review (finding 4 of the same record), which confirmed the code matches
   SPEC §10.2 and changed nothing.
-- **Fail-closing a drifted genesis profile.** `signingDeclared` is computed from the profile
-  the instance holds under the genesis `profileId`, so a same-id profile that dropped
-  `signing: true` reads a signing record as plain AL1 and finalizes it. Since 2026-09-03
-  `verifySignatures(recordId).genesisProfile` reports that drift (`matches`, `drifted` with
-  both digests, or `unresolvable`) and `profileDigest`/`projectProfile` are exported — the
-  comparison SPEC §4 promised the binding for. Refusing there, the policy-drift arm's
-  fail-close applied to the profile binding, adds to SPEC §8's registry and §9's ladder and
-  moves OPEN-QUESTIONS §1's decided granularity text. `packages/record/test/profile-drift-report.test.ts`
-  pins today's fail-open as a bound until a sanction decides; the 2026-08-30 catalogue's items
-  33 and 60 and `open-items-plan.md`'s rehoming-residual bullet are this same question.
+- **Fail-closing a drifted genesis profile — DECIDED and landed 2026-09-03** (the profile-drift
+  gate, `docs/superpowers/specs/2026-09-03-profile-drift-gate-design.md`, sanction granted on
+  that document): every seam that resolves a persisted record refuses `unknown-profile` when
+  the registered same-id profile does not digest to the record's binding; `open()` leaves a
+  blocker it does not hold standing. What remains for the 1.0 review is the recompute route
+  alone (catalogue item 60), which no configuration gate can close.
 - **Content equality across legs at `open()`.** The prior-leg verifier compares no
   `contentDigest`; the divergence is derivable from the recorded reference, and equality would
   change no bytes and break no test, but it adds a condition to the verifier's enumerated list.

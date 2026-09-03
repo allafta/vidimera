@@ -113,10 +113,10 @@ any one exit.
   proved only that the step ran; this document's gate outputs were measured locally and
   stand. See the dedicated section at the end of this document; the numbers immediately
   below already include it.
-- **Measured against the current tree**: `pnpm test` — 72 test files, 889 tests, zero skips
+- **Measured against the current tree**: `pnpm test` — 73 test files, 903 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
-  `pnpm lint` (`biome check .`) — 141 files checked, zero errors or warnings;
+  `pnpm lint` (`biome check .`) — 143 files checked, zero errors or warnings;
   `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 25 refusal codes, the twenty-fifth being
@@ -5164,3 +5164,61 @@ files, zero skips (`ok — 889 tests in 72 files (77 suites): 889 passed, 0 fail
 files, exit 0; `contract-scan`, `api-reference-sync`, `docs-index-sync` — exit 0. From `d7d6dcb`'s
 69 files and 870 tests: 70/877 after the verifier fix, 71/883 after the identity shape, 72/889
 after the drift report.
+
+## Post-build-order increment — The profile-drift gate (a sanctioned widening of `unknown-profile`)
+
+**The twenty-third post-build-order increment, exited (branch `profile-drift-gate`, cut from
+`main` at `54d9d1c`: 16 commits, listed in the design's own record).** A sealed-set widening
+under a fresh sanction — `docs/superpowers/specs/2026-09-03-profile-drift-gate-design.md`,
+whose §8 records the grant on the maintainer's words and the exact sites, and whose §9 names
+every pin — and NOT a marker move: every touched section was already `[PROVEN]`. It joins the
+lineage as a sanctioned corrective-and-widening edit, beside the earlier sanctioned corrective
+edits and distinct from the ten marker-bearing commits.
+
+**What it closes.** The security-findings pass (the twenty-second increment) left one finding
+reported rather than refused: `signingDeclared` is computed from the profile THIS instance
+holds, so a same-id profile that dropped `signing: true` read a signing record as plain AL1 and
+finalized it. Now an instance HOLDS a record's profile only when the id is registered AND the
+registered profile's data-only projection digests to the record's genesis `profileDigest`
+(`kernel/held-profile.ts`, against a digest cached on `ResolvedProfile` at `create()`, which
+`open()` also binds — byte-identical, the frozen pins unmoved). Every seam that resolves a
+persisted record — finalize, decline, raiseFinding, acknowledge, redeem, beginRedemption,
+completeRedemption, seal — refuses `unknown-profile`, never-append, at the resolution step it
+already had, ahead of every rung; `verifyPriorLegs` and `verifySupersedes` fold the miss into
+`prior-leg-unverified` and `supersedes-unverified`; `open()`'s exclusivity path leaves a due
+blocker it does not hold standing, `record-exists`, rather than expiring it under the wrong
+rules. No new code, no new rung: SCOPING-GUIDE §1 places the control in the KERNEL and §2
+names it verbatim, "decided-under-rules-as-they-were".
+
+**What it costs, stated as behavior.** An in-place profile edit strands that profile's open
+records: nothing finalizes, declines, expires or takes findings on them, and exclusivity holds
+their subjects, until the declarative fields are restored exactly or the edit is registered
+under a new id with the old version kept under its own. Pinned, not softened
+(`test/profile-drift-gate.test.ts`: the due record that does not expire; the blocker that
+stands; both recovery routes).
+
+**What it does not close.** The recompute route: a storage-writing insider who rewrites the
+genesis `profileId` AND `profileDigest` consistently onto a registered non-signing profile
+still resolves as held. That is the rehoming residual proper (the 2026-08-30 catalogue's item
+60), open at AL1; only signing-only registration or AL2 key custody closes it.
+
+**The thirteenth self-authored inversion.** OPEN-QUESTIONS §2 decided the policy-gate reverse
+direction fail-close, and this build delivered it as `policy-drift` at rung (4.5). Dropping
+`policySource` is a profile drift, so both §10.3 cross-instance corners now refuse
+`unknown-profile` at resolution before rung (4.5) can run; the now-non-declaring arm in
+`kernel/finalize.ts` throws as unreachable, and two `policy-drift.test.ts` pins flip. The
+decision did not move; its form did — argued at the pins. Two further pins flipped for the
+same mechanical reason without a numbered inversion: `multi-leg.test.ts`'s renamed-maker
+separation-of-duties pin (the shape no longer passes resolution) and
+`profile-drift-report.test.ts`'s two bound pins, as that file's header promised.
+
+**The sealed-set edits.** Sites 1–13 of the design's §8, verbatim, checked mechanically at
+exit against the Proposed texts (present) and the Current texts (absent). Site 14 — SPEC §4's
+en-passant exceptions, found while writing the plan — is NOT landed: its re-grant is pending
+and the enumeration is false by omission until it is, named here so no reader mistakes the
+omission for an oversight.
+
+**Gate outputs, as measured against the closing commit.** `pnpm test:ci` — 903 tests in
+73 files, zero skips (`ok — 903 tests in 73 files (78 suites): 903 passed, 0 failed, 0
+skipped, 0 todo`); `pnpm typecheck` — both packages clean; `biome check --error-on-warnings .`
+— 143 files, exit 0; `contract-scan`, `api-reference-sync`, `docs-index-sync` — exit 0.

@@ -159,7 +159,9 @@ is the summary, and that file wins on conflict.
   rehoming residual the record already names (a fail-close changes the refusal registry and
   OPEN-QUESTIONS §1's decided text, so it waits on a fresh sanction), and
   `packages/record/test/profile-drift-report.test.ts` pins it as a bound beside the new field
-  (red first: the field absent, the exports missing).
+  (red first: the field absent, the exports missing). The profile-drift gate (under Changed,
+  2026-09-03) closed the configuration route that same day; this entry is left as the history
+  it is.
 
 ### Changed
 

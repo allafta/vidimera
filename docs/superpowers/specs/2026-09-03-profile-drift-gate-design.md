@@ -396,8 +396,9 @@ increment); `CONCEPT.md` (not a fork, argued above).
 sanctioned corrective-and-widening edit in the sealed-set lineage, beside the earlier sanctioned
 corrective edits, distinct from the ten marker-bearing commits.
 
-**Grant status: GRANTED 2026-09-03** by the maintainer, in session, on the words "granted as
-written, continue" given in answer to the explicit grant-or-withhold question on this document
+**Grant status: GRANTED 2026-09-03, SPENT at this increment's exit** by the maintainer, in
+session, on the words "granted as written, continue" given in answer to the explicit
+grant-or-withhold question on this document
 (the question named sites 7 and 11 as the two a reviewer might withhold; neither was). The grant
 licenses exactly sites 1–13 above and nothing else, and is spent when the increment exits.
 

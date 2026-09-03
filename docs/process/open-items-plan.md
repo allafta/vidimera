@@ -269,9 +269,11 @@ scoping.
       drift itself, `matches` / `drifted` with both digests / `unresolvable`, with
       `profileDigest`/`projectProfile` exported for the offline comparison); its two named
       closures — a deployment registering only signing profiles, or a profileDigest-pinning
-      tightening — are candidates a 1.0 review should weigh, not debts. With the report in
-      place the tightening's one remaining question is whether to REFUSE on drift;
-      `packages/record/test/profile-drift-report.test.ts` pins today's fail-open as a bound.
+      tightening — are candidates a 1.0 review should weigh, not debts. The profile-drift gate
+      (2026-09-03) took the profileDigest-pinning tightening on the configuration route: every
+      seam refuses `unknown-profile` for a profile it does not hold. The recompute route — a
+      rewritten genesis with a consistent digest — is what this bullet still names, and only
+      signing-only registration closes it.
 
 **Dormant, with named triggers — watched, not worked:** OPEN-QUESTIONS §6's registry
 candidates (`unknown-staged`/`unknown-record` mint only if a real host hits the
