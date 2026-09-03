@@ -4961,9 +4961,14 @@ proved that the step ran to completion, not that its tests passed. Two things so
 without erasing it: the suites' own reported results were never wrong — the loss was in the
 process's exit code, after the summary was printed — and this document's gate outputs were
 measured locally at each increment's closing commit, where a reader would have seen a red
-summary line. What no one could see was a red step. The repaired gate is proven the way the
-inert one was found: the fix branch's pull request carries a temporary always-failing test so
-that all four legs go red once before the commit is removed and they go green.
+summary line. What no one could see was a red step. The repaired gate was proven the way the
+inert one was found, in two temporary commits on the fix branch's pull request (#6), each
+dropped before merge. Run 33707967647 carried one SKIPPED test: vitest exits 0 for a skip, so
+`pnpm test:ci` concluded success on all four legs and the report gate failed all four
+(`FAIL — 1 skipped test(s) (865 tests in 69 files (74 suites): 864 passed, 0 failed, 1
+skipped, 0 todo)`). Run 33708203890 carried one FAILING test: `pnpm test:ci` itself failed on
+all four legs — the exit code that had been 0 for every failed run since the adapter joined
+arrived as 1. Both red on purpose, once, before the branch's own head went green.
 
 **Gate outputs, as measured against the closing commit.** `tsc -p packages/record --noEmit` and
 `-p packages/store-postgres --noEmit` clean; `vitest run` — 68 files, 864 tests, zero skips
