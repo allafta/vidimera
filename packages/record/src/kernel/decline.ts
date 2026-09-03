@@ -38,6 +38,7 @@ import {
   SYSTEM_CHECKER,
   sodViolated,
 } from './finalize.js';
+import { heldProfile } from './held-profile.js';
 import { signatureLayerHolds } from './verify-signatures.js';
 
 export async function decline(
@@ -81,8 +82,10 @@ export async function decline(
   }
 
   const record = replay(chain);
-  const resolved = profiles.get(record.profileId);
+  const resolved = heldProfile(profiles, record);
   if (resolved === undefined) {
+    // Not held: unregistered, or registered with a projection that does not digest to the
+    // record's binding (the profile-drift gate — see kernel/finalize.ts's same arm).
     return refused('unknown-profile');
   }
   const legIndex = resolved.profile.legs.findIndex((l) => l.id === record.legId);

@@ -146,6 +146,7 @@ export function replay(chain: readonly Transition[]): DecisionRecord {
   const record: DecisionRecord = {
     id: first.recordId,
     profileId: opened.profileId,
+    profileDigest: opened.profileDigest,
     legId: opened.legId,
     subjectRef: opened.subjectRef,
     contentDigest: opened.contentDigest,

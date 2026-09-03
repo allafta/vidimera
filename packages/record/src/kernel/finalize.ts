@@ -127,6 +127,7 @@ import type {
 import { validateConsultations, validatePolicyInput } from './consultations.js';
 import { deadlineIso, resolveDueClock } from './expiry.js';
 import { findingCoverage } from './findings.js';
+import { heldProfile } from './held-profile.js';
 import { signatureLayerHolds } from './verify-signatures.js';
 
 /**
@@ -210,12 +211,16 @@ export async function finalize(
 
   // The chain is intact — fold it and resolve its profile.
   const record = replay(chain);
-  const resolved = profiles.get(record.profileId);
+  const resolved = heldProfile(profiles, record);
   if (resolved === undefined) {
-    // Fail-closed: the record's profile is not configured in THIS instance (a config/caller
-    // error — a coherent instance always resolves a record it opened). No append, matching
-    // stage()/open()'s `unknown-profile` posture. Defensive; exercised by
-    // refusal-matrix.test.ts's two-instance arm.
+    // Fail-closed: this instance does not HOLD the record's profile — the id is unregistered
+    // (refusal-matrix.test.ts's two-instance arm), or it is registered under this id with a
+    // data-only projection that does not digest to the record's genesis `profileDigest`
+    // (the profile-drift gate; test/profile-drift-gate.test.ts). Either way the record was
+    // opened under rules this instance does not have, so nothing here may decide, expire, or
+    // append under the rules it does have — `unknown-profile`, never-append, ahead of every
+    // rung below (SPEC §4, §8). Recovery is the version discipline: restore the declarative
+    // fields exactly, or keep the prior version registered under its id.
     return refused('unknown-profile');
   }
   const legIndex = resolved.profile.legs.findIndex((l) => l.id === record.legId);

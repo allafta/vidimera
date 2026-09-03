@@ -1004,11 +1004,8 @@ test('the lookup miss refuses: a profile drifted between open() and finalize() c
 
 test('a found reference with no paired actor THROWS — the recorded paired-by-index invariant is a storage fault', async () => {
   const store = new MemoryStore();
-  const handles = create(
-    makeConfig([gatedTwoLeg({ sod: { notActorOf: ['maker-decide'] } }, 'test.twoleg.v1')], {
-      store,
-    }),
-  );
+  const profile = gatedTwoLeg({ sod: { notActorOf: ['maker-decide'] } }, 'test.twoleg.v1');
+  const handles = create(makeConfig([profile], { store }));
   // Hand-built checker record whose opened payload carries a ref but an EMPTY actors
   // array — present (so replay folds both) but unpaired at the ref's index. `at` is
   // stamped to the real "now": this file's other hand-built chains feed `verifyPriorLegs`
@@ -1021,7 +1018,7 @@ test('a found reference with no paired actor THROWS — the recorded paired-by-i
       at: new Date().toISOString(),
       payload: {
         profileId: 'test.twoleg.v1',
-        profileDigest: `sha256:${'0'.repeat(64)}`,
+        profileDigest: profileDigest(profile),
         legId: 'checker-decide',
         subjectRef: 'subject:sod-garbled',
         contentDigest: `sha256:${'1'.repeat(64)}`,

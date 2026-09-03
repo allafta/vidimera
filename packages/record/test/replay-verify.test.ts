@@ -60,6 +60,7 @@ test('replay(): folds an opened -> consultation-recorded -> confirmed chain into
   assert.deepEqual(record, {
     id: RECORD_ID,
     profileId: OPENED_PAYLOAD.profileId,
+    profileDigest: OPENED_PAYLOAD.profileDigest,
     legId: OPENED_PAYLOAD.legId,
     subjectRef: OPENED_PAYLOAD.subjectRef,
     contentDigest: OPENED_PAYLOAD.contentDigest,
