@@ -104,7 +104,7 @@ drifted profile refuses `unknown-profile` and does not expire.
 
 ## 2. Producers and exact conditions
 
-Ten sites, one helper. `ResolvedProfile` (`create.ts`) gains `profileDigest: Digest`, computed
+Eleven sites, one helper. `ResolvedProfile` (`create.ts`) gains `profileDigest: Digest`, computed
 once per profile at `create()` by the existing `profileDigest()`; `kernel/open.ts` reads it
 instead of digesting per call (byte-identical output, proved by the frozen byte-stability pins
 not moving). A shared helper, `heldProfile(profiles, record)`, returns the `ResolvedProfile`
@@ -129,8 +129,18 @@ otherwise. It replaces the bare `profiles.get(record.profileId)` at:
   `redemption-failed`) is unaffected: its profile is not consulted today and is not consulted
   after.
 
-`open()` itself is untouched: the genesis is being minted from the live profile and there is no
-bound digest to compare. `stage()` is untouched for the same reason.
+- **`open()`'s exclusivity path** (`kernel/open.ts`, the C1 gated expire-then-retry) — found
+  while writing the plan, after the grant, and the reason for site 14 below. Before
+  `resolveDueClock` reads the live profile's windows to expire a due blocker en passant, the
+  blocker's genesis `profileDigest` must equal the resolved profile's; otherwise the blocker
+  stands and `open()` refuses `record-exists` — the code it already speaks for a blocker it may
+  not resolve (a `redeeming` one). Without this, a drifted instance would decide the blocker's
+  expiry under the wrong `ttl` and write an `expired` edge into a record it does not hold — the
+  exact write ruling 2 forbids. A drifted instance therefore un-strands nothing; the versioning
+  route does, because the exclusivity pair is keyed by profile id and a new id is a new pair.
+
+`open()`'s genesis mint is untouched: the genesis is being minted from the live profile and
+there is no bound digest to compare. `stage()` is untouched for the same reason.
 
 ## 3. What stays as it was
 
@@ -172,8 +182,10 @@ it — so none of the three places that define the set are touched.
   cannot append an unsigned edge into its chain. `signingDeclared` is still computed from the
   live profile, but that computation no longer reaches a seam that could act on it.
 - **Expiry and exclusivity.** A drifted profile's open records do not expire and hold their
-  `(profile, subject)` pair. Ruling 3 above accepts this and names the two recovery routes;
-  the guide and SPEC §4 state it plainly.
+  `(profile, subject)` pair — at the decision seams, which refuse before their clock rung, and
+  at `open()`, whose blocker path leaves a blocker it does not hold standing (`record-exists`).
+  Ruling 3 above accepts this and names the two recovery routes; the guide and SPEC §4 state
+  it plainly, and SPEC §4's en-passant rule gains the exception (site 14).
 - **Multi-leg flows** are decided under one profile version: a successor leg opened after an
   in-place edit refuses `prior-leg-unverified`; the host re-runs the flow under the new version
   (the prior leg's `confirmed` record is terminal and is not stranded).
@@ -207,8 +219,10 @@ it — so none of the three places that define the set are touched.
 
 ## 8. Sanction requested (the exact sealed-set touches, licensed only by a fresh grant)
 
-Thirteen sites. Each is given as current text and proposed text so the landed sealed text can be
-diffed against this section verbatim before the increment exits.
+Fourteen sites — thirteen granted 2026-09-03, and a fourteenth found while writing the
+implementation plan, for which a RE-GRANT is requested (site 14; its status line is below the
+grant). Each is given as current text and proposed text so the landed sealed text can be diffed
+against this section verbatim before the increment exits.
 
 **Site 1 — SPEC §8, core registry, the `unknown-profile` / `unknown-leg` row.**
 Current: "unknown identifiers fail closed and never append; `unknown-leg` has two producers — a
@@ -349,7 +363,26 @@ Proposed reason: "— Config drift becomes detectable on replay without hashing 
 closures, and is refused at every seam that resolves the record (`unknown-profile`, SPEC §4,
 §8)."
 
-**Not touched, said plainly so a reviewer can disagree:** SPEC §2's recovery paragraph ("requires
+**Site 14 — SPEC §4, the en-passant rule's "Named exceptions" sentence (RE-GRANT REQUESTED).**
+Current: "Named exceptions to this expire-at-every-mutating-seam rule: `seal()` never appends a
+clock edge en passant — a record whose bound has elapsed refuses `unsealable-state`, and the
+operator sweeps first, then seals (§5); `redeem()` does not treat a due-`open` record as
+expired — it refuses `unredeemable-state` without writing an edge (a due-`confirmed` or
+due-`redeeming` record it does resolve en passant, §11.2); and `open()`'s exclusivity check
+never auto-resolves a `redeeming` blocker, due or not — it refuses `record-exists`, leaving
+that edge to the redemption seam's own clock (§9.1, §11.2)."
+Proposed: the same sentence with a fourth exception appended before its final period: "; and no
+mutating seam appends a clock edge to a record whose profile this instance does not hold (the
+`profileDigest` binding, below) — the decision, findings, redemption and seal seams refuse
+`unknown-profile` at profile resolution, ahead of their clock rung, and `open()`'s exclusivity
+check leaves a due blocker whose binding its resolved profile does not match standing, refusing
+`record-exists`". Why it is a site: the sentence enumerates the exceptions to a rule, and the
+gate adds one; left as written, the enumeration is false by omission — the blast-radius lesson
+the earlier sanctions recorded.
+
+**Not touched, said plainly so a reviewer can disagree:** SPEC §8's `record-exists` row ("a
+non-terminal record already exists for this `(profile, subject)`; never appends" stays true of a
+blocker this instance cannot resolve); SPEC §2's recovery paragraph ("requires
 it intact and terminal" stays true; the tightened resolution sits inside the confirmed-state
 terminality derivation the paragraph already delegates); SPEC §8's caller-error paragraph (its
 parenthetical "An unknown *profile* is the exception — it is a fail-closed `unknown-profile`
@@ -366,8 +399,13 @@ corrective edits, distinct from the ten marker-bearing commits.
 **Grant status: GRANTED 2026-09-03** by the maintainer, in session, on the words "granted as
 written, continue" given in answer to the explicit grant-or-withhold question on this document
 (the question named sites 7 and 11 as the two a reviewer might withhold; neither was). The grant
-licenses exactly the thirteen sites above and nothing else, and is spent when the increment
-exits.
+licenses exactly sites 1–13 above and nothing else, and is spent when the increment exits.
+
+**Site 14: RE-GRANT REQUESTED 2026-09-03**, found while writing the implementation plan (the
+`open()` blocker path is a write into an existing record that the design's seam list did not
+name). Its answer is recorded here on the maintainer's words when given; until then the
+sealed-set commit of this increment lands sites 1–13 only, and site 14's sentence is left as
+written and named in the record as false by omission.
 
 ## 9. Tests
 
@@ -391,6 +429,9 @@ exits.
   whose `confirmed` predecessor's profile has drifted refuses `supersedes-unverified`; a
   recovering `open()` over a `declined` predecessor under a drifted profile succeeds (its
   terminality needs no profile).
+- The blocker path: a due `open` blocker under a drifted sibling refuses `record-exists` at
+  `open()` and the blocker's chain gains no `expired` edge; the same subject staged under a NEW
+  profile id opens at once (the versioning route un-strands new work).
 - The cached digest: `open()`'s genesis `profileDigest` equals `profileDigest(profile)` (the
   existing `profile-drift-report.test.ts` export pin already asserts this and must stay green),
   and the frozen `byte-stability.test.ts` pins do not move.
