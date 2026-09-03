@@ -1187,7 +1187,7 @@ with
 // `signatureLayerHolds` never sees it. When this file was written the same-id non-signing
 // sibling still finalized, and that fail-open was pinned here AS A BOUND "so that the day it
 // moves it moves on purpose". It moved with the profile-drift gate increment (2026-09-03),
-// under a sanction recorded in its design: every seam that resolves a persisted record now
+// under a sanction recorded in its specification: every seam that resolves a persisted record now
 // refuses `unknown-profile` when it does not hold the profile — the two pins below say so.
 // `profileDigest` and `projectProfile` are exported from the entry point so a host can make
 // the same comparison offline over an archived chain.
