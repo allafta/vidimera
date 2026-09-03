@@ -23,9 +23,7 @@
 // non-signing record's layer has nothing to hold it to.
 
 import { encodeTransition, transitionDigest } from '../chain/encoding.js';
-import type { ConfirmProfile } from '../config.js';
 import type { KernelContext } from '../create.js';
-import { profileDigest } from '../profile-digest.js';
 import type { Digest, Transition } from '../types.js';
 
 export interface SignatureReport {
@@ -85,19 +83,23 @@ export interface SignatureReport {
       };
 }
 
-/** The raw genesis resolution `layerVerdicts` hands back; only `verifySignatures` digests it. */
+/** The raw genesis resolution `layerVerdicts` hands back; only `verifySignatures` digests it.
+ * `liveDigest` is the CACHED digest `ResolvedProfile.profileDigest` holds (computed once at
+ * `create()`), never a recompute over the live profile object — the same value every seam's
+ * `kernel/held-profile.ts` comparison reads, so this report and the seams can never disagree
+ * over a host that mutates a registered profile object in place after `create()` (see
+ * `create.ts`'s own doc comment on `ResolvedProfile.profileDigest`). */
 interface GenesisResolution {
   profileId: string | undefined;
   boundDigest: Digest | undefined;
-  live: ConfirmProfile | undefined;
+  liveDigest: Digest | undefined;
 }
 
 function resolveGenesisProfile(r: GenesisResolution): SignatureReport['genesisProfile'] {
-  const { profileId, boundDigest, live } = r;
-  if (profileId === undefined || boundDigest === undefined || live === undefined) {
+  const { profileId, boundDigest, liveDigest } = r;
+  if (profileId === undefined || boundDigest === undefined || liveDigest === undefined) {
     return { resolution: 'unresolvable', profileId, boundDigest };
   }
-  const liveDigest = profileDigest(live);
   return liveDigest === boundDigest
     ? { resolution: 'matches', profileId, digest: boundDigest }
     : { resolution: 'drifted', profileId, boundDigest, liveDigest };
@@ -116,9 +118,11 @@ function resolveGenesisProfile(r: GenesisResolution): SignatureReport['genesisPr
  * THIS instance's profile registry — the id-resolution posture named at the two
  * call sites below: an instance that cannot resolve the genesis profile treats the
  * chain as non-signing rather than guessing. The same resolution is handed back raw
- * (`resolution`: the claimed id, the bound `profileDigest`, the live profile when the id
- * resolves) so `verifySignatures` can report whether the live profile IS the one the
- * record was opened under; `signatureLayerHolds` never digests it — reporting only.
+ * (`resolution`: the claimed id, the bound `profileDigest`, the resolved profile's own
+ * CACHED digest when the id resolves — never a recompute, so this stays the same value
+ * every seam's `held-profile.ts` comparison reads) so `verifySignatures` can report
+ * whether the live profile IS the one the record was opened under; `signatureLayerHolds`
+ * never digests it — reporting only.
  */
 async function layerVerdicts(
   ctx: KernelContext,
@@ -137,8 +141,9 @@ async function layerVerdicts(
   const profileId = typeof payload?.profileId === 'string' ? payload.profileId : undefined;
   const boundDigest =
     typeof payload?.profileDigest === 'string' ? payload.profileDigest : undefined;
-  const live = profileId === undefined ? undefined : ctx.profiles.get(profileId)?.profile;
-  const signingDeclared = live?.signing === true;
+  const resolvedProfile = profileId === undefined ? undefined : ctx.profiles.get(profileId);
+  const signingDeclared = resolvedProfile?.profile.signing === true;
+  const liveDigest = resolvedProfile?.profileDigest;
 
   const recordId = genesis?.recordId;
   const entries =
@@ -192,7 +197,12 @@ async function layerVerdicts(
   // keys costs no further read.
   const chainDigests = new Set(transitions.map((t) => t.transitionDigest));
   const orphans = [...byDigest.keys()].filter((d) => !chainDigests.has(d)).sort();
-  return { signingDeclared, resolution: { profileId, boundDigest, live }, transitions, orphans };
+  return {
+    signingDeclared,
+    resolution: { profileId, boundDigest, liveDigest },
+    transitions,
+    orphans,
+  };
 }
 
 export async function verifySignatures(

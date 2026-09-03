@@ -10,11 +10,12 @@
 // `create()` — no digesting per call, and `open()` binds the same cached value.
 
 import type { ResolvedProfile } from '../create.js';
+import type { Digest } from '../types.js';
 
 /** What a replayed record (or a genesis payload) exposes for the comparison. */
 export interface ProfileBinding {
   profileId: string;
-  profileDigest: string;
+  profileDigest: Digest;
 }
 
 export function heldProfile(

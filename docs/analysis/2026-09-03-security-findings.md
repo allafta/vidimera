@@ -99,7 +99,10 @@ finalizes — so that the day it moves, it moves on purpose.
 
 Items 33 and 60 stand thus: the comparison the record was built for now runs and is reported,
 and the helpers exist; whether to REFUSE on drift is the one question left, and it is
-sanction-gated. `next-phases.md`'s sanction-gated list gains it as its fourth entry.
+sanction-gated. `next-phases.md`'s sanction-gated list gains it as its fourth entry. The
+fail-open closed later the same day, under the profile-drift gate's own fresh sanction
+(`docs/superpowers/specs/2026-09-03-profile-drift-gate-design.md`); this record is left as the
+history it is.
 
 ## Finding 3 — caller identity objects persisted verbatim
 

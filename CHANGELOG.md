@@ -185,7 +185,9 @@ is the summary, and that file wins on conflict.
   the thirteenth self-authored inversion — and `profile-drift-report.test.ts`'s bound pins
   flip as their header promised. `packages/record/test/profile-drift-gate.test.ts` pins every
   seam, the depth pair, both recovery routes, the cross-record verifiers and the blocker path,
-  red first.
+  red first. The one public-surface change: `DecisionRecord` (the `replay()` fold) gains a
+  required `profileDigest: Digest` carrying the genesis binding — additive on a derived,
+  read-only type, so no reader breaks; the api-reference lists it.
 - **An identity is exactly `{ principal, authority, proofRef? }`** (2026-09-03, branch
   `security-findings-2026-09-03`, found by the same security review as the verifier fix under
   Fixed): every seam that takes an `IdentityAssertion` — `finalize`/`decline`'s actor,

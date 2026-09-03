@@ -454,3 +454,26 @@ test("open(): a blocker the drifted sibling's shorter ttl would call due — but
   const fresh = await openRecord(versioned, CONTENT, V2, 'subject:gate-13');
   assert.equal(typeof fresh, 'string', 'a new profile id is a new pair — new work is not stranded');
 });
+
+test('reads never refuse: review, getRecord, replay, readChain and listDue answer under a drifted sibling', async () => {
+  const store = new MemoryStore();
+  const opener = instance(base(), store);
+  const recordId = await openRecord(opener, CONTENT, ID, 'subject:gate-14');
+
+  const sibling = instance(base({ ttl: 60 }), store);
+
+  const reviewed = await sibling.operator.review(recordId);
+  assert.equal(reviewed.status, 'ok', 'review is a pure read that never fails on config drift');
+
+  const record = await sibling.agent.getRecord(recordId);
+  assert.ok(record !== null, 'getRecord answers regardless of profile drift');
+
+  const replayed = await sibling.operator.replay(recordId);
+  assert.equal(replayed.id, recordId, 'replay folds the chain regardless of profile drift');
+
+  const chain = await sibling.agent.readChain(recordId);
+  assert.ok(chain.length > 0, 'readChain answers regardless of profile drift');
+
+  const due = await sibling.operator.listDue();
+  assert.ok(Array.isArray(due), 'listDue resolves regardless of profile drift');
+});

@@ -2,9 +2,10 @@
 // (SPEC §9 "The finalize gate ladder"). THE check order is fixed
 // and every refusal path wins over the ones after it:
 //
-//   load chain → (1) pre-seam chain-verify → (2) state/expiry gate → (3) identity (both
-//   branches) → (3.5) separation of duties → (4) content-drift → (4.5) policy drift →
-//   (5) facts → (5.5) required consultations → (5.7) ack coverage →
+//   load chain → (1) pre-seam chain-verify → profile resolution (unknown-profile:
+//   unregistered, or not held — the profile-drift gate) → (2) state/expiry gate → (3)
+//   identity (both branches) → (3.5) separation of duties → (4) content-drift → (4.5)
+//   policy drift → (5) facts → (5.5) required consultations → (5.7) ack coverage →
 //   (6) success append batch.
 //
 // This build implements rungs (1)/(2)/(3)/(3.5)/(4)/(4.5)/(5)/(5.5)/(5.7)/(6) of the SPEC's
@@ -51,10 +52,10 @@
 //       mismatch → `policy-drift` (refusal-class, `terminalRefusals`-able, default open —
 //       recovery is disposal + re-open, not retry); an `{ unreachable, authority }`
 //       attestation → the `unavailable` outcome (this class's SECOND producer, after
-//       (5.5)'s own); a bound `policyDigest` under a same-id NON-declaring instance is
-//       ALSO `policy-drift` — THE DECIDED OPEN QUESTION (§10.3 names it; this build
-//       fail-closes it, the recommendation on record) — a bound digest with nothing live
-//       to compare is mismatch-shaped, not a skip.
+//       (5.5)'s own); a bound `policyDigest` under a same-id NON-declaring instance never
+//       reaches this rung — dropping `policySource` changes the profile's projection, so
+//       profile resolution refuses `unknown-profile` first (the profile-drift gate; the
+//       arm below throws as unreachable).
 // (5) Facts — missing/malformed `facts` (no figures / no checker) → `consultation-missing`.
 // (5.5) Required consultations (SPEC §11.1; second step-5 increment) plus eligibility (SPEC
 //       §10.4; first step-6 increment) — for each kind the EFFECTIVE list names, IN ORDER: a

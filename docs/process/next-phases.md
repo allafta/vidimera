@@ -367,8 +367,8 @@ decision pending now).
 
 Three further questions were surfaced by the 2026-09-02 code review, and a fourth by the
 2026-09-03 security review; three remain **sanction-gated, not decided** and the fourth was
-decided and landed — each would
-move a sealed enumeration or narrow a sealed rule, so each needs a fresh pass through
+decided and landed — each of the three would
+move a sealed enumeration or narrow a sealed rule, so each of the three needs a fresh pass through
 `docs/concept/SCOPING-GUIDE.md` §§1–2. The argument for the first three is in its phase's
 commit message on `code-review-fixes`; for the fourth, in
 `docs/analysis/2026-09-03-security-findings.md` (finding 2):
@@ -396,32 +396,38 @@ commit message on `code-review-fixes`; for the fourth, in
 (A fourth, a never-appends contention refusal code, was decided the same day: `record-contended`,
 minted under its own sanction — `docs/superpowers/specs/2026-09-02-record-contended-design.md`.)
 
-### OQ §2 — decided in code; the recording gap closed 2026-08-19
+### OQ §2 — decided in code; the recording gap closed 2026-08-19; the corner itself
+superseded 2026-09-03
 
-This is not a genuinely open question and not a closed one either — a third state. The
-sealed `docs/concept/OPEN-QUESTIONS.md` §2 still reads as a live decision: "**Decision:**
-fail-close in code ... versus ratify as by-design with the audit trail as compensation."
-"**Recommendation on record: fail-close**" — and, unlike §1/§3/§4/§5/§7 above, §2 carries no
-"Decided (this build)" tail anywhere in its text.
+This was not a genuinely open question and not a closed one either — a third state, now
+closed twice over. The sealed `docs/concept/OPEN-QUESTIONS.md` §2 recorded a live decision:
+"**Decision:** fail-close in code ... versus ratify as by-design with the audit trail as
+compensation." "**Recommendation on record: fail-close**" — and, unlike §1/§3/§4/§5/§7, it
+carried no "Decided (this build)" tail anywhere in its text until 2026-08-19.
 
-The recommendation has already been taken in code. `finalize()`'s rung (4.5) refuses
-`policy-drift` on exactly this corner — a record carrying a bound `policyDigest`, finalized
-under a resolved profile whose `policySource` is now undefined — and the arm's own comment
-names the question it closes: "THE DECIDED OPEN QUESTION (§10.3 names it; the recommendation
-on record is fail-close, and this build takes it)" (`packages/record/src/kernel/finalize.ts`,
-the guard at line 330 through the refusal at line 338). `docs/process/implementation-status.md`'s
-step-6 account records the same fact in prose: "The cross-drift open decision named at the
-step-6 brainstorm is now DECIDED in code: FAIL-CLOSE, so a bound record finalized under a
-same-id non-declaring instance still refuses `policy-drift` rather than skipping the gate."
-
-What is missing is only the sealed document's own closing mark: §2 has never received a
-"Decided (this build)" tail the way its five sibling sections did. Adding one is a
-sealed-set edit, and this housekeeping directive grants no sanction to make it — the gap is
-recorded here, not closed here.
+The recommendation was taken in code first: `finalize()`'s rung (4.5) refused `policy-drift`
+on exactly this corner — a record carrying a bound `policyDigest`, finalized under a resolved
+profile whose `policySource` was now undefined — and the arm's own (now superseded) comment
+named the question it closed as the decided open question, fail-close, on record.
+`docs/process/implementation-status.md`'s step-6 account records the same fact in prose: "The
+cross-drift open decision named at the step-6 brainstorm is now DECIDED in code: FAIL-CLOSE,
+so a bound record finalized under a same-id non-declaring instance still refuses
+`policy-drift` rather than skipping the gate."
 
 **Closed 2026-08-19:** the sanctioned corrective pass
-(`docs/analysis/2026-08-19-sealed-set-sanction.md`) added exactly that tail, in the sibling
-form; the account above stands as the history of the gap.
+(`docs/analysis/2026-08-19-sealed-set-sanction.md`) added the sealed document's own "Decided
+(this build)" tail, in the sibling form — the recording gap named above is closed.
+
+**Superseded 2026-09-03 (the profile-drift gate):** the corner this rung answered is no
+longer reached at all. Dropping (or adding) `policySource` changes a profile's data-only
+projection, so a same-id profile that does so no longer digests to a bound record's genesis
+`profileDigest` — every seam that resolves a persisted record now refuses `unknown-profile`
+at profile resolution, before rung (4.5) runs (the profile-drift gate,
+`docs/superpowers/specs/2026-09-03-profile-drift-gate-design.md`). The rung-(4.5) arm for
+this corner in `kernel/finalize.ts` is now an unreachable throw, not a live refusal path.
+`docs/concept/OPEN-QUESTIONS.md` §2 itself now carries a second tail recording this —
+"Superseded (this build, the profile-drift gate)" — alongside its 2026-08-19 "Decided (this
+build)" tail; both stand as the section's history, neither edited away.
 
 ## The disciplines that outlive the build order
 

@@ -13,12 +13,13 @@ import { replay } from '../src/chain/replay.js';
 import type { ConfirmProfile, LegSpec } from '../src/config.js';
 import type { KernelContext, ResolvedProfile } from '../src/create.js';
 import { create, createWithClock } from '../src/create.js';
+import { sodViolated } from '../src/kernel/finalize.js';
 import { verifyPriorLegs } from '../src/kernel/prior-legs.js';
 import type { OperatorSurface } from '../src/operator-surface.js';
 import { profileDigest } from '../src/profile-digest.js';
 import { MemoryStore } from '../src/store/memory.js';
 import type { Store } from '../src/store/store.js';
-import type { Transition } from '../src/types.js';
+import type { DecisionRecord, Transition } from '../src/types.js';
 import { buildChain } from './helpers/chain.js';
 import {
   captureProfile,
@@ -1003,6 +1004,57 @@ test('the lookup miss is pre-empted: a same-id profile renamed between open() an
   if (blocked.status !== 'refused') return;
   assert.equal(blocked.code, 'unknown-profile');
   assert.equal((await store.readChain(opened.value.recordId)).length, before, 'no append');
+});
+
+test("sodViolated: the lookup keys the record's own recorded legIds, never the live profile's leg names — a unit-level pin, since the seam test above is now pre-empted by unknown-profile before reaching this function", () => {
+  const record: DecisionRecord = {
+    id: 'rec-checker',
+    profileId: 'test.twoleg.v1',
+    profileDigest: `sha256:${'9'.repeat(64)}`,
+    legId: 'checker-decide',
+    subjectRef: SUBJECT,
+    contentDigest: `sha256:${'a'.repeat(64)}`,
+    state: 'open',
+    status: 'active',
+    consultations: [],
+    priorRecordRefs: [
+      { recordId: 'rec-maker', chainHead: `sha256:${'b'.repeat(64)}`, legId: 'maker-decide' },
+    ],
+    priorLegActors: [identity({ principal: 'maker:1' })],
+  };
+
+  // A resolved profile whose LIVE legs are renamed (the maker leg reads 'maker-renamed'
+  // here) — `profileDigest` forced to the record's own binding stands in for "this
+  // instance holds the record's profile" at this unit level, since `sodViolated` never
+  // reads `profileDigest` at all; the point is that the live rename plays no role in its
+  // lookup either way. The checker leg's own `sod.notActorOf` still names the RECORDED
+  // leg id, 'maker-decide' — the string the record's own `priorRecordRefs` carries —
+  // never the live rename.
+  const resolved = resolvedOf({
+    ...twoLegProfile(),
+    legs: [
+      { id: 'maker-renamed', allowedAuthorities: ['session:test-app'] },
+      {
+        id: 'checker-decide',
+        allowedAuthorities: ['session:test-app'],
+        sod: { notActorOf: ['maker-decide'] },
+      },
+    ],
+  });
+  resolved.profileDigest = record.profileDigest;
+  const checkerLeg = resolved.profile.legs[1];
+  if (checkerLeg === undefined) throw new Error('fixture: two legs');
+
+  assert.equal(
+    sodViolated(record, checkerLeg, identity({ principal: 'maker:1' }), record.id, 'finalize'),
+    true,
+    "the same principal as the recorded maker refuses, found by the recorded legId — the live profile's rename is invisible to the lookup",
+  );
+  assert.equal(
+    sodViolated(record, checkerLeg, identity({ principal: 'approver:2' }), record.id, 'finalize'),
+    false,
+    'a different principal is not the recorded actor of any named prior leg',
+  );
 });
 
 test('a found reference with no paired actor THROWS — the recorded paired-by-index invariant is a storage fault', async () => {

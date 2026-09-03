@@ -166,8 +166,8 @@ export interface DecisionRecord {
   id: string;
   profileId: string;
   /**
-   * The profile's data-only projection digest bound at genesis (SPEC §4): the cached digest
-   * the kernel caches once at `create()` and `open()` binds. The profile-drift gate (SPEC §4,
+   * The profile's data-only projection digest bound at genesis (SPEC §4): the digest the
+   * kernel caches once at `create()` and `open()` binds. The profile-drift gate (SPEC §4,
    * the profile-drift-gate increment, 2026-09-03) compares every seam's registered profile's
    * digest against this binding to refuse unknown-profile when this instance does not HOLD the
    * record's profile (same-id profile with a different data projection).

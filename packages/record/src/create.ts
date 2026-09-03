@@ -71,6 +71,11 @@ export interface ResolvedProfile {
   /**
    * `profileDigest(profile)`, computed once here: the digest `open()` binds into every genesis
    * and the digest `kernel/held-profile.ts` compares a record's binding against at every seam.
+   * It is a `create()`-time SNAPSHOT of the profile as registered; a host that mutates a
+   * registered profile object in place afterwards is outside the contract, and both the seams
+   * and `kernel/verify-signatures.ts`'s report read this same cached snapshot, never a
+   * recompute — so a host that mutates in place gets a stale digest everywhere consistently,
+   * rather than the report and the seams disagreeing with each other.
    */
   profileDigest: Digest;
 }
