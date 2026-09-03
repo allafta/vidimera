@@ -5,9 +5,10 @@
 // `verifySignatures(recordId).genesisProfile` performs that comparison and reports it
 // (matches / drifted / unresolvable, with the digests), and both helpers below are
 // exported from the entry point so a host can make the same comparison offline over an
-// archived chain. Still no GATE reads the comparison: a drifted profile refuses nothing
-// — a recorded residual whose fail-close would change the refusal ladder and so waits on
-// a fresh sanction (`kernel/verify-signatures.ts`, the `genesisProfile` field's own note).
+// archived chain. And since the profile-drift gate every seam that resolves a persisted
+// record makes the comparison too (`kernel/held-profile.ts`, against a digest cached on the
+// resolved profile at `create()`) and refuses `unknown-profile` when this instance does not
+// hold the profile the record was opened under (SPEC §4, §8).
 
 import { canonicalize, digest } from './canonical.js';
 import type { ConfirmProfile } from './config.js';

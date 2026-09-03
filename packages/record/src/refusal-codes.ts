@@ -169,7 +169,9 @@ export interface AppendDecisionLeg {
 
 /**
  * Codes that NEVER append a transition, regardless of leg configuration (SPEC §8's
- * never-appends set): `record-exists` / `unknown-profile` / `unknown-leg` (pre-record) and
+ * never-appends set): `record-exists` / `unknown-profile` / `unknown-leg` (pre-record —
+ * `unknown-profile` also fires at every seam that resolves a persisted record whose profile
+ * this instance does not hold, by id or by binding: the profile-drift gate, SPEC §4/§8) and
  * `record-not-open` (terminal-record) never append; `unsealable-state` never appends —
  * `seal()`'s only append is the `sealed` transition itself, folded into its own success path
  * (`kernel/seal.ts`), never a byproduct of this refusal;

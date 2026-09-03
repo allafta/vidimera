@@ -339,14 +339,18 @@ export async function finalize(
 
   // --- (4.5) policy drift (SPEC §10.3; second step-6 increment) ------------------------
   if (record.policyDigest !== undefined && resolved.profile.policySource === undefined) {
-    // THE DECIDED OPEN QUESTION (§10.3 names it; the recommendation on record is
-    // fail-close, and this build takes it): a record opened under a DECLARING profile,
-    // finalized under a same-id non-declaring instance, does NOT skip the gate — a
-    // bound digest with nothing live to compare is mismatch-shaped, the same
-    // fail-closed reading §10.3 itself gives the forward corner. The config flip is a
-    // version-discipline violation either way; profileDigest makes it auditable. Cost,
-    // accepted: a host retiring a policy source re-opens old records.
-    return refuseMaybeAppend(store, 'policy-drift', leg, chain, resolved, finalLeg, now);
+    // UNREACHABLE since the profile-drift gate: a record binding a policyDigest was opened
+    // under a profile declaring policySource, and policySource is a declarative field the
+    // genesis profileDigest covers — so a same-id profile that dropped it does not digest to
+    // the binding and profile resolution above refused `unknown-profile` first (SPEC §4, §10.3
+    // as amended; OPEN-QUESTIONS §2's fail-close decision stands, delivered one step earlier).
+    // Until that gate this arm refused `policy-drift`, the decided open question of record. It
+    // throws now so that a projection change that stopped covering policySource would fail
+    // loudly here rather than silently re-open the corner.
+    throw new Error(
+      'finalize: unreachable — a bound policyDigest under a profile declaring no policySource ' +
+        'cannot pass profile resolution; the profile-drift gate refuses unknown-profile first (SPEC §4)',
+    );
   }
   if (resolved.profile.policySource !== undefined) {
     const policy = opts?.policy;
@@ -362,11 +366,12 @@ export async function finalize(
       return unavailable(policy.authority);
     }
     if (policy.digest !== record.policyDigest) {
-      // Mismatch — including §10.3's fail-closed forward corner: a present live digest
-      // against an ABSENT bound one (a record opened under a non-declaring same-id
-      // instance) "as a mismatch", policy-drift, since the record is coherent evidence
-      // of a real prior decision. Recovery is disposal + re-open, not retry (§10.3) — a
-      // declaring profile SHOULD list policy-drift in terminalRefusals.
+      // Mismatch: both digests present and unequal — `policy-drift` proper. The "present
+      // live digest against an ABSENT bound one" sub-case §10.3 once named here is
+      // unreachable since the profile-drift gate (a same-id instance that newly declares
+      // policySource does not digest to the record's binding and refuses unknown-profile at
+      // resolution). Recovery is disposal + re-open, not retry (§10.3) — a declaring profile
+      // SHOULD list policy-drift in terminalRefusals.
       return refuseMaybeAppend(store, 'policy-drift', leg, chain, resolved, finalLeg, now);
     }
   }

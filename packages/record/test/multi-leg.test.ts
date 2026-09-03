@@ -949,7 +949,7 @@ test('proposer: the designated proposer may not decide their own leg; a colleagu
   assert.equal(done.status, 'ok');
 });
 
-test('the lookup miss refuses: a profile drifted between open() and finalize() cannot demonstrate distinctness', async () => {
+test('the lookup miss is pre-empted: a same-id profile renamed between open() and finalize() is a drifted profile — unknown-profile at resolution, before the SoD gate can run', async () => {
   const store = new MemoryStore();
   const stagingSide = create(
     makeConfig([gatedTwoLeg({ sod: { notActorOf: ['maker-decide'] } })], { store }),
@@ -969,9 +969,11 @@ test('the lookup miss refuses: a profile drifted between open() and finalize() c
   assert.equal(opened.status, 'ok');
   if (opened.status !== 'ok') return;
 
-  // A second instance whose same-id profile RENAMED the maker leg; the checker's sod
-  // names the NEW name — construction-valid (strictly-earlier), but the record's own
-  // recorded refs carry the OLD legId. Fail-closed: refuse, no append (default path).
+  // A second instance whose same-id profile RENAMED the maker leg. Before the profile-drift
+  // gate this exercised the SoD lookup keying the record's own recorded legIds (the renamed
+  // instance refused `sod-violation`). Renaming a leg changes the profile's projection, so
+  // the instance no longer holds the record's profile and refuses `unknown-profile` at
+  // resolution — the SoD lookup is unchanged, and unobservable through this shape now.
   const drifted = create(
     makeConfig(
       [
@@ -999,7 +1001,7 @@ test('the lookup miss refuses: a profile drifted between open() and finalize() c
   );
   assert.equal(blocked.status, 'refused');
   if (blocked.status !== 'refused') return;
-  assert.equal(blocked.code, 'sod-violation');
+  assert.equal(blocked.code, 'unknown-profile');
   assert.equal((await store.readChain(opened.value.recordId)).length, before, 'no append');
 });
 

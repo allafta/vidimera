@@ -34,8 +34,10 @@ export interface SignatureReport {
    * Whether the genesis profile, resolved against THIS instance's registry, declares
    * `signing: true`. Computed from the LIVE profile, never from the chain: a same-id profile
    * that omits `signing` — or an instance that does not hold the id at all — reads `false`
-   * here for a record that WAS opened under a signing profile. `genesisProfile` below says
-   * whether the live profile is the one the record was opened under; read the two together.
+   * here for a record that WAS opened under a signing profile — and, since the profile-drift
+   * gate, no seam acts on that reading: an instance that does not hold the record's profile
+   * refuses `unknown-profile` at resolution. `genesisProfile` below says whether the live
+   * profile is the one the record was opened under; read the two together.
    */
   signingDeclared: boolean;
   transitions: {
@@ -66,11 +68,11 @@ export interface SignatureReport {
    * and so does any other declarative edit between open and now. `unresolvable`: this
    * instance does not hold the genesis `profileId` (or the genesis carries no string id or
    * binding), so there is nothing to compare. REPORTING ONLY, like `orphans`: no gate reads
-   * it and `signatureLayerHolds` never computes it; a drifted non-signing sibling still
-   * finalizes — the recorded residual, which `test/profile-drift-report.test.ts` pins AS A
-   * BOUND so that it moves on purpose. Fail-closing it changes the SPEC §8 refusal registry
-   * and the §9 ladder, and OPEN-QUESTIONS §1's decided granularity text, so it waits on a
-   * fresh sanction. The comparison itself is what SPEC §4 promised the binding for ("the
+   * THIS field and `signatureLayerHolds` never computes it. The refusal lives elsewhere: since
+   * the profile-drift gate every seam that resolves a persisted record applies the same
+   * comparison through `kernel/held-profile.ts` and refuses `unknown-profile` when it does
+   * not hold the profile (SPEC §4, §8) — so `drifted` here names exactly why such a seam
+   * refused, or will. The comparison itself is what SPEC §4 promised the binding for ("the
    * governing profile is detectable on replay").
    */
   genesisProfile:

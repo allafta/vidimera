@@ -10,12 +10,14 @@
 // replay"). This field performs the comparison the record was built for and reports it in
 // three states — matches, drifted, unresolvable — beside the digests it compared.
 //
-// REPORTING ONLY, stated as loudly as `orphans` is: no gate reads it, `signatureLayerHolds`
-// never sees it, and the same-id non-signing sibling still finalizes. Fail-closing that
-// sibling changes the SPEC §8/§9 refusal ladder and OPEN-QUESTIONS §1's decided text, so it
-// needs a fresh sanction; the fail-open is pinned below AS A BOUND, so that the day it moves
-// it moves on purpose. `profileDigest` and `projectProfile` are exported from the entry
-// point so a host can make the same comparison offline over an archived chain.
+// REPORTING ONLY, stated as loudly as `orphans` is: no gate reads THIS field and
+// `signatureLayerHolds` never sees it. When this file was written the same-id non-signing
+// sibling still finalized, and that fail-open was pinned here AS A BOUND "so that the day it
+// moves it moves on purpose". It moved with the profile-drift gate increment (2026-09-03),
+// under a sanction recorded in its specification: every seam that resolves a persisted record now
+// refuses `unknown-profile` when it does not hold the profile — the two pins below say so.
+// `profileDigest` and `projectProfile` are exported from the entry point so a host can make
+// the same comparison offline over an archived chain.
 
 import assert from 'node:assert/strict';
 import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';
@@ -72,7 +74,7 @@ test('matches: on the instance that opened it, the report carries the bound dige
   assert.equal(bound, profileDigest(signingProfile()), 'the bound digest is the projection digest');
 });
 
-test("drifted, the finding's own route: a same-id sibling whose profile omits signing reads the record as non-signing and FINALIZES it — the recorded bound — while the report now says the live profile is not the one the record was opened under", async () => {
+test("drifted, the finding's own route: a same-id sibling whose profile omits signing reads the record as non-signing, the report says drifted, and — since the profile-drift gate — the sibling refuses unknown-profile", async () => {
   const { store, signing } = shared();
   const opener = create({ ...makeConfig([signingProfile()], { store }), signing });
   const recordId = await openRecord(opener, CONTENT, ID, 'subject:drift-2');
@@ -96,13 +98,14 @@ test("drifted, the finding's own route: a same-id sibling whose profile omits si
     liveDigest: profileDigest(plain),
   });
 
-  // THE BOUND, pinned so it moves on purpose: nothing refuses. Fail-closing this is a
-  // refusal-ladder change under a fresh sanction (file header), not a fix this pass may make.
+  // THE BOUND MOVED (the profile-drift gate): the sibling does not hold the record's profile
+  // and refuses at resolution — never-append, the record untouched.
   const out = await sibling.operator.finalize(recordId, identity(), CONTENT, facts());
-  assert.equal(out.status, 'ok', 'recorded residual — see the file header before changing this');
+  assert.equal(out.status, 'refused');
+  if (out.status === 'refused') assert.equal(out.code, 'unknown-profile');
 });
 
-test('drifted on the signing side is reporting only: a same-id signing sibling with a different ttl verifies every signature and finalizes; the report names the drift', async () => {
+test('drifted on the signing side: a same-id signing sibling with a different ttl verifies every signature, the report names the drift, and the seam refuses unknown-profile', async () => {
   const { store, signing } = shared();
   const opener = create({ ...makeConfig([signingProfile()], { store }), signing });
   const recordId = await openRecord(opener, CONTENT, ID, 'subject:drift-3');
@@ -123,7 +126,8 @@ test('drifted on the signing side is reporting only: a same-id signing sibling w
     liveDigest: profileDigest(edited),
   });
   const out = await sibling.operator.finalize(recordId, identity(), CONTENT, facts());
-  assert.equal(out.status, 'ok', 'drift gates nothing — reporting only');
+  assert.equal(out.status, 'refused', 'the report is reporting only; the SEAM refuses');
+  if (out.status === 'refused') assert.equal(out.code, 'unknown-profile');
 });
 
 test('unresolvable: an instance whose registry lacks the genesis profileId reports the claim and the bound digest with no live digest, and signingDeclared reads false', async () => {

@@ -272,10 +272,11 @@ test('the depth pin: a tampered declaring-profile chain refuses chain-compromise
   assert.equal(out.code, 'chain-compromise', 'no throw — rung (1) wins over the presence contract');
 });
 
-test('the forward cross-instance corner: a live digest against an absent bound one refuses policy-drift, fail-closed', async () => {
-  // §10.3: a record opened under a NON-declaring same-id instance, finalized under a
-  // declaring one — "the gate treats a present live digest against an absent bound one
-  // as a mismatch".
+test('the forward cross-instance corner is pre-empted: a same-id instance that newly declares policySource is a drifted profile — unknown-profile at resolution, never policy-drift', async () => {
+  // §10.3 once had this corner refuse policy-drift ("a present live digest against an absent
+  // bound one as a mismatch"). Since the profile-drift gate, policySource is a declarative
+  // field the genesis profileDigest covers: the declaring instance does not digest to the
+  // record's binding and refuses unknown-profile at profile resolution, before rung (4.5).
   const store = new MemoryStore();
   const nonDeclaring = create(
     makeConfig([{ ...captureProfile({ id: 'test.policy.v1' }) }], { store }),
@@ -287,14 +288,17 @@ test('the forward cross-instance corner: a live digest against an absent bound o
   });
   assert.equal(out.status, 'refused');
   if (out.status !== 'refused') return;
-  assert.equal(out.code, 'policy-drift');
+  assert.equal(out.code, 'unknown-profile');
 });
 
-test('THE DECIDED OPEN QUESTION: a bound record under a non-declaring instance refuses policy-drift — fail-close, as ruled', async () => {
-  // §10.3 names this direction an open decision ("the recommendation on record is
-  // fail-close") and this build takes it: the gate does NOT skip. opts.policy is
-  // absent here — legal on a non-declaring profile — so the refusal comes from rung
-  // (4.5)'s fail-close arm, not the presence contract.
+test('THE DECIDED OPEN QUESTION, superseded: a bound record under a same-id non-declaring instance refuses unknown-profile at resolution — fail-close kept, delivered before rung (4.5)', async () => {
+  // OPEN-QUESTIONS §2 decided fail-close and this build delivered it as policy-drift at rung
+  // (4.5). The profile-drift gate delivers the same fail-close one step earlier: dropping
+  // policySource changes the profile's projection, so the non-declaring instance does not
+  // hold the record's profile and refuses unknown-profile at profile resolution. The
+  // rung-(4.5) arm is unreachable and throws if ever reached (kernel/finalize.ts). This is
+  // the THIRTEENTH self-authored inversion in the status record's numbered sequence: the
+  // decided FORM moved, the decision did not.
   const store = new MemoryStore();
   const { recordId } = await openBound(store);
   const nonDeclaring = create(
@@ -303,6 +307,6 @@ test('THE DECIDED OPEN QUESTION: a bound record under a non-declaring instance r
   const out = await nonDeclaring.operator.finalize(recordId, identity(), CONTENT, facts());
   assert.equal(out.status, 'refused');
   if (out.status !== 'refused') return;
-  assert.equal(out.code, 'policy-drift');
+  assert.equal(out.code, 'unknown-profile');
   assert.equal((await store.readChain(recordId)).length, 1, 'default path: no append');
 });
