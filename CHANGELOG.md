@@ -196,6 +196,24 @@ is the summary, and that file wins on conflict.
 
 ### Fixed
 
+- **The CI test gate was inert** (2026-09-03, branch `ci-windows-test-gate`): every `pnpm test`
+  step in the CI matrix and the release workflow concluded success whatever the tests did, on
+  every OS, since the adapter's first commit. `embedded-postgres` registers an `async-exit-hook`
+  handler at module load, and that library's `beforeExit` listener exits 0 once the event loop
+  drains — over the non-zero exit code vitest had set; the adapter's vitest global setup
+  imported the library at the top of the module, in vitest's main process. Found by a canary
+  pull request carrying one always-failing test (CI run 33705059031: four green test legs),
+  bisected locally to a global setup that did nothing but import the library. Fixed at the
+  source — the global setup loads it through a guarded dynamic import that removes exactly the
+  `beforeExit` listener the import added, pinned in both directions (the hazard itself in a
+  child process, so the pin fails the day the library no longer needs the workaround; the
+  guarded path leaving the listeners untouched) — and guarded independently: `pnpm test:ci`
+  writes vitest's JSON report and `scripts/ci-assert-tests.mjs` fails the job on any failed,
+  skipped or todo test, in CI and the release workflow alike. The four SQLite restart-driver
+  probe tests, which the Windows runner had been timing out at the 5s default (the visible
+  symptom that led here), get a 20s budget. The honest bound: every earlier CI green on a test
+  leg proved the step ran, not that its tests passed; locally reported results were never
+  wrong, only the process's exit code. Re-measured: 68 files, 864 tests.
 - **Code-review, second round** (2026-09-02, the same branch): the findings seams mapped
   EVERY lost compare-and-swap to `record-not-open`, false of a record that lost only a seq
   race and is still open — two concurrent `raiseFinding` calls now leave the loser with the

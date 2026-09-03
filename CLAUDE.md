@@ -28,7 +28,7 @@ release-readiness reconciliation pass over the publish-facing docset. The worksp
 packages: `@vidimera/record` and `@vidimera/store-postgres` (the server-SQL third
 reference backing, tested against a real embedded Postgres the suite starts per run).
 Measured against the current
-tree: `pnpm test` — 67 test files, 862 tests, zero skips; `packages/record/src/refusal-codes.ts`
+tree: `pnpm test` — 68 test files, 864 tests, zero skips; `packages/record/src/refusal-codes.ts`
 carries 25 refusal codes; zero GOVERNED construction guards remain in `config.ts` — every
 field the feature-guard era installed has lifted behind real behavior at its own seam
 (`unknownOptionKey` — named `governedUnavailable` until the registry-hygiene increment —
@@ -135,7 +135,20 @@ pnpm workspace (Node 22.16+, pnpm via corepack):
   bound (`scripts/smoke-pack.mjs`)
 - `pnpm lint` — Biome (`pnpm lint:fix` to apply safe fixes)
 - `pnpm test` — vitest, all packages (the store-postgres project starts a real embedded
-  Postgres per run via its globalSetup — no Docker, no external database)
+  Postgres per run via its globalSetup — no Docker, no external database). To filter, pass
+  vitest's flags WITHOUT a `--` separator (`pnpm test --project record`): pnpm forwards a
+  `--` literally and vitest ignores everything after it, so `pnpm test -- --project record`
+  silently runs the whole suite
+- `pnpm test:ci` — the same run with vitest's JSON report written to `.vitest-results.json`
+  (ignored), which `node scripts/ci-assert-tests.mjs .vitest-results.json` then asserts:
+  success, zero failed tests or files, zero skipped or todo tests, at least one test. CI and
+  the release workflow run this pair in place of `pnpm test`, because the step's exit code
+  was silently 0 for every failed run until the CI test-gate repair (2026-09-03): the
+  adapter's vitest global setup imported `embedded-postgres` in vitest's main process, and
+  that library's `async-exit-hook` `beforeExit` listener exits 0 over vitest's exit code —
+  fixed at the source (`packages/store-postgres/test/setup/global-setup.ts`'s
+  `loadEmbeddedPostgres`, pinned both ways) AND guarded here. The script checks the report's
+  counters only — read its bounds comment before treating a green run as more
 - `pnpm api-sync` — the api-reference drift gate: every name `packages/record/src/index.ts`
   exports must occur in `docs/guide/api-reference.md` (`scripts/api-reference-sync.mjs`;
   presence only, never accuracy — read its bounds comment)
@@ -184,12 +197,12 @@ pnpm workspace (Node 22.16+, pnpm via corepack):
 
 CI (`.github/workflows/ci.yml`) is two-tier on every push to `main` and every pull
 request: a Linux `checks` job runs the platform-independent gates (typecheck, lint,
-contract-scan, `api-sync`, `docs-index-sync`, `lint:strict`), and a `test` matrix runs test + build + the packed-tarball
-smoke test on the exact declared Node floor (ubuntu @ 22.16.0), current Node
+contract-scan, `api-sync`, `docs-index-sync`, `lint:strict`), and a `test` matrix runs `test:ci`, the report gate
+(`scripts/ci-assert-tests.mjs`), build, and the packed-tarball smoke test on the exact declared Node floor (ubuntu @ 22.16.0), current Node
 (ubuntu @ 24), and Windows/macOS @ 22 — with pnpm caching, read-only token permissions,
 and one cancel-on-supersede concurrency group per ref. `.github/workflows/release.yml` is
-the dispatch-only, provenance-attested publish workflow (both packages, record first),
-unexercised until the 0.1 cut; `docs/process/release-checklist.md` is release day's
+the dispatch-only, provenance-attested publish workflow (both packages, record first,
+behind the same report gate), unexercised until the 0.1 cut; `docs/process/release-checklist.md` is release day's
 authoritative list.
 `.github/workflows/first-use.yml` is the dispatch-only clean-runner first-use proof: a `pack`
 job uploads both packed tarballs and `scripts/first-use.mjs` as one artifact, and a

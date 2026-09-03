@@ -14,7 +14,9 @@
 // counters only. It cannot tell whether the report describes the tree under test, whether
 // the right files were included, or whether vitest's counters are themselves correct; a
 // report from a stale or partial run passes if its counters are clean. The report path is
-// written by the same step that runs the suite, immediately before this script runs.
+// written by the same step that runs the suite, immediately before this script runs. The
+// report's "suites" count every `describe` block as well as every file, so the file count
+// printed here is the length of its per-file `testResults` list, not `numTotalTestSuites`.
 import { readFileSync } from 'node:fs';
 
 const path = process.argv[2];
@@ -45,7 +47,8 @@ const passed = count('numPassedTests');
 const failed = count('numFailedTests');
 const skipped = count('numPendingTests');
 const todo = count('numTodoTests');
-const files = count('numTotalTestSuites');
+const suites = count('numTotalTestSuites');
+const files = Array.isArray(report.testResults) ? report.testResults.length : -1;
 const failedFiles = count('numFailedTestSuites');
 const skippedFiles = count('numPendingTestSuites');
 
@@ -57,8 +60,9 @@ if (skipped !== 0) problems.push(`${skipped} skipped test(s)`);
 if (todo !== 0) problems.push(`${todo} todo test(s)`);
 if (skippedFiles !== 0) problems.push(`${skippedFiles} skipped file(s)`);
 if (total < 1) problems.push('zero tests ran');
+if (files < 1) problems.push('the report lists no test files');
 
-const summary = `${total} tests in ${files} files: ${passed} passed, ${failed} failed, ${skipped} skipped, ${todo} todo`;
+const summary = `${total} tests in ${files} files (${suites} suites): ${passed} passed, ${failed} failed, ${skipped} skipped, ${todo} todo`;
 if (problems.length > 0) {
   console.error(`ci-assert-tests: FAIL — ${problems.join('; ')} (${summary})`);
   process.exit(1);

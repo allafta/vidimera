@@ -100,10 +100,23 @@ any one exit.
   the one item deferred as its own increment. No recorded byte, digest, or maturity marker moved.
   See the dedicated section at the end of this document; the numbers immediately below already
   include it.
-- **Measured against the current tree**: `pnpm test` — 67 test files, 862 tests, zero skips
+- **A further increment, past the build order, has landed: the CI test-gate repair
+  (2026-09-03, branch `ci-windows-test-gate`)** — a canary pull request carrying one
+  always-failing test showed all four CI test legs concluding success. The cause is
+  `embedded-postgres`'s `async-exit-hook` `beforeExit` listener exiting 0 over vitest's exit
+  code, reached because the adapter's vitest global setup imported the library at the top of
+  the module, in vitest's main process. Fixed at the source (a guarded dynamic import that
+  removes exactly the listener the import added, two pins), guarded independently (the
+  JSON-report gate — `pnpm test:ci` then `scripts/ci-assert-tests.mjs` — in CI and the release
+  workflow), and the four SQLite restart-driver probes get a 20s budget. No `packages/*/src/`
+  file, recorded byte, digest, or maturity marker moved. Every earlier CI green on a test leg
+  proved only that the step ran; this document's gate outputs were measured locally and
+  stand. See the dedicated section at the end of this document; the numbers immediately
+  below already include it.
+- **Measured against the current tree**: `pnpm test` — 68 test files, 864 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
-  `pnpm lint` (`biome check .`) — 135 files checked, zero errors or warnings;
+  `pnpm lint` (`biome check .`) — 137 files checked, zero errors or warnings;
   `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 25 refusal codes, the twenty-fifth being
@@ -4859,3 +4872,103 @@ exceeded the grant's wording; a re-flow orphan in SPEC §9 was re-wrapped (bytes
 sentence only, content identical); the `supersedes-unverified` observation above was
 sharpened; the two historical `ContentionError` statements in the previous section gained
 forward pointers; and this header no longer presumes how the branch is integrated.
+
+## Post-build-order increment — The CI test-gate repair
+
+**The twenty-first post-build-order increment, exited (branch `ci-windows-test-gate`, cut from
+`main` at `95257c1`: three code commits and this record).** Not a capability and not a review:
+a repair of the repository's own evidence. It began as a Windows-only oddity and ended as a
+finding about every CI run this repository has had.
+
+**The finding.** After the record-contended increment's push, the Windows leg of CI run
+33703094044 showed vitest reporting `1 failed | 861 passed` — a SQLite restart-driver probe
+timed out at the 5000ms default — while the `pnpm test` step concluded success and the job went
+on to build and smoke. Earlier runs on the same leg had done the same (3 failed / 860; 1 failed /
+833 at `d5fc3b9`, before the code-review session). No pnpm `ELIFECYCLE` banner appeared in any
+of them. A canary pull request (#5, closed and its branch deleted once read) carried one test
+that always fails and, on the Windows leg only, diagnostic steps that re-ran the suite under
+pwsh and bash, through pnpm, through vitest directly, and through `pnpm exec`, printing each
+exit code. CI run 33705059031 answered more than was asked: **all four test legs — ubuntu at
+the exact floor 22.16.0, ubuntu at 24, macOS, and Windows — concluded success with the failing
+test reported in their own logs**, and each went on to build and smoke. The gate had never
+been Windows-specific. It had been inert on every leg, for every run, since the adapter joined
+the workspace.
+
+**The diagnostics, and what each ruled out.** On the Windows leg: `pnpm test` → exit 0; `node
+node_modules/vitest/vitest.mjs run --project record` → 1; `pnpm exec vitest run --project
+record` → 1; the same under bash → the same. So pnpm's script runner and the runner's shells
+were suspects for a while, and every local experiment pointed the other way: pnpm 11.18.0 and
+pnpm 10.34.5 both propagate a failing script's exit code from a scratch package, from a scratch
+workspace, from a copy of this repository's manifests, and even when the script is this
+repository's own vitest invoked from a scratch package. The lifecycle environment pnpm hands a
+script (thirteen variables, replayed one at a time onto a direct run) changes nothing. What
+reproduced the loss, with no pnpm anywhere: `vitest run` in this repository with a failing
+test — exit 0 with both projects, exit 1 with `--project record` alone, exit 0 with
+`--project store-postgres` alone. Two trivial projects with one failing test exit 1 with and
+without a global setup; two trivial projects whose global setup does nothing but `import
+'embedded-postgres'` exit 0.
+
+**The mechanism.** `embedded-postgres` (18.4.0-beta.17) calls `AsyncExitHook(gracefulShutdown)`
+at module load. `async-exit-hook` (2.0.1) then listens on `exit`, `beforeExit`, and the
+termination signals; its `beforeExit` listener runs the hooks and, because the shutdown hook is
+asynchronous, ends with `process.nextTick(process.exit.bind(null, 0))` — an explicit exit with
+code 0, over whatever `process.exitCode` the process had set. A vitest globalSetup module runs
+in vitest's main process, the process whose exit code is the gate. Vitest sets `exitCode = 1`
+for a failed run and lets the loop drain; `beforeExit` fires; the library exits 0. A bare child
+process pins the whole mechanism in one line: `import 'embedded-postgres'; process.exitCode =
+1;` exits 0, and the same line without the import exits 1. On the Windows leg the external
+server is used and the embedded server never starts — but the import is the hazard, not the
+server, which is why that leg lost the code too.
+
+**One side finding, recorded for the reader who filters.** The canary's `pnpm test -- --project
+record` step ran all 863 tests, not the record project's 794. pnpm forwards the `--` to the
+script literally (`vitest run -- --project record`), and vitest's argument parser treats
+everything after `--` as positional and ignores it. `pnpm test --project record`, without the
+separator, is the form that filters; `CLAUDE.md`'s command list now says so.
+
+**The fix, at the source (commit 2/3).** `packages/store-postgres/test/setup/global-setup.ts`
+no longer imports the library at the top of the module. `loadEmbeddedPostgres()` snapshots
+`process.listeners('beforeExit')`, dynamically imports `embedded-postgres`, removes exactly the
+listeners the import added, and returns the constructor; only the embedded branch calls it, so
+the external-server branch (the Windows leg) never loads the library at all. The library's
+`exit` and signal hooks stay, so its graceful shutdown of a server still running at an abnormal
+exit is untouched. Two pins in `packages/store-postgres/test/global-setup-exit-hooks.test.ts`:
+the hazard itself, in a child process with a control (fails the day the library stops needing
+the workaround, which is the signal to remove it); and the guarded path leaving the process's
+`beforeExit` listeners exactly as they were. Red was observed first, at the listener assertion,
+against the old top-level import. Proofs after the fix: a failing test in the store-postgres
+project alone, and in the two-project run, both exit 1 (both were 0).
+
+**The guard, independent of the cause (commit 3/3).** `pnpm test:ci` runs the suite with the
+default reporter plus the JSON reporter written to `.vitest-results.json` (git-ignored);
+`scripts/ci-assert-tests.mjs` then fails unless the report says success with zero failed tests,
+zero failed files, zero skipped or todo tests, and at least one test — the zero-skips
+discipline made a gate. The CI matrix and the release workflow both run the pair as two steps
+in place of `pnpm test`. The exit code had to survive vitest, pnpm and the runner's shell in
+turn; the report is read directly. Its bounds, in the script's header: counters only, from the
+report the same step just wrote — it cannot tell whether the report describes the tree under
+test or whether the right files ran.
+
+**The visible symptom (commit 1/3).** The four probe tests driving `makeSqliteRestartDriver()`
+each run the full probe set over a real file-backed SQLite store with a genuine close-and-reopen;
+on the Windows runner that IO takes 3.5–5s against vitest's 5s default, and the timeout that
+opened this inquiry was one of them. They get a 20s budget (`SQLITE_RESTART_TIMEOUT_MS`,
+`packages/record/test/probes.test.ts`). Test-only; a pass there is decided by the probe verdicts,
+never by the clock.
+
+**The honest bound, stated once.** Every "CI green" this repository's test legs ever showed
+proved that the step ran to completion, not that its tests passed. Two things soften that
+without erasing it: the suites' own reported results were never wrong — the loss was in the
+process's exit code, after the summary was printed — and this document's gate outputs were
+measured locally at each increment's closing commit, where a reader would have seen a red
+summary line. What no one could see was a red step. The repaired gate is proven the way the
+inert one was found: the fix branch's pull request carries a temporary always-failing test so
+that all four legs go red once before the commit is removed and they go green.
+
+**Gate outputs, as measured against the closing commit.** `tsc -p packages/record --noEmit` and
+`-p packages/store-postgres --noEmit` clean; `vitest run` — 68 files, 864 tests, zero skips
+(record 793, store-postgres 71); `node scripts/ci-assert-tests.mjs` over the run's report —
+`ok — 864 tests in 68 files (73 suites): 864 passed, 0 failed, 0 skipped, 0 todo` (the
+report's suites count every `describe` block as well as every file); `biome check
+--error-on-warnings .` — 137 files, exit 0; `contract-scan`, `api-reference-sync`,
+`docs-index-sync` — exit 0.

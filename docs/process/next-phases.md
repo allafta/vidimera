@@ -445,3 +445,12 @@ form; the account above stands as the history of the gap.
   capabilities also went unrecorded in the publish-facing docset until a later, separate
   increment caught all three at once. `docs/process/implementation-status.md`'s own
   increment sections carry the full account; it is not restated here.
+- **A gate is evidence only once it has been seen to fail.** The CI test step concluded
+  success on every leg, for every failed run, from the adapter's first commit until the CI
+  test-gate repair (2026-09-03) — the suite was green because nothing could turn it red, and
+  no reader noticed because a passing gate looks identical to an inert one. The repair's
+  method is the discipline: a canary with one always-failing test proved the gate inert, the
+  same canary proves the repaired gate live, and the gate now reads vitest's own report
+  (`scripts/ci-assert-tests.mjs`) instead of an exit code that had to survive three programs.
+  Any new gate added here earns its place the same way — shown red once, on purpose, before
+  its green is believed.

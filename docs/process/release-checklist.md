@@ -67,6 +67,12 @@ a list rather than as code.
       probe tier not run. (The same-machine rehearsal of 2026-08-19 —
       `docs/analysis/2026-08-19-phase-6-rehearsal.md` — remains the record of the first pass
       and of the finding that shaped the floor rule.)
+- [ ] The CI test gate is live on the run being trusted: each of the four `test` legs of the
+      latest `main` run prints `ci-assert-tests: ok — N tests in F files …` with N and F equal
+      to `docs/process/implementation-status.md`'s measured count, and the release workflow
+      will print the same line before it publishes. Until the CI test-gate repair (2026-09-03)
+      every test leg concluded success regardless of failures — no earlier green run is
+      evidence of anything but the step having run.
 - [ ] The owner's own bar from the phase-0 record holds: nothing goes public before the
       project is actually ready — this list executes that decision, never substitutes
       for it.
