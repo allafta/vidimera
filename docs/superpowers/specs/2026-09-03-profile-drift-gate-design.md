@@ -1,13 +1,13 @@
 # The profile-drift gate — design and sanction case (a widening of `unknown-profile`)
 
-**A sealed-set widening AWAITING its sanction — nothing in `docs/concept/` moves on this
-document's strength.** Per `docs/concept/SCOPING-GUIDE.md` §§1–2 this document states the tier
+**A sealed-set widening under a sanction GRANTED 2026-09-03 (§8) — nothing in `docs/concept/`
+moved on this document's strength before that grant.** Per `docs/concept/SCOPING-GUIDE.md` §§1–2 this document states the tier
 verdict, both promotion prongs and the purpose-trace, and, per the sealed-set discipline
 (`docs/process/next-phases.md`), names the exact sealed-set edits a fresh sanction would license,
 by site, with the current text and the proposed text side by side. No maturity marker moves:
 every touched section is already `[PROVEN]`, and restating a settled marker is not a move, so
 this is a sanctioned corrective-and-widening edit in the lineage, not a marker-bearing one. The
-increment does not start until the maintainer grants that sanction on this document's case (§8).
+increment did not start until the maintainer granted that sanction on this document's case (§8).
 
 ## The gap, stated from the code
 
@@ -363,9 +363,11 @@ increment); `CONCEPT.md` (not a fork, argued above).
 sanctioned corrective-and-widening edit in the sealed-set lineage, beside the earlier sanctioned
 corrective edits, distinct from the ten marker-bearing commits.
 
-**Grant status:** AWAITING. The grant, when given, is recorded here on the maintainer's words in
-session, licenses exactly the thirteen sites above and nothing else, and is spent when the
-increment exits.
+**Grant status: GRANTED 2026-09-03** by the maintainer, in session, on the words "granted as
+written, continue" given in answer to the explicit grant-or-withhold question on this document
+(the question named sites 7 and 11 as the two a reviewer might withhold; neither was). The grant
+licenses exactly the thirteen sites above and nothing else, and is spent when the increment
+exits.
 
 ## 9. Tests
 
