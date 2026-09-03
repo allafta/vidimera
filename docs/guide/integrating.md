@@ -86,7 +86,18 @@ the library's own canonical JSON encoding digests it. Rules of thumb:
 
 ## Profile design
 
-The id convention is `<domain>.<subject>.v<n>`. Fields worth deliberate choices:
+The id convention is `<domain>.<subject>.v<n>`.
+
+Treat the convention as load-bearing. Each record's genesis binds a digest of the profile it
+was opened under, and every seam refuses `unknown-profile` for a record whose registered
+same-id profile no longer digests to that binding. So an in-place edit to a profile — a new
+allowed authority, a longer ttl, dropping `signing` — strands that profile's open records:
+nothing can finalize, decline, expire or take findings on them, and their subjects stay held
+by exclusivity, until you either restore the declarative fields exactly or register the edit
+under a new id and keep the old version registered for the records still under it. The second
+route is the convention; the first is the escape when you edited by mistake.
+
+Fields worth deliberate choices:
 
 - **`expiry`** (`{ ttl }` in seconds, or the literal `'none'`): how long an open record
   may await its decision. Expiry is enforced at the seams and via the sweep (below), never
@@ -526,9 +537,10 @@ What you get, with its limits in the same breath:
   construction cannot catch is the profile itself losing `signing: true` under the same id:
   the signature layer decides whether it applies from the profile the *instance* holds, so
   that instance reads an existing signing record as plain AL1 and will finalize it.
-  `operator.verifySignatures(recordId).genesisProfile` reports `drifted` there, with the
-  bound and live digests; nothing refuses, by recorded decision, until a sanctioned change
-  says otherwise — so alert on `drifted` for any record you believed signed.
+  Since the profile-drift gate that instance does not hold the record's profile at all: every
+  seam refuses `unknown-profile`, never-append, and
+  `operator.verifySignatures(recordId).genesisProfile` reports `drifted` with the bound and
+  live digests so you can see why.
 - No signature material enters the chain — signatures live in the detached sidecar, and a
   signed chain's bytes differ from an unsigned profile's only through the declaring
   profile's own genesis `profileDigest` (and its hash-chain derivations) — so enabling AL2

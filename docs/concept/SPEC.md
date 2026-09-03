@@ -21,8 +21,7 @@ identifier such amendments pin to.
 Unmarked text describes the model itself and applies at every maturity. A marker may carry a
 bracketed qualifier naming what the maturity is conditional on (e.g. `[SKETCHED —
 AL2-dependent]`). [PROVEN] speaks to the behavior as specified; a separately named open
-decision about its *future revision* (§10.3's reverse cross-instance direction, §12's
-pre-1.0 signature freeze) does not lower it.
+decision about its *future revision* (§12's pre-1.0 signature freeze) does not lower it.
 
 ## 0. Abstract & honest scope
 
@@ -346,8 +345,20 @@ except `opened`, which snapshots the record's immutable header.
 
 **`profileDigest`.** The `opened` snapshot carries `profileDigest`, a digest over a
 **data-only projection of the profile** — its configured fields, excluding any host code
-references — so the record notarizes the shape of the flow it was decided under; drift in the
-governing profile is detectable on replay.
+references — so the record notarizes the shape of the flow it was decided under; drift in
+the governing profile is detectable on replay, and refused at the seams: an instance whose
+registered same-id profile does not digest to the bound `profileDigest` does not hold the
+profile the record was opened under, and every operator seam that resolves the record —
+finalize, decline, the findings seams, the redemption seams, seal — refuses
+`unknown-profile` (§8) at profile resolution, never-append and ahead of every ladder rung,
+so a drifted instance writes nothing into the record, expires nothing en passant, and cannot
+leave an unsigned edge in a signing chain (§14); the two cross-record verifications (§10.1,
+§2) fold the same mismatch on the referenced record into their own claim refusals. Recovery
+is the version discipline the `id` field names (§9.1): restore the profile's declarative
+fields exactly — the projection is deterministic, so a faithful restore resolves again — or
+keep the prior version registered under its id and give the edit a new one. A stranded open
+record is the cost of deciding only under the rules the record binds, and it is stated here
+rather than softened.
 
 **`policyDigest` (policy-declaring profiles only).** On a profile that declares `policySource`
 (§10.3), the `opened` snapshot carries `policyDigest` — the policy version the decision is
@@ -519,7 +530,7 @@ across process boundaries. Each outcome is classed:
 | `record-not-open` | a decision-progress seam invoked against a non-open, non-expired record (§9); never appends — an expired record at those seams draws `leg-expired` instead |
 | `consultation-missing` | no fresh reviewed-surface (`facts`) evidence at finalize or decline, a profile-required consultation kind absent from the finalize inputs, or — at decline — the implicit `eligibility` kind absent (§3, §9, §10.4, §11.1) |
 | `chain-compromise` (class `compromise`) | chain verification failed (§5) |
-| `unknown-profile` / `unknown-leg` | unknown identifiers fail closed and never append; `unknown-leg` has two producers — a caller-named leg absent from the profile at `stage()`, and a staged draft's leg absent from the profile it resolves under at `open()` |
+| `unknown-profile` / `unknown-leg` | unknown identifiers fail closed and never append. `unknown-profile` has two producers — a `profileId` this instance does not register, and, at every seam that resolves a persisted record, a registered same-id profile whose data-only projection does not digest to the record's genesis `profileDigest`: the instance does not hold the profile the record was opened under (§4). `unknown-leg` has two producers — a caller-named leg absent from the profile at `stage()`, and a staged draft's leg absent from the profile it resolves under at `open()` |
 | `unredeemable-state` | `redeem()` where no redeemable seam or state applies — the domain outcome on a pure-capture profile for an intact-chain, known-profile, valid-leg call; on an effect-seam profile, a `redeem()` against a non-final leg's record in any state, or on the final leg against an `open`, `refused`, `expired`, or `declined` record; never appends (§11.2) |
 | `unsealable-state` | `seal()` against a record that is not derived-terminal or is already sealed; also a racing-seal residual conflict; never appends (§5, §13) |
 
@@ -660,8 +671,10 @@ deliberately ahead of the ladder, at different depths. Consultation shape throws
 anything is loaded — that caller bug throws identically regardless of record state, ahead of
 every outcome including `chain-compromise`. The policy declared-iff-present throw fires at
 **profile resolution**, which follows the chain load and its verification — so against a
-tampered chain the call refuses `chain-compromise`, and against an unconfigured profile
-`unknown-profile`, before the policy throw can fire (§10.3). "First" in the ladder above
+tampered chain the call refuses `chain-compromise`, and against a profile this instance does
+not hold — unregistered, or registered under the record's id with a binding other than the
+genesis `profileDigest` (§4) — `unknown-profile`, before the policy throw can fire (§10.3).
+"First" in the ladder above
 orders only the refusal ladder itself.
 
 **The human anchor (preserved principle).** No agent-reachable surface transitions records,
@@ -758,9 +771,11 @@ before it creates the successor record. A successor leg's `open()` call carries
 `priorRecordRefs` binding the prior legs' records — each a `{ recordId, chainHead }` the host
 supplies — and the library **verifies every reference by replaying the referenced chain**: the
 chain must verify intact, its recomputed head must equal the supplied `chainHead`, and the
-replayed record must share the successor's `profileId` and `subjectRef`, sit at the expected
-leg in order, and be `confirmed`. On any failure the library refuses `prior-leg-unverified`
-and **no record is created** — a never-append, pre-record refusal. A first leg carries no
+replayed record must share the successor's `profileId` and `subjectRef`, bind the same
+`profileDigest` the successor's resolved profile digests to (§4 — a flow is decided under
+one version of its rules), sit at the expected leg in order, and be `confirmed`. On any
+failure the library refuses `prior-leg-unverified` and **no record is created** — a
+never-append, pre-record refusal. A first leg carries no
 references; supplying any is itself a sequencing error that refuses `prior-leg-unverified`. On
 success the record's `opened` snapshot carries the verified references in their recorded
 three-field form `{ recordId, chainHead, legId }` (§4) and `priorLegActors`, the prior legs'
@@ -899,24 +914,24 @@ absent-but-declared throw is deliberately asymmetric with a *missing required co
 (which refuses `consultation-missing`): policy is a single mandatory environment fact with an
 explicit `unreachable` escape hatch, so its absence is a host contract violation, not the
 domain's "the host omitted evidence" case — and keeping absence out of `policy-drift` leaves
-that code purely "the digests differ". One coherent corner stays a **refusal**, not a throw: a
-record opened under a non-declaring profile and later finalized under a same-id instance that
-*does* declare (cross-instance config drift) has no bound `policyDigest`; the gate treats a
-present live digest against an absent bound one as a mismatch and refuses `policy-drift`,
-fail-closed, since the record is coherent evidence of a real prior decision.
+that code purely "the digests differ". The cross-instance corner never reaches this gate: a
+record opened under a non-declaring profile and later finalized under a same-id instance
+that *does* declare binds a genesis `profileDigest` the live profile does not digest to
+(`policySource` is a declarative field), so profile resolution refuses `unknown-profile`
+first (§4, §8) — fail-closed, never-append — and `policy-drift` is left purely "both
+digests present and unequal".
 
-**The reverse cross-instance direction is permissive at AL1 — a named, open decision.** The
-gate keys on the **finalize-time** profile, so a record opened under a *declaring* profile
-then finalized under a same-id *non-declaring* instance **skips the gate**: nothing compares
-the bound digest to a live source, and the decision confirms. This requires a same-id profile
-*dropping* `policySource` between open and finalize (a version-discipline violation, off the
-honest path), and `profileDigest` is recorded at open and replayed, so the config flip is
-auditable after the fact. Whether to fail-close this direction in code is a named open
-decision (`OPEN-QUESTIONS.md` — the recommendation on record is fail-close). Relatedly, for a
-single-leg record the bound `policyDigest` lives in the sole-genesis (head) payload, inside
-the §0/§5 head-bound blind window — a storage-writing insider who edits that genesis
-`policyDigest` to match the drifted live policy defeats the gate. Both are the policy-gate
-analogs of §10.1's SoD-evidence window; detached signing (AL2, §14) is the named closure.
+**The reverse cross-instance direction refuses too, one step earlier.** A record opened
+under a *declaring* profile then finalized under a same-id *non-declaring* instance is a
+profile drift — the same-id profile *dropped* `policySource`, a version-discipline violation
+off the honest path — and profile resolution refuses `unknown-profile` (§4, §8) before this
+gate runs. This direction was once permissive, its fail-close was decided on record
+(`OPEN-QUESTIONS.md` §2), and the profile-binding refusal now delivers it. For a single-leg
+record the bound `policyDigest` and `profileDigest` both live in the sole-genesis (head)
+payload, inside the §0/§5 head-bound blind window — a storage-writing insider who edits that
+genesis to match the drifted live policy and profile consistently defeats both gates. This
+is the policy-gate analog of §10.1's SoD-evidence window; detached signing (AL2, §14) is the
+named closure.
 
 **Recovery is disposal + re-open, not retry.** `policy-drift` mirrors `content-drift` — a
 bound-vs-reality mismatch with no in-place recovery, because the `policyDigest` is immutable

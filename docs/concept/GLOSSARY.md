@@ -100,8 +100,9 @@ The concept's vocabulary, in one place. Where a term is normative, the defining 
   of its prior legs: recorded three-field references plus library-derived actors (SPEC §4,
   §10.1).
 - **`profileDigest`** — the genesis-notarized digest over the profile's data-only projection
-  (configured fields, excluding host code references); what makes governance drift
-  detectable on replay (SPEC §4).
+  (configured fields, excluding host code references); what makes governance drift detectable
+  on replay — and, since the profile-drift gate, refused at every seam that resolves the
+  record (`unknown-profile`, SPEC §4, §8).
 - **Proposed digest** — the provenance binding: the agent-proposed draft's content digest,
   resolved and bound at open, distinguishing what was proposed from what was decided
   (SPEC §2, §9). **[PROVEN]**

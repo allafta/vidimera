@@ -76,7 +76,10 @@ Profiles are code, not persisted state — but each record's genesis carries a
 the code is detectable: `verifySignatures(recordId).genesisProfile` reports whether the
 profile this instance holds under that id is the one the record was opened under, and the
 exported `profileDigest`/`projectProfile` let you make the same comparison offline.
-Detectable, not refused — a drifted profile gates nothing today.
+Detected and refused: a seam that does not hold the profile a record was opened under — a
+registered same-id profile whose projection no longer digests to the record's binding —
+refuses `unknown-profile`, never-append. Version your profiles; an in-place edit strands its
+open records until restored or versioned.
 
 ## The lifecycle
 

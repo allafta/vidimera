@@ -17,7 +17,12 @@ enablement design is deliberately reserved for a dedicated decision:
   boundary (a profile flipping signing on with unsigned history behind it)? **Decided (this
   build):** per profile, record-homogeneous — a record opened under a signing profile is
   signed whole from its genesis; a profile flipping the field is the version-discipline
-  violation SPEC §2's convention names.
+  violation SPEC §2's convention names. **Amended (this build, the profile-drift gate):** the
+  violation now refuses rather than downgrading — a same-id profile whose data-only projection
+  differs from a record's genesis `profileDigest` (`signing` is a covered field) refuses
+  `unknown-profile` at every seam that resolves the record (SPEC §4, §8); what remains is the
+  recompute route, a rewritten genesis carrying a consistent digest, which only signing-only
+  registration or AL2 key custody closes.
 - **Missing-signature posture** — when verification encounters an unsigned transition in a
   signing-enabled scope: fail-closed refusal, degraded-trust reporting, or
   enablement-boundary-aware acceptance? **Decided (this build):** fail-closed into each
@@ -51,7 +56,11 @@ the forward direction (which refuses) cuts against the drift-refusal promise. Ei
 is a deliberate behavior decision, not an ad-hoc patch; AL2 is the ultimate closure.
 **Decided (this build):** fail-close — the recommendation on record is taken: a record
 carrying a bound `policyDigest`, finalized under a same-id instance that no longer declares a
-`policySource`, refuses `policy-drift` rather than skipping the gate.
+`policySource`, refuses `policy-drift` rather than skipping the gate. **Superseded (this
+build, the profile-drift gate):** both cross-instance directions now refuse `unknown-profile`
+at profile resolution (SPEC §4, §8) — a same-id profile adding or dropping `policySource` is a
+profile drift — so the `policy-drift` arm for a now-non-declaring profile is unreachable and
+the code says so; the decision stands as fail-close, delivered one step earlier.
 
 ## 3. Recovery (`supersedes`) — the remaining flow details
 

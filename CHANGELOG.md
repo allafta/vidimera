@@ -163,6 +163,27 @@ is the summary, and that file wins on conflict.
 
 ### Changed
 
+- **A record refuses under a profile this instance does not hold — the profile-drift gate**
+  (2026-09-03, branch `profile-drift-gate`; a sealed-set widening under a fresh sanction
+  recorded in `docs/superpowers/specs/2026-09-03-profile-drift-gate-design.md` §8 — no
+  maturity marker moves): every seam that resolves a persisted record (`finalize`, `decline`,
+  `raiseFinding`, `acknowledge`, `redeem`, `beginRedemption`, `completeRedemption`, `seal`)
+  now refuses `unknown-profile`, never-append, when the registered same-id profile's data-only
+  projection does not digest to the record's genesis `profileDigest`; the two cross-record
+  verifications fold the same miss into `prior-leg-unverified` and `supersedes-unverified`;
+  and `open()` leaves a due blocker it does not hold standing (`record-exists`) rather than
+  expiring it. This closes the configuration route the 2026-09-03 security review took — a
+  same-id profile that dropped `signing: true` finalizing a signing record — and enforces the
+  version discipline the concept always asked for: an in-place profile edit strands that
+  profile's open records until the declarative fields are restored exactly or the edit gets a
+  new id. Not closed, said plainly: the recompute route (a rewritten genesis with a consistent
+  digest) stays the rehoming residual at AL1. Consequences inside the tree: both SPEC §10.3
+  cross-instance policy corners are pre-empted (the now-non-declaring arm is an unreachable
+  throw), two `policy-drift` pins and the renamed-maker SoD pin flip to `unknown-profile` —
+  the thirteenth self-authored inversion — and `profile-drift-report.test.ts`'s bound pins
+  flip as their header promised. `packages/record/test/profile-drift-gate.test.ts` pins every
+  seam, the depth pair, both recovery routes, the cross-record verifiers and the blocker path,
+  red first.
 - **An identity is exactly `{ principal, authority, proofRef? }`** (2026-09-03, branch
   `security-findings-2026-09-03`, found by the same security review as the verifier fix under
   Fixed): every seam that takes an `IdentityAssertion` — `finalize`/`decline`'s actor,

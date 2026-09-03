@@ -296,7 +296,7 @@ genuine storage fault at the same site stays a throw, told apart by a one-time r
 | `consultation-missing` | Missing/malformed `facts`, or a required consultation absent |
 | `chain-compromise` | Chain verification failed — class **`compromise`**; records itself wherever the record's state still admits an append |
 | `record-not-open` | Finalize or decline against a record not in `open` (never appends) |
-| `unknown-profile` / `unknown-leg` | Pre-record resolution failures (never append) |
+| `unknown-profile` / `unknown-leg` | Resolution failures (never append): an unknown id — or, for `unknown-profile`, a registered same-id profile whose data-only projection does not digest to the record's genesis `profileDigest`, at every seam that resolves a record |
 | `unredeemable-state` / `unsealable-state` | The seam's state gate: nothing redeemable/sealable there (never append) |
 | `effect-mismatch` | Redemption content differs from the confirmed content (never appends) |
 | `already-redeemed` | The at-most-once gate (never appends) |
@@ -528,15 +528,18 @@ interface SignatureReport {                              // verifySignatures()'s
 profile is the one the record was opened under.** The genesis `profileId` is resolved against
 the profiles *this instance* holds; a same-id profile that has since dropped `signing: true`
 — or an instance that does not hold the id at all — makes a signing record read
-`signingDeclared: false`, and a same-id non-signing instance will finalize it as plain AL1.
-`genesisProfile` qualifies that reading: `matches` when the live profile's data-only
-projection digests to the genesis `profileDigest`, `drifted` when the id resolves to a
-profile that digests differently (`signing` is a covered field, so is every other declarative
-field — a `ttl` edit lands here too), `unresolvable` when there is nothing to compare against.
-Reporting only, exactly as `orphans` is: nothing refuses on drift. That fail-open is a
-recorded residual — closing it changes the refusal registry and waits on a fresh sanction —
-so read the two fields together, and treat `drifted` on a record you believed signed as a
-configuration event to investigate.
+`signingDeclared: false` — and that instance does not HOLD the record's profile, so every seam
+it resolves the record at refuses `unknown-profile`, never-append. `genesisProfile` qualifies
+that reading: `matches` when the live profile's data-only projection digests to the genesis
+`profileDigest`, `drifted` when the id resolves to a profile that digests differently
+(`signing` is a covered field, so is every other declarative field — a `ttl` edit lands here
+too), `unresolvable` when there is nothing to compare against.
+The field itself is reporting only, exactly as `orphans` is; the refusal lives at the seams,
+which make the same comparison and refuse `unknown-profile` when they do not hold the profile.
+So `drifted` names exactly why a seam refused, or will — read the two fields together, and
+treat `drifted` on any record as a configuration event: restore the profile's declarative
+fields exactly, or keep the old version registered under its id and give the edit a new one.
+An in-place edit strands that profile's open records until you do one of those.
 
 **A `Verifier` answers the literal `true`, or the transition is unverified.** The layer
 compares with `=== true`: a truthy status string or object is reported `verified: false` and

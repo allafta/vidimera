@@ -29,8 +29,9 @@ is not already implicit in the rationale).
    hosts that want identical-content legs enforce it in staging.
 5. **`profileDigest` is a data-only projection.** The genesis notarizes the profile's
    configured fields, excluding host code references. — Config drift becomes detectable on
-   replay without hashing unhashable closures. — Including code refs makes the digest
-   unstable across deploys; excluding the digest entirely blinds replay to governance drift.
+   replay without hashing unhashable closures, and is refused at every seam that resolves the
+   record (`unknown-profile`, SPEC §4, §8). — Including code refs makes the digest unstable
+   across deploys; excluding the digest entirely blinds replay to governance drift.
 
 ## Identity & time
 
