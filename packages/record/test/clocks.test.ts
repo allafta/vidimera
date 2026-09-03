@@ -8,6 +8,7 @@ import { test } from 'vitest';
 
 import { createWithClock } from '../src/create.js';
 import { pendingWindow, resolveDueClock } from '../src/kernel/expiry.js';
+import { profileDigest } from '../src/profile-digest.js';
 import { MemoryStore } from '../src/store/memory.js';
 import { SqliteStore } from '../src/store/sqlite.js';
 import type { AppendMeta, Store } from '../src/store/store.js';
@@ -50,10 +51,12 @@ test('pendingWindow: an open record is in the open window; a confirmed effect-se
   );
   const recordId = await openRecord(handles, CONTENT, 'test.effect.v1', DEFAULT_SUBJECT_REF);
 
+  const profileForResolved = effectSeamProfile();
   const resolved = {
-    profile: effectSeamProfile(),
+    profile: profileForResolved,
     canonicalizer: (c: unknown) => c,
     effectSeam: true,
+    profileDigest: profileDigest(profileForResolved),
   };
   const openWin = pendingWindow(await store.readChain(recordId), resolved);
   assert.equal(openWin.window, 'open');
@@ -77,10 +80,12 @@ test('pendingWindow: an open record is in the open window; a confirmed effect-se
 test('resolveDueClock: an elapsed confirmed window appends confirmed → expired { bound } and releases the pair', async () => {
   const clock = { t: T0 };
   const { recordId, store } = await confirmedAt(clock);
+  const profileForResolved = effectSeamProfile();
   const resolved = {
-    profile: effectSeamProfile(),
+    profile: profileForResolved,
     canonicalizer: (c: unknown) => c,
     effectSeam: true,
+    profileDigest: profileDigest(profileForResolved),
   };
 
   clock.t = T0 + 400 * HOUR; // far past any declared bound
@@ -116,10 +121,12 @@ test('resolveDueClock: an elapsed confirmed window appends confirmed → expired
 test('resolveDueClock: a not-yet-elapsed window reports { due: false } and appends nothing', async () => {
   const clock = { t: T0 };
   const { recordId, store } = await confirmedAt(clock);
+  const profileForResolved = effectSeamProfile();
   const resolved = {
-    profile: effectSeamProfile(),
+    profile: profileForResolved,
     canonicalizer: (c: unknown) => c,
     effectSeam: true,
+    profileDigest: profileDigest(profileForResolved),
   };
   const before = (await store.readChain(recordId)).length;
   const res = await resolveDueClock(
@@ -590,6 +597,7 @@ test('resolveDueClock derives the leg index: the expired append is terminal (non
     profile: twoLegEffect,
     canonicalizer: (c: unknown) => c,
     effectSeam: true,
+    profileDigest: profileDigest(twoLegEffect),
   };
 
   const genesisBase = storeGenesis('rec-legindex', twoLegEffect.id, 'subject:legindex');
@@ -629,10 +637,12 @@ test('at now === deadline the store lists the record AND the kernel resolves it;
   const clock = { t: T0 };
   const { recordId, store } = await confirmedAt(clock);
   const deadline = T0 + CONFIRM_BOUND * 1000;
+  const profileForResolved = effectSeamProfile();
   const resolved = {
-    profile: effectSeamProfile(),
+    profile: profileForResolved,
     canonicalizer: (c: unknown) => c,
     effectSeam: true,
+    profileDigest: profileDigest(profileForResolved),
   };
   const chain = await store.readChain(recordId);
 

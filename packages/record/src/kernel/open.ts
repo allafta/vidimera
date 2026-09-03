@@ -24,7 +24,6 @@ import type { KernelContext } from '../create.js';
 import { isFinalLeg, nonTerminal } from '../nonterminal.js';
 import type { Outcome } from '../outcome.js';
 import { ok, refused } from '../outcome.js';
-import { profileDigest } from '../profile-digest.js';
 import type { AppendMeta } from '../store/store.js';
 import type {
   IdentityAssertion,
@@ -195,7 +194,7 @@ export async function open(
     proposedDigest?: string;
   } = {
     profileId: staged.profileId,
-    profileDigest: profileDigest(profile),
+    profileDigest: resolved.profileDigest,
     legId: staged.legId,
     subjectRef: staged.subjectRef,
     contentDigest: staged.contentDigest,

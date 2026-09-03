@@ -15,6 +15,7 @@ import type { KernelContext, ResolvedProfile } from '../src/create.js';
 import { create, createWithClock } from '../src/create.js';
 import { verifyPriorLegs } from '../src/kernel/prior-legs.js';
 import type { OperatorSurface } from '../src/operator-surface.js';
+import { profileDigest } from '../src/profile-digest.js';
 import { MemoryStore } from '../src/store/memory.js';
 import type { Store } from '../src/store/store.js';
 import type { Transition } from '../src/types.js';
@@ -51,7 +52,12 @@ function twoLegShape(id = 'test.twoleg.v1'): ConfirmProfile {
   };
 }
 function resolvedOf(profile: ConfirmProfile): ResolvedProfile {
-  return { profile, canonicalizer: (c: unknown) => c, effectSeam: false };
+  return {
+    profile,
+    canonicalizer: (c: unknown) => c,
+    effectSeam: false,
+    profileDigest: profileDigest(profile),
+  };
 }
 
 /** A minimal KernelContext over a bare `store`, for `verifyPriorLegs` unit tests below

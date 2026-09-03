@@ -54,9 +54,11 @@ import { seal as sealKernel } from './kernel/seal.js';
 import { stage as stageKernel } from './kernel/stage.js';
 import { verifySignatures as verifySignaturesKernel } from './kernel/verify-signatures.js';
 import { makeOperatorSurface, type OperatorSurface } from './operator-surface.js';
+import { profileDigest } from './profile-digest.js';
 import { withSigning } from './signing/decorate.js';
 import type { SigningConfig } from './signing/store.js';
 import type { Store } from './store/store.js';
+import type { Digest } from './types.js';
 
 /**
  * A validated profile paired with its resolved canonicalizer and precomputed effect-seam
@@ -66,6 +68,11 @@ export interface ResolvedProfile {
   profile: ConfirmProfile;
   canonicalizer: Canonicalizer;
   effectSeam: boolean;
+  /**
+   * `profileDigest(profile)`, computed once here: the digest `open()` binds into every genesis
+   * and the digest `kernel/held-profile.ts` compares a record's binding against at every seam.
+   */
+  profileDigest: Digest;
 }
 
 /**
@@ -257,6 +264,7 @@ export function createWithClock(
       profile,
       canonicalizer,
       effectSeam: profileDeclaresEffectSeam(profile),
+      profileDigest: profileDigest(profile),
     });
     // SPEC §14's AL2 upgrade (the AL2 mint increment): a signing-declaring profile
     // demands a capability the instance cannot supply without `config.signing` — a
