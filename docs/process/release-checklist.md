@@ -207,7 +207,9 @@ a list rather than as code.
       setting only this checkbox makes true.
 - [ ] Branch protection with **require review from code owners** is enabled —
       `.github/CODEOWNERS` guards `docs/concept/` and the frozen byte-stability test, and
-      is advisory until this is on.
+      is advisory until this is on. Enable **required status checks** in the same setting —
+      the `checks` job and the four `test` legs of `ci.yml`: since the CI test-gate repair
+      (2026-09-03) a green test leg verifies that its tests passed, and before it none did.
 
 ## Pre-flight, immediately before the dispatch
 
@@ -216,6 +218,12 @@ was also the only one with nothing in front of it: `release.yml`'s guard checks 
 things the repository can see (`private`, `0.0.0`) and nothing about the registry it is
 about to write to. Do these in the same sitting as the dispatch, not the week before.
 
+- [ ] **Dispatch the release workflow once in dry-run mode** (`dry_run: true`) against the
+      release commit's tree and read it green: the guard and both publish steps are skipped,
+      every gate runs, and both tarballs pack — the only way the job's YAML and its gate
+      chain execute on the release runner before the real dispatch. It was first dispatched
+      2026-09-03 against the pre-release tree, which proves the job's structure, not the
+      release commit's tree, so this box is release day's own.
 - [ ] **Prove publish rights against the live scope, not just token validity.** This sharpens
       the token item in the section above rather than repeating it: a token that authenticates
       and a token that may publish to `@vidimera` are different facts, and only the second one

@@ -213,7 +213,13 @@ is the summary, and that file wins on conflict.
   probe tests, which the Windows runner had been timing out at the 5s default (the visible
   symptom that led here), get a 20s budget. The honest bound: every earlier CI green on a test
   leg proved the step ran, not that its tests passed; locally reported results were never
-  wrong, only the process's exit code. Re-measured: 68 files, 864 tests.
+  wrong, only the process's exit code. Re-measured: 68 files, 864 tests. Follow-ups, the
+  same day (branch `ci-followups`): the release workflow gained a `dry_run` dispatch input
+  that runs every gate and packs both tarballs while skipping the guard and both publish
+  steps, dispatched once so the never-yet-executed job has run; deferral-register row 24
+  records the embedded-postgres exit-hook workaround with its trigger; the 2026-08-19 CI
+  design record carries a dated addendum; and every remaining CI tool's exit code was
+  shown non-zero on its own failure class, with the table in the status document.
 - **Code-review, second round** (2026-09-02, the same branch): the findings seams mapped
   EVERY lost compare-and-swap to `record-not-open`, false of a record that lost only a seq
   race and is still open — two concurrent `raiseFinding` calls now leave the loser with the

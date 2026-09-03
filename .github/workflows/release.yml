@@ -7,9 +7,18 @@
 # of that. Publishing goes tarball-first (`pnpm pack`, then `npm publish <tarball>`) so
 # pnpm rewrites the adapter's `workspace:*` peer range to the real version. Requires the
 # NPM_TOKEN repository secret (an npm automation token for the @vidimera scope).
+# `dry_run: true` runs the same job with the guard and both publish steps skipped and the
+# publish steps' own pack commands in their place: it proves the job's structure and every
+# gate on the release runner — never the publish, the provenance attestation, or the token
+# — and it does not retire deferral-register row 1, whose trigger is the real publish.
 name: Release
 on:
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Run every gate and pack both tarballs; skip the guard and both publish steps'
+        type: boolean
+        default: false
 permissions:
   contents: read
   id-token: write # npm provenance attestation
@@ -25,8 +34,12 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: dry run — the pre-release guard and both publish steps are skipped
+        if: ${{ inputs.dry_run }}
+        run: echo "dry run: the tree may still be private and 0.0.0; nothing will be published"
       # The release-day guard: refuse any package still carrying the pre-release shape.
       - name: guard — versions bumped and private dropped, both packages
+        if: ${{ !inputs.dry_run }}
         run: |
           node -e "
             for (const pkg of ['record', 'store-postgres']) {
@@ -48,9 +61,17 @@ jobs:
       - run: pnpm contract-scan
       - run: pnpm api-sync
       - run: pnpm docs-index-sync
+      # Dry run: the publish steps' own pack commands, in their own directories, and nothing
+      # else — the tarballs are built and left on the runner.
+      - name: pack both tarballs (dry run)
+        if: ${{ inputs.dry_run }}
+        run: |
+          (cd packages/record && pnpm pack)
+          (cd packages/store-postgres && pnpm pack)
       # Tarball-first so pnpm rewrites workspace: ranges; record publishes before the
       # adapter that peer-depends on it.
       - name: publish @vidimera/record (provenance, public)
+        if: ${{ !inputs.dry_run }}
         run: |
           pnpm pack
           npm publish ./*.tgz --provenance --access public
@@ -58,6 +79,7 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: publish @vidimera/store-postgres (provenance, public)
+        if: ${{ !inputs.dry_run }}
         run: |
           pnpm pack
           npm publish ./*.tgz --provenance --access public
