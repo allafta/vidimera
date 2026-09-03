@@ -5168,7 +5168,8 @@ after the drift report.
 ## Post-build-order increment — The profile-drift gate (a sanctioned widening of `unknown-profile`)
 
 **The twenty-third post-build-order increment, exited (branch `profile-drift-gate`, cut from
-`main` at `54d9d1c`: 16 commits, listed in the design's own record).** A sealed-set widening
+`main` at `54d9d1c`: 16 commits, enumerated by `git log main..HEAD` on the branch; the
+design's Process section names their three groups).** A sealed-set widening
 under a fresh sanction — `docs/superpowers/specs/2026-09-03-profile-drift-gate-design.md`,
 whose §8 records the grant on the maintainer's words and the exact sites, and whose §9 names
 every pin — and NOT a marker move: every touched section was already `[PROVEN]`. It joins the
