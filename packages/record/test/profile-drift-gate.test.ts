@@ -27,6 +27,7 @@ import type { Transition } from '../src/types.js';
 import {
   captureProfile,
   defaultCanonicalizer,
+  effectSeamProfile,
   facts,
   identity,
   makeConfig,
@@ -258,4 +259,85 @@ test('recovery, route 2: the prior version stays registered under its id and the
     (await both.operator.finalize(newRecord, identity(), CONTENT, facts())).status,
     'ok',
   );
+});
+
+test('raiseFinding and acknowledge under a drifted sibling refuse unknown-profile — nothing appended', async () => {
+  const store = new MemoryStore();
+  const opener = instance(flowProfile(), store);
+  const recordId = await openRecord(opener, CONTENT, ID, 'subject:gate-7');
+  const raised = await opener.operator.raiseFinding(
+    recordId,
+    { findingId: 'f-1', kind: 'variance', findingDigest: D1 },
+    identity({ principal: 'checker:1' }),
+  );
+  assert.equal(raised.status, 'ok');
+  const before = await chainLength(store, recordId);
+
+  const sibling = instance(flowProfile({ ttl: 60 }), store);
+  assertUnknownProfile(
+    await sibling.operator.raiseFinding(
+      recordId,
+      { findingId: 'f-2', kind: 'variance', findingDigest: D1 },
+      identity({ principal: 'checker:1' }),
+    ),
+    'raiseFinding',
+  );
+  assertUnknownProfile(
+    await sibling.operator.acknowledge(
+      recordId,
+      { findingId: 'f-1', findingDigest: D1 },
+      identity(),
+    ),
+    'acknowledge',
+  );
+  assert.equal(await chainLength(store, recordId), before);
+});
+
+test('redeem, beginRedemption and completeRedemption under a drifted sibling refuse unknown-profile — the confirmed record is untouched by it', async () => {
+  const store = new MemoryStore();
+  const opener = instance(effectSeamProfile({ id: ID }), store);
+  const recordId = await openRecord(opener, CONTENT, ID, 'subject:gate-8');
+  assert.equal(
+    (await opener.operator.finalize(recordId, identity(), CONTENT, facts())).status,
+    'ok',
+  );
+  const before = await chainLength(store, recordId);
+
+  const sibling = instance(effectSeamProfile({ id: ID, ttl: 60 }), store);
+  assertUnknownProfile(await sibling.operator.redeem(recordId, CONTENT), 'redeem');
+  assertUnknownProfile(
+    await sibling.operator.beginRedemption(recordId, CONTENT),
+    'beginRedemption',
+  );
+  assert.equal(await chainLength(store, recordId), before, 'the sibling appended nothing');
+
+  // A token minted by the holder, presented by the drifted sibling: still not held.
+  const begun = await opener.operator.beginRedemption(recordId, CONTENT);
+  assert.equal(begun.status, 'ok');
+  if (begun.status !== 'ok') return;
+  assertUnknownProfile(
+    await sibling.operator.completeRedemption(recordId, begun.value.token, CONTENT),
+    'completeRedemption',
+  );
+  assert.equal(await chainLength(store, recordId), before + 1, "only the holder's begin appended");
+  assert.equal(
+    (await opener.operator.completeRedemption(recordId, begun.value.token, CONTENT)).status,
+    'ok',
+    'the holder completes what it began',
+  );
+});
+
+test('seal under a drifted sibling refuses unknown-profile; the holder seals', async () => {
+  const store = new MemoryStore();
+  const opener = instance(base(), store);
+  const recordId = await openRecord(opener, CONTENT, ID, 'subject:gate-9');
+  // confirmed is terminal on a pure-capture profile, so the record is sealable.
+  assert.equal(
+    (await opener.operator.finalize(recordId, identity(), CONTENT, facts())).status,
+    'ok',
+  );
+  const before = await chainLength(store, recordId);
+  assertUnknownProfile(await instance(base({ ttl: 60 }), store).operator.seal(recordId), 'seal');
+  assert.equal(await chainLength(store, recordId), before);
+  assert.equal((await opener.operator.seal(recordId)).status, 'ok');
 });

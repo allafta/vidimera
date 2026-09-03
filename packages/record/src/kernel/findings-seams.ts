@@ -41,6 +41,7 @@ import type {
 } from '../types.js';
 import { expiryDeadlineMs, resolveDueClock } from './expiry.js';
 import { appendChainCompromise, appendSeqConflict, isValidIdentity } from './finalize.js';
+import { heldProfile } from './held-profile.js';
 import { signatureLayerHolds } from './verify-signatures.js';
 
 /** SPEC §10.2's `finding` argument: `{ findingId, kind, findingDigest, magnitude? }`. */
@@ -156,8 +157,10 @@ async function loadOpenDeclaringRecord(
   }
   const record = replay(chain);
   // (2) profile/leg resolution.
-  const resolved = profiles.get(record.profileId);
+  const resolved = heldProfile(profiles, record);
   if (resolved === undefined) {
+    // Not held: unregistered, or registered with a projection that does not digest to the
+    // record's binding (the profile-drift gate — kernel/finalize.ts's same arm argues it).
     return { ok: false, out: refused('unknown-profile') };
   }
   const leg = resolved.profile.legs.find((l) => l.id === record.legId);

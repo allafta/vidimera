@@ -33,6 +33,7 @@ import { ok, refused } from '../outcome.js';
 import type { AppendMeta } from '../store/store.js';
 import type { Digest, Transition } from '../types.js';
 import { appendChainCompromise } from './finalize.js';
+import { heldProfile } from './held-profile.js';
 import { signatureLayerHolds } from './verify-signatures.js';
 
 export async function seal(
@@ -59,10 +60,12 @@ export async function seal(
   const record = replay(chain);
 
   // --- (2) profile resolution ----------------------------------------------------------
-  const resolved = profiles.get(record.profileId);
+  const resolved = heldProfile(profiles, record);
   if (resolved === undefined) {
-    // Fail-closed, matching finalize's posture. Defensive: a coherent instance always
-    // resolves a record it opened; refusal-matrix.test.ts's two-instance arm constructs it.
+    // Fail-closed, matching finalize's posture: not held — unregistered (refusal-matrix's
+    // two-instance arm), or registered with a projection that does not digest to the record's
+    // binding (the profile-drift gate). Terminality is derived from the profile; a drifted
+    // one derives it wrong.
     return refused('unknown-profile');
   }
   const legIndex = resolved.profile.legs.findIndex((l) => l.id === record.legId);

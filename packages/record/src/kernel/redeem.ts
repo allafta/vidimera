@@ -88,6 +88,7 @@ import type { AppendMeta, Store } from '../store/store.js';
 import type { DecisionRecord, Digest, Transition } from '../types.js';
 import { deadlineIso, pendingWindow, resolveDueClock } from './expiry.js';
 import { appendChainCompromise } from './finalize.js';
+import { heldProfile } from './held-profile.js';
 import { signatureLayerHolds } from './verify-signatures.js';
 
 /**
@@ -239,9 +240,11 @@ async function prologue(
     return { refusal: await appendChainCompromise(store, chain, now) };
   }
   const record = replay(chain);
-  const resolved = profiles.get(record.profileId);
+  const resolved = heldProfile(profiles, record);
   if (resolved === undefined) {
-    // Defensive, fail-closed: a coherent instance always resolves a record it opened.
+    // Fail-closed: not held — unregistered, or registered with a projection that does not
+    // digest to the record's binding (the profile-drift gate). A redemption bound read from
+    // a drifted profile would be the wrong bound; nothing here runs under it.
     return { refusal: refused('unknown-profile') };
   }
   const legIndex = resolved.profile.legs.findIndex((l) => l.id === record.legId);
