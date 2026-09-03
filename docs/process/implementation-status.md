@@ -5231,9 +5231,11 @@ separation-of-duties pin (the shape no longer passes resolution) and
 
 **The sealed-set edits.** Sites 1–13 of the design's §8, verbatim, checked mechanically at
 exit against the Proposed texts (present) and the Current texts (absent). Site 14 — SPEC §4's
-en-passant exceptions, found while writing the plan — is NOT landed: its re-grant is pending
-and the enumeration is false by omission until it is, named here so no reader mistakes the
-omission for an oversight.
+en-passant exceptions, found while writing the plan — was NOT landed at the closing commit: its
+re-grant was pending and the enumeration was false by omission, named here so no reader would
+mistake the omission for an oversight. The maintainer re-granted it on 2026-09-04 ("site 14
+granted as written", recorded in the design's §8), and the sentence landed in its own commit
+after this record, checked the same way; the enumeration is now whole.
 
 **Gate outputs, as measured against the closing commit.** `pnpm test:ci` — 905 tests in
 73 files, zero skips (`ok — 905 tests in 73 files (78 suites): 905 passed, 0 failed, 0

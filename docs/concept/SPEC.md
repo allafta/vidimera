@@ -396,7 +396,11 @@ whose bound has elapsed refuses `unsealable-state`, and the operator sweeps firs
 `unredeemable-state` without writing an edge (a due-`confirmed` or due-`redeeming` record it
 does resolve en passant, §11.2); and `open()`'s exclusivity check never auto-resolves a
 `redeeming` blocker, due or not — it refuses `record-exists`, leaving that edge to the
-redemption seam's own clock (§9.1, §11.2).
+redemption seam's own clock (§9.1, §11.2); and no mutating seam appends a clock edge to a
+record whose profile this instance does not hold (the `profileDigest` binding, below) — the
+decision, findings, redemption and seal seams refuse `unknown-profile` at profile resolution,
+ahead of their clock rung, and `open()`'s exclusivity check leaves a due blocker whose binding
+its resolved profile does not match standing, refusing `record-exists`.
 
 ## 5. Chaining & replay/verify **[PROVEN]**
 

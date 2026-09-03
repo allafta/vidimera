@@ -402,11 +402,15 @@ grant-or-withhold question on this document
 (the question named sites 7 and 11 as the two a reviewer might withhold; neither was). The grant
 licenses exactly sites 1–13 above and nothing else, and is spent when the increment exits.
 
-**Site 14: RE-GRANT REQUESTED 2026-09-03**, found while writing the implementation plan (the
-`open()` blocker path is a write into an existing record that the design's seam list did not
-name). Its answer is recorded here on the maintainer's words when given; until then the
-sealed-set commit of this increment lands sites 1–13 only, and site 14's sentence is left as
-written and named in the record as false by omission.
+**Site 14: RE-GRANTED 2026-09-04** by the maintainer, in session, on the words "site 14 granted
+as written", given after the increment's closing commit. Found while writing the
+implementation plan (the `open()` blocker path is a write into an existing record that the
+design's seam list did not name), the site was left as written through the increment's
+sealed-set commit and named in the record as false by omission; it lands in its own commit,
+after the record, and this grant too is spent with that commit. Not covered by any grant, and
+recorded in the increment's status section for a later sanction that names it: site 2's landed
+sentence "writes nothing into the record" over-claims by the rung-(1) `chain-compromise`
+evidence edge, which a drifted instance still appends before profile resolution runs.
 
 ## 9. Tests
 
