@@ -70,5 +70,28 @@ jobs:
           & "$env:PGBIN\pg_isready" -h 127.0.0.1 -p 5432
           "VIDIMERA_PG_URL=postgresql://postgres:root@127.0.0.1:5432/postgres" >> $env:GITHUB_ENV
       - run: pnpm test
+      # CANARY (never to be merged): where does a vitest failure's exit code go on Windows?
+      - name: CANARY diagnostics (pwsh)
+        if: ${{ always() && runner.os == 'Windows' }}
+        shell: pwsh
+        run: |
+          Write-Host "node $(node -v); pnpm $(pnpm -v); pwsh $($PSVersionTable.PSVersion); PATHEXT=$env:PATHEXT"
+          Write-Host "pnpm resolves to: $((Get-Command pnpm).Source)"
+          pnpm test
+          Write-Host "CANARY[pwsh] pnpm test (both projects) => LASTEXITCODE=$LASTEXITCODE"
+          pnpm test -- --project record
+          Write-Host "CANARY[pwsh] pnpm test -- --project record => LASTEXITCODE=$LASTEXITCODE"
+          node node_modules/vitest/vitest.mjs run --project record
+          Write-Host "CANARY[pwsh] node vitest.mjs run --project record => LASTEXITCODE=$LASTEXITCODE"
+          pnpm exec vitest run --project record
+          Write-Host "CANARY[pwsh] pnpm exec vitest run --project record => LASTEXITCODE=$LASTEXITCODE"
+          exit 0
+      - name: CANARY diagnostics (bash)
+        if: ${{ always() && runner.os == 'Windows' }}
+        shell: bash
+        run: |
+          pnpm test -- --project record; echo "CANARY[bash] pnpm test -- --project record => exit=$?"
+          node node_modules/vitest/vitest.mjs run --project record; echo "CANARY[bash] node vitest.mjs run --project record => exit=$?"
+          exit 0
       - run: pnpm build
       - run: pnpm smoke
