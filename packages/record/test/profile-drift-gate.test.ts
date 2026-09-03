@@ -14,7 +14,7 @@
 import assert from 'node:assert/strict';
 import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';
 import { test } from 'vitest';
-
+import { transitionDigest } from '../src/chain/encoding.js';
 import type { ConfirmProfile } from '../src/config.js';
 import { create, createWithClock } from '../src/create.js';
 import { heldProfile } from '../src/kernel/held-profile.js';
@@ -33,6 +33,7 @@ import {
   makeConfig,
   openRecord,
   tamperNonLast,
+  twoLegProfile,
 } from './helpers/profiles.js';
 
 const CONTENT = { subject: 'week-1', total: 40 };
@@ -340,4 +341,116 @@ test('seal under a drifted sibling refuses unknown-profile; the holder seals', a
   assertUnknownProfile(await instance(base({ ttl: 60 }), store).operator.seal(recordId), 'seal');
   assert.equal(await chainLength(store, recordId), before);
   assert.equal((await opener.operator.seal(recordId)).status, 'ok');
+});
+
+const TWO = 'test.drift.gate.twoleg.v1';
+/** The two-leg profile, and a copy with ONE declarative edit on the maker leg. */
+function twoLeg(edited = false): ConfirmProfile {
+  const p = twoLegProfile({ id: TWO });
+  if (!edited) return p;
+  return {
+    ...p,
+    legs: [
+      { id: 'maker-decide', allowedAuthorities: ['session:test-app', 'mtls:batch'] },
+      { id: 'checker-decide', allowedAuthorities: ['session:test-app'] },
+    ],
+  };
+}
+
+test('prior legs: a successor open() under a sibling whose same-id profile was edited after the maker leg refuses prior-leg-unverified — no record created', async () => {
+  const store = new MemoryStore();
+  const v1 = instance(twoLeg(), store);
+  const makerId = await openRecord(v1, CONTENT, TWO, 'subject:gate-10', 'maker-decide');
+  assert.equal((await v1.operator.finalize(makerId, identity(), CONTENT, facts())).status, 'ok');
+  const makerHead = transitionDigest(lastOf(await store.readChain(makerId)));
+
+  const edited = instance(twoLeg(true), store);
+  const staged = await edited.agent.stage(CONTENT, TWO, 'subject:gate-10', 'checker-decide');
+  assert.equal(staged.status, 'ok');
+  if (staged.status !== 'ok') return;
+  const out = await edited.operator.open(staged.value.stagedRef, {
+    priorRecordRefs: [{ recordId: makerId, chainHead: makerHead }],
+  });
+  assert.equal(out.status, 'refused');
+  if (out.status === 'refused') assert.equal(out.code, 'prior-leg-unverified');
+
+  // The refused open created nothing: the holder opens the successor for the same pair.
+  const stagedV1 = await v1.agent.stage(CONTENT, TWO, 'subject:gate-10', 'checker-decide');
+  assert.equal(stagedV1.status, 'ok');
+  if (stagedV1.status !== 'ok') return;
+  const ok = await v1.operator.open(stagedV1.value.stagedRef, {
+    priorRecordRefs: [{ recordId: makerId, chainHead: makerHead }],
+  });
+  assert.equal(ok.status, 'ok', 'a flow is decided under one version of its rules');
+});
+
+test('recovery (supersedes): a confirmed predecessor whose profile the sibling does not hold refuses supersedes-unverified; a declined predecessor recovers regardless', async () => {
+  const store = new MemoryStore();
+  const holder = instance(base({ decline: true }), store);
+  const confirmedId = await openRecord(holder, CONTENT, ID, 'subject:gate-11');
+  assert.equal(
+    (await holder.operator.finalize(confirmedId, identity(), CONTENT, facts())).status,
+    'ok',
+  );
+  const cHead = transitionDigest(lastOf(await store.readChain(confirmedId)));
+
+  const sibling = instance(base({ decline: true, ttl: 60 }), store);
+  const s1 = await sibling.agent.stage(CONTENT, ID, 'subject:gate-11');
+  assert.equal(s1.status, 'ok');
+  if (s1.status !== 'ok') return;
+  const r1 = await sibling.operator.open(s1.value.stagedRef, {
+    supersedes: { recordId: confirmedId, chainHead: cHead },
+  });
+  assert.equal(r1.status, 'refused');
+  if (r1.status === 'refused') assert.equal(r1.code, 'supersedes-unverified');
+
+  const declinedId = await openRecord(holder, CONTENT, ID, 'subject:gate-12');
+  assert.equal(
+    (await holder.operator.decline(declinedId, identity(), CONTENT, facts())).status,
+    'ok',
+  );
+  const dHead = transitionDigest(lastOf(await store.readChain(declinedId)));
+  const s2 = await sibling.agent.stage(CONTENT, ID, 'subject:gate-12');
+  assert.equal(s2.status, 'ok');
+  if (s2.status !== 'ok') return;
+  const r2 = await sibling.operator.open(s2.value.stagedRef, {
+    supersedes: { recordId: declinedId, chainHead: dHead },
+  });
+  assert.equal(r2.status, 'ok', 'declined is terminal regardless of profile — nothing to hold');
+});
+
+test('open(): a due open blocker under a drifted sibling stands — record-exists, no expired edge — while the same subject under a NEW profile id opens at once', async () => {
+  const clock = { t: Date.UTC(2026, 0, 1) };
+  const store = new MemoryStore();
+  const holder = createWithClock(
+    makeConfig([base({ ttl: 60 })], { store }),
+    () => new Date(clock.t),
+  );
+  const blockerId = await openRecord(holder, CONTENT, ID, 'subject:gate-13');
+  clock.t += 120 * 1000;
+
+  const sibling = createWithClock(
+    makeConfig([base({ ttl: 3600 })], { store }),
+    () => new Date(clock.t),
+  );
+  const before = await chainLength(store, blockerId);
+  const staged = await sibling.agent.stage({ subject: 'week-2', total: 41 }, ID, 'subject:gate-13');
+  assert.equal(staged.status, 'ok');
+  if (staged.status !== 'ok') return;
+  const out = await sibling.operator.open(staged.value.stagedRef);
+  assert.equal(out.status, 'refused');
+  if (out.status === 'refused') assert.equal(out.code, 'record-exists');
+  assert.equal(
+    await chainLength(store, blockerId),
+    before,
+    'the blocker is not expired by an instance that does not hold its profile',
+  );
+
+  const V2 = 'test.drift.gate.v2';
+  const versioned = createWithClock(
+    makeConfig([captureProfile({ id: V2, ttl: 3600 })], { store }),
+    () => new Date(clock.t),
+  );
+  const fresh = await openRecord(versioned, CONTENT, V2, 'subject:gate-13');
+  assert.equal(typeof fresh, 'string', 'a new profile id is a new pair — new work is not stranded');
 });

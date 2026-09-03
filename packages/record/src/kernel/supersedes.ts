@@ -23,6 +23,7 @@ import { replay, verifyChain } from '../chain/replay.js';
 import type { KernelContext } from '../create.js';
 import { isFinalLeg, nonTerminal } from '../nonterminal.js';
 import type { SupersedesRef } from '../types.js';
+import { heldProfile } from './held-profile.js';
 import { signatureLayerHolds } from './verify-signatures.js';
 
 export type SupersedesCheck = { ok: true; verified: SupersedesRef } | { ok: false };
@@ -79,7 +80,9 @@ export async function verifySupersedes(
   if (record.subjectRef !== subjectRef) return { ok: false };
   if (record.state === 'open' || record.state === 'redeeming') return { ok: false };
   if (record.state === 'confirmed') {
-    const resolved = profiles.get(record.profileId);
+    // Held by id AND binding (the profile-drift gate): a drifted profile derives terminality
+    // from the wrong effect-seam declaration, so it proves nothing here.
+    const resolved = heldProfile(profiles, record);
     if (resolved === undefined) return { ok: false }; // terminality unprovable — fail closed
     const legIndex = resolved.profile.legs.findIndex((l) => l.id === record.legId);
     if (legIndex === -1) return { ok: false };

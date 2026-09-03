@@ -279,6 +279,16 @@ export async function open(
     // Defensive: a terminal blocker cannot hold C1; a coherent store never names one.
     return refused('record-exists');
   }
+  // The profile-drift gate: this instance may expire the blocker en passant only if it HOLDS
+  // the blocker's profile — the blocker's genesis binding must be the digest this instance's
+  // same-id profile digests to (SPEC §4). Otherwise the windows `resolveDueClock` would read
+  // from `resolved` are not the blocker's rules, and the `expired` edge would be a write into
+  // a record this instance does not hold. The blocker stands: `record-exists`, never-append —
+  // the code this seam already speaks for a blocker it may not resolve (the `redeeming` one
+  // above). Recovery is the version discipline: a new profile id is a new pair.
+  if (blocker.profileDigest !== resolved.profileDigest) {
+    return refused('record-exists');
+  }
   // An `open` blocker rides the open window; a `confirmed` effect-seam blocker rides the
   // confirmToRedeem window (third step-3 increment — the un-stranding §9.1 promises:
   // "without it, a lost redemption token strands the record... indefinitely" is the

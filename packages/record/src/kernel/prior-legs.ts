@@ -73,6 +73,10 @@ export async function verifyPriorLegs(
 
     const prior = replay(chain);
     if (prior.profileId !== resolved.profile.id) return { ok: false };
+    // The profile-drift gate: the prior leg's record must bind the same profileDigest the
+    // successor's resolved profile digests to (SPEC §4, §10.1) — a flow is decided under one
+    // version of its rules, and the separation-of-duties rules live in the profile.
+    if (prior.profileDigest !== resolved.profileDigest) return { ok: false };
     if (prior.subjectRef !== subjectRef) return { ok: false };
     // "sit at the expected leg in order" — against the profile's declared leg order.
     if (prior.legId !== expectedLeg.id) return { ok: false };
