@@ -842,18 +842,23 @@ test('recovery (supersedes): a confirmed predecessor whose profile the sibling d
   assert.equal(r2.status, 'ok', 'declined is terminal regardless of profile — nothing to hold');
 });
 
-test('open(): a due open blocker under a drifted sibling stands — record-exists, no expired edge — while the same subject under a NEW profile id opens at once', async () => {
+// ERRATA (task review, execution day): this pin's ttl values were first written reversed
+// (holder 60, sibling 3600), which refuses `record-exists` before and after the gate for two
+// different reasons and never went red. The hazard the gate closes is a sibling whose SHORTER
+// ttl calls a blocker due that is not due under its own rules — so the holder is long, the
+// sibling short, and with the gate disabled the sibling wrongly expires the blocker and opens.
+test("open(): a blocker the drifted sibling's shorter ttl would call due — but which is not due under its own rules — stands: record-exists, no expired edge; the same subject under a NEW profile id opens at once", async () => {
   const clock = { t: Date.UTC(2026, 0, 1) };
   const store = new MemoryStore();
   const holder = createWithClock(
-    makeConfig([base({ ttl: 60 })], { store }),
+    makeConfig([base({ ttl: 3600 })], { store }),
     () => new Date(clock.t),
   );
   const blockerId = await openRecord(holder, CONTENT, ID, 'subject:gate-13');
   clock.t += 120 * 1000;
 
   const sibling = createWithClock(
-    makeConfig([base({ ttl: 3600 })], { store }),
+    makeConfig([base({ ttl: 60 })], { store }),
     () => new Date(clock.t),
   );
   const before = await chainLength(store, blockerId);
@@ -866,7 +871,7 @@ test('open(): a due open blocker under a drifted sibling stands — record-exist
   assert.equal(
     await chainLength(store, blockerId),
     before,
-    'the blocker is not expired by an instance that does not hold its profile',
+    "the blocker is neither expired under the sibling's ttl nor touched: an instance that does not hold its profile writes nothing",
   );
 
   const V2 = 'test.drift.gate.v2';
@@ -882,7 +887,7 @@ test('open(): a due open blocker under a drifted sibling stands — record-exist
 - [ ] **Step 2: Run to verify red**
 
 Run: `./node_modules/.bin/vitest run --project record packages/record/test/profile-drift-gate.test.ts 2>&1 | grep -E "×|Tests|Expected|Received" | head -30`
-Expected: "prior legs" fails with `ok` received where `refused` was expected (the edited sibling opens the successor today); "supersedes" fails at `r1` with `ok` received; "blocker" fails with `ok` received where `record-exists` was expected (the sibling expires the blocker and opens today). The `r2` and versioned-open assertions are not reached yet.
+Expected: "prior legs" fails with `ok` received where `refused` was expected (the edited sibling opens the successor today); "supersedes" fails at `r1` with `ok` received; "blocker" fails with `ok` received where `refused` was expected (the sibling, under its own shorter ttl, wrongly expires the blocker and opens today). The `r2` and versioned-open assertions are not reached yet.
 
 - [ ] **Step 3: The prior-leg condition**
 
