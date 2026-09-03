@@ -19,6 +19,7 @@ import { test } from 'vitest';
 
 import { digest } from '../src/canonical.js';
 import { create, createWithClock } from '../src/create.js';
+import { profileDigest } from '../src/profile-digest.js';
 import { MemoryStore } from '../src/store/memory.js';
 import { SqliteStore } from '../src/store/sqlite.js';
 import { storeGenesis, storeNext } from './helpers/chain.js';
@@ -492,8 +493,19 @@ test('completeRedemption: a garbled persisted tokenDigest THROWS naming the stor
   // is constructed DIRECTLY with storeGenesis/storeNext, which compute VALID hashes over
   // whatever payload they are given — the chain verifies clean and the garbled payload
   // reaches rung (5).
+  const profile = effectSeamProfile();
   const store = new MemoryStore();
-  const genesis = storeGenesis('rec-garbled', 'test.effect.v1', DEFAULT_SUBJECT_REF);
+  const genesisTpl = storeGenesis('rec-garbled', 'test.effect.v1', DEFAULT_SUBJECT_REF);
+  const genesis = {
+    ...genesisTpl,
+    payload: {
+      profileId: 'test.effect.v1',
+      profileDigest: profileDigest(profile),
+      legId: (genesisTpl.payload as { legId: string }).legId,
+      subjectRef: DEFAULT_SUBJECT_REF,
+      contentDigest: (genesisTpl.payload as { contentDigest: string }).contentDigest,
+    },
+  };
   const confirmed = storeNext(genesis, 'confirmed', {
     actor: { principal: 'approver:1', authority: 'session:test-app' },
   });
@@ -509,7 +521,7 @@ test('completeRedemption: a garbled persisted tokenDigest THROWS naming the stor
   // prologue's clock rung resolve `redemption-timeout` before rung (5)'s garbled-payload
   // throw — the thing this test actually pins — is ever reached.
   const handles = createWithClock(
-    makeConfig([effectSeamProfile()], { store }),
+    makeConfig([profile], { store }),
     () => new Date(Date.parse(redeeming.at) + 60_000),
   );
   await assert.rejects(
