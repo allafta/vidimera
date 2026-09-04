@@ -351,9 +351,13 @@ registered same-id profile does not digest to the bound `profileDigest` does not
 profile the record was opened under, and every operator seam that resolves the record —
 finalize, decline, the findings seams, the redemption seams, seal — refuses
 `unknown-profile` (§8) at profile resolution, never-append and ahead of every ladder rung,
-so a drifted instance writes nothing into the record, expires nothing en passant, and cannot
-leave an unsigned edge in a signing chain (§14); the two cross-record verifications (§10.1,
-§2) fold the same mismatch on the referenced record into their own claim refusals. Recovery
+so a drifted instance decides nothing under its own rules, expires nothing en passant, and
+writes nothing into the record — with one exception the ladder's order makes: chain
+verification runs before profile resolution, so a chain that is hash-broken or fails the
+signature layer draws its `chain-compromise` evidence edge (§8) from a drifted instance as
+from any other, and on an instance without `config.signing` that edge is unsigned, in a
+signing chain the break had already compromised (§14); the two cross-record verifications
+(§10.1, §2) fold the same mismatch on the referenced record into their own claim refusals. Recovery
 is the version discipline the `id` field names (§9.1): restore the profile's declarative
 fields exactly — the projection is deterministic, so a faithful restore resolves again — or
 keep the prior version registered under its id and give the edit a new one. A stranded open

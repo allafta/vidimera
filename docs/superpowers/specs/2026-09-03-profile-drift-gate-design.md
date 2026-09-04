@@ -407,10 +407,31 @@ as written", given after the increment's closing commit. Found while writing the
 implementation plan (the `open()` blocker path is a write into an existing record that the
 design's seam list did not name), the site was left as written through the increment's
 sealed-set commit and named in the record as false by omission; it lands in its own commit,
-after the record, and this grant too is spent with that commit. Not covered by any grant, and
-recorded in the increment's status section for a later sanction that names it: site 2's landed
-sentence "writes nothing into the record" over-claims by the rung-(1) `chain-compromise`
-evidence edge, which a drifted instance still appends before profile resolution runs.
+after the record, and this grant too is spent with that commit. One sealed sentence was left
+outside every grant at that point and recorded for a sanction that names it — site 2's landed
+"writes nothing into the record" clause over-claims by the rung-(1) `chain-compromise` evidence
+edge, which a drifted instance still appends before profile resolution runs; that sanction is
+site 15 below.
+
+**Site 15 — SPEC §4, the `profileDigest` paragraph's "writes nothing" clause (a corrective
+narrowing of site 2's landed text; GRANTED 2026-09-04** by the maintainer, in session, on the
+words "granted as written, continue", after the brainstorm that weighed fixing the words against
+fixing the behavior and chose the words; landed in its own commit, the grant spent with it).
+Current: "so a drifted instance writes nothing into the record, expires nothing en passant, and
+cannot leave an unsigned edge in a signing chain (§14);".
+Proposed: "so a drifted instance decides nothing under its own rules, expires nothing en
+passant, and writes nothing into the record — with one exception the ladder's order makes: chain
+verification runs before profile resolution, so a chain that is hash-broken or fails the
+signature layer draws its `chain-compromise` evidence edge (§8) from a drifted instance as from
+any other, and on an instance without `config.signing` that edge is unsigned, in a signing chain
+the break had already compromised (§14);".
+Why it is a site: the increment's own §1 accepted the evidence edge ("a tampered chain therefore
+still refuses `chain-compromise` (and appends its evidence edge where the state admits one)
+before drift is ever considered") and `test/profile-drift-gate.test.ts`'s first depth pin
+asserts it lands, so the landed clause was false in that corner and SPEC §8's compromise
+append rule already says why. Not taken, recorded: making the clause true as written by refusing
+`chain-compromise` result-first on an unheld profile — a kernel-invariant change (SPEC §8's
+`appendsOn` rule), a 1.0-review-sized question, not this correction's.
 
 ## 9. Tests
 

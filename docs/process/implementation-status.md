@@ -5209,9 +5209,11 @@ unrelated to the recompute route: the rung-(1) `chain-compromise` evidence edge 
 write a drifted instance still makes — chain-verify runs before profile resolution in the
 ladder, so a hash-broken chain under a drifted profile still refuses `chain-compromise` and
 appends its own `refused` edge at head, exactly as an undrifted instance would — so SPEC §4's
-new "a drifted instance writes nothing into the record" sentence over-claims by that one
-corner; recorded here for the site-14 re-grant conversation rather than edited, since this
-increment's own sanction is spent. A milder consequence, also unclosed: `review()` still
+new "a drifted instance writes nothing into the record" sentence over-claimed by that one
+corner; recorded here at the closing commit rather than edited, since this increment's own
+sanction was spent, and corrected on 2026-09-04 under its own grant — site 15 in the design's
+§8, landed in its own commit — so the clause now names the evidence edge as the one exception
+the ladder's order makes. A milder consequence, also unclosed: `review()` still
 derives ack coverage from the live, possibly-drifted profile it resolves directly
 (`ctx.profiles.get`, never `heldProfile`) — SPEC §9's own "reads never refuse" rule holds
 `review()` outside every gate this increment adds, so a review taken under a drifted profile
