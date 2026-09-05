@@ -8,11 +8,21 @@ import { serializeJcs } from './jcs.js';
 
 import type { Digest } from './types.js';
 
+/** One encoder for the module — `TextEncoder` is stateless, and a per-call allocation bought
+ * nothing (the review-hardening pass, 2026-09-05). */
+const UTF8 = new TextEncoder();
+
 /**
  * Adopter-supplied, pre-JCS content transform, keyed by `profile.subject.canonicalizerRef`
  * (SPEC §3): projects domain content into a plain JSON-compatible structure BEFORE
  * library JCS canonicalization. MUST NOT emit BigInt
  * (JCS-unsupported — `serializeJcs` (`./jcs.js`) throws on any BigInt it receives).
+ * MUST be TOTAL over the content a seam will hand it: this is the host's registered CODE,
+ * not caller data, so a throw at finalize, decline or a redemption seam propagates as a
+ * configuration fault — nothing appended, no refusal minted, never read as `content-drift`
+ * (the review-hardening pass, 2026-09-05; pinned in canonicalizer-totality.test.ts). The
+ * facts side is the deliberate contrast: `facts.figures` are caller DATA, so a canonicalization
+ * failure there is a present-but-unusable payload and refuses `consultation-missing`.
  */
 export type Canonicalizer = (content: unknown) => unknown;
 
@@ -62,7 +72,7 @@ export function canonicalize(structure: unknown): Uint8Array {
   // catch a regression here — TextEncoder.encode is typed `encode(input?: string)`,
   // so a widened return type compiles clean. If serializeJcs ever returns
   // `string | undefined`, the guard comes back in the same commit.
-  return new TextEncoder().encode(serializeJcs(structure));
+  return UTF8.encode(serializeJcs(structure));
 }
 
 /**
@@ -80,7 +90,7 @@ export function digest(input: Uint8Array | string, algorithm: DigestAlgorithm = 
       `digest: unsupported algorithm '${algorithm}' (supported: ${SUPPORTED_ALGORITHMS.join(', ')})`,
     );
   }
-  const bytes = typeof input === 'string' ? new TextEncoder().encode(input) : input;
+  const bytes = typeof input === 'string' ? UTF8.encode(input) : input;
   const hex = createHash(algorithm).update(bytes).digest('hex');
   return `${algorithm}:${hex.toLowerCase()}`;
 }

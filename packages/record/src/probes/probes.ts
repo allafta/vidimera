@@ -882,10 +882,13 @@ const signatureTamperRefuses: Probe = {
     }
     // Garble the persisted signature over a real digest — the insider attack this
     // build's own signing-enforce.test.ts uses (`config.signing.signatures.put`, the
-    // sidecar's own public upsert, never a test-only backdoor).
+    // sidecar's own public upsert, never a test-only backdoor). The first character is
+    // FLIPPED rather than a fixed prefix written over the head: a fixed prefix is a no-op on
+    // a signature that already begins with it, so the probe could pass a sound build for the
+    // wrong reason once in roughly sixteen million runs (the review-hardening pass, 2026-09-05).
     await config.signing.signatures.put({
       ...victim,
-      signature: `AAAA${victim.signature.slice(4)}`,
+      signature: `${victim.signature.startsWith('A') ? 'B' : 'A'}${victim.signature.slice(1)}`,
     });
 
     const attack = await handles.operator.finalize(

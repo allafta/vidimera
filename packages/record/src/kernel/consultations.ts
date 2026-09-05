@@ -19,6 +19,7 @@ import {
   RESERVED_CONSULTATION_KINDS,
   type UnreachableMarker,
 } from '../config.js';
+import type { IdentityAssertion } from '../types.js';
 import { isValidIdentity } from './finalize.js';
 
 export interface PartitionedConsultations {
@@ -140,7 +141,7 @@ export function validateConsultations(
     // the digested payload as host attestation. The inversion is argued at
     // `isValidIdentity`'s own site (kernel/finalize.ts); this throw's posture — a caller
     // error, nothing appended — is unchanged.
-    if (!isValidIdentity(record.checker as never)) {
+    if (!isValidIdentity(record.checker as IdentityAssertion)) {
       throw new Error(
         `${seam}: consultations[${index}] (obtained '${kind}') has a malformed checker identity — a caller error (SPEC §11.1)`,
       );

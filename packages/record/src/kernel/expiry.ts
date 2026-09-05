@@ -26,6 +26,19 @@ import { isFinalLeg, nonTerminal } from '../nonterminal.js';
 import type { AppendResult, Store } from '../store/store.js';
 import type { RecordState, Transition } from '../types.js';
 
+/** The most recent transition of `kind`, scanned from the head with no reversed copy — the
+ * loop `kernel/redeem.ts` already uses (the review-hardening pass, 2026-09-05). */
+function lastOfKind(
+  chain: readonly Transition[],
+  kind: Transition['kind'],
+): Transition | undefined {
+  for (let i = chain.length - 1; i >= 0; i--) {
+    const t = chain[i];
+    if (t !== undefined && t.kind === kind) return t;
+  }
+  return undefined;
+}
+
 type Expiry = ConfirmProfile['expiry'];
 
 /**
@@ -76,7 +89,7 @@ export function pendingWindow(
     const finalLeg = isFinalLeg(legIndex, profile.legs.length);
     const bound = profile.redeem?.confirmToRedeem;
     if (!effectSeam || !finalLeg || bound === undefined) return { window: 'none' };
-    const confirmedAt = [...chain].reverse().find((t) => t.kind === 'confirmed')?.at;
+    const confirmedAt = lastOfKind(chain, 'confirmed')?.at;
     if (confirmedAt === undefined) {
       throw new Error('pendingWindow: state is confirmed but no confirmed transition exists');
     }
@@ -85,7 +98,7 @@ export function pendingWindow(
   if (record.state === 'redeeming') {
     const bound = profile.redeem?.redeemBound;
     if (bound === undefined) return { window: 'none' };
-    const redeemingAt = [...chain].reverse().find((t) => t.kind === 'redeeming')?.at;
+    const redeemingAt = lastOfKind(chain, 'redeeming')?.at;
     if (redeemingAt === undefined) {
       throw new Error('pendingWindow: state is redeeming but no redeeming transition exists');
     }
