@@ -310,6 +310,17 @@ over the process's exit code — or the library being replaced; either removes t
 and both pins together. Does not gate the 0.1 cut." Like row 23, it sits here beside the
 three rows that gate the cut rather than among them.
 
+A note added 2026-09-05, recorded in the row itself: the workaround has a visible side effect.
+With the `beforeExit` listener gone, the library's `exit`-event hook runs with no callback, and
+after a clean teardown it throws `TypeError: done is not a function` — a stack trace after
+vitest's summary on every leg that loads the library. Measured through the real
+`loadEmbeddedPostgres` in a child process: exit code 1 survives as 1 and 0 as 0, with the trace
+on stderr both times, so it is noise a green run carries and not a gate concern; the
+still-running-server case never reaches the throw, so graceful shutdown is untouched. Two
+further pins in `global-setup-exit-hooks.test.ts` hold both halves, and the trace half fails the
+day the library fixes its exit path. The trigger is unchanged — its "both pins" names the two
+that existed at filing, and the two added here leave with them.
+
 ## What is deliberately outside the scope
 
 **AL3 anchoring (documented-only).** `docs/concept/SPEC.md` §14: "AL3 — Anchored (documented

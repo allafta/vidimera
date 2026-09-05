@@ -113,7 +113,7 @@ any one exit.
   proved only that the step ran; this document's gate outputs were measured locally and
   stand. See the dedicated section at the end of this document; the numbers immediately
   below already include it.
-- **Measured against the current tree**: `pnpm test` — 73 test files, 905 tests, zero skips
+- **Measured against the current tree**: `pnpm test` — 73 test files, 907 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
   `pnpm lint` (`biome check .`) — 143 files checked, zero errors or warnings;
@@ -1297,7 +1297,13 @@ Carried in the deferral register, with triggers:
   only; no published package carries it. Trigger (verbatim): "The hazard pin failing — the
   library, or its exit hook, no longer exits 0 over the process's exit code — or the library
   being replaced; either removes the workaround and both pins together. Does not gate the 0.1
-  cut."
+  cut." Noise note added 2026-09-05, recorded in the row: the workaround exposes the library's
+  `exit`-event path, which runs the hook with no callback and, after a clean teardown, throws
+  `TypeError: done is not a function` as a stack trace after vitest's summary; measured through
+  the real `loadEmbeddedPostgres` in a child process, exit code 1 survives as 1 and 0 as 0, so
+  the trace is noise and not a gate concern. Two further pins in
+  `global-setup-exit-hooks.test.ts` hold the exit code and the trace's presence; the suite count
+  moved from 905 to 907 with them. The trigger is unchanged.
 
 Rows 17 and 18 both retired at the self-test-tier increment — step 8's own fourth and
 last tail item landed (see the CONTROLS §4 row and the boundary above for the full

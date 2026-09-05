@@ -45,3 +45,43 @@ test('loadEmbeddedPostgres() hands back the constructor and leaves the beforeExi
     'loading embedded-postgres through the guarded path leaves no beforeExit listener behind',
   );
 });
+
+// The workaround's own side effect, pinned both ways (deferral register row 24's noise note).
+// `async-exit-hook` hands a hook its `done` callback only from the `beforeExit` path; with
+// that listener removed, the library's `exit`-event path runs `gracefulShutdown` first and
+// passes nothing. The library never prunes a stopped server from its shutdown set, so after a
+// clean stop the re-stop returns at once and `done()` throws — an exit-phase rejection Node
+// reports as a fatal trace WITHOUT touching the exit code already set. The child runs the REAL
+// `loadEmbeddedPostgres` (Node's type stripping, flagged at the 22.16 floor, default-on later)
+// so the pin binds the workaround itself, not a copy of its four lines.
+const throughWorkaround = (tail: string) =>
+  spawnSync(
+    process.execPath,
+    [
+      '--experimental-strip-types',
+      '--disable-warning=ExperimentalWarning',
+      '--input-type=module',
+      '-e',
+      `import { loadEmbeddedPostgres } from './test/setup/global-setup.ts'; await loadEmbeddedPostgres(); ${tail}`,
+    ],
+    { cwd: packageDir, encoding: 'utf8' },
+  );
+
+test('through loadEmbeddedPostgres(), a process that set exitCode 1 exits 1 — the exit-phase rejection the workaround exposes never touches the code the CI gate reads', () => {
+  const failing = throughWorkaround('process.exitCode = 1;');
+  assert.equal(
+    failing.status,
+    1,
+    `exitCode 1 must survive the exit phase; stderr: ${failing.stderr}`,
+  );
+});
+
+test("the exposed noise itself: after a clean run the library's exit-event hook throws `done is not a function` on stderr — if THIS pin fails, the library fixed its exit path and row 24's noise note is stale", () => {
+  const clean = throughWorkaround('process.exitCode = 0;');
+  assert.equal(clean.status, 0, `the control run exits 0; stderr: ${clean.stderr}`);
+  assert.match(
+    clean.stderr,
+    /TypeError: done is not a function/,
+    'the trace is the workaround exposing the library exit path that passes no callback',
+  );
+});

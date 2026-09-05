@@ -164,6 +164,13 @@ shutdown that expects a callback it is not given. Recorded here for the owner of
 register row 24 to read: it does not touch the exit code the gate now guards, and a green run
 carries it as noise.
 
+**Reconciled 2026-09-05.** The cause is the workaround's own: `async-exit-hook` passes a hook
+its `done` callback only from the `beforeExit` path, so with that listener removed the library's
+`exit`-event hook runs with no callback and, after a clean teardown, throws at its `done()`.
+Measured through the real `loadEmbeddedPostgres` in a child process, exit code 1 survives as 1
+and 0 as 0, with the trace on stderr both times. Register row 24 now carries the note, and two
+pins in `global-setup-exit-hooks.test.ts` hold it — the exit code, and the trace's presence.
+
 ## Gate outputs, as measured against the closing commit
 
 `pnpm test:ci` — 889 tests in 72 files, zero skips; `node scripts/ci-assert-tests.mjs` over
