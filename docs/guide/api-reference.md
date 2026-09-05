@@ -29,7 +29,11 @@ interface Surfaces {                         // the named handle pair
 
 Fail-fast, fail-closed at construction: every profile is validated, duplicate profile ids
 rejected, every `canonicalizerRef` must resolve, and a `signing: true` profile without
-`config.signing` throws. Returns the two frozen capability-split handles. Profiles are
+`config.signing` throws. Validation also covers what the types already rule out for a
+JavaScript caller — an unrecognized `captureMode` or `ackMode`, an `expiry` or `sod` of the
+wrong shape, an empty profile or leg id, a `terminalRefusals` member that could never take
+effect — each with the same `invalid profile` message, never a raw `TypeError` (the
+review-hardening pass, 2026-09-05). Returns the two frozen capability-split handles. Profiles are
 never persisted. (`createWithClock` exists in source as an internal test seam and is
 deliberately not exported — that absence is a decision of record, not an omission.)
 
@@ -48,11 +52,13 @@ interface Config {
 
 ```ts
 interface ConfirmProfile {
-  id: string;                                // RECOMMENDED "<domain>.<subject>.v<n>"
-  subject: { canonicalizerRef: string };
-  legs: LegSpec[];                           // ordered; >1 switches on separation of duties
-  captureMode: 'staged' | 'live';
-  expiry: { ttl: number } | 'none';          // ttl in seconds
+  id: string;                                // RECOMMENDED "<domain>.<subject>.v<n>"; non-empty,
+                                             // or construction throws
+  subject: { canonicalizerRef: string };     // must resolve in config.canonicalizers
+  legs: LegSpec[];                           // ordered; >1 switches on separation of duties;
+                                             // an array with at least one leg, or construction throws
+  captureMode: 'staged' | 'live';            // anything else throws at construction
+  expiry: { ttl: number } | 'none';          // ttl in seconds; any other shape throws at construction
   policySource?: string;                     // switches on policy-drift notarization
   redeem?: {                                 // presence declares the effect seam
     confirmToRedeem?: number;                // seconds: confirm → redemption start
@@ -65,19 +71,23 @@ interface ConfirmProfile {
 }
 
 interface LegSpec {
-  id: string;
+  id: string;                                // non-empty and unique within the profile
   allowedAuthorities: string[];              // identity-authority allowlist — non-empty, distinct,
                                              // non-empty strings; anything else throws at construction
-  sod?: { notActorOf: string[] };            // prior legs this leg's actor must differ from
+  sod?: { notActorOf: string[] };            // prior legs this leg's actor must differ from;
+                                             // notActorOf must be an array, or construction throws
   proposer?: string;                         // a principal barred from finalizing this leg
-  ackMode?: 'self' | 'counterparty' | 'any';
+  ackMode?: 'self' | 'counterparty' | 'any'; // anything else throws at construction
   requiredAcks?: string[];                   // finding kinds whose acks gate finalize
   requiredConsultations?: string[];          // consultation kinds required, in order
   freshness?: Record<string, number>;        // per-kind max age (seconds) of observedAt claims
   eligibility?: string;                      // eligibility authority — implicit-first consultation
   decline?: true;                            // literal true — opts this leg into operator.decline()
-  terminalRefusals?: RefusalCode[];          // codes that append open → refused; a member
-                                             // that is not a registry code throws at construction
+  terminalRefusals?: RefusalCode[];          // codes that append open → refused; a member that is
+                                             // not a registry code, a never-appends code,
+                                             // `chain-compromise`, or a duplicate throws at
+                                             // construction (leg-expired and availability stay
+                                             // legal — SPEC §8 names them inert)
 }
 ```
 
@@ -543,7 +553,13 @@ An in-place edit strands that profile's open records until you do one of those.
 
 **A `Verifier` answers the literal `true`, or the transition is unverified.** The layer
 compares with `=== true`: a truthy status string or object is reported `verified: false` and
-refuses at every enforcement site, exactly as a throwing verifier does. And `verifiers` is
+refuses at every enforcement site, exactly as a throwing verifier does. Two operational
+consequences follow, because an unverified transition of a signing record is `chain-compromise`
+at the seams — a terminal edge the record never recovers from: a verifier that can fail
+transiently (a remote key service, a rate limit, a timeout) should retry inside itself rather
+than throw, since the layer has no "unavailable" answer to give; and a retired key's verifier
+stays registered under its `keyRef` for as long as any record signed under it may be touched,
+because dropping it reads every such record as compromised at its next seam call. And `verifiers` is
 read as own keys only (`Object.hasOwn`): a sidecar entry whose `keyRef` is not a key you
 registered — including one naming an inherited `Object.prototype` member such as `toString` —
 resolves no verifier and fails closed. The sidecar is storage, and storage is what this layer

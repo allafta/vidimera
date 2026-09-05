@@ -5253,3 +5253,90 @@ count moved from 903 to 905 after this section was first written: the whole-bran
 own final fix wave added two pins, a reads-never-refuse pin
 (`profile-drift-gate.test.ts`) and a separation-of-duties unit pin (`multi-leg.test.ts`),
 re-measured here on the fixed head.
+
+## Post-build-order increment — The review-hardening pass (five findings from an external code review)
+
+**The twenty-fourth post-build-order increment, exited (branch `review-hardening-2026-09-05`,
+cut from `main` at `ad97401`: a design commit, three code commits and the paperwork commit
+`git log main..HEAD` enumerates).** No sealed-set edit, no marker move, no new refusal code, no
+public-surface change, no inversion. The record is
+`docs/analysis/2026-09-05-external-code-review.md` — all seventeen findings of an external code
+review of `ad97401` with verdicts and citations; the design is
+`docs/superpowers/specs/2026-09-05-review-hardening-design.md`.
+
+**What the review was, and what it could not see.** The reviewer stripped every comment and
+JSDoc from the source and excluded `docs/` before reading, ran the gates and eighteen hypothesis
+tests, and reported seventeen findings ranked by operator impact. The code claims held where
+verified; the record did not reach the reviewer, so nine findings restate rulings already
+taken (the profile-drift gate's stranding story, `createWithClock`'s absence as a decision of
+record, row 22a's orphans, the sealed principal-only identity rule, the sealed "a sealed prior
+still verifies", `review()`'s throw posture, the freshness design's future-claim refusal, and
+three by-design nits), two restate recorded horizon items (catalogue items 38 and 175), and
+three recommendations would have reversed a sanctioned ruling or repeated an approach row 22
+measured and rejected. Each is cited in the record; none was acted on.
+
+**What it closes.** Five findings the repository's own rules already called for. (1)
+Construction loudness for the shapes a non-TypeScript caller can hand in that the types rule
+out — `config.ts` now throws its own `invalid profile` error, never a raw `TypeError` and never
+silent acceptance, for a `captureMode` outside its two values, an `ackMode` outside its three
+(`kernel/findings.ts`'s `ackCounts` had read any unrecognized mode as the permissive `'any'`,
+the one fail-open shape in the review), an `expiry` neither `'none'` nor an object, a `sod`
+without a `notActorOf` array, an empty profile or leg id, and a non-array `legs`; measured
+before the fix by execution, two of those were raw `TypeError`s and three constructed. (2)
+`terminalRefusals` rejects what can never take effect: every never-appends code
+(`NEVER_APPENDS`, now exported from `refusal-codes.ts`), `chain-compromise` (the compromise
+class appends regardless of any listing), and a duplicate — SPEC §9.1's "inert or
+contradictory feature combinations are construction errors"; `leg-expired` and `availability`,
+the two members SPEC §8 names legal-but-inert, stay constructible and the boundary is pinned,
+so the reviewer's recommendation to reject `availability` was declined on the sealed text. The
+`appendsOn` unit pins that hand the pure function a never-appends leg literal stay: they pin the
+function's override, now unreachable through `create()` but still true of the function. (3)
+`kernel/redeem.ts`'s shared prologue reads the clock ONCE for its clock rung: the enlisted
+due-guard and `resolveDueClock` had each read `now()`, and a window deadline falling between the
+two reads let an enlisted call pass the guard and then resolve — routing the resolver's
+own-transaction append onto the connection the host held open, which the embedded backing
+rejects with "cannot start a transaction within a transaction" mid-host-transaction; pinned in
+`clocks.test.ts` under a straddling clock, red first with exactly that throw. (4) The
+`Canonicalizer` totality contract, stated at the type and in the guide and pinned as a bound in
+`canonicalizer-totality.test.ts` (green from its first run, said so in its header): a
+registered canonicalizer is the host's code, so a throw at finalize, decline or a redemption
+seam propagates as a configuration fault, appends nothing, and is never read as
+`content-drift` — the deliberate contrast with `facts.figures`, caller data, where
+`isValidFacts` reads a canonicalization failure as a present-but-unusable payload. (5) Four
+behavior-preserving nits — `consultations.ts`'s `as never` cast, `canonical.ts`'s per-call
+`TextEncoder`, `probes.ts`'s `AAAA` tamper prefix (a no-op on a signature already beginning so,
+once in roughly sixteen million runs against a real signer; now a first-character flip), and
+`expiry.ts`'s reversed-copy scans — with the frozen byte-stability pins untouched and green as
+the proof. Two guide sentences beside these: the `Verifier` paragraph names the two operational
+consequences of fail-closed verification (retry inside a transiently failing verifier; keep a
+retired key's verifier registered), and the `SqliteStore` entry states the single-operator
+bound that catalogue item 175 had left in the source header alone.
+
+**What it records rather than closes.** Finding 5.1 — a throwing or `false`-answering
+`Verifier` is unverified, and an unverified transition of a signing record is
+`chain-compromise`, a terminal edge, so a transient key-service failure marks a healthy record
+compromised — is correct on the code and a decided posture (the AL2 enforce design,
+OPEN-QUESTIONS §1's key-custody tail, this document's §14 row); an `unavailable` route for the
+signature layer would widen SPEC §8's availability-class producers and touch §14 and the decided
+tail, so it is the fifth entry on `next-phases.md`'s sanction-gated list, and the guide
+sentences above are the mitigation a host has today. Finding 5.16's four adapter items — no
+`due_at` index in either SQL backing, a doubled `#validateTx` on an enlisted batch, no opt-out
+for the lazy DDL, an undocumented READ COMMITTED assumption — widen deferral register row 23's
+inventory, dated, none gating the cut. Finding 5.12 (a transition-legality table in `replay`)
+and the finalize half of 5.9 (one clock read per operation) are recorded in `next-phases.md` as
+post-0.1 considerations beside catalogue item 38. Finding 5.4 (`createWithClock`) stays
+decided; the owner declined to reopen it, and the record keeps the reviewer's argument for the
+day a host demand arrives.
+
+**Inversions.** None. No pinned assertion changed its truth value; the self-authored-inversion
+sequence stays at thirteen. Every new pin either went red first against the tree before its fix
+(ten construction pins by "Missing expected exception" or a raw `TypeError` message, the clock
+pin by the nested-transaction throw) or is a bound pinned green and labeled as such (the two
+totality pins, the boundary pin for `leg-expired`/`availability`).
+
+**Gate outputs, as measured against the closing commit.** `pnpm test:ci` — 921 tests in 74
+files, zero skips (`ci-assert-tests: ok — 921 tests in 74 files (79 suites): 921 passed, 0
+failed, 0 skipped, 0 todo`), up from 907 in 73 at `ad97401` by fourteen pins; `pnpm typecheck`
+— both packages clean; `biome check --error-on-warnings .` — 144 files, exit 0;
+`contract-scan`, `api-reference-sync`, `docs-index-sync` — exit 0; `pnpm build` — both
+packages emit. `CLAUDE.md`'s measured sentence moves to 74 files / 921 tests with this record.

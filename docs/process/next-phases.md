@@ -376,13 +376,14 @@ decision pending now).
   inactive status is quoted above under "outside the scope"; the design questions for the day
   it activates are what remain open here.)
 
-Three further questions were surfaced by the 2026-09-02 code review, and a fourth by the
-2026-09-03 security review; three remain **sanction-gated, not decided** and the fourth was
-decided and landed — each of the three would
-move a sealed enumeration or narrow a sealed rule, so each of the three needs a fresh pass through
+Three further questions were surfaced by the 2026-09-02 code review, a fourth by the
+2026-09-03 security review, and a fifth by the 2026-09-05 external code review; four remain
+**sanction-gated, not decided** and the fourth was decided and landed — each of the four would
+move a sealed enumeration or narrow a sealed rule, so each needs a fresh pass through
 `docs/concept/SCOPING-GUIDE.md` §§1–2. The argument for the first three is in its phase's
 commit message on `code-review-fixes`; for the fourth, in
-`docs/analysis/2026-09-03-security-findings.md` (finding 2):
+`docs/analysis/2026-09-03-security-findings.md` (finding 2); for the fifth, in
+`docs/analysis/2026-09-05-external-code-review.md` (finding 5.1):
 
 - **A per-leg raiser/acker authority allowlist**, consulted at ack-counting time. Today the
   findings seams admit any well-formed transport identity — the informing population is
@@ -403,9 +404,27 @@ commit message on `code-review-fixes`; for the fourth, in
   contract's "the library performs no pruning" and by register row 22's third horn; the
   `seq`-based split a host can compute (beyond-head means never landed; an occupied slot means
   a competing signed transition) never changes a verdict.
+- **An `unavailable` answer for the signature layer.** A `Verifier` returns a boolean; a throw
+  or a `false` is unverified, and an unverified transition of a signing record is
+  `chain-compromise` at every enforcement site — a terminal edge. A verifier that fails
+  transiently (a remote key service down for a minute) therefore marks a healthy record
+  compromised, and only the host's own retry discipline prevents it (the guide now says so).
+  Routing verifier unavailability to SPEC §8's availability class — the `unreachable` marker's
+  own outcome, appending nothing — would widen that class's producer list, touch §14's AL2
+  bullet, and reopen OPEN-QUESTIONS §1's key-custody tail. Real, and the 2026-09-05 review's
+  one High-rated finding that survived triage; not decided here.
 
 (A fourth, a never-appends contention refusal code, was decided the same day: `record-contended`,
 minted under its own sanction — `docs/superpowers/specs/2026-09-02-record-contended-design.md`.)
+
+Two further items from the 2026-09-05 review are recorded as post-0.1 considerations, not
+sanction questions, because each changes an exported function's behavior without moving a
+sealed rule: a transition-legality table in `replay` (today the fold checks linkage and the
+findings shapes it can detect, and a foreign chain reading `opened → refused → confirmed`
+replays as `confirmed` — a fidelity-not-validity posture the store's constraints make
+unreachable for chains it wrote), and one clock read per kernel operation in `finalize` (six
+reads today; the decision rung and the stamp can straddle a deadline by a millisecond), which
+belongs with the ladder extraction the 2026-08-30 catalogue's item 38 already names.
 
 ### OQ §2 — decided in code; the recording gap closed 2026-08-19; the corner itself
 superseded 2026-09-03

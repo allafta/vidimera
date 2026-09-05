@@ -252,6 +252,22 @@ is the summary, and that file wins on conflict.
   types-vs-floor gap by a major line, it does not close it — the exact-floor CI leg
   (ubuntu @ 22.16.0) remains the runtime gate regardless.
 
+- **Construction loudness finished for the shapes an external review found still lax** (the
+  review-hardening pass, 2026-09-05): `create()` now throws its own `invalid profile` error —
+  never a raw `TypeError`, never silent acceptance — for a `captureMode` outside
+  `'staged' | 'live'`, an `ackMode` outside its three values (which `ackCounts` had been
+  reading as the permissive `'any'`), an `expiry` that is neither `'none'` nor an object, a
+  `sod` without a `notActorOf` array, an empty profile or leg id, and a non-array `legs`. A
+  `terminalRefusals` member that could never take effect is a construction error too: every
+  never-appends code, `chain-compromise` (the compromise class appends regardless), and a
+  duplicate; `leg-expired` and `availability`, the two members SPEC §8 names legal-but-inert,
+  stay constructible. The `Canonicalizer` contract now states totality — a registered
+  canonicalizer that throws at a decision seam propagates as a configuration fault, appends
+  nothing, and is never read as `content-drift` — pinned as a bound. The guide's `Verifier`
+  paragraph names the two operational consequences of fail-closed verification (retry inside
+  a transiently failing verifier; keep a retired key's verifier registered), and its
+  `SqliteStore` entry states the single-operator bound.
+
 ### Fixed
 
 - **The verifier registry could be satisfied with no key** (2026-09-03, branch
@@ -391,6 +407,15 @@ is the summary, and that file wins on conflict.
 - The adapter's peer range on `@vidimera/record` publishes as a caret range
   (`workspace:^`), not an exact pin — a record-only patch release no longer breaks fresh
   adapter installs.
+
+- **The redemption prologue reads the clock once** (the review-hardening pass, 2026-09-05):
+  the enlisted due-guard and `resolveDueClock` had each read `now()`, so a window deadline
+  falling between the two reads let an enlisted call pass the guard and then resolve — routing
+  the resolver's own-transaction append onto the connection the host held open, which the
+  embedded backing rejects with a throw. One `Date` is now handed to both; pinned under a
+  straddling clock. The signature-tamper probe flips the first character of the persisted
+  signature instead of writing a fixed `AAAA` prefix, which was a no-op on a signature that
+  already began so (one run in roughly sixteen million against a real signer).
 
 ### Known not-done
 

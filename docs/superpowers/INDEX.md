@@ -25,7 +25,7 @@ this housekeeping plan's own (`2026-08-18-post-build-order-housekeeping.md`). Ea
 noted "no spec" in its row below rather than paired with a design document that does not
 exist.
 
-**`docs/analysis/`** holds 23 files, the increment-history artifacts outside that pair
+**`docs/analysis/`** holds 24 files, the increment-history artifacts outside that pair
 structure — earliest is
 [`2026-08-03-step-1-review.md`](../analysis/2026-08-03-step-1-review.md), the
 whole-branch review of step 1 that the step-1-remediation plan below was written to

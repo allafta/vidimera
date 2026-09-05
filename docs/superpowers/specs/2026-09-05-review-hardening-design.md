@@ -3,9 +3,12 @@
 **A post-build-order increment (no step). No sealed-set edit, no marker move, no new refusal
 code, no public-surface change. Sanction: none needed, and none claimed.**
 
-**Status at write time (2026-09-05).** Design approved in conversation on the owner's "do as
-recommended"; nothing implemented yet. Branch `review-hardening-2026-09-05`, to be cut from
-`main` at `ad97401`.
+**Status.** Approved in conversation on the owner's "do as recommended" and executed the same
+day, 2026-09-05, on branch `review-hardening-2026-09-05`, cut from `main` at `ad97401`: a
+design commit, three code commits, and the paperwork commit. Exited with every gate green (the
+figures are in `docs/process/implementation-status.md`'s increment section and in the record,
+`docs/analysis/2026-09-05-external-code-review.md`). Not merged and not pushed; both are owner
+acts. §4's "none expected" held: no pinned assertion changed its truth value.
 
 ## 1. What this increment answers
 

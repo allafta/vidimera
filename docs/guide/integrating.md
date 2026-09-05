@@ -36,7 +36,11 @@ protection, so treat the operator handle like you treat your database handle.
 - **`MemoryStore`** — reference semantics for tests and development; nothing survives the
   process. Exported from the package entry point.
 - **`SqliteStore(location)`** — the embedded-SQL backing over `node:sqlite`; pass a file
-  path, or `':memory:'` for throwaway instances. On Node below 24.15, importing the package
+  path, or `':memory:'` for throwaway instances. Single-operator by design: WAL-mode SQLite
+  under one process and one connection, with no multi-connection safety claimed or tested
+  and no busy timeout set — a second connection contending for the write lock meets the
+  driver's own error. Multi-connection deployments are the server-SQL backing's job. On Node
+  below 24.15, importing the package
   prints Node's `ExperimentalWarning` for `node:sqlite` — the entry point re-exports this
   class, so every adopter meets it at import whatever store they choose — and
   `node --disable-warning=ExperimentalWarning` silences it; on 24.15 and later nothing
@@ -80,6 +84,11 @@ the library's own canonical JSON encoding digests it. Rules of thumb:
   refuse as drift later.
 - JSON-safe: plain objects, arrays, strings, finite numbers, booleans, null. No `BigInt`,
   no class instances, no functions.
+- Total: it must return for any content a seam will hand it. A canonicalizer is your
+  registered code, not caller data, so a throw at `finalize`, `decline` or a redemption seam
+  propagates as a configuration fault — nothing is appended and no refusal is minted; it is
+  never read as `content-drift`. (The `facts.figures` side is the deliberate contrast: those
+  are caller data, and a non-canonicalizable payload there refuses `consultation-missing`.)
 - Versioned: the ref is part of the profile (`'finance.invoice.v1'`); when the projection
   changes meaningfully, mint a new ref and a new profile version rather than silently
   changing what old records' digests meant.

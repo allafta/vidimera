@@ -37,55 +37,55 @@ via the local binaries.
 **Files:** `packages/record/src/refusal-codes.ts` (export the never-appends set),
 `packages/record/src/config.ts` (validators), `packages/record/test/construction-validation.test.ts`.
 
-- [ ] Write the pins listed in design §5 for rulings 1 and 2; run the file; observe red.
-- [ ] `refusal-codes.ts`: export `NEVER_APPENDS`; its comment names the new consumer.
-- [ ] `config.ts` `validateLeg`: after the registry check, reject never-appends members,
+- [x] Write the pins listed in design §5 for rulings 1 and 2; run the file; observe red.
+- [x] `refusal-codes.ts`: export `NEVER_APPENDS`; its comment names the new consumer.
+- [x] `config.ts` `validateLeg`: after the registry check, reject never-appends members,
       `chain-compromise`, and duplicates, each with its own message.
-- [ ] `config.ts` `validateProfile`: id non-empty and `legs` an array before anything reads
+- [x] `config.ts` `validateProfile`: id non-empty and `legs` an array before anything reads
       them; leg ids non-empty in the existing loop; `captureMode` enum right after.
-- [ ] `validateBounds`: `expiry` must be `'none'` or a non-null object before destructuring.
-- [ ] `validateSodShape`: `notActorOf` must be an array before `.length`.
-- [ ] `validateFindingsFlow`: `ackMode` enum after the both-or-neither check.
-- [ ] Run the file green; run the whole record project; biome; commit.
+- [x] `validateBounds`: `expiry` must be `'none'` or a non-null object before destructuring.
+- [x] `validateSodShape`: `notActorOf` must be an array before `.length`.
+- [x] `validateFindingsFlow`: `ackMode` enum after the both-or-neither check.
+- [x] Run the file green; run the whole record project; biome; commit.
 
 ### Task 2: One clock read in the redemption prologue
 
 **Files:** `packages/record/src/kernel/redeem.ts`, `packages/record/test/clocks.test.ts`.
 
-- [ ] Write the straddling-clock enlisted `redeem` pin (design §5); observe the red throw.
-- [ ] `redeem.ts` prologue: take `now()` once ahead of the state block; hand the same
+- [x] Write the straddling-clock enlisted `redeem` pin (design §5); observe the red throw.
+- [x] `redeem.ts` prologue: take `now()` once ahead of the state block; hand the same
       `Date` to `dueNow` and `resolveDueClock`; update the comment.
-- [ ] Green; whole record project; biome; commit.
+- [x] Green; whole record project; biome; commit.
 
 ### Task 3: The canonicalizer totality contract
 
 **Files:** `packages/record/src/canonical.ts` (type comment), new
 `packages/record/test/canonicalizer-totality.test.ts`.
 
-- [ ] Write the two pins with a header that says they are green from the first run and why.
-- [ ] Extend the `Canonicalizer` type's comment with the totality sentence.
-- [ ] Green; biome; commit.
+- [x] Write the two pins with a header that says they are green from the first run and why.
+- [x] Extend the `Canonicalizer` type's comment with the totality sentence.
+- [x] Green; biome; commit.
 
 ### Task 4: The four nits
 
 **Files:** `packages/record/src/kernel/consultations.ts`, `packages/record/src/canonical.ts`,
 `packages/record/src/probes/probes.ts`, `packages/record/src/kernel/expiry.ts`.
 
-- [ ] `as never` → `as IdentityAssertion`; module-level `TextEncoder`; first-character flip
+- [x] `as never` → `as IdentityAssertion`; module-level `TextEncoder`; first-character flip
       in the tamper probe; `lastOfKind` index loop in `expiry.ts`.
-- [ ] Whole record project green (byte-stability untouched and green is the proof); typecheck;
+- [x] Whole record project green (byte-stability untouched and green is the proof); typecheck;
       biome; commit.
 
 ### Task 5: Documents and exit
 
 **Files:** the list in design §6.
 
-- [ ] Guide edits (api-reference annotations + verifier sentences; integrating totality
+- [x] Guide edits (api-reference annotations + verifier sentences; integrating totality
       bullet + SQLite bound).
-- [ ] CHANGELOG Changed and Fixed entries.
-- [ ] Register row 23 widening; next-phases sanction-gated entry and the post-0.1 paragraph.
-- [ ] Analysis record `docs/analysis/2026-09-05-external-code-review.md`.
-- [ ] implementation-status increment section; INDEX.md row and counts; CLAUDE.md count.
-- [ ] All gates: typecheck, lint:strict, contract-scan, api-sync, docs-index-sync, test:ci +
+- [x] CHANGELOG Changed and Fixed entries.
+- [x] Register row 23 widening; next-phases sanction-gated entry and the post-0.1 paragraph.
+- [x] Analysis record `docs/analysis/2026-09-05-external-code-review.md`.
+- [x] implementation-status increment section; INDEX.md row and counts; CLAUDE.md count.
+- [x] All gates: typecheck, lint:strict, contract-scan, api-sync, docs-index-sync, test:ci +
       `node scripts/ci-assert-tests.mjs .vitest-results.json`. Write the figures from output.
-- [ ] Commit. Report: branch unmerged, unpushed.
+- [x] Commit. Report: branch unmerged, unpushed.
