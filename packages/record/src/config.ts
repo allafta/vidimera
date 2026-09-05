@@ -9,7 +9,7 @@
 // Config type consumer has one import site.
 
 import type { Canonicalizer } from './canonical.js';
-import { REGISTRY, type RefusalCode } from './refusal-codes.js';
+import { NEVER_APPENDS, REGISTRY, type RefusalCode } from './refusal-codes.js';
 import type { SigningConfig } from './signing/store.js';
 import type { Store } from './store/store.js';
 import type { Digest, IdentityAssertion, SupersedesRef } from './types.js';
@@ -202,7 +202,13 @@ function validateLeg(profileId: string, leg: LegSpec): void {
   // terminal is not — SPEC §9.1's construction-is-loud rule makes that a construction
   // error, not a runtime surprise. The two legal-but-inert registry members SPEC §8
   // itself names (`leg-expired`, `availability`) stay constructible: their inertness is
-  // at-the-seam semantics (pinned in refusal-matrix.test.ts), not a misspelling.
+  // at-the-seam semantics (pinned in refusal-matrix.test.ts), not a misspelling. The
+  // review-hardening pass (2026-09-05) closed the rest of the inert space: `appendsOn`
+  // consults the leg only after the compromise class, the availability class and the
+  // fixed never-appends set have each answered, so a member from the first or the third
+  // could never take effect and is rejected here — SPEC §8 names exactly two legal-but-inert
+  // members, and these are not among them. A duplicate takes the allowedAuthorities rule.
+  const seen = new Set<string>();
   for (const code of leg.terminalRefusals ?? []) {
     if (!Object.hasOwn(REGISTRY, code)) {
       throw new Error(
@@ -212,6 +218,28 @@ function validateLeg(profileId: string, leg: LegSpec): void {
           '(SPEC §9.1: inert feature configuration is a construction error)',
       );
     }
+    if (REGISTRY[code] === 'compromise') {
+      throw new Error(
+        `invalid profile '${profileId}': leg '${leg.id}' lists '${code}' in terminalRefusals, ` +
+          'but the compromise class appends regardless of any listing (SPEC §8) — the member ' +
+          'could never take effect (SPEC §9.1: inert feature configuration is a construction error)',
+      );
+    }
+    if (NEVER_APPENDS.has(code)) {
+      throw new Error(
+        `invalid profile '${profileId}': leg '${leg.id}' lists '${code}' in terminalRefusals, ` +
+          'but that code never appends (SPEC §8) — appendsOn consults the leg only after the ' +
+          'fixed never-appends set has answered, so the member could never take effect ' +
+          '(SPEC §9.1: inert feature configuration is a construction error)',
+      );
+    }
+    if (seen.has(code)) {
+      throw new Error(
+        `invalid profile '${profileId}': leg '${leg.id}' lists '${code}' twice in terminalRefusals — ` +
+          'entries must be pairwise distinct (duplicate)',
+      );
+    }
+    seen.add(code);
   }
 }
 
@@ -336,6 +364,15 @@ function validateFreshness(profile: ConfirmProfile, leg: LegSpec): void {
  */
 function validateBounds(profile: ConfirmProfile): void {
   if (profile.expiry !== 'none') {
+    const expiry: unknown = profile.expiry;
+    if (typeof expiry !== 'object' || expiry === null) {
+      // The review-hardening pass (2026-09-05): a non-TS caller's `expiry: undefined` met a raw
+      // TypeError from the destructuring below; it meets this file's own message instead.
+      throw new Error(
+        `invalid profile '${profile.id}': expiry is ${JSON.stringify(expiry) ?? 'undefined'} — ` +
+          "SPEC §9.1 admits 'none' or { ttl }; anything else is malformed config, not a bound",
+      );
+    }
     const { ttl } = profile.expiry;
     if (!Number.isInteger(ttl) || ttl <= 0) {
       throw new Error(
@@ -413,7 +450,19 @@ function validateLiveCapture(profile: ConfirmProfile): void {
  */
 function validateSodShape(profile: ConfirmProfile, index: number, leg: LegSpec): void {
   if (leg.sod !== undefined) {
-    const entries = leg.sod.notActorOf;
+    // The review-hardening pass (2026-09-05): `sod: {}` from a non-TS caller met a raw
+    // TypeError on `.length`; the shape is checked first so it meets this file's own message.
+    const sod: unknown = leg.sod;
+    const entries: unknown =
+      typeof sod === 'object' && sod !== null
+        ? (sod as { notActorOf?: unknown }).notActorOf
+        : undefined;
+    if (!Array.isArray(entries)) {
+      throw new Error(
+        `invalid profile '${profile.id}': leg '${leg.id}' declares sod without a notActorOf array ` +
+          `(found ${entries === undefined ? 'nothing' : typeof entries}) — SPEC §10.1`,
+      );
+    }
     if (entries.length === 0) {
       throw new Error(
         `invalid profile '${profile.id}': leg '${leg.id}' declares sod.notActorOf as an empty array — ` +
@@ -510,6 +559,18 @@ function validateFindingsFlow(profile: ConfirmProfile, leg: LegSpec): void {
     );
   }
   if (!hasAcks) return;
+  const mode: unknown = leg.ackMode;
+  if (mode !== 'self' && mode !== 'counterparty' && mode !== 'any') {
+    // The review-hardening pass (2026-09-05): `kernel/findings.ts`'s `ackCounts` falls through
+    // to the permissive `'any'` branch for any value it does not recognize, so an unrecognized
+    // mode from a non-TS caller was a silently WEAKENED gate — the fail-open direction, the
+    // one shape this file exists to make loud.
+    throw new Error(
+      `invalid profile '${profile.id}': leg '${leg.id}' declares ackMode ${JSON.stringify(mode)} — ` +
+        "SPEC §10.2 names three modes, 'self', 'counterparty' and 'any'; any other value would " +
+        "count acknowledgments as 'any', a silently weakened gate (the fail-closed structural class)",
+    );
+  }
   const kinds = leg.requiredAcks as string[];
   if (kinds.length === 0) {
     throw new Error(
@@ -653,11 +714,46 @@ function validateFindingsFlow(profile: ConfirmProfile, leg: LegSpec): void {
  * are `create.ts`'s (they need the registry / the whole profile list).
  */
 export function validateProfile(profile: ConfirmProfile): void {
+  // The review-hardening pass (2026-09-05): the shapes a non-TS caller can hand in that the
+  // typed surface rules out, read BEFORE anything destructures them, so the caller meets this
+  // file's own `invalid profile` message and never a raw TypeError (SPEC §9.1: inert or
+  // contradictory feature combinations are construction errors). Each is held as `unknown`
+  // deliberately — the declared type says the value cannot be wrong, and the check is for
+  // the caller the declared type does not reach.
+  const id: unknown = profile.id;
+  if (typeof id !== 'string' || id.length === 0) {
+    throw new Error(
+      `invalid profile '${String(id)}': the profile id is empty — a profile is addressed by its id ` +
+        '(SPEC §9.1 recommends the <domain>.<subject>.v<n> form); an empty id is malformed config',
+    );
+  }
+  const legs: unknown = profile.legs;
+  if (!Array.isArray(legs)) {
+    throw new Error(
+      `invalid profile '${profile.id}': legs must be an array of leg declarations ` +
+        `(found ${legs === undefined ? 'nothing' : typeof legs}) — SPEC §9.1`,
+    );
+  }
   if (profile.legs.length === 0) {
     throw new Error(`invalid profile '${profile.id}': at least one leg is required (found 0)`);
   }
+  const mode: unknown = profile.captureMode;
+  if (mode !== 'staged' && mode !== 'live') {
+    throw new Error(
+      `invalid profile '${profile.id}': captureMode is ${JSON.stringify(mode) ?? 'undefined'} — ` +
+        "SPEC §9.2 names two modes, 'staged' and 'live'; anything else would construct as staged, " +
+        'a silent misdeclaration (SPEC §9.1: inert feature configuration is a construction error)',
+    );
+  }
   const seenLegIds = new Map<string, number>();
   for (const [index, leg] of profile.legs.entries()) {
+    const legId: unknown = leg.id;
+    if (typeof legId !== 'string' || legId.length === 0) {
+      throw new Error(
+        `invalid profile '${profile.id}': the leg id at position ${index} is empty — ` +
+          'SPEC §10.1 keys recorded evidence by legId, so every leg id must be a non-empty string',
+      );
+    }
     const first = seenLegIds.get(leg.id);
     if (first !== undefined) {
       throw new Error(

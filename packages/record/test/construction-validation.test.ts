@@ -30,6 +30,7 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import type { ConfirmProfile, LegSpec } from '../src/config.js';
 import { create } from '../src/create.js';
+import type { RefusalCode } from '../src/refusal-codes.js';
 import { MemorySignatureStore } from '../src/signing/memory.js';
 import type { Signer, Verifier } from '../src/signing/store.js';
 import {
@@ -744,5 +745,96 @@ test('structural: a MISSING or non-array allowedAuthorities names that shape —
         return true;
       },
     );
+  }
+});
+
+// --- the review-hardening pass (2026-09-05): construction loudness finished for the shapes an
+// external review found still lax, and `terminalRefusals` rejecting what can never take effect.
+// SPEC §9.1: "inert or contradictory feature combinations are construction errors". Every pin
+// below was observed RED against the tree before the validators landed. -----------------------
+
+const NEVER_APPENDS_FOR_PIN: RefusalCode[] = [
+  'record-exists',
+  'unknown-profile',
+  'unknown-leg',
+  'record-not-open',
+  'unredeemable-state',
+  'unsealable-state',
+  'effect-mismatch',
+  'already-redeemed',
+  'redemption-timeout',
+  'prior-leg-unverified',
+  'supersedes-unverified',
+  'record-contended',
+];
+
+test('terminalRefusals: every never-appends code is a construction error — appendsOn consults the leg only after the fixed set has answered, so the listing could never take effect', () => {
+  for (const code of NEVER_APPENDS_FOR_PIN) {
+    assertStructural(captureProfile({ terminalRefusals: [code] }), /never appends/i);
+  }
+});
+
+test('terminalRefusals: chain-compromise is a construction error — the compromise class appends regardless of any listing', () => {
+  assertStructural(captureProfile({ terminalRefusals: ['chain-compromise'] }), /regardless/i);
+});
+
+test('terminalRefusals: a duplicate member is a construction error (the allowedAuthorities / requiredAcks rule)', () => {
+  assertStructural(
+    captureProfile({ terminalRefusals: ['content-drift', 'content-drift'] }),
+    /twice/i,
+  );
+});
+
+test("terminalRefusals: SPEC §8's two legal-but-inert members, leg-expired and availability, still construct — the boundary this pass does not cross", () => {
+  assert.doesNotThrow(() =>
+    create(makeConfig([captureProfile({ terminalRefusals: ['leg-expired', 'availability'] })])),
+  );
+});
+
+test('structural: captureMode outside its two values is a construction error — a non-TS caller was silently treated as staged', () => {
+  const p = { ...captureProfile(), captureMode: 'bogus' } as unknown as ConfirmProfile;
+  assertStructural(p, /captureMode/);
+});
+
+test('structural: ackMode outside its three values is a construction error — ackCounts fell through to the permissive any branch, the fail-open direction', () => {
+  const p = captureProfile();
+  const leg = p.legs[0];
+  if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
+  const withMode = {
+    ...p,
+    legs: [{ ...leg, ackMode: 'bogus', requiredAcks: ['risk'] } as unknown as LegSpec],
+  };
+  assertStructural(withMode, /ackMode/);
+});
+
+test("structural: an expiry that is neither 'none' nor an object is a construction error, never a raw TypeError from destructuring", () => {
+  for (const value of [undefined, null, 7, 'later']) {
+    const p = { ...captureProfile(), expiry: value } as unknown as ConfirmProfile;
+    assertStructural(p, /^invalid profile .*expiry/);
+  }
+});
+
+test('structural: a sod without a notActorOf array is a construction error, never a raw TypeError', () => {
+  const p = captureProfile();
+  const leg = p.legs[0];
+  if (leg === undefined) throw new Error('fixture: captureProfile has a leg');
+  for (const value of [{}, { notActorOf: 'leg-1' }, { notActorOf: null }]) {
+    const withSod = { ...p, legs: [{ ...leg, sod: value } as unknown as LegSpec] };
+    assertStructural(withSod, /^invalid profile .*notActorOf/);
+  }
+});
+
+test('structural: an empty profile id is a construction error', () => {
+  assertStructural(captureProfile({ id: '' }), /empty id|id is empty|non-empty id/i);
+});
+
+test('structural: an empty leg id is a construction error', () => {
+  assertStructural(captureProfile({ legId: '' }), /leg id/i);
+});
+
+test('structural: a non-array legs is a construction error, never a raw TypeError', () => {
+  for (const value of [undefined, {}, 'leg-1']) {
+    const p = { ...captureProfile(), legs: value } as unknown as ConfirmProfile;
+    assertStructural(p, /^invalid profile .*legs/);
   }
 });

@@ -192,8 +192,11 @@ export interface AppendDecisionLeg {
  * `record-contended` never appends for the plainest reason of all: nothing of the losing call
  * landed — the store refused its stale sequence — and the record is still `open`, so there is
  * no state change to record and no edge to leave (the record-contended increment).
+ * Exported for `config.ts`'s `validateLeg` (the review-hardening pass, 2026-09-05): a
+ * `terminalRefusals` member drawn from this set could never take effect, since `appendsOn`
+ * consults the leg only after this set has answered — so construction rejects it (SPEC §9.1).
  */
-const NEVER_APPENDS: ReadonlySet<RefusalCode> = new Set<RefusalCode>([
+export const NEVER_APPENDS: ReadonlySet<RefusalCode> = new Set<RefusalCode>([
   'record-exists',
   'unknown-profile',
   'unknown-leg',
