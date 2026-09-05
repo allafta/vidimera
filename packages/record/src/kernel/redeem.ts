@@ -274,7 +274,13 @@ async function prologue(
   // ENLISTED caller reaching a due window is a further exception, guarded immediately
   // below, before the resolver is ever called.
   if (record.state === 'confirmed' || record.state === 'redeeming') {
-    if (tx !== undefined && dueNow(chain, resolved, now())) {
+    // ONE clock read for the whole rung (the review-hardening pass, 2026-09-05): the enlisted
+    // guard below and `resolveDueClock` judge the same instant. Read twice, a deadline falling
+    // between the reads let an enlisted call pass the guard and then resolve — routing the
+    // resolver's no-tx append onto the connection the host holds open, the very throw the
+    // guard exists to prevent. Pinned in clocks.test.ts under a straddling clock.
+    const instant = now();
+    if (tx !== undefined && dueNow(chain, resolved, instant)) {
       // ENLISTED and due: mirrors the enlisted chain-verify branch above. The host
       // already has ITS OWN transaction open on this connection (all three redemption
       // seams carry a `tx`, riding `opts.tx` since the effect-result increment), so
@@ -292,7 +298,7 @@ async function prologue(
       // and reports the same terminal truth.
       return { refusal: refused('unredeemable-state') };
     }
-    const due = await resolveDueClock(store, chain, resolved, now());
+    const due = await resolveDueClock(store, chain, resolved, instant);
     if (due.due) {
       if (!due.result.appended) {
         return { refusal: await residualRefusal(store, recordId) };

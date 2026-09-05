@@ -683,3 +683,39 @@ test('ENLISTED at the exact instant: redeem(tx) at now === deadline refuses unre
   assert.equal(outcome.transitionRef, undefined, 'no edge inside the host transaction');
   assert.deepEqual(await store.readChain(recordId), before, 'the chain is untouched');
 });
+
+test('ENLISTED: the prologue reads the clock ONCE — a deadline falling between the due-guard and the resolver can no longer route a clock edge around the host transaction (the review-hardening pass, 2026-09-05)', async () => {
+  // Before this pass the shared prologue read `now()` twice on the clock rung: once for the
+  // enlisted due-guard, once for `resolveDueClock`. A clock answering "not yet" to the first
+  // and "due" to the second let an enlisted call pass the guard and then resolve — and the
+  // resolver's no-tx append BEGINs on the very connection the host holds open, which the
+  // embedded backing rejects with a throw mid-host-transaction. The window is sub-millisecond
+  // and only a `tx` reaches it; this clock makes it deterministic. Observed RED against
+  // the tree before this pass (the throw); one `Date` read once and handed to both closes it.
+  const clock = { t: T0, straddle: false, reads: 0 };
+  const deadline = T0 + CONFIRM_BOUND * 1000;
+  const store = new SqliteStore(':memory:');
+  const handles = createWithClock(makeConfig([effectSeamProfile()], { store }), () => {
+    if (!clock.straddle) return new Date(clock.t);
+    clock.reads += 1;
+    return new Date(clock.reads === 1 ? deadline - 1 : deadline + 1);
+  });
+  const recordId = await openRecord(handles, CONTENT, 'test.effect.v1', DEFAULT_SUBJECT_REF);
+  const done = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(done.status, 'ok', 'fixture: the record must confirm');
+
+  clock.straddle = true;
+  store.database.exec('BEGIN IMMEDIATE');
+  const outcome = await handles.operator.redeem(recordId, CONTENT, { tx: store.database });
+  assert.equal(store.database.isTransaction, true, "the host's transaction is still open");
+  store.database.exec('COMMIT');
+
+  assert.equal(
+    outcome.status,
+    'ok',
+    'one read, one millisecond before the deadline: the record is not due and the redemption lands',
+  );
+  const head = (await store.readChain(recordId)).at(-1);
+  assert.ok(head !== undefined);
+  assert.equal(head.kind, 'redeemed');
+});
