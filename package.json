@@ -20,10 +20,10 @@
     "docs-index-sync": "node scripts/docs-index-sync.mjs"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.12",
+    "@biomejs/biome": "^2.5.14",
     "@types/node": "^22",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.0",
-    "yaml": "^2.9.0"
+    "vitest": "^5.0.1",
+    "yaml": "^2.9.1"
   }
 }
