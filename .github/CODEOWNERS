@@ -1,6 +1,7 @@
-# Code owners for the two never-touch-without-sanction surfaces (phase-3 ruling). This
-# file is advisory until the require-review-from-code-owners branch protection is enabled
-# in the repository settings — a release-day checklist item.
+# Code owners for the two never-touch-without-sanction surfaces (phase-3 ruling), and for the
+# release surface and the gates (below). This file is advisory until the
+# require-review-from-code-owners branch protection is enabled in the repository settings — a
+# release-day checklist item.
 #
 # The sealed concept set: an edit needs a fresh, explicit sanction through
 # SCOPING-GUIDE.md's own tier-test and promotion-rule machinery, never assumed from a
@@ -10,3 +11,9 @@
 # The frozen byte-stability digests: an oracle, never an assertion to update — a mismatch
 # means the minimal chain moved, not that the pin is stale.
 /packages/record/test/byte-stability.test.ts @allafta
+
+# The release surface and the gates (the release-hardening increment): the workflows that
+# test and publish, the repository settings files beside them — this file included — and the
+# scripts every gate runs. An edit here changes what "green" and "published" mean.
+/.github/ @allafta
+/scripts/ @allafta

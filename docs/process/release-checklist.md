@@ -206,32 +206,65 @@ a list rather than as code.
 - [ ] **The repository is public BEFORE the dispatch.** `npm publish --provenance`
       rejects publishes whose source repository is private — flipping visibility is the
       phase-0 release event anyway, but the ORDER matters: public first, then dispatch.
-- [ ] The npm `@vidimera` scope exists and the `NPM_TOKEN` repository secret carries a
-      **live granular access token** with publish rights for the scope — classic
-      automation tokens can no longer be created, and granular tokens expire, so verify
-      the token's validity near the dispatch, not weeks before.
+- [ ] The npm `@vidimera` scope exists and the `NPM_TOKEN` secret carries a **live granular
+      access token** with publish rights for the scope — classic automation tokens can no
+      longer be created, and granular tokens expire, so verify the token's validity near the
+      dispatch, not weeks before. The secret lives in the `release` environment once the next
+      item is done, and is the repository secret until then. If the npm account or the scope
+      enforces two-factor authentication for writes, the granular token used from CI must be
+      created with the bypass-2FA option, or the publish fails asking for a one-time password
+      — check this when creating it.
+- [ ] **The `release` environment exists with a `v*` tag rule, and holds the token.**
+      `release.yml`'s two publish jobs, `publish-record` and `publish-store-postgres`, run in
+      the `release` environment (the release-hardening increment). In Settings → Environments,
+      create `release`; under its deployment branches and tags add a rule of type **Tag** (not
+      branch) with the pattern `v*`; add `NPM_TOKEN` there as an environment secret, and delete
+      the repository-level `NPM_TOKEN`. The rule's limit, in the same breath: it limits which
+      ref a job may read the environment's secret from, not who can push a `v*` tag — anyone
+      with write access who pushes one can dispatch from it. A required reviewer on the
+      environment (or a tag ruleset restricting who may create `v*` tags) is what limits that:
+      **add the required reviewer** (recommended), and expect to approve each publish job in
+      turn, since each references the environment — approve the second promptly: between the
+      two approvals `@vidimera/record` is live without its adapter, the state the lockstep
+      ruling exists to avoid. While the dispatching owner is the only reviewer, leave the
+      environment's "prevent self-review" setting off, or no one can approve. Until this is done the environment is
+      created on first use with no rule and the jobs read the repository secret: the guard and
+      the job split still hold, the environment adds nothing.
 - [ ] GitHub **private vulnerability reporting** is enabled — `SECURITY.md` and
       `.github/ISSUE_TEMPLATE/config.yml` both route reporters there and are asserting a
       setting only this checkbox makes true.
 - [ ] Branch protection with **require review from code owners** is enabled —
-      `.github/CODEOWNERS` guards `docs/concept/` and the frozen byte-stability test, and
-      is advisory until this is on. Enable **required status checks** in the same setting —
+      `.github/CODEOWNERS` guards `docs/concept/`, the frozen byte-stability test, `.github/`
+      (the workflows and CODEOWNERS itself) and `scripts/` (the gates), and is advisory until
+      this is on. Its limit with a sole code owner: authors cannot approve their own pull
+      requests, so the code-owner review cannot be satisfied on the owner's own PRs, and most
+      of those will need an admin bypass — the gain is on everyone else's PRs, dependabot's
+      included. Enable **required status checks** in the same setting —
       the `checks` job and the four `test` legs of `ci.yml`: since the CI test-gate repair
       (2026-09-03) a green test leg verifies that its tests passed, and before it none did.
 
 ## Pre-flight, immediately before the dispatch
 
 The dispatch is the only step on this list that cannot be undone, and until 2026-09-01 it
-was also the only one with nothing in front of it: `release.yml`'s guard checks the two
-things the repository can see (`private`, `0.0.0`) and nothing about the registry it is
-about to write to. Do these in the same sitting as the dispatch, not the week before.
+was also the only one with nothing in front of it: `release.yml`'s guard checks what the
+repository and the run can show — `private`, `0.0.0`, lockstep versions, and a dispatch from
+the `v<version>` tag (the last two since the release-hardening increment) — and nothing about
+the registry it is about to write to. Do these in the same sitting as the dispatch, not the
+week before.
 
-- [ ] **Dispatch the release workflow once in dry-run mode** (`dry_run: true`) against the
-      release commit's tree and read it green: the guard reports without blocking (on a
-      pre-release tree it refuses and the run continues; on the release commit's tree it must
-      pass), both publish steps are skipped, every gate runs, and both tarballs pack — the
-      only way the job's YAML and its gate chain execute on the release runner before the
-      real dispatch. It was first dispatched
+- [ ] **Dispatch the release workflow once in dry-run mode** (`dry_run: true`) from the
+      release tag and read it green: the guard reports without blocking (on a pre-release
+      tree, or from any ref but the `v<version>` tag, it refuses and the run continues; from
+      the release tag on the release commit it must pass), every gate runs, both tarballs pack
+      and upload, both real publish jobs are skipped, and `publish-dry-run` downloads the
+      tarballs and runs both publish commands under `--dry-run` — the only way the build job's
+      YAML, its gate chain, the artifact hand-off and the publish commands' argument parsing
+      and tarball read execute on the release runner before the real dispatch. What it never
+      exercises, in the same breath: the real publish jobs never run in a dry run, so the
+      `release` environment, the OIDC token and provenance, `NPM_TOKEN` and the real publish
+      are first run by the release dispatch itself. (The four-job shape dates from the
+      release-hardening increment; the runs cited next exercised the earlier single job.) It
+      was first dispatched
       2026-09-03 against the pre-release tree (run 33713900951: every gate green, the guard
       and both publish steps skipped, both tarballs packed), then against a release-shaped
       rehearsal branch (run 33718633361: the guard PASSED, both tarballs named 0.1.0 —
@@ -244,13 +277,25 @@ about to write to. Do these in the same sitting as the dispatch, not the week be
       and a token that may publish to `@vidimera` are different facts, and only the second one
       matters. Check the authenticated identity and the scope's permissions
       from the token you are about to hand the workflow, and confirm neither package name is
-      already taken. A `--dry-run` publish of the packed tarball exercises the same path
-      without writing.
+      already taken. A `--dry-run` publish of the packed tarball exercises the same argument
+      and tarball read without writing — name the tarball as a `./` path
+      (`npm publish ./vidimera-record-0.1.0.tgz --dry-run`), never as `dir/name.tgz`: npm
+      reads a relative path with a directory in it and no leading `./` as a GitHub
+      `owner/repo` spec, not a file (the defect the release-hardening review caught in
+      `release.yml` itself). Its limit: npm's dry run warns rather than fails when it has no
+      login (npm 10.9, measured locally), so it proves nothing about the token — the identity
+      and permission checks above do.
 - [ ] **Know the recovery before you need it.** The publish is not atomic: `release.yml`
-      publishes `@vidimera/record` first and `@vidimera/store-postgres` second, in one job.
-      If the second fails, the first is live and immutable, and the registry is in the state
-      the lockstep ruling forbids (`docs/analysis/2026-08-20-versioning-mechanics.md`: both
-      packages carry the same version and both publish). The escape hatch is npm's unpublish
+      publishes `@vidimera/record` first and `@vidimera/store-postgres` second, in two jobs
+      (`publish-store-postgres` needs `publish-record`). If the second fails, the first is live
+      and immutable, and the registry is in the state the lockstep ruling forbids
+      (`docs/analysis/2026-08-20-versioning-mechanics.md`: both packages carry the same version
+      and both publish). The first move is **Re-run failed jobs** on that run: it re-runs
+      `publish-store-postgres` alone, without re-publishing record. Its bound: whether a
+      re-run attempt can download the artifact the first attempt uploaded was not verified
+      before release day. If it cannot, a fresh dispatch does not help either — its
+      `publish-record` fails against the version already live, and `publish-store-postgres`,
+      which needs it, never starts. What remains then is the escape hatch, npm's unpublish
       window — as this is written, a version may be unpublished within 72 hours of its
       publication, after which the version number is burned permanently even if unpublished.
       That is an external policy this repository cannot verify: **confirm it on the day**, and
@@ -265,12 +310,18 @@ about to write to. Do these in the same sitting as the dispatch, not the week be
 
 ## The dispatch
 
-- [ ] Run the **Release** workflow (`.github/workflows/release.yml`, dispatch-only). Its
-      guard refuses any package still carrying `private: true` or `0.0.0`; it re-runs
-      every gate, then publishes `@vidimera/record` first and `@vidimera/store-postgres`
-      second (tarball-first, so the adapter's `workspace:*` peer range is rewritten),
-      both with provenance. This is the register's row-1 trigger firing: the first
-      exercised publish.
+- [ ] Run the **Release** workflow (`.github/workflows/release.yml`, dispatch-only) **from
+      the `v<version>` tag**. Its guard (`scripts/release-guard.mjs`) refuses a package still
+      carrying `private: true` or `0.0.0`, two packages at different versions, a dispatch from
+      anything but a tag, and a tag that is not `v<version>`; the build job re-runs every gate
+      and packs both tarballs (so the adapter's `workspace:^` peer range is rewritten); the
+      two publish jobs, alone holding `id-token: write` and the token, publish exactly those
+      tarballs — `publish-record` (`@vidimera/record`) first, then `publish-store-postgres` —
+      both with provenance. Exactly those tarballs means exactly what `build` packed, after
+      its install, suite and smoke-test registry installs had run in the same job: the split
+      keeps the credentials away from that toolchain, not the toolchain away from the bytes.
+      This is the register's row-1 trigger firing: the first exercised publish, and the first
+      run of the `release` environment, provenance and the token.
 
 ## Verification, then the paperwork
 
