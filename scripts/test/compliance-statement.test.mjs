@@ -11,8 +11,8 @@
 // overclaim elsewhere. The concept set (`docs/concept/`) and the process record are outside
 // the set: the first states the rule itself, the second is not user-facing. So are the
 // project-process pages (`CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, the `.github/`
-// templates) and the manifests' `description` fields, which describe how to work on the
-// project, not what the library is.
+// templates), which describe how to work on the project rather than what the library is, and
+// the manifests' one-line `description` fields, which make no compliance claim to qualify.
 
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
