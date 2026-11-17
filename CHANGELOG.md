@@ -588,8 +588,9 @@ is the summary, and that file wins on conflict.
   non-signing profile is the AL1 recompute route SPEC §14 assigns to AL2; and `review()`'s
   findings coverage still reads the live profile.
   Pre-publication, so there is no advisory to issue.
-- **Every user-facing page now says the library makes no host compliant** (SCOPING-GUIDE §6:
-  "every user-facing document in an inheriting project must say so"). Only the root README said
+- **Every user-facing page now says the library makes no host compliant** (the
+  compliance-statement increment, 2026-11-17, branch `compliance-statement-2026-11-17`;
+  SCOPING-GUIDE §6: "every user-facing document in an inheriting project must say so"). Only the root README said
   it. The package README — the registry page after the 0.1 cut — gains the root README's "It is
   not compliance." bullet; the store-postgres README, `docs/README.md` and the four other guide
   pages gain one intro sentence, and the FAQ's answer gains the sentence itself. A presence pin
@@ -597,7 +598,8 @@ is the summary, and that file wins on conflict.
   added later, lacks it. It checks presence only — a page can carry the sentence and still read
   as a compliance claim elsewhere.
 - **The release workflow's guard checks the tag, the ref and lockstep versions, and in a real
-  run only the credential-holding publish jobs run after it.** The guard checked `private` and `0.0.0`
+  run only the credential-holding publish jobs run after it** (the release-hardening increment,
+  2026-11-17, branch `release-hardening-2026-11-17`). The guard checked `private` and `0.0.0`
   only, though its header promised it refused a release that skipped the tag: a dispatch from
   `main` or a mismatched tag, or two packages at different versions, would have published. It is
   now `scripts/release-guard.mjs`, unit-tested, and also refuses a non-tag ref, a tag that is not

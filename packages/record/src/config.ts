@@ -836,9 +836,11 @@ export interface OpenOptions {
   /** SPEC §2: the recovery claim on a fresh record that recovers a terminal
    * predecessor — the host's `{ recordId, chainHead }`, verified by replay at open()
    * (`kernel/supersedes.ts`'s `verifySupersedes`) before it is ever bound. Same-subject
-   * required; any profile allowed (a revised-profile re-open stays possible). Real as
-   * of the step-8 recovery increment; any failure refuses `supersedes-unverified`
-   * pre-record. */
+   * required; the successor may open under any profile (a revised-profile re-open stays
+   * possible), but the instance must HOLD the predecessor's profile — registered under its
+   * id and digesting to the predecessor's genesis binding — for every terminal state (the
+   * supersedes-binding increment). Real as of the step-8 recovery increment; any failure
+   * refuses `supersedes-unverified` pre-record. */
   supersedes?: SupersedesRef;
   /** SPEC §9's provenance option (§2's proposedDigest): the staged reference the
    * proposal arrived as, resolved through the store at open() and required to name the

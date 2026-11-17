@@ -404,7 +404,12 @@ commit message on `code-review-fixes`; for the fourth, in
   contract's "the library performs no pruning" and by register row 22's third horn; the
   `seq`-based split a host can compute (beyond-head means never landed; an occupied slot means
   a competing signed transition) never changes a verdict.
-- **An `unavailable` answer for the signature layer.** A `Verifier` returns a boolean; a throw
+- **An `unavailable` answer for the signature layer — DECIDED 2026-11-17**
+  (`docs/analysis/2026-11-17-sanction-calls.md`, call 1: a throwing verifier propagates as a
+  fault and appends nothing, a non-`true` answer stays fail-closed; the availability-class
+  route below is declined; no sealed edit is needed; the increment that builds it reverses
+  the self-authored "throwing verifier fails closed" posture and argues it at its pins). The
+  question as it was recorded: a `Verifier` returns a boolean; a throw
   or a `false` is unverified, and an unverified transition of a signing record is
   `chain-compromise` at every enforcement site — a terminal edge. A verifier that fails
   transiently (a remote key service down for a minute) therefore marks a healthy record

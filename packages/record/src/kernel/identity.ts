@@ -39,7 +39,9 @@ const IDENTITY_KEYS: ReadonlySet<string> = new Set(['principal', 'authority', 'p
  * and a prototype `toJSON` view reached the SQL backings. The completion is
  * `identitySnapshot` below: the one validator, returning a fresh literal of exactly the values
  * it validated, which every seam records in place of the object it was handed. This predicate
- * is that function's non-null test, so its callers and pins keep their meaning.
+ * is that function's non-null test. Since the identity-snapshot increment it has no caller in
+ * `src/` — every seam calls `identitySnapshot` — and it is kept as the named site this
+ * inversion is argued at, which comments elsewhere cite by name.
  */
 export function isValidIdentity(identity: IdentityAssertion): boolean {
   return identitySnapshot(identity) !== null;
