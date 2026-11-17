@@ -571,7 +571,23 @@ What you get, with its limits in the same breath:
   algorithm, key custody, and rotation (via `keyRef` naming) are yours. AL2 raises the bar
   against a rewriting insider exactly when the key sits outside that insider's boundary.
 - A `signing: true` profile on an instance without `config.signing` throws at
-  construction — a loud error, never a silent downgrade to AL1.
+  construction — a loud error, never a silent downgrade to AL1. A malformed
+  `config.signing` (a non-function `signer`, a `verifiers` that is not a plain object of
+  functions, a sidecar without `put` or `listByRecord`) throws a named `create:` error too.
+- A verifier answers `true`, answers `false`, or throws only when it cannot answer. A throw or
+  a rejection is a fault: where the layer applies, the seam throws and appends nothing (the
+  host retries the call), and `verifySignatures` throws too — it is not read as tampering. A
+  `false`, a non-boolean answer or an unregistered `keyRef` still fails closed and draws
+  `chain-compromise`. The limit: a verifier that throws on malformed input leaves a record
+  whose seams throw until the entry is repaired, rather than an evidence edge.
+- The instance refuses to land a signature its own registry cannot verify: the signer's
+  `keyRef` must be an own key of `verifiers` and its verifier must accept the signature, or the
+  seam throws with nothing put or appended — even where it would have drawn `chain-compromise`.
+- Rotate keys in two phases: a NEW key's verifier must reach every instance, and every
+  configuration you may roll back to, before any instance signs with it; a retired key's
+  verifier stays registered while records it signed may be touched. An instance lacking a
+  signer's verifier reads those entries as unverified and refuses `chain-compromise` on
+  untampered records.
   A profile can also lose `signing: true` — or gain it — in place, under the same id, and
   that is not a silent downgrade in either direction: the instance holding the edited
   profile does not hold the record's profile at all, so every operator seam refuses

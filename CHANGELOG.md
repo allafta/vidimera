@@ -624,6 +624,33 @@ is the summary, and that file wins on conflict.
   at the release dispatch itself; whether a re-run can still download the first attempt's
   artifact is unverified; pnpm's `minimumReleaseAge` and a digest pin for first-use's
   `postgres:18` image stay open.
+- **A verifier that cannot answer is a fault, not tampering; an instance refuses to land what
+  it cannot verify; a malformed `config.signing` is refused at `create()`** (the verifier-faults
+  increment, 2026-11-17, branch `verifier-faults-2026-11-17`). A `Verifier` that threw or
+  rejected was read as `verified: false`, so during any outage every un-enlisted seam on a
+  healthy signing record appended a terminal `chain-compromise` edge, which no later recovery
+  undoes. Now, wherever the signature layer applies to a record, a throwing or rejecting verifier
+  makes the seam throw with nothing appended (the host calls again once it recovers), and
+  `verifySignatures` throws too; the `Error` names the record, `seq` and `keyRef`, with the
+  verifier's error as `cause`. A `false`, a non-`true` answer and an unresolvable `keyRef` still
+  read `verified: false` and still refuse, and a record the layer does not apply to is unchanged
+  by a junk entry whose verifier throws (the `verifySignatures` read still throws on it). The
+  instance also checks every signature at the mint: the signer's `keyRef` must be an own key of
+  `verifiers` and its verifier must answer the literal `true`, or the seam throws with nothing put
+  to the sidecar or appended, even where it would have drawn `chain-compromise`; an empty
+  `verifiers` registry still constructs, and its first mint throws. `create()` refuses a
+  `config.signing` whose `signer` is not a function, whose `verifiers` is not a plain object of
+  functions, or whose sidecar lacks `put` or `listByRecord`, with a named `create:` error. The
+  guide states the verifier contract and the two-phase key rotation (a new key's verifier must
+  reach every instance, and every configuration a deployment may roll back to, before any
+  instance signs with it). Limits: a verifier that throws on malformed input turns a tampered
+  entry into a record whose seams throw until the entry is repaired, not an evidence edge; the
+  mint check proves this instance accepts its own signature, not that any other instance holds
+  the verifier, so a one-phase rotation still reads the new entries as unverified on an old
+  instance and refuses `chain-compromise`; `config.store`'s shape is still not checked at
+  `create()`. No refusal code, public type or sealed-set document changed; nine existing test
+  fixtures that minted with a key their own instance could not verify were reconfigured, each
+  assertion kept.
 
 ### Known not-done
 

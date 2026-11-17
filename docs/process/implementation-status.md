@@ -113,11 +113,11 @@ any one exit.
   proved only that the step ran; this document's gate outputs were measured locally and
   stand. See the dedicated section at the end of this document; the numbers immediately
   below already include it.
-- **Measured against the current tree** (re-measured at the release-hardening increment's
-  fix wave, 2026-11-17): `pnpm test` — 83 test files, 1116 tests, zero skips
+- **Measured against the current tree** (re-measured at the verifier-faults increment,
+  2026-11-17): `pnpm test` — 85 test files, 1152 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
-  `pnpm lint` (`biome check .`) — 156 files checked, zero errors or warnings;
+  `pnpm lint` (`biome check .`) — 158 files checked, zero errors or warnings;
   `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 25 refusal codes, the twenty-fifth being
@@ -6142,3 +6142,120 @@ skipped, 0 todo` (the five new workflow tests); typecheck (both packages), biome
 increment's commit, which this wave adds no file to), both builds, `contract-scan`,
 `api-reference-sync` and `docs-index-sync` all exit 0. `smoke` runs in CI, as do the workflows
 themselves. `CLAUDE.md`'s measured sentence moved to 83 files / 1116 tests.
+
+## Post-build-order increment — Verifier faults
+
+**The thirty-first post-build-order increment, exited (branch `verifier-faults-2026-11-17`, off
+`main` at `eedcd3a`).** Behavior in the signature layer and the signing decorator, plus a shape
+check in `create()`. No sealed-set edit, no marker move, no new refusal code, no change to
+`index.ts`, either manifest or any public type; the byte-stability digests did not move. The
+design is `docs/superpowers/specs/2026-11-17-verifier-faults-design.md` and the plan
+`docs/superpowers/plans/2026-11-17-verifier-faults.md`; the sanction question it answers is call 1
+of `docs/analysis/2026-11-17-sanction-calls.md`, which needed none.
+
+**What it closes.** `layerVerdicts` wrapped each verifier call in a `catch` that read a throw or
+a rejection as `verified: false`. On a signing record every un-enlisted seam then appended a
+terminal `refused { code: 'chain-compromise' }` after a verifier outage, to a record nobody had
+touched, and once the outage ended every transition verified, the compromise edge included. A
+rejecting `listByRecord`, a fault of the same kind one hook over, already propagated and appended
+nothing. Separately, `signOne` stored whatever `{ keyRef, signature }` the signer returned: a
+`keyRef` missing from `verifiers`, a signer whose key differed from its registered verifier, or a
+buggy signer opened records the same instance then read as compromised at its next seam call.
+`create()` checked only that `config.signing` was present, so `signing: null`, a `Map` for
+`verifiers` or a sidecar without `put` constructed and failed later. And the guide gave the
+retired-key half of rotation and left out the new-key half.
+
+**What landed, per commit.**
+
+- `4564e75` — `layerVerdicts` records a verifier fault beside each verdict instead of reading it
+  as `false`. `signatureLayerHolds` rethrows only where the obligation applies, or, on an
+  instance that does not hold the record's profile, where the live same-id profile declares
+  `signing` and the genesis verification faulted (the obligation cannot be computed); it returns
+  `true` without rethrowing where the obligation is false. `verifySignatures` always rethrows the
+  first fault in chain order, after the chain is bound to its id and the sidecar listed. The
+  thrown `Error` names the record, the `seq` and the `keyRef` and carries the verifier's error as
+  `cause`. A non-`true` answer and an unresolvable `keyRef` stay `verified: false`. New pins in
+  `packages/record/test/verifier-faults.test.ts`: a throwing and a rejecting verifier at each of
+  the eight un-enlisted seams (the call rejects with the cause, chain and sidecar unchanged, the
+  same call succeeds once the verifier recovers), the enlisted seam, both cross-record
+  verifications, the read, the no-overreach case and the non-holder branch both ways. The two
+  verifier-registry "boundary" tests were retitled to say what they assert.
+- `a24e8b5` and `c8c146b` — the mint check in `signing/decorate.ts`: the memoized per-transition
+  promise became "mint, then verify". The minted `keyRef` must be an own key of `verifiers` and
+  that verifier must answer the literal `true` over the same bytes, or the instance throws with
+  nothing put to the sidecar and nothing appended; this includes a seam that would have drawn a
+  `chain-compromise` edge. A verifier fault during the check propagates with `cause`; any failure
+  drops the memo entry, so a repaired configuration mints anew, and a success is not repeated
+  per compare-and-swap candidate. `create()` gained `validateSigningShape`: `config.signing` an
+  object, `signer` a function, `verifiers` a plain object of functions (an empty registry is
+  allowed), `signatures.put` and `listByRecord` functions, each with a named `create:` error.
+  The `Verifier` and `SigningConfig` JSDoc in `signing/store.ts` state the contract and the
+  two-phase rotation. New pins in `packages/record/test/signing-config.test.ts` cover the mint
+  check, the memo drop, each malformed shape and the rotation (a two-phase rollout leaves every
+  record healthy across instances; the one-phase hazard is pinned as the documented behavior).
+  The second commit pinned the memo drop and the no-sidecar-put assertions the first review
+  found missing.
+- This increment's docs commit: the guide's Verifier paragraph rewritten (the three outcomes, the
+  fault posture, the mint check, two-phase rotation, the stuck-record limit), its `create()`
+  paragraph and the integrating guide's AL2 bullets moved with it; the public JSDoc for
+  `verifySignatures` in `operator-surface.ts` no longer says it throws only on the
+  caller-error class; two comments corrected in `kernel/verify-signatures.ts` and
+  `test/verifier-registry.test.ts`; `CHANGELOG.md`; `docs/process/next-phases.md`'s `unavailable`
+  entry marked built; `CLAUDE.md`'s counts.
+
+**Inversions.** The SIXTEENTH self-authored inversion — this build reversing its own recorded
+stance, not an inherited pinned assertion. The stance, "a throwing verifier is fail-closed
+reporting," was recorded in `kernel/verify-signatures.ts`'s header and in `layerVerdicts`'s
+comment, and in the guide's sentence that an unlisted answer refuses at every enforcement site
+"exactly as a throwing verifier does." The argument, made at its site in
+`kernel/verify-signatures.ts`: `false` is the verifier answering that the bytes and signature do
+not match; a throw is the verifier saying it could not answer at all, and recording "could not
+answer" as a terminal tampering edge is the one outcome no host can undo. The posture already
+taken for a rejecting `listByRecord` is the precedent. No assertion anywhere pinned the old
+posture — no test supplied a throwing verifier, as this document's coverage-increment section
+already recorded — so none flipped; deleting the old `catch` kept every test green, which is the
+gap the new pins close.
+
+**Existing fixtures that moved (nine), and re-encoded counts (five).** The mint check refuses
+what the old fixtures did on purpose: nine existing tests minted with a key their own instance
+could not verify. Each assertion keeps its truth value; only the setup moved, so the state each
+test is about is produced another way. `no-edge-containment.test.ts`'s key-retirement baseline
+signed with a `keyRef` its registry lacked; now a second instance signs with a new key and
+holds only that key's verifier, and its numbers (chain flat, one orphan per refusing call, four
+calls) are unchanged, with a new pin showing the old shape now throws at the mint with no
+orphan. `signing-enforce.test.ts`'s hash-broken-chain order test shared a key between the
+sibling and the counted verifier; the sibling now signs with its own key, the counted verifier
+stays under `key-1`, and `calls() === 0` is unchanged. `verifier-registry.test.ts`'s truthy
+non-boolean test opened its record with the truthy verifier; a correct instance opens it and a
+second instance over the same store answers truthy-string for the old key, with the
+report-unverified and `chain-compromise` assertions unchanged. Two `chain-binding.test.ts`
+foreign-genesis tests had `verifiers: {}`; they now hold a real verifier for their key. Four
+`signing.test.ts` tests (the memo bound, LRU, no re-insert eviction, and the empty-chain case)
+had `verifiers: {}` against a stub signer; they now register a verifier consistent with it. Five
+"the AL2 disjunct ran" counts in `signing-enforce.test.ts` (decline, decline on a non-declaring
+leg, acknowledge, begin and complete redemption) counted all calls to a verifier the mint check
+now also calls over the new edge, so they passed on the check's own call; the enforcement rig now
+records the bytes it was asked about and `callsOver(chain)` counts only calls over the chain as it
+stood before the seam call, which only the layer makes. The per-fixture account is
+`.superpowers/sdd/2026-11-17-verifier-faults/task-2-report.md`.
+
+**The bound.** What still fails closed: a `false` answer, a non-`true` answer, and a `keyRef`
+that is not an own key of `verifiers` still read `verified: false` and still draw
+`chain-compromise` where the layer applies. What does not change: a record the layer does not
+apply to is unaffected at every seam by a junk entry whose verifier throws, though
+`verifySignatures` on that record throws. The stuck-record limit: a verifier that throws on
+malformed input turns a tampered entry into a record whose seams throw until the entry is
+repaired, rather than an evidence edge; the guide says to answer `false` for input the verifier
+can recognize as malformed. The mint check proves this instance's own verifier accepts its own
+signature, not that any other instance holds that verifier: a one-phase rotation still has an old
+instance read the new key's entries as unverified and refuse `chain-compromise`, which is pinned
+as the decided behavior and documented, not fixed. Rotation tooling stays the host's (SPEC §14).
+Routing verifier unavailability to SPEC §8's availability class was declined by the sanction call.
+**Open, named:** `config.store`'s shape is not checked at `create()` — the same class of late
+failure, one hook over.
+
+**Gates, measured on the authoring machine.** `ci-assert-tests: ok — 1152 tests in 85 files (90
+suites): 1152 passed, 0 failed, 0 skipped, 0 todo`; typecheck (both packages), biome
+(`--error-on-warnings`, 158 files checked, no findings), both builds, `contract-scan`,
+`api-reference-sync` and `docs-index-sync` all exit 0. `smoke` cannot run here and runs in CI.
+`CLAUDE.md`'s measured sentence moved to 85 files / 1152 tests.

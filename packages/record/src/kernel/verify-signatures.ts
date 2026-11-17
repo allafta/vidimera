@@ -162,8 +162,9 @@ function verifierFaultError(recordId: string, seq: number, keyRef: string, cause
  * never happened, and a terminal edge is the one outcome no host can undo. The posture
  * already taken for a rejecting `listByRecord` is the precedent: the same kind of fault one
  * hook over propagates and appends nothing, so the call can simply be made again. A fault
- * propagates only where the answer was needed: a record the layer does not apply to never
- * reads its sidecar's verdicts, so a junk entry whose verifier throws changes nothing there.
+ * propagates only where the answer was needed: on a record the layer does not apply to the
+ * gate never acts on a junk entry's fault, so it changes no seam's outcome there (the read,
+ * `verifySignatures`, still propagates it).
  * Fail-closed is untouched: `false`, a non-boolean answer and an unresolvable `keyRef` still
  * read `verified: false` and still refuse.
  * `signingDeclared` reads the GENESIS transition's own `profileId`, resolved against
