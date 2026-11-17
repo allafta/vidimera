@@ -95,6 +95,9 @@ content itself is never persisted — only its digest is.
   never that the content was correct. A digest binds a hallucinated or malicious draft
   just as faithfully as a good one. Prevention lives upstream, in layers the library
   does not own.
+- **It is not compliance.** Adopting it makes no host compliant with any law or
+  regulation, and a record makes no claim about the competence, attention, or
+  independence of the human it names.
 - **The operator is the records' sole consumer.** Proving anything to an outside party —
   assessor re-verification, published report formats, conformance claims — is out of
   scope by design, not merely unbuilt.

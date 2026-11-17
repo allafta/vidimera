@@ -113,8 +113,8 @@ any one exit.
   proved only that the step ran; this document's gate outputs were measured locally and
   stand. See the dedicated section at the end of this document; the numbers immediately
   below already include it.
-- **Measured against the current tree** (re-measured at the supersedes-binding increment,
-  2026-11-17): `pnpm test` — 81 test files, 1090 tests, zero skips
+- **Measured against the current tree** (re-measured at the compliance-statement increment,
+  2026-11-17): `pnpm test` — 82 test files, 1100 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
   `pnpm lint` (`biome check .`) — 153 files checked, zero errors or warnings;
@@ -5975,3 +5975,38 @@ authoring machine** — the broken `pnpm` launcher stops `scripts/smoke-pack.mjs
 pack step — and runs in CI on the pull request. Nothing in this increment touches either
 manifest, the build configuration or `packages/store-postgres`; the byte-stability digests did
 not move. `CLAUDE.md`'s measured sentence moved to 81 files / 1090 tests.
+
+## Post-build-order increment — Compliance statement
+
+**The twenty-ninth post-build-order increment, exited (branch `compliance-statement-2026-11-17`,
+stacked on `supersedes-binding-2026-11-17`; one commit).** Documentation and one test file
+only: no sealed-set edit, no marker move, no source change, no public-surface change. The design
+is `docs/superpowers/specs/2026-11-17-compliance-statement-design.md` and the plan
+`docs/superpowers/plans/2026-11-17-compliance-statement.md`; executed inline by the authoring
+session, then reviewed.
+
+**What it closes.** SCOPING-GUIDE §6 requires every user-facing document to say that adopting
+the library makes no host compliant with anything. Only the root README said so in those words.
+The package README, which becomes the registry page at the 0.1 cut, listed three "does not
+promise" bullets and omitted this one; the store-postgres README, `docs/README.md` and four of
+the five guide pages had no statement, and the FAQ answered the question without the sentence.
+
+**What landed.** The package README gains the root README's "It is not compliance." bullet
+verbatim; every other user-facing page gains one intro sentence linking the FAQ; the FAQ's
+answer gains the sentence. `scripts/test/compliance-statement.test.mjs` (ten tests in the
+`record` vitest project) checks the phrase "makes no host compliant", whitespace-collapsed, on
+the root README, both package READMEs, `docs/README.md` and every `docs/guide/*.md` — the
+guide set enumerated from the directory, so a new page is held to the rule on arrival — with a
+guard against an empty enumeration. Red before the edits (eight of ten failed), green after.
+
+**The bound.** The pin checks presence, never absence of a compliance reading elsewhere on a
+page. `docs/concept/` (which states the rule) and `docs/process/` (not user-facing) are outside
+its set; so are `CONTRIBUTING.md`, `SECURITY.md` and `CODE_OF_CONDUCT.md`, which describe the
+project's process, not the library.
+
+**Inversions.** None.
+
+**Gates, measured on the authoring machine.** `ci-assert-tests: ok — 1100 tests in 82 files (87
+suites): 1100 passed, 0 failed, 0 skipped, 0 todo`; typecheck, biome (`--error-on-warnings`),
+build, `contract-scan`, `api-reference-sync` and `docs-index-sync` all exit 0. `smoke` runs in
+CI. `CLAUDE.md`'s measured sentence moved to 82 files / 1100 tests.

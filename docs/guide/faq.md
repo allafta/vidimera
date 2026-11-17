@@ -7,7 +7,8 @@ answers live in [`../concept/CONCEPT.md`](../concept/CONCEPT.md) and
 
 ## Does adopting this make us compliant with anything?
 
-No, and it never will claim to. A record is evidence that a human took responsibility for a
+No, and it never will claim to: adopting the library makes no host compliant with any law
+or regulation. A record is evidence that a human took responsibility for a
 draft — never a conformity assessment. The library is built to the bar that
 regulated-industry-shaped hosts set, which buys you a carefully designed evidence layer,
 not a compliance status. It also makes no claim about the competence, attention, or

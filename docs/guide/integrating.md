@@ -9,6 +9,9 @@ so every name below that predates it is review-ratified — `decline`/`DeclineOp
 unreviewed by it; the store contract's method signatures stay
 explicitly provisional pre-1.0 by the sealed set's own declaration.
 
+Wiring it in is not a compliance claim: adopting the library makes no host compliant with
+any law or regulation ([`faq.md`](faq.md)).
+
 ## The division of labor
 
 The library records decisions. Everything else is deliberately yours:
