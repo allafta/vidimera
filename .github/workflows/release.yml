@@ -7,27 +7,41 @@
 # (scripts/release-guard.mjs) refuses a package still private or at 0.0.0, two packages at
 # different versions, a dispatch from anything but a tag, and a tag that is not v<version>.
 #
-# Two jobs (the release-hardening increment). `build` has read-only contents and no
-# credentials: it installs, runs the guard and every gate, packs both tarballs with
-# `pnpm pack` (so pnpm rewrites the adapter's `workspace:^` peer range to the real version)
-# and uploads them. `publish` is the only job with `id-token: write` (the npm provenance
-# attestation) and the token, runs in the `release` environment, and does no checkout, no
-# install and no cache: it downloads exactly those two tarballs and publishes record first.
-# It needs the NPM_TOKEN secret (a granular access token with publish rights for the
-# @vidimera scope) — an environment secret of `release` once the owner moves it there, the
-# repository secret until then; the environment's `v*` tag rule is likewise an owner setting
-# (the release checklist names both).
+# Four jobs (the release-hardening increment, and the fix wave after its review). `build`
+# holds no publish credential — only the read-only GITHUB_TOKEN every job gets: it installs,
+# runs the guard and every gate, packs both tarballs with `pnpm pack` (so pnpm rewrites the
+# adapter's `workspace:^` peer range to the real version) and uploads them.
+# `publish-record`, then `publish-store-postgres`, are the only jobs with `id-token: write`
+# (the npm provenance attestation) and the token: each runs in the `release` environment,
+# does no checkout, no install and no cache, downloads exactly those tarballs and publishes
+# its one. They are two jobs so that a failure at the adapter re-runs alone (Re-run failed
+# jobs) without re-publishing record — whether a re-run attempt can download the artifact
+# attempt 1 uploaded was not verified here. Both need the NPM_TOKEN secret (a granular access
+# token with publish rights for the @vidimera scope) — an environment secret of `release`
+# once the owner moves it there, the repository secret until then; the environment's `v*` tag
+# rule is likewise an owner setting (the release checklist names both).
 #
-# `dry_run: true` runs `build` in full with the guard reporting but not blocking, and skips
-# `publish`: it proves the build job's structure and every gate on the release runner — never
-# the publish, the provenance attestation, or the token — and it does not retire
-# deferral-register row 1, whose trigger is the real publish.
+# The split's limit, in the same breath: the published bytes are produced in `build`, which
+# runs `pnpm install`, the suite and the smoke test — whose scratch install fetches registry
+# dependencies fresh, with install scripts, outside the lockfile and the dependabot cooldown.
+# Code running there can alter what `pnpm pack` packs, and the publish jobs then publish it
+# with valid provenance. The split keeps the publish credentials away from the toolchain, not
+# the toolchain away from the bytes.
+#
+# `dry_run: true` runs `build` in full with the guard reporting but not blocking, skips both
+# real publish jobs, and runs `publish-dry-run` instead — no environment, no id-token, no
+# secret — over the same downloaded tarballs with the same publish commands under
+# `--dry-run`. It exercises the build job, the artifact upload and download, and the publish
+# commands' argument parsing and tarball read. It never exercises the `release` environment,
+# the OIDC token or provenance, NPM_TOKEN, or the real publish — those first run at the
+# release dispatch itself — and it does not retire deferral-register row 1, whose trigger is
+# the real publish.
 name: Release
 on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Run the guard (reporting, not blocking) and every gate, pack both tarballs; skip the publish job'
+        description: 'Run the guard (reporting, not blocking) and every gate, pack both tarballs and dry-run both publish commands; skip the real publish jobs'
         type: boolean
         default: false
 permissions:
@@ -43,7 +57,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: dry run — the guard reports without blocking; the publish job is skipped
+      - name: dry run — the guard reports without blocking; the real publish jobs are skipped
         if: ${{ inputs.dry_run }}
         run: |
           echo "dry run: the guard below reports without blocking; nothing will be published"
@@ -69,8 +83,9 @@ jobs:
       - run: pnpm contract-scan
       - run: pnpm api-sync
       - run: pnpm docs-index-sync
-      # The two tarballs the publish job will publish, byte for byte — packed here, in the job
-      # that has no credentials.
+      # The two tarballs the publish jobs will publish, byte for byte — packed here, in the job
+      # that holds no publish credential (which is not the same as a job nothing can tamper
+      # with: see the header's limit).
       - name: pack both tarballs
         run: |
           mkdir -p release-tarballs
@@ -82,7 +97,7 @@ jobs:
           name: release-tarballs-${{ github.run_id }}
           path: release-tarballs/*.tgz
           if-no-files-found: error
-  publish:
+  publish-record:
     needs: build
     # A second, cheap statement of the guard's tag rule at the job boundary.
     if: ${{ !inputs.dry_run && github.ref_type == 'tag' }}
@@ -100,12 +115,54 @@ jobs:
         with:
           name: release-tarballs-${{ github.run_id }}
           path: release-tarballs
-      # Record before the adapter that peer-depends on it.
+      # The leading `./` is load-bearing, here and in every publish command below: without it
+      # npm parses `release-tarballs/<name>.tgz` as a GitHub `owner/repo` spec and goes looking
+      # for a repository, not this file.
       - name: publish @vidimera/record (provenance, public)
-        run: npm publish release-tarballs/vidimera-record-*.tgz --provenance --access public
+        run: npm publish ./release-tarballs/vidimera-record-*.tgz --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+  publish-store-postgres:
+    # Record before the adapter that peer-depends on it — and in a job of its own, so a failure
+    # here re-runs without re-publishing record.
+    needs: publish-record
+    if: ${{ !inputs.dry_run && github.ref_type == 'tag' }}
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write # npm provenance attestation
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-tarballs-${{ github.run_id }}
+          path: release-tarballs
       - name: publish @vidimera/store-postgres (provenance, public)
-        run: npm publish release-tarballs/vidimera-store-postgres-*.tgz --provenance --access public
+        run: npm publish ./release-tarballs/vidimera-store-postgres-*.tgz --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+  publish-dry-run:
+    # Only in a dry run. No environment, no permissions beyond the read-only default (so no
+    # id-token), no secret: nothing here can publish.
+    needs: build
+    if: ${{ inputs.dry_run }}
+    runs-on: ubuntu-latest
+    steps:
+      # No registry-url and no cache: setup-node writes no auth line.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-tarballs-${{ github.run_id }}
+          path: release-tarballs
+      # The real publish commands, record first, with `--provenance` dropped — provenance needs
+      # the OIDC token this job deliberately lacks — and `--dry-run` appended.
+      - name: dry-run publish @vidimera/record
+        run: npm publish ./release-tarballs/vidimera-record-*.tgz --access public --dry-run
+      - name: dry-run publish @vidimera/store-postgres
+        run: npm publish ./release-tarballs/vidimera-store-postgres-*.tgz --access public --dry-run

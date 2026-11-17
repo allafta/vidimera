@@ -63,7 +63,9 @@ release-checklist items, not something this branch can do.
   cannot be looked up and verified from the authoring machine, and first-use is a dispatch-only
   release act, not a per-push gate.
 - `--ignore-scripts` in the smoke test: after the split, the smoke test's registry installs run
-  in a job with no credentials, which is what the concern was about.
+  in a job with no credentials, which is what the concern was about. *(Amended after review,
+  §7: no credentials, but the same job packs the bytes that are published — the split keeps
+  the credentials away from the toolchain, not the toolchain away from the bytes.)*
 
 ## 3. Constraints
 
@@ -71,8 +73,10 @@ release-checklist items, not something this branch can do.
   workflows already carry (`actions/upload-artifact` and `actions/download-artifact` from
   `first-use.yml`).
 - The release workflow cannot be exercised locally. `scripts/test/workflows.test.mjs` parses
-  and asserts shape and facts only; the first dry-run dispatch after merge is what runs the
-  YAML. That is the existing bound, restated.
+  and asserts shape and facts only; the first dry-run dispatch after merge is what first runs
+  the build and dry-run jobs' YAML, and the real publish jobs — with them the `release`
+  environment, provenance and the token — first run at the release dispatch itself (amended
+  after review, §7). That is the existing bound, restated.
 - The test that pins the old single-job shape is rewritten to pin the same guarantees over two
   jobs — the dry-run input, the guard reporting without blocking in a dry run, both publish
   steps skipped in a dry run, every gate before any publish — plus the new ones. The guarantees
@@ -103,4 +107,61 @@ release-checklist items, not something this branch can do.
 ## 6. Exit
 
 Every gate green except `smoke` (CI). The release workflow's first dry-run dispatch after merge
-is the only execution of its new YAML, as it was for the old.
+is the first execution of its build and dry-run jobs; its real publish jobs first execute at the
+release dispatch itself, as the old publish steps would have (amended after review, §7).
+
+## 7. Amended after review
+
+One review of the increment's commit (`af824c7`) found a critical regression, two important
+gaps and several minors; one fix wave answered all of them. Where an item changes a ruling
+above, the ruling stays as written for the record and this section supersedes it.
+
+- **The publish argument is a file path** (supersedes §5's tarball spelling).
+  `npm publish release-tarballs/vidimera-record-*.tgz` is read by npm as a GitHub `owner/repo`
+  spec, not a file: npm 10.9's own argument parser, run locally, returns a `git` spec of the
+  github type for `release-tarballs/<name>.tgz` and a `file` spec for
+  `./release-tarballs/<name>.tgz`. Every publish command now starts
+  `npm publish ./release-tarballs/`, with a comment at the first that the `./` is load-bearing.
+  The old single job's `./*.tgz` was right, so this was a regression of this increment, caught
+  before anything ran. The workflow test pins each real publish command as an exact literal and
+  every `npm publish` line in any job as a `./` path; both were observed red against
+  `af824c7`'s workflow.
+- **Two publish jobs, not one** (supersedes §2's "Two jobs" goal and §5's `publish` rulings).
+  `publish-record` (needs `build`) and `publish-store-postgres` (needs `publish-record`), each
+  with the same `if:`, `environment: release`, `contents: read` and `id-token: write`, Node set
+  up with the registry and no cache, the artifact download, and its one publish step holding
+  the token. A failure at the adapter then re-runs alone (Re-run failed jobs) without
+  re-publishing record. The bound: whether a re-run attempt can download the artifact the first
+  attempt uploaded was not verified here.
+- **The dry run exercises the publish commands** (amends §3 and §6). A `publish-dry-run` job
+  (needs `build`; dry run only; no environment, no permissions beyond the read-only default, no
+  secret; Node set up with no registry and no cache, so no auth line is written) downloads the
+  same artifact and runs the real publish commands with `--provenance` removed — provenance
+  needs the OIDC token this job deliberately lacks — and `--dry-run` appended, record first. The
+  test derives those commands from the real jobs', so the two cannot drift. A dry run exercises
+  the build job in full, the artifact upload and download, and the exact publish commands under
+  `--dry-run` (argument parsing, tarball read). It never exercises the `release` environment,
+  the OIDC token or provenance, `NPM_TOKEN`, or the real publish: those first run at the release
+  dispatch itself.
+- **The split's limit, stated** (qualifies §1's second bullet and §2's `--ignore-scripts`
+  non-goal). The published bytes are produced in `build`, which runs `pnpm install`, the suite
+  and the smoke test, whose scratch install fetches registry dependencies fresh, with install
+  scripts, outside the lockfile and the dependabot cooldown. Code running there can alter what
+  `pnpm pack` packs, and the publish jobs then publish it with valid provenance. The split keeps
+  the publish credentials away from the toolchain, not the toolchain away from the bytes.
+  Stated in the workflow header, the CHANGELOG entry, the status record and here.
+- **First-use's semver check matches the whole value** (amends §2's first-use goal in
+  mechanism). The `printf … | grep -Eq` line becomes bash's `[[ "$VERSION" =~ … ]]` under an
+  explicit `shell: bash`: grep matches line by line, so a multi-line value whose first line was
+  semver passed (measured locally). The first-use workflow test also rejects
+  `github.event.inputs.` interpolations in `run:` blocks.
+- **Minors.** In the release checklist: the guard's description, CODEOWNERS' coverage with
+  the sole-code-owner limit (the owner's own pull requests need an admin bypass; the gain is
+  on others', dependabot's included), the token's location, the deployment rule's **Tag** type
+  and what it does not limit (who may push a `v*` tag — a required reviewer does, and is
+  recommended), the bypass-2FA token option, and the local `--dry-run`'s `./` form. The
+  dependabot cooldown's limit: it delays version updates only, not security updates.
+  `CLAUDE.md`'s workflow sentence: "no publish credential" (the build job still holds a
+  read-only `GITHUB_TOKEN`) and the token a repository secret until the owner moves it. Named
+  open in the status record: npm trusted publishing, which would remove `NPM_TOKEN`, needs npm
+  11.5.1 or later, newer than Node 22's bundled npm 10.9 — a later change, after 0.1.0 exists.

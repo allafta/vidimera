@@ -71,11 +71,66 @@ test('every workflow has the shape the repository relies on', () => {
   for (const name of files) assertWorkflowShape(load(name), name);
 });
 
-// The release workflow, since the release-hardening increment: two jobs. The guarantees the
-// single-job version pinned keep their truth value — the dry-run input, the guard reporting
-// without blocking only in a dry run, nothing published in a dry run, every gate before any
-// publish — and are asserted over the new structure; the split's own guarantees follow.
-test('release.yml: a boolean dry_run input; the guard reports without blocking in a dry run; the publish job skips in a dry run; every gate precedes any publish', () => {
+// The release workflow, since the release-hardening increment and the fix wave after its
+// review: four jobs. `build` holds no publish credential: it installs, runs the guard and every
+// gate, and packs both tarballs. `publish-record`, then `publish-store-postgres` (which needs
+// it, so a failure at the adapter re-runs alone), are the only jobs holding `id-token: write`
+// and the token, in the `release` environment, and publish exactly those tarballs.
+// `publish-dry-run` runs only in a dry run, holds no credential, and runs the same publish
+// commands with `--dry-run`. The guarantees the single-job version pinned keep their truth
+// value — the dry-run input, the guard reporting without blocking only in a dry run, nothing
+// published in a dry run, every gate before any publish — and are asserted over the new
+// structure; the split's own guarantees follow.
+const REAL_PUBLISH_JOBS = ['publish-record', 'publish-store-postgres'];
+const REAL_PUBLISH_IF = ghExpr("!inputs.dry_run && github.ref_type == 'tag'");
+/**
+ * The real publish commands, exactly. The leading `./` is load-bearing: without it npm parses
+ * `release-tarballs/<name>.tgz` as a GitHub `owner/repo` spec, not a file — a regression the
+ * increment's review caught before anything ran. The old single job's `./*.tgz` was right.
+ */
+const REAL_PUBLISH_COMMANDS = {
+  'publish-record':
+    'npm publish ./release-tarballs/vidimera-record-*.tgz --provenance --access public',
+  'publish-store-postgres':
+    'npm publish ./release-tarballs/vidimera-store-postgres-*.tgz --provenance --access public',
+};
+const usesOf = (steps) =>
+  steps.filter((s) => typeof s.uses === 'string').map((s) => s.uses.split('@')[0]);
+const runStepsOf = (steps) => steps.filter((s) => typeof s.run === 'string');
+
+test('release.yml: exactly four jobs — build, the two real publish jobs, and the dry-run publish', () => {
+  const doc = load('release.yml');
+  assert.deepEqual(Object.keys(doc.jobs).sort(), [
+    'build',
+    'publish-dry-run',
+    'publish-record',
+    'publish-store-postgres',
+  ]);
+});
+
+// Structure-independent on purpose, so it reads the same against any shape of the file: every
+// `npm publish` line, in any job, names its tarball as a `./` path.
+test('release.yml: every npm publish names its tarball as a ./ path — without it npm reads release-tarballs/… as a GitHub repository', () => {
+  const doc = load('release.yml');
+  const publishes = [];
+  for (const [jobName, job] of Object.entries(doc.jobs)) {
+    for (const step of runStepsOf(job.steps)) {
+      for (const line of step.run.split('\n')) {
+        if (/\bnpm publish\b/.test(line)) publishes.push([jobName, line.trim()]);
+      }
+    }
+  }
+  for (const [jobName, line] of publishes) {
+    assert.match(
+      line,
+      /^npm publish \.\/release-tarballs\/vidimera-[a-z-]+-\*\.tgz /,
+      `${jobName}: the tarball argument must start with ./ — ${line}`,
+    );
+  }
+  assert.equal(publishes.length, 4, 'the two real publishes and their two dry runs');
+});
+
+test('release.yml: a boolean dry_run input; the guard reports without blocking in a dry run; the real publish jobs skip in a dry run; every gate precedes any publish', () => {
   const doc = load('release.yml');
   const input = doc.on.workflow_dispatch.inputs.dry_run;
   assert.equal(input.type, 'boolean');
@@ -89,19 +144,23 @@ test('release.yml: a boolean dry_run input; the guard reports without blocking i
     'the guard reports without blocking only in a dry run',
   );
   assert.equal(guard.if, undefined, 'the guard runs in both modes');
-  const publishJob = doc.jobs.publish;
-  assert.equal(publishJob.needs, 'build', 'nothing publishes before the build job has passed');
+  for (const jobName of REAL_PUBLISH_JOBS) {
+    assert.equal(
+      doc.jobs[jobName].if,
+      REAL_PUBLISH_IF,
+      `${jobName} is skipped in a dry run and for any ref that is not a tag`,
+    );
+  }
   assert.equal(
-    publishJob.if,
-    ghExpr("!inputs.dry_run && github.ref_type == 'tag'"),
-    'the publish job is skipped in a dry run and for any ref that is not a tag',
+    doc.jobs['publish-record'].needs,
+    'build',
+    'nothing publishes before the build job has passed',
   );
-  const publish = publishJob.steps.filter(
-    (s) => typeof s.name === 'string' && s.name.startsWith('publish '),
+  assert.equal(
+    doc.jobs['publish-store-postgres'].needs,
+    'publish-record',
+    'the adapter publishes only after record has, and a failure there re-runs without record',
   );
-  assert.equal(publish.length, 2, 'both packages publish');
-  assert.match(publish[0].name, /@vidimera\/record/, 'record publishes first');
-  assert.match(publish[1].name, /@vidimera\/store-postgres/, 'the adapter publishes second');
   const gates = [
     'pnpm typecheck',
     'pnpm test:ci',
@@ -114,7 +173,8 @@ test('release.yml: a boolean dry_run input; the guard reports without blocking i
     'pnpm docs-index-sync',
   ];
   // Every gate runs in the build job, in order, after the guard and before the tarballs are
-  // packed; the publish job needs the build job, so every gate precedes any publish.
+  // packed; every publish job needs the build job, directly or through record's, so every gate
+  // precedes any publish.
   const order = runs(steps);
   const guardAt = steps.indexOf(guard);
   const packAt = steps.findIndex((s) => s.name === 'pack both tarballs');
@@ -128,27 +188,90 @@ test('release.yml: a boolean dry_run input; the guard reports without blocking i
   }
 });
 
-test('release.yml: only the publish job holds credentials, and it runs no toolchain', () => {
+test('release.yml: only the two real publish jobs hold credentials, in the release environment, and they run no toolchain', () => {
   const doc = load('release.yml');
   assert.deepEqual(doc.permissions, { contents: 'read' }, 'the workflow default is read-only');
-  assert.equal(doc.jobs.build.permissions, undefined, 'the build job inherits read-only');
-  assert.deepEqual(doc.jobs.publish.permissions, { contents: 'read', 'id-token': 'write' });
-  assert.equal(doc.jobs.publish.environment, 'release', 'the publish job runs in its environment');
-  const build = JSON.stringify(doc.jobs.build);
-  assert.ok(!build.includes('secrets.'), 'the build job reads no secret');
-  assert.ok(!build.includes('id-token'), 'the build job cannot mint an OIDC token');
-  const pub = doc.jobs.publish.steps;
-  const uses = pub.filter((s) => typeof s.uses === 'string').map((s) => s.uses.split('@')[0]);
-  assert.deepEqual(uses, ['actions/setup-node', 'actions/download-artifact']);
-  const setup = pub.find((s) => s.uses?.startsWith('actions/setup-node@'));
-  assert.equal(setup.with.cache, undefined, 'no dependency cache in the publish job');
-  for (const step of pub.filter((s) => typeof s.run === 'string')) {
-    assert.match(step.run.trim(), /^npm publish release-tarballs\/vidimera-[a-z-]+-\*\.tgz /);
+  for (const [jobName, job] of Object.entries(doc.jobs)) {
+    if (REAL_PUBLISH_JOBS.includes(jobName)) continue;
+    assert.equal(job.permissions, undefined, `${jobName} inherits the read-only default`);
+    assert.equal(job.environment, undefined, `${jobName} runs outside the release environment`);
+    const text = JSON.stringify(job);
+    assert.ok(!text.includes('secrets.'), `${jobName} reads no secret`);
+    assert.ok(!text.includes('id-token'), `${jobName} cannot mint an OIDC token`);
   }
+  for (const jobName of REAL_PUBLISH_JOBS) {
+    const job = doc.jobs[jobName];
+    assert.deepEqual(job.permissions, { contents: 'read', 'id-token': 'write' }, jobName);
+    assert.equal(job.environment, 'release', `${jobName} runs in the release environment`);
+    assert.deepEqual(
+      usesOf(job.steps),
+      ['actions/setup-node', 'actions/download-artifact'],
+      `${jobName}: no checkout, no install`,
+    );
+    const setup = job.steps.find((s) => s.uses?.startsWith('actions/setup-node@'));
+    assert.equal(setup.with.cache, undefined, `${jobName}: no dependency cache`);
+    assert.equal(setup.with['registry-url'], 'https://registry.npmjs.org', jobName);
+    const run = runStepsOf(job.steps);
+    assert.deepEqual(
+      run.map((s) => s.run.trim()),
+      [REAL_PUBLISH_COMMANDS[jobName]],
+      `${jobName}: exactly one publish, of exactly this ./ tarball path`,
+    );
+    assert.deepEqual(run[0].env, { NODE_AUTH_TOKEN: ghExpr('secrets.NPM_TOKEN') }, jobName);
+  }
+});
+
+test('release.yml: the dry-run job runs the real publish commands under --dry-run, with no credential and no environment', () => {
+  const doc = load('release.yml');
+  const dry = doc.jobs['publish-dry-run'];
+  assert.equal(dry.needs, 'build', 'it publishes-in-dry-run what the build job packed');
+  assert.equal(dry.if, ghExpr('inputs.dry_run'), 'it runs only in a dry run');
+  assert.equal(dry.environment, undefined, 'never the release environment');
+  assert.equal(dry.permissions, undefined, 'the read-only default — no id-token');
+  assert.ok(!JSON.stringify(dry).includes('secrets.'), 'no secret anywhere in the job');
+  assert.deepEqual(usesOf(dry.steps), ['actions/setup-node', 'actions/download-artifact']);
+  const setup = dry.steps.find((s) => s.uses?.startsWith('actions/setup-node@'));
+  assert.equal(
+    setup.with['registry-url'],
+    undefined,
+    'no registry-url, so setup-node writes no auth line',
+  );
+  assert.equal(setup.with.cache, undefined, 'no dependency cache');
+  // Derived from the real jobs' own commands, record first, so the two cannot drift apart.
+  const expected = REAL_PUBLISH_JOBS.map((jobName) => {
+    const real = runStepsOf(doc.jobs[jobName].steps)[0].run.trim();
+    assert.ok(real.includes(' --provenance'), `${jobName} publishes with provenance`);
+    return `${real.replace(' --provenance', '')} --dry-run`;
+  });
+  assert.deepEqual(
+    runStepsOf(dry.steps).map((s) => s.run.trim()),
+    expected,
+    'the real publish commands, record first, without --provenance and with --dry-run',
+  );
+});
+
+test('release.yml: the build job uploads the tarballs with if-no-files-found: error, and every downloading job fetches that artifact', () => {
+  const doc = load('release.yml');
   const upload = doc.jobs.build.steps.find((s) => s.uses?.startsWith('actions/upload-artifact@'));
-  const download = pub.find((s) => s.uses?.startsWith('actions/download-artifact@'));
-  assert.equal(upload.with.name, download.with.name, 'publish downloads what build uploaded');
+  assert.ok(upload, 'the build job uploads the packed tarballs');
   assert.equal(upload.with['if-no-files-found'], 'error');
+  const downloaders = Object.entries(doc.jobs).filter(([, job]) =>
+    job.steps.some((s) => s.uses?.startsWith('actions/download-artifact@')),
+  );
+  assert.deepEqual(downloaders.map(([jobName]) => jobName).sort(), [
+    'publish-dry-run',
+    'publish-record',
+    'publish-store-postgres',
+  ]);
+  for (const [jobName, job] of downloaders) {
+    const download = job.steps.find((s) => s.uses?.startsWith('actions/download-artifact@'));
+    assert.equal(download.with.name, upload.with.name, `${jobName} downloads what build uploaded`);
+    assert.equal(
+      download.with.path,
+      'release-tarballs',
+      `${jobName} downloads into the directory its publish command names`,
+    );
+  }
 });
 
 test('release.yml: the guard runs the guard script with the ref through the environment', () => {
@@ -161,21 +284,38 @@ test('release.yml: the guard runs the guard script with the ref through the envi
   });
 });
 
+/**
+ * Every expression in a run block that opens on a dispatch input, in either spelling —
+ * `inputs.` or `github.event.inputs.`. Bounds: an input reached inside a function call
+ * (`format('{0}', inputs.x)`) is not seen.
+ */
+function inputInterpolations(run) {
+  const marker = ['$', '{{'].join('');
+  return run
+    .split(marker)
+    .slice(1)
+    .map((e) => e.trimStart())
+    .filter((e) => e.startsWith('inputs.') || e.startsWith('github.event.inputs.'));
+}
+
 test('first-use.yml: no run block interpolates a dispatch input — inputs reach scripts through env', () => {
   const doc = load('first-use.yml');
-  const marker = ['$', '{{'].join('');
   for (const [jobName, job] of Object.entries(doc.jobs)) {
-    for (const step of job.steps) {
-      if (typeof step.run !== 'string') continue;
-      const exprs = step.run.split(marker).slice(1);
-      for (const e of exprs) {
-        assert.ok(
-          !e.trimStart().startsWith('inputs.'),
-          `${jobName}: a run block interpolates an input: ${step.name ?? step.run.slice(0, 40)}`,
-        );
-      }
+    for (const step of runStepsOf(job.steps)) {
+      assert.deepEqual(
+        inputInterpolations(step.run),
+        [],
+        `${jobName}: a run block interpolates an input: ${step.name ?? step.run.slice(0, 40)}`,
+      );
     }
   }
+});
+
+test('the interpolation check sees both spellings of a dispatch input, and nothing else', () => {
+  assert.equal(inputInterpolations(`echo ${ghExpr('inputs.version')}`).length, 1);
+  assert.equal(inputInterpolations(`echo ${ghExpr('github.event.inputs.version')}`).length, 1);
+  assert.equal(inputInterpolations(['echo $', '{{inputs.version}}'].join('')).length, 1);
+  assert.equal(inputInterpolations(`echo ${ghExpr('matrix.node')} "$VERSION"`).length, 0);
 });
 
 test('ci.yml: the four-leg matrix keeps the exact floor, and test:ci is followed by the report gate', () => {

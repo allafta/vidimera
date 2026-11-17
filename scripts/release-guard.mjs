@@ -1,7 +1,7 @@
 // release-guard.mjs — the release workflow's pre-publish guard (the release-hardening
 // increment). `release.yml`'s build job runs it before every gate; in a dry run the step
-// reports without blocking, in a real run a finding fails the job and the publish job, which
-// needs it, never starts.
+// reports without blocking, in a real run a finding fails the job and neither publish job,
+// both downstream of it, ever starts.
 //
 // What it refuses — every reason at once, so one dry run names everything left to do:
 // a package still `private`; a package still at `0.0.0`; the two packages at different

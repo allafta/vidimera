@@ -8,7 +8,8 @@ updates:
     schedule:
       interval: weekly
     # Wait a week before proposing a new release (the release-hardening increment): a
-    # compromised or yanked version usually surfaces within days of publication.
+    # compromised or yanked version usually surfaces within days of publication. The cooldown
+    # delays version updates only, not security updates.
     cooldown:
       default-days: 7
     groups:
@@ -26,7 +27,8 @@ updates:
     schedule:
       interval: weekly
     # Wait a week before proposing a new release (the release-hardening increment): a
-    # compromised or yanked version usually surfaces within days of publication.
+    # compromised or yanked version usually surfaces within days of publication. The cooldown
+    # delays version updates only, not security updates.
     cooldown:
       default-days: 7
     groups:

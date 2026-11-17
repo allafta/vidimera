@@ -28,7 +28,7 @@ release-readiness reconciliation pass over the publish-facing docset. The worksp
 packages: `@vidimera/record` and `@vidimera/store-postgres` (the server-SQL third
 reference backing, tested against a real embedded Postgres the suite starts per run).
 Measured against the current
-tree: `pnpm test` — 83 test files, 1111 tests, zero skips; `packages/record/src/refusal-codes.ts`
+tree: `pnpm test` — 83 test files, 1116 tests, zero skips; `packages/record/src/refusal-codes.ts`
 carries 25 refusal codes; zero GOVERNED construction guards remain in `config.ts` — every
 field the feature-guard era installed has lifted behind real behavior at its own seam
 (`unknownOptionKey` — named `governedUnavailable` until the registry-hygiene increment —
@@ -59,7 +59,8 @@ to fail loudly. `docs/process/next-phases.md` names what gates the next cut (thr
 deferral-register rows — row 23, the optional `tx` on the Store's five reads opened 2026-09-02
 by the code-review-fixes increment, and row 24, the `embedded-postgres` exit-hook workaround
 opened 2026-09-03 by the CI test-gate follow-ups, do NOT gate it; the three that do are row 1, publish tooling, held open until the release workflow runs
-once for real (its `dry_run` dispatch exercises the job but does not retire the row); row 19, the AL2 detached-signature sidecar pinning deferral; and row 22, orphan
+once for real (its `dry_run` dispatch exercises the build job and the publish commands under
+`--dry-run`, never the real publish, and does not retire the row); row 19, the AL2 detached-signature sidecar pinning deferral; and row 22, orphan
 sidecar growth on the no-edge refusal path, opened by the AL2 signature-enforcement
 coverage increment that retired rows 20 and 21, restated 2026-08-28 with a measured
 containment inventory, and re-scoped 2026-08-29 to its orphan half alone once the no-edge
@@ -203,13 +204,21 @@ contract-scan, `api-sync`, `docs-index-sync`, `lint:strict`), and a `test` matri
 (ubuntu @ 24), and Windows/macOS @ 22 — with pnpm caching, read-only token permissions,
 and one cancel-on-supersede concurrency group per ref. `.github/workflows/release.yml` is
 the dispatch-only, provenance-attested publish workflow (both packages, record first,
-behind the same report gate), unexercised for real until the 0.1 cut — two jobs since the
-release-hardening increment: a credential-free `build` job runs the guard
+behind the same report gate), unexercised for real until the 0.1 cut — four jobs since the
+release-hardening increment and the fix wave after its review: a `build` job holding no
+publish credential (only the read-only `GITHUB_TOKEN`) runs the guard
 (`scripts/release-guard.mjs`: lockstep versions bumped, `private` dropped, dispatched from the
-`v<version>` tag) and every gate and packs both tarballs, and a `publish` job, alone holding
-`id-token: write` and the token in the `release` environment, publishes exactly those
-tarballs; its `dry_run` input runs the build job with the guard reporting but not blocking and
-skips the publish job;
+`v<version>` tag) and every gate and packs both tarballs; `publish-record`, then
+`publish-store-postgres`, alone holding `id-token: write` and `NPM_TOKEN` in the `release`
+environment (the token is a repository secret until the owner moves it there), publish exactly
+those tarballs, each named by a `./` path (without the `./` npm reads the argument as a GitHub
+repository). The split keeps the credentials away from the toolchain, not the toolchain away
+from the bytes: `build`, which runs the install, the suite and the smoke test's registry
+installs, produces what is published. Its `dry_run` input runs the build job with the guard
+reporting but not blocking, skips both real publish jobs and runs a `publish-dry-run` job
+holding no publish credential — the same publish commands under `--dry-run` — so the `release`
+environment, provenance, the token and the real publish are first exercised by the release
+dispatch itself;
 `docs/process/release-checklist.md` is release day's authoritative list.
 `scripts/test/workflows.test.mjs` parses every workflow file with `yaml` and asserts the facts the
 documents rely on (the dry-run input, the report gate's place, the exact-floor leg) — parse and
@@ -223,7 +232,8 @@ over `MemoryStore` and a PostgreSQL service, and pins the `node:sqlite` warning 
 ways (present on 22.16.0, absent on 24.15+); `source: registry` reuses it against the
 published packages after the cut. It is a deliberate release act, never a per-push gate —
 `pnpm smoke` remains that.
-`.github/dependabot.yml` groups weekly npm and actions updates behind a seven-day cooldown;
+`.github/dependabot.yml` groups weekly npm and actions updates behind a seven-day cooldown
+(version updates only — the cooldown does not delay security updates);
 `.github/CODEOWNERS` guards `docs/concept/`, the frozen byte-stability test, `.github/` and
 `scripts/` (binding once the
 require-review-from-code-owners branch protection is enabled — a release-day checklist
