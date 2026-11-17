@@ -5453,7 +5453,8 @@ every link produces a chain that verifies at AL1; AL2 detects that recompute onl
 signing key sits outside that insider's boundary. The raw `readChain` and `chainHead` on both
 handles return what storage holds, by contract, and the probes and their tampering wrapper are
 untouched. The design's §2 names two further AL2 questions as non-goals, each its own increment;
-nothing here moves them. Earlier passages of this document that quote a call site as
+nothing here moves them. [The obligation read from the live registry was taken by the
+signing-obligation increment, the twenty-seventh section below.] Earlier passages of this document that quote a call site as
 `verifyChain(chain)` — the step-8, §5 and §14 rows and the AL2 enforcement accounts — describe
 the code as it stood when they were written; every such call in `src/` now passes the id, as the
 census pins.
@@ -5566,7 +5567,8 @@ increment.
   applies `isValidIdentity`'s checks in their order, reads each field exactly once into a local
   and returns a fresh `{ principal, authority, proofRef? }` literal (`proofRef` omitted when
   `undefined`), or `null`; it catches nothing, so a getter that throws propagates as before.
-  `isValidIdentity` is now its non-null test, so its callers and pins keep their meaning. Every
+  `isValidIdentity` is now its non-null test [with no caller left in `src/` — kept as the site
+  the twelfth inversion is argued at, a post-merge correction of this sentence]. Every
   seam records the literal it validated: finalize's and decline's actor (the allowlist check,
   `sodViolated` and the recorded `actor` all read it), `facts.checker` (the facts gate now
   returns the checker literal with the canonical bytes), an obtained consultation's `checker`

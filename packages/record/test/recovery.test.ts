@@ -4,7 +4,8 @@
 // Decisions of record pinned here: the dedicated never-append code
 // `supersedes-unverified`; sequential exclusivity (verify-then-open — terminality is
 // one-way); no en-passant resolution of the predecessor's clock (seal's sweeps-first
-// posture); same subject required, any profile allowed; no back-reference ever
+// posture); same subject required, any successor profile allowed while the instance holds
+// the predecessor's own profile (the supersedes-binding increment); no back-reference ever
 // appended to the predecessor.
 
 import assert from 'node:assert/strict';
@@ -78,7 +79,7 @@ test('happy path: a refused predecessor recovers — the genesis binds the verif
   );
 });
 
-test('an expired predecessor and a terminal redeemed predecessor both qualify — terminality is THE condition', async () => {
+test('an expired predecessor and a terminal redeemed predecessor both qualify — terminality, under a held profile, is the condition', async () => {
   // Expired: clock-driven, swept via the finalize seam observing the lapse.
   const store = new MemoryStore();
   let now = new Date('2026-08-17T10:00:00.000Z');
