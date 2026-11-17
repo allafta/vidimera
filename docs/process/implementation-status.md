@@ -5716,7 +5716,8 @@ never-signed one (the bound below).
   direction refuses `unknown-profile` with no edge at `finalize`, `decline`, `raiseFinding`,
   `acknowledge`, `redeem`, `beginRedemption`, `completeRedemption` and `seal`; a successor
   leg's `open()` refuses `prior-leg-unverified`; a `supersedes` claim over a declined
-  predecessor verifies and over a confirmed one refuses `supersedes-unverified` (the binding
+  predecessor verified [refuses since the supersedes-binding increment, the twenty-eighth
+  section below] and over a confirmed one refuses `supersedes-unverified` (the binding
   fold, as for every other drift). `config.ts`'s `signing` comment and `operator-surface.ts`'s
   `verifySignatures` comment state the rule. Nine pins in `test/signing-obligation.test.ts`.
   The first cut ALSO had a sibling that dropped `signing` but kept the verifier enforce the
