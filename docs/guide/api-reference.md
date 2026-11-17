@@ -170,7 +170,9 @@ Notes that save debugging time:
 
 - `open`'s options carry `priorRecordRefs` (multi-leg) and `supersedes` (recovery) — both
   verified by replay before any append, their failures pre-record refusals
-  (`prior-leg-unverified`, `supersedes-unverified`) that never append — and `policyDigest`,
+  (`prior-leg-unverified`, `supersedes-unverified`) that never append, and each needs the
+  referenced record's profile held (its id registered, its declarative fields unedited) — and
+  `policyDigest`,
   which is presence-checked against the profile's `policySource` declaration (a mismatch
   throws) and bound verbatim as the operator's attestation; the drift comparison happens
   at finalize's own gate.
@@ -595,14 +597,18 @@ profile; a signing record whose genesis entry was removed, fails, or names a key
 verifier for reads there as carrying no obligation. Per site: the operator seams refuse
 `unknown-profile` and append nothing, where a holder would draw `chain-compromise`; a
 successor leg's `open()` refuses `prior-leg-unverified`; and a `supersedes` claim over a
-terminal non-`confirmed` predecessor verifies, while one over a `confirmed` predecessor
-refuses `supersedes-unverified`. Where the obligation does apply and the layer fails, an
+predecessor of any terminal state refuses `supersedes-unverified` (recovery needs the
+predecessor's profile held). Where the obligation does apply and the layer fails, an
 operator seam draws its `chain-compromise` evidence edge first, holder or not (SPEC §4's
 exception), and the cross-record verifications refuse their claims.
 So `drifted` names exactly why a seam refused, or will — read the two fields together, and
 treat `drifted` on any record as a configuration event: restore the profile's declarative
 fields exactly, or keep the old version registered under its id and give the edit a new one.
-An in-place edit strands that profile's open records until you do one of those.
+An in-place edit strands that profile's open records until you do one of those, and it (or a
+retired version) also blocks recovery (`supersedes`) of that profile's terminal records: keep prior
+versions registered for as long as you may want to supersede their records. What is lost is the
+verified `supersedes` link, not the subject — a terminal predecessor releases exclusivity, and a
+plain `open` still works.
 
 **A `Verifier` answers the literal `true`, or the transition is unverified.** The layer
 compares with `=== true`: a truthy status string or object is reported `verified: false` and

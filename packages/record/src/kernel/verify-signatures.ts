@@ -145,17 +145,16 @@ function resolveGenesisProfile(r: GenesisResolution): SignatureReport['genesisPr
  * all three as carrying no obligation. At the five operator seams (`finalize`, `decline`,
  * the findings seams, the redemption seams, `seal`) it refuses `unknown-profile` and appends
  * nothing, where a holder of the profile still draws `chain-compromise`. At `prior-legs` it
- * refuses `prior-leg-unverified` (the binding fold). At `supersedes` a `confirmed`
- * predecessor refuses (the binding fold) while a terminal non-`confirmed` predecessor
- * VERIFIES — as it already did for a forged predecessor under an unregistered id, and now for
- * a forged chain naming a registered signing id with a non-matching `profileDigest`. Folding
- * the binding for every predecessor state is what closes that residual. The same resolution
- * is handed back raw
- * (`resolution`: the claimed id, the bound `profileDigest`, the resolved profile's own
- * CACHED digest when the id resolves — never a recompute, so this stays the same value
- * every seam's `held-profile.ts` comparison reads) so `verifySignatures` can report
- * whether the live profile IS the one the record was opened under; `signatureLayerHolds`
- * never digests it — reporting only.
+ * refuses `prior-leg-unverified` (the binding fold). At `supersedes` a predecessor of ANY
+ * terminal state refuses `supersedes-unverified` (the binding fold, since the supersedes-binding
+ * increment: before it a terminal non-`confirmed` predecessor VERIFIED there, including a
+ * forged chain naming an unregistered id or a registered signing id with a non-matching
+ * `profileDigest`). The cost, stated: recovery needs the predecessor's profile held.
+ * The same resolution is handed back raw (`resolution`: the claimed id, the bound
+ * `profileDigest`, the resolved profile's own CACHED digest when the id resolves — never a
+ * recompute, so this stays the same value every seam's `held-profile.ts` comparison reads)
+ * so `verifySignatures` can report whether the live profile IS the one the record was
+ * opened under; `signatureLayerHolds` never digests it — reporting only.
  * The sidecar is listed by `recordId`, the id the caller loaded the chain FOR — never by an
  * id read from the chain's own rows, which a storage-writing insider controls. Every caller
  * has already bound the chain to that id, so for an intact chain the two are the same: the

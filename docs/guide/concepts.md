@@ -82,7 +82,10 @@ exported `profileDigest`/`projectProfile` let you make the same comparison offli
 Detected and refused: a seam that does not hold the profile a record was opened under — a
 registered same-id profile whose projection no longer digests to the record's binding —
 refuses `unknown-profile`, never-append. Version your profiles; an in-place edit strands its
-open records until restored or versioned.
+open records until restored or versioned. An in-place edit or a retired version also blocks
+recovery (`supersedes`) of that profile's terminal records, so keep prior versions registered for
+as long as you may want to supersede their records; what is lost is the verified link, not the
+subject.
 
 ## The lifecycle
 

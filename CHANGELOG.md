@@ -543,11 +543,49 @@ is the summary, and that file wins on conflict.
   successor leg's `open()` it refuses `prior-leg-unverified`, as before; at `supersedes` a
   confirmed predecessor refuses and a terminal non-`confirmed` predecessor now verifies,
   where it refused before — and a forged declined chain naming a registered signing id with a
-  non-matching `profileDigest` verifies there too. Not closed here: those two `supersedes`
+  non-matching `profileDigest` verifies there too [closed by the supersedes-binding increment, the next entry: neither verifies
+  there any longer for a predecessor whose profile the instance does not hold]. Not closed here: those two `supersedes`
   cases join the forged predecessor under an unregistered or non-signing profile, which
   already bound through `supersedes` for a terminal non-`confirmed` state and need folding
-  the binding for every predecessor state; a storage-writing insider rehoming a signing
-  record's genesis onto a co-registered non-signing profile is unchanged; and `review()`'s
+  the binding for every predecessor state [closed by the supersedes-binding increment, the
+  next entry, for a predecessor whose profile the instance does not hold; a forged predecessor
+  under a HELD non-signing profile stays open, named there]; a storage-writing insider rehoming a
+  signing record's genesis onto a co-registered non-signing profile is unchanged; and
+  `review()`'s findings coverage still reads the live profile.
+  Pre-publication, so there is no advisory to issue.
+- **A forged terminal predecessor naming a profile the instance does not hold no longer verifies
+  at `supersedes`** (the supersedes-binding
+  increment, 2026-11-17, branch `supersedes-binding-2026-11-17`): `verifySupersedes` resolved
+  the predecessor's profile only for a `confirmed` predecessor, so a `refused`, `expired`,
+  `declined`, `redeemed` or `redemption-failed` predecessor verified whatever profile its
+  genesis named — an id the instance never registered, or a registered id with a non-matching
+  `profileDigest`. That was a route past the signature layer: a storage-writing insider without
+  keys could write a whole forged terminal chain, AL1-intact because AL1 is not cryptographic,
+  and have `open(…, { supersedes })` bind it as a verified predecessor in a new record's
+  genesis. Now every terminal state requires the instance to HOLD the predecessor's profile
+  (the id registered AND a live digest equal to the genesis `profileDigest`, the comparison
+  `verifyPriorLegs` already makes), as SPEC §4's fold sentence says of the two cross-record
+  verifications, and a predecessor decided under a profile the instance does not hold refuses
+  `supersedes-unverified` pre-record, never-append. The limit, in the same breath: this closes the
+  forgery route only where every profile the instance registers signs. A storage-writing insider
+  without keys can still name a profile the instance HOLDS that does not sign, copy its real
+  `profileDigest` from any genuine genesis (the AL1 recompute route), and bind that forged
+  predecessor at `supersedes` — into a signing successor's genesis too, since recovery is
+  any-profile; on an AL1-only host the fold buys "decided under rules this instance holds", not
+  forgery resistance. This also closes the two `supersedes`
+  cases the signing-obligation entry above left open, both of which name a profile the instance
+  does not hold. Recovery still works wherever the
+  instance holds the predecessor's profile: the rework recipe, escalation (both profiles
+  registered), and a profile revision registered under a new id with the old one kept. The cost,
+  in the same breath: a host that edited a profile in place, or retired an id, must restore or
+  re-register the prior version to supersede its records — the version discipline every
+  operator seam already demands. What is lost without it is the verified `supersedes` link, not
+  the subject: a terminal predecessor releases exclusivity, and a plain `open` still works. It reverses a recorded stance (the confirmed-only fold), the
+  fifteenth self-authored inversion in the status record, argued at its pin. No seam code outside
+  `verifySupersedes`, refusal code, report field or public type moved. Not closed here: a
+  storage-writing insider rehoming a predecessor's genesis consistently onto a profile the
+  instance holds and that does not sign still verifies at AL1; a forged predecessor under a held
+  non-signing profile is the AL1 recompute route SPEC §14 assigns to AL2; and `review()`'s
   findings coverage still reads the live profile.
   Pre-publication, so there is no advisory to issue.
 

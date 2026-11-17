@@ -11,12 +11,20 @@
 //    open predecessor replays as open, non-terminal, and refuses;
 //  - the same-subject/any-profile tightening: the predecessor decided THIS subject;
 //    a revised-profile re-open (SPEC §10.3's "disposal-and-re-open recovery") stays
-//    possible.
+//    possible while the predecessor's profile stays registered (id and digest).
 //
 // The AL2 enforcement increment folds the signature layer into this same
 // verify-by-replay discipline: a signature-broken predecessor refuses
 // `supersedes-unverified` exactly as a hash-broken or wrong-head one does —
 // `signatureLayerHolds` is consulted immediately after AL1 intactness, never before it.
+//
+// The supersedes-binding increment folds the profile-drift gate's held check in for EVERY
+// terminal state, as SPEC §4's fold sentence says of the two cross-record verifications: the
+// instance must HOLD the predecessor's profile (id registered AND projection digesting to the
+// genesis profileDigest), else the claim refuses `supersedes-unverified`. Before it, only a
+// `confirmed` predecessor was held, so a forged terminal chain naming a profile this instance
+// never held verified and bound — a route past the signature layer's obligation. Cost, stated:
+// recovery needs the predecessor's profile kept registered (SPEC §4's version discipline).
 
 import { transitionDigest } from '../chain/encoding.js';
 import { replay, verifyChain } from '../chain/replay.js';
@@ -52,14 +60,15 @@ export function validateSupersedesShape(value: unknown): asserts value is Supers
 
 /**
  * Verify the recovery claim: the predecessor's chain must exist, verify intact, match
- * the claimed head, be TERMINAL by the derived formula (SPEC §2), and have decided the
- * SAME subject. `confirmed` is the one state whose terminality needs the PREDECESSOR's
- * profile (final-leg + effect-seam judgment) — unresolvable there fails closed. A
- * NON-final leg's `confirmed` qualifies too, by that same formula (`isFinalLeg` false
- * makes `nonTerminal('confirmed', false, effectSeam)` false regardless of effect seam):
- * it is terminal FOR THAT LEG even though the predecessor's own flow may still proceed
- * to its next leg (SPEC §2) — this check reads only the named record's own leg, never
- * the whole multi-leg flow, and treats that leg's terminality as sufficient on its own.
+ * the claimed head, have decided the SAME subject, be decided under a profile this instance
+ * HOLDS (every state — the fold above), and be TERMINAL by the derived formula (SPEC §2).
+ * `confirmed` is the one state whose terminality needs that profile's content (final-leg +
+ * effect-seam judgment), read from the same held resolution. A NON-final leg's `confirmed`
+ * qualifies too, by that same formula (`isFinalLeg` false makes
+ * `nonTerminal('confirmed', false, effectSeam)` false regardless of effect seam): it is
+ * terminal FOR THAT LEG even though the predecessor's own flow may still proceed to its next
+ * leg (SPEC §2) — this check reads only the named record's own leg, never the whole
+ * multi-leg flow, and treats that leg's terminality as sufficient on its own.
  * Every failure is one refusal, `supersedes-unverified`, mapped by the caller.
  */
 export async function verifySupersedes(
@@ -80,17 +89,19 @@ export async function verifySupersedes(
   if (transitionDigest(last) !== ref.chainHead) return { ok: false };
   const record = replay(chain);
   if (record.subjectRef !== subjectRef) return { ok: false };
+  // Held by id AND binding, for every state (the profile-drift gate's comparison, the one
+  // verifyPriorLegs makes): a predecessor decided under rules this instance does not hold
+  // cannot be held to them, nor to their signature obligation.
+  const resolved = heldProfile(profiles, record);
+  if (resolved === undefined) return { ok: false };
   if (record.state === 'open' || record.state === 'redeeming') return { ok: false };
   if (record.state === 'confirmed') {
-    // Held by id AND binding (the profile-drift gate): a drifted profile derives terminality
-    // from the wrong effect-seam declaration, so it proves nothing here.
-    const resolved = heldProfile(profiles, record);
-    if (resolved === undefined) return { ok: false }; // terminality unprovable — fail closed
+    // The held profile derives terminality; a drifted one would read the wrong effect seam.
     const legIndex = resolved.profile.legs.findIndex((l) => l.id === record.legId);
     if (legIndex === -1) return { ok: false };
     const finalLeg = isFinalLeg(legIndex, resolved.profile.legs.length);
     if (nonTerminal('confirmed', finalLeg, resolved.effectSeam)) return { ok: false };
   }
-  // refused / expired / declined / redeemed / redemption-failed: terminal regardless of profile.
+  // refused / expired / declined / redeemed / redemption-failed: terminal by state alone.
   return { ok: true, verified: { recordId: ref.recordId, chainHead: ref.chainHead } };
 }

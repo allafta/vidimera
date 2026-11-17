@@ -384,7 +384,7 @@ test('prior legs: a successor open() under a sibling whose same-id profile was e
   assert.equal(ok.status, 'ok', 'a flow is decided under one version of its rules');
 });
 
-test('recovery (supersedes): a confirmed predecessor whose profile the sibling does not hold refuses supersedes-unverified; a declined predecessor recovers regardless', async () => {
+test('recovery (supersedes): a confirmed and a declined predecessor whose profile the sibling does not hold both refuse supersedes-unverified; the holder recovers the declined one', async () => {
   const store = new MemoryStore();
   const holder = instance(base({ decline: true }), store);
   const confirmedId = await openRecord(holder, CONTENT, ID, 'subject:gate-11');
@@ -413,10 +413,35 @@ test('recovery (supersedes): a confirmed predecessor whose profile the sibling d
   const s2 = await sibling.agent.stage(CONTENT, ID, 'subject:gate-12');
   assert.equal(s2.status, 'ok');
   if (s2.status !== 'ok') return;
+  // The fifteenth self-authored inversion recorded in the status document. This half used to
+  // pin `ok`: the drift-gate ruling argued TERMINALITY — a declined predecessor is terminal
+  // whatever profile it names, so its profile is not consulted. That is right about terminality
+  // and does not reach the question SPEC §4's fold sentence asks of the cross-record
+  // verifications: whether the instance holds the rules the predecessor was decided under. The
+  // signature layer is where the asymmetry let a forged predecessor bind (a forged declined chain
+  // naming a profile the instance never held verified, past the signing obligation), so every
+  // terminal state now folds the held check. The holder, below, still recovers it.
   const r2 = await sibling.operator.open(s2.value.stagedRef, {
     supersedes: { recordId: declinedId, chainHead: dHead },
   });
-  assert.equal(r2.status, 'ok', 'declined is terminal regardless of profile — nothing to hold');
+  assert.equal(r2.status, 'refused');
+  if (r2.status === 'refused') {
+    assert.equal(r2.code, 'supersedes-unverified');
+    assert.equal(r2.class, 'refusal');
+    assert.equal(
+      (r2 as { transitionRef?: unknown }).transitionRef,
+      undefined,
+      'never-append: no record, no ref',
+    );
+  }
+
+  const s3 = await holder.agent.stage(CONTENT, ID, 'subject:gate-12');
+  assert.equal(s3.status, 'ok');
+  if (s3.status !== 'ok') return;
+  const r3 = await holder.operator.open(s3.value.stagedRef, {
+    supersedes: { recordId: declinedId, chainHead: dHead },
+  });
+  assert.equal(r3.status, 'ok', 'the holder of the predecessor profile recovers the same record');
 });
 
 test("open(): a blocker the drifted sibling's shorter ttl would call due — but which is not due under its own rules — stands: record-exists, no expired edge; the same subject under a NEW profile id opens at once", async () => {
