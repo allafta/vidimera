@@ -62,15 +62,20 @@ interface StoredRecord {
  * `DataCloneError` on a function- or symbol-valued member anywhere in the object graph —
  * a STRICTER tolerance than `jcs.ts`'s own JCS pass (`hasNoJsonForm`), which SILENTLY
  * OMITS such a member rather than throwing (matching `JSON.stringify`). Concretely: a
- * payload member that is a class instance carrying a method would newly THROW at this seam,
- * even though `transitionDigest` accepts it (the method is silently dropped by JCS). The
- * clone has a second, quieter divergence: it drops a prototype, and with it a prototype
- * `toJSON` that JCS honours, so a clone can digest DIFFERENTLY from the object it copies.
- * The kernel closes that for identities (`kernel/finalize.ts`'s `identitySnapshot` embeds a
- * plain literal), but a store must not trust its callers for it: at every write site, after
- * every conflict check, this class compares the clone's digest with the caller's transition's
- * digest and THROWS on a difference, before any state changes. The digest returned from an
- * append is therefore always the digest of the transition actually stored.
+ * payload member that is an OWN function or symbol (an own method on an object literal, say)
+ * newly THROWS at this seam, even though `transitionDigest` accepts it. A class instance is
+ * NOT such a case: its methods live on the prototype, which the clone drops silently without
+ * throwing, so `structuredClone(new (class { m() {} })())` returns `{}`. That is the clone's
+ * second, quieter divergence: it drops a prototype, and with it a prototype `toJSON` that JCS
+ * honours, so a clone can digest DIFFERENTLY from the object it copies — which is why the
+ * digest check below exists. The kernel closes that for identities (`kernel/identity.ts`'s
+ * `identitySnapshot` embeds a plain literal), but a store must not trust its callers for it:
+ * at every write site, after every conflict check, this class compares the clone's digest
+ * with the caller's transition's digest and THROWS on a difference, before any state changes.
+ * The digest returned from an append is therefore the digest of the transition actually
+ * stored, for every difference the clone's own digest can show. A member whose value changes
+ * between reads (an own getter, say) is not covered: nothing here pins that the clone's read
+ * and the original's read agree.
  *
  * DECISION: use plain `structuredClone` and accept the throw as a deliberate narrowing —
  *  1. it is the reference implementation's own choice for this same fix; diverging here
@@ -86,8 +91,8 @@ interface StoredRecord {
  *     calls `toJSON` before ever checking a member for omission, `jcs.ts:88-91`) —
  *     reimplementing that recursive traversal a second time, on this hot path, is new-code
  *     risk disproportionate to the actual need: SPEC §6's `IdentityAssertion` shape is
- *     plain data, and a host needing a richer object can project it to a literal at the
- *     call site.
+ *     plain data, and the kernel projects every identity it records to a literal
+ *     (`identitySnapshot`); a host's other non-plain values stay the host's to project.
  *
  * Pinned by store-constraints.test.ts's "a payload member carrying a FUNCTION ... throws
  * DataCloneError" tests, so this choice cannot drift silently.
@@ -96,11 +101,23 @@ interface StoredRecord {
 /**
  * Clones `transition` and returns the clone, or throws when the clone's digest is not
  * `digest` (the caller's transition's own) — a prototype `toJSON` or another non-plain member
- * the clone does not carry. Pure: it touches no store state, so a throw leaves nothing behind.
+ * the clone does not carry — or when the clone cannot be digested at all (a BigInt reached
+ * through a prototype `toJSON`, say): that throw is rethrown as a `MemoryStore` error with the
+ * original as `cause`. A `DataCloneError` from the clone itself propagates as is. Pure: it
+ * touches no store state, so a throw leaves nothing behind.
  */
 function cloneSameDigest(transition: Transition, digest: Digest): Transition {
   const clone = structuredClone(transition);
-  if (transitionDigest(clone) !== digest) {
+  let cloneDigest: Digest;
+  try {
+    cloneDigest = transitionDigest(clone);
+  } catch (cause) {
+    throw new Error(
+      `MemoryStore: transition seq ${transition.seq} of record '${transition.recordId}' cannot be digested after a structured clone — refusing to store a chain that digests differently from what the append returns`,
+      { cause },
+    );
+  }
+  if (cloneDigest !== digest) {
     throw new Error(
       `MemoryStore: transition seq ${transition.seq} of record '${transition.recordId}' does not survive a structured clone with the same digest (a prototype toJSON or another non-plain member) — refusing to store a chain that digests differently from what the append returns`,
     );
@@ -239,9 +256,9 @@ export class MemoryStore implements Store {
       return { appended: false, conflict: 'seq' };
     }
 
-    // The digest is computed from the ORIGINAL object, before the clone-on-write below —
-    // the two write paths' clone choice (see the store-clone decision comment above the
-    // class) never moves a canonical byte, because it runs strictly after this line.
+    // The digest is computed from the ORIGINAL object, before the clone-on-write below. The
+    // clone is then checked against it (`cloneSameDigest`), and a clone that would move a
+    // canonical byte is refused, so what is stored digests as this line's value says.
     const digest = transitionDigest(transition);
     const stored = cloneSameDigest(transition, digest);
     this.records.set(transition.recordId, {
@@ -411,8 +428,8 @@ export class MemoryStore implements Store {
     // Every check passed. Clone BEFORE the first push, not inside the push loop:
     // `structuredClone` is failable — it throws `DataCloneError` on a non-cloneable payload,
     // which this store deliberately lets propagate — and a throw interleaved with the pushes
-    // would leave the earlier elements on the chain. The same holds for the digest check. Every failable operation happens before
-    // any mutation, which is what makes "nothing applied" structural rather than a rollback.
+    // would leave the earlier elements on the chain. The same holds for the digest check. Every
+    // failable operation happens before any mutation, which is what makes "nothing applied" structural rather than a rollback.
     // A conflict still wins over a throw, because the check loop above returns first.
     const cloned = transitions.map((t, i) => cloneSameDigest(t, digests[i] as Digest));
     for (const c of cloned) {

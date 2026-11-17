@@ -32,13 +32,13 @@ import {
   appendChainCompromise,
   batchSeqConflict,
   type Facts,
-  identitySnapshot,
   isValidFacts,
   refuseMaybeAppend,
   SYSTEM_CHECKER,
   sodViolated,
 } from './finalize.js';
 import { heldProfile } from './held-profile.js';
+import { identitySnapshot } from './identity.js';
 import { signatureLayerHolds } from './verify-signatures.js';
 
 export async function decline(

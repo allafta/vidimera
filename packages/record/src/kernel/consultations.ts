@@ -20,7 +20,7 @@ import {
   type UnreachableMarker,
 } from '../config.js';
 import type { IdentityAssertion } from '../types.js';
-import { identitySnapshot } from './finalize.js';
+import { identitySnapshot } from './identity.js';
 
 export interface PartitionedConsultations {
   obtained: ObtainedConsultation[]; // supplied order preserved — the batch records in this order
@@ -140,7 +140,7 @@ export function validateConsultations(
     // posture, shared with the `confirmed` payload's `actor` and `facts.checker` since the
     // kernel increment: extra keys inside a supplied checker were not rejected and reached
     // the digested payload as host attestation. The inversion is argued at
-    // `isValidIdentity`'s own site (kernel/finalize.ts); this throw's posture — a caller
+    // `isValidIdentity`'s own site (kernel/identity.ts); this throw's posture — a caller
     // error, nothing appended — is unchanged. The entry carries the validator's fresh
     // literal (`identitySnapshot`), never the supplied checker object, so the consultation
     // finalize or decline records holds exactly the values validated here.

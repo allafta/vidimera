@@ -41,7 +41,7 @@ function openedPayload(profileId: string, subjectRef: string) {
 // jcs.ts's `hasNoJsonForm`) now fails LOUDLY at the store seam instead of being silently
 // accepted by reference. These tests pin that choice so it cannot change by accident.
 
-test('appendTransition (non-genesis): a payload member carrying a FUNCTION (e.g. a class-instance identity with a method, not a plain literal) throws DataCloneError rather than being silently stored', async () => {
+test('appendTransition (non-genesis): a payload member carrying a FUNCTION (an identity object literal with an OWN method, not a plain literal) throws DataCloneError rather than being silently stored', async () => {
   const store = new MemoryStore();
   const genesis = storeGenesis(
     'rec-dataclone-subsequent',
@@ -198,6 +198,50 @@ test('MemoryStore refuses a batch whose last element would digest differently; n
   );
   assert.deepEqual(await store.readChain('rec-clone-batch'), before);
   assert.equal(await store.chainHead('rec-clone-batch'), head);
+});
+
+/**
+ * A class whose prototype `toJSON` gives the digest a plain view, while its OWN field is a
+ * BigInt: the original digests through the view, the clone (no prototype) carries the BigInt
+ * and cannot be digested at all.
+ */
+class BigIntField {
+  n = 1n;
+  toJSON(): Record<string, string> {
+    return { view: 'json-view' };
+  }
+}
+
+test('MemoryStore names itself when the clone cannot be digested at all, keeps the cause; nothing is stored', async () => {
+  const store = new MemoryStore();
+  const genesis = storeGenesis('rec-clone-bigint', 'profile.p1', 'subject:clone-bigint');
+  await store.appendTransition(null, genesis, { nonTerminal: true });
+  const before = await store.readChain('rec-clone-bigint');
+  const head = await store.chainHead('rec-clone-bigint');
+
+  const confirmed = storeNext(genesis, 'confirmed', { actor: new BigIntField() });
+  await assert.rejects(
+    () => store.appendTransition('open', confirmed, { nonTerminal: false }),
+    (err: unknown) =>
+      err instanceof Error &&
+      /MemoryStore/.test(err.message) &&
+      err.cause instanceof TypeError &&
+      /BigInt/.test(err.cause.message),
+  );
+  assert.deepEqual(await store.readChain('rec-clone-bigint'), before);
+  assert.equal(await store.chainHead('rec-clone-bigint'), head);
+});
+
+test('a conflict still wins over the digest-check throw (stale expected state, prototype toJSON member)', async () => {
+  const store = new MemoryStore();
+  const genesis = storeGenesis('rec-clone-conflict', 'profile.p1', 'subject:clone-conflict');
+  await store.appendTransition(null, genesis, { nonTerminal: true });
+  const before = await store.readChain('rec-clone-conflict');
+
+  const confirmed = storeNext(genesis, 'confirmed', { actor: new ViewedMember() });
+  const result = await store.appendTransition('confirmed', confirmed, { nonTerminal: false });
+  assert.deepEqual(result, { appended: false, conflict: 'state-mismatch' });
+  assert.deepEqual(await store.readChain('rec-clone-conflict'), before);
 });
 
 test('a plain payload is unaffected: the returned digests equal chainHead', async () => {

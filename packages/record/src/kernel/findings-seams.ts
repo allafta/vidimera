@@ -40,8 +40,9 @@ import type {
   Transition,
 } from '../types.js';
 import { expiryDeadlineMs, resolveDueClock } from './expiry.js';
-import { appendChainCompromise, appendSeqConflict, identitySnapshot } from './finalize.js';
+import { appendChainCompromise, appendSeqConflict } from './finalize.js';
 import { heldProfile } from './held-profile.js';
+import { identitySnapshot } from './identity.js';
 import { signatureLayerHolds } from './verify-signatures.js';
 
 /** SPEC §10.2's `finding` argument: `{ findingId, kind, findingDigest, magnitude? }`. */

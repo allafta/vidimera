@@ -23,7 +23,7 @@ import { transitionDigest } from '../chain/encoding.js';
 import { replay, verifyChain } from '../chain/replay.js';
 import type { KernelContext, ResolvedProfile } from '../create.js';
 import type { IdentityAssertion, RecordedPriorLegRef } from '../types.js';
-import { identitySnapshot } from './finalize.js';
+import { identitySnapshot } from './identity.js';
 import { signatureLayerHolds } from './verify-signatures.js';
 
 export interface VerifiedPriorLegs {

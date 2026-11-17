@@ -494,12 +494,18 @@ is the summary, and that file wins on conflict.
   and the SQL backings' stored JSON lists `principal` then `authority`. `MemoryStore` now also
   compares the digest of what it cloned with the digest of the transition it was given, and
   throws before changing any state when they differ (after every conflict check), so the digest
-  an append returns is always that of the transition actually stored; a conformance case holds
-  every backing to the same statement. **Behavior change on the read side**: a recorded
-  prior-leg actor, `priorLegActors` entry, finding raiser or acknowledger that is not a valid
-  identity is now a named storage-fault throw — at a successor's `open()`, at `finalize` and
-  `decline`, and wherever a finding's acknowledgement coverage is computed (`finalize`,
-  `review`) — rather than a silent separation-of-duties pass or an unnamed `TypeError`. That
+  an append returns is that of the transition actually stored for every difference the clone's own
+  digest can show; a conformance case runs one shape against every backing — an append whose
+  payload carries a prototype `toJSON` either throws leaving the chain unchanged or returns a
+  digest equal to what the store holds — and states no more: a member whose value changes
+  between reads (an own getter, say) can still make an SQL backing return a digest that differs
+  from what it stores, because snapshotting non-identity host values is not in this increment.
+  **Behavior change on the read side**: a recorded prior-leg actor, `priorLegActors` entry,
+  finding raiser or acknowledger that is not a valid identity is now a named storage-fault
+  throw — at a successor's `open()`; at `finalize` and `decline`, for `priorLegActors` only
+  when the leg declares `sod`; and where a finding's acknowledgement coverage is computed
+  (`finalize`, `review`), only for a required-kind finding that carries acknowledgements,
+  under a declared `ackMode` — rather than a silent separation-of-duties pass or an unnamed `TypeError`. That
   includes chains written before the exact-shape posture of 2026-09-03, whose actors carry
   extra keys; the library is unpublished, so no release carries the old behavior. The honest
   bound, in the same breath: only identities are snapshotted — other host values (profiles,

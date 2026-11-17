@@ -13,7 +13,7 @@
 
 import type { LegSpec } from '../config.js';
 import type { IdentityAssertion, RecordedAck, RecordedFinding } from '../types.js';
-import { identitySnapshot } from './finalize.js';
+import { identitySnapshot } from './identity.js';
 
 /** The three ack modes SPEC §10.2 declares, relative to a finding's raiser. */
 export type AckMode = NonNullable<LegSpec['ackMode']>;

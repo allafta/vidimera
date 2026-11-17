@@ -114,10 +114,10 @@ any one exit.
   stand. See the dedicated section at the end of this document; the numbers immediately
   below already include it.
 - **Measured against the current tree** (re-measured at the identity-snapshot increment,
-  2026-11-17): `pnpm test` — 79 test files, 1066 tests, zero skips
+  2026-11-17): `pnpm test` — 79 test files, 1068 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
-  `pnpm lint` (`biome check .`) — 150 files checked, zero errors or warnings;
+  `pnpm lint` (`biome check .`) — 151 files checked, zero errors or warnings;
   `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 25 refusal codes, the twenty-fifth being
@@ -5530,10 +5530,10 @@ register row 22's text speaks of signing records only. The register itself is no
 
 **The twenty-sixth post-build-order increment, exited (branch `identity-snapshot-2026-11-17`,
 stacked on `chain-binding-2026-11-17` at `3a1361b`: the design-and-plan commit `9c4ea71`, two
-code commits and this paperwork commit, which `git log 3a1361b..HEAD` enumerates).** No
+code commits, this paperwork commit and the fix-wave commit that followed it, which `git log 3a1361b..HEAD` enumerates).** No
 sealed-set edit, no marker move, no new refusal code, and no change to `index.ts`, either
 manifest, `sqlite.ts` or `packages/store-postgres`. No public-surface change: `identitySnapshot`
-is exported from `kernel/finalize.ts` only, never from the root. **No inversion** — the
+is exported from `kernel/identity.ts` only, never from the root. **No inversion** — the
 Inversions paragraph below says why. The design is
 `docs/superpowers/specs/2026-11-17-identity-snapshot-design.md` — its §3 argues why no sanction
 is needed and none is claimed — and the plan is
@@ -5562,7 +5562,7 @@ increment.
 
 **What landed, commit by commit.**
 
-- `d87ea90` — `identitySnapshot(identity): IdentityAssertion | null` (`kernel/finalize.ts`)
+- `d87ea90` — `identitySnapshot(identity): IdentityAssertion | null` (then in `kernel/finalize.ts`; see the fix wave below)
   applies `isValidIdentity`'s checks in their order, reads each field exactly once into a local
   and returns a fresh `{ principal, authority, proofRef? }` literal (`proofRef` omitted when
   `undefined`), or `null`; it catches nothing, so a getter that throws propagates as before.
@@ -5581,18 +5581,32 @@ increment.
 - `1916097` — `MemoryStore` clones each transition, compares the clone's digest with the
   digest of the transition it was given, and throws before any state changes when they differ
   (genesis append, append and `appendBatch`; after every conflict check, so a conflict still
-  wins over a throw, and a batch stays all-or-nothing). The header's store-clone decision is
-  corrected in place. A conformance case in `test/conformance/store-conformance.ts` runs on all
+  wins over a throw, and a batch stays all-or-nothing). The header's store-clone decision was
+  touched here, but its premise was not yet corrected; the fix wave below did that. A conformance case in `test/conformance/store-conformance.ts` runs on all
   three backings: an append whose payload carries a prototype `toJSON` either throws leaving the
   chain unchanged or returns a digest equal to `chainHead` and to the digest of what `readChain`
   returns. `kernel/findings.ts` now throws a named storage-fault error for a recorded
   raiser or acker that is not a valid identity — it previously crashed with an unnamed
   `TypeError` (the design's first draft said `finalize` refused there; execution measured the
-  crash, and the design's §1 bullet is corrected in this commit) — except that an
+  crash, and the design's §1 bullet was corrected in `961cdbe`, the record commit) — except that an
   empty-string principal on an object-shaped identity stays non-counting, because an existing
   assertion pins it. Four `MemoryStore` pins in `test/store-constraints.test.ts`; the
   review-driven additions to the identity test file (a capturing-store double so the
   mutation-after-call pin can fail, a decline matrix, SoD rows).
+
+- This increment's fix-wave commit (the final review's findings). `IDENTITY_KEYS`,
+  `identitySnapshot` and `isValidIdentity` moved, with their doc comments and the twelfth
+  inversion's argument, from `kernel/finalize.ts` into the new leaf module
+  `kernel/identity.ts`; every importer was updated, which removes the `findings.ts` ↔
+  `finalize.ts` and `consultations.ts` ↔ `finalize.ts` import cycles, and nothing outside the
+  kernel imported them. The `MemoryStore` header's premise was corrected (above). One behavior
+  change, in `cloneSameDigest`: when the clone cannot be digested at all (a BigInt reached
+  through a prototype `toJSON`, say) it now rethrows a `MemoryStore`-named error with the
+  original as `cause`, where the bare `TypeError` used to escape; two more pins in
+  `test/store-constraints.test.ts` (that rethrow, and a conflict still winning over the
+  digest-check throw), and one test title there corrected. The changelog entry's limits were
+  qualified: the throws that fire only for a `sod`-declaring leg and for a required-kind
+  finding carrying acknowledgements, and what the conformance case does and does not hold.
 
 **What changes in the stored form, and what does not.** For a plain `{ principal, authority,
 proofRef? }` literal every digest is unchanged: `test/byte-stability.test.ts` is untouched
@@ -5604,7 +5618,8 @@ reader of the stored object), and the SQL backings' stored JSON lists `principal
 
 **The store-clone decision's corrected premise.** The decision comment in `store/memory.ts`
 said a class instance carrying a method "would newly THROW" at the clone. That is wrong
-for the shape it named: `structuredClone` throws on function- or symbol-valued OWN members, and
+for the shape it named, and the header text was corrected in this increment's fix-wave commit
+(the final review's findings): `structuredClone` throws on function- or symbol-valued OWN members, and
 silently drops a prototype, its methods and its `toJSON`. The decision itself — plain
 `structuredClone`, its throw accepted as a deliberate narrowing — is kept; the digest check is
 what makes the silent half loud, since a clone that lost a prototype `toJSON` digests
@@ -5639,23 +5654,23 @@ narrowing); the new digest check adds a second loud refusal in the same directio
 premise is corrected. No recorded stance of this build is reversed, so the numbered sequence
 stands at fourteen. No pinned assertion changed its truth value; the only edits to existing
 test files are additions (`test/conformance/store-conformance.ts`'s new case,
-`test/store-constraints.test.ts`'s four pins).
+`test/store-constraints.test.ts`'s six pins).
 
-**Gate outputs, as measured on this branch with this paperwork in place.** `pnpm` fails on this
+**Gate outputs, as measured on this branch after the fix wave.** `pnpm` fails on this
 machine with `CommandNotFound`, so each gate ran through the local binaries its script names.
 The whole suite — `vitest run` with the JSON reporter, then `node scripts/ci-assert-tests.mjs`
-over the report, the `pnpm test:ci` pair — 1066 tests in 79 files, zero skips
-(`ci-assert-tests: ok — 1066 tests in 79 files (84 suites): 1066 passed, 0 failed, 0 skipped, 0 todo`),
+over the report, the `pnpm test:ci` pair — 1068 tests in 79 files, zero skips
+(`ci-assert-tests: ok — 1068 tests in 79 files (84 suites): 1068 passed, 0 failed, 0 skipped, 0 todo`),
 vitest exit 0; `embedded-postgres`'s `TypeError: done is not a function` printed after the
 summary — the known teardown message deferral register row 24 owns. Against the 984 in 78 the
-chain-binding increment last measured, the difference is 82 tests and one file:
-`identity-snapshot.test.ts` 75, `store-constraints.test.ts` four more, and the new conformance
-case once on each of the three backings. Typecheck, both packages — exit 0; `biome check .` and
-`biome check --error-on-warnings .` — 150 files, exit 0 each; build, both packages'
+chain-binding increment last measured, the difference is 84 tests and one file:
+`identity-snapshot.test.ts` 75, `store-constraints.test.ts` six more (four, then two in the fix wave), and the new
+conformance case once on each of the three backings. Typecheck, both packages — exit 0; `biome check .` and
+`biome check --error-on-warnings .` — 151 files, exit 0 each; build, both packages'
 `tsconfig.build.json` — exit 0; `contract-scan`, `api-reference-sync` and `docs-index-sync` —
 exit 0, no output. **The packed-tarball smoke test was not run on the authoring machine** — the
 broken `pnpm` launcher stops `scripts/smoke-pack.mjs` at its adapter pack step, as at the
 previous increment — and runs in CI on the pull request. Nothing in this increment touches
 either manifest, the build configuration or `packages/store-postgres`. `CLAUDE.md`'s measured
-sentence moved to 79 files / 1066 tests with this record, as the earlier increments' records
+sentence moved to 79 files / 1068 tests with the fix wave, as the earlier increments' records
 moved it.
