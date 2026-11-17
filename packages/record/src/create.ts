@@ -247,6 +247,45 @@ function defaultTokenSource(): string {
 }
 
 /**
+ * The shape of `config.signing`, checked at construction so a malformed block fails loudly
+ * here instead of as an obscure error at the first append. An EMPTY `verifiers` registry is
+ * legal (a prepared instance): the mint check refuses its first signature.
+ */
+function validateSigningShape(signing: unknown): void {
+  if (typeof signing !== 'object' || signing === null) {
+    throw new Error('create: config.signing must be an object { signer, verifiers, signatures }');
+  }
+  const block = signing as Record<string, unknown>;
+  if (typeof block.signer !== 'function') {
+    throw new Error('create: config.signing.signer must be a function');
+  }
+  const verifiers = block.verifiers;
+  const proto =
+    typeof verifiers === 'object' && verifiers !== null ? Object.getPrototypeOf(verifiers) : 0;
+  if (proto !== Object.prototype && proto !== null) {
+    throw new Error(
+      'create: config.signing.verifiers must be a plain object keyed by keyRef ' +
+        '(not an array, a Map, or another class instance)',
+    );
+  }
+  for (const [keyRef, verifier] of Object.entries(verifiers as object)) {
+    if (typeof verifier !== 'function') {
+      throw new Error(`create: config.signing.verifiers['${keyRef}'] must be a function`);
+    }
+  }
+  const sidecar = block.signatures as Record<string, unknown> | null | undefined;
+  if (typeof sidecar !== 'object' || sidecar === null) {
+    throw new Error('create: config.signing.signatures must be an object');
+  }
+  if (typeof sidecar.put !== 'function') {
+    throw new Error('create: config.signing.signatures.put must be a function');
+  }
+  if (typeof sidecar.listByRecord !== 'function') {
+    throw new Error('create: config.signing.signatures.listByRecord must be a function');
+  }
+}
+
+/**
  * `createWithClock(config, now, mintId?, tokenSource?)` — the internal assembly with an
  * INJECTABLE clock, `recordId` minter, AND single-use-token source. The clock seam is
  * the ONLY seam expiry tests use to control "now" deterministically (no sleeping); the
@@ -268,6 +307,7 @@ export function createWithClock(
 ): Surfaces {
   const profiles = new Map<string, ResolvedProfile>();
 
+  if (config.signing !== undefined) validateSigningShape(config.signing);
   for (const profile of config.profiles) {
     validateProfile(profile);
     if (profiles.has(profile.id)) {

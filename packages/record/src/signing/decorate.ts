@@ -9,6 +9,11 @@
 // landed: `kernel/verify-signatures.ts`'s `signatureLayerHolds` treats a missing entry
 // as `false`, folded into `chain-compromise` at every verification site); the order
 // is pinned.
+// THE MINT CHECK: the one signer call is followed, inside the same memoized promise, by a
+// check against this instance's own `verifiers` — the minted keyRef must be an own key whose
+// verifier answers the literal `true` over the same bytes — and nothing is put or appended
+// unless it passes (`mintAndCheck` below). A configuration whose signer this instance cannot
+// verify is refused at the first append, not discovered as `chain-compromise` later.
 // The sidecar write is deliberately NOT part of any host transaction an enlisted
 // seam passes through (`tx` delegates untouched): an aborted effect's orphan
 // signature is the same harmless class.
@@ -140,17 +145,63 @@ export function withSigning(
     return signs;
   }
 
+  // Mint, then verify what was minted, as ONE promise: the signer's output is only worth
+  // memoizing (and putting) once the instance's own registry accepts it. The check is the
+  // mint's other half — the keyRef must be an OWN key of `verifiers` (an inherited name such
+  // as `toString` never counts) and that verifier must answer the literal `true` over the very
+  // bytes that were signed. A signer whose key this instance cannot verify would otherwise land
+  // an entry every later seam reads as `chain-compromise`; refused here, nothing reaches the
+  // sidecar or the chain, and the host sees a named error at the append that caused it. A
+  // verifier that throws or rejects is a fault, as in `kernel/verify-signatures.ts`: it
+  // propagates wrapped, with the verifier's error as `cause`. Any failure drops the memo entry
+  // (in `signOne`), so a repaired configuration mints and checks anew; a success is memoized
+  // and not repeated for the next CAS candidate.
+  async function mintAndCheck(
+    transition: Transition,
+  ): Promise<{ keyRef: string; signature: string }> {
+    const bytes = encodeTransition(transition);
+    const minted = await signing.signer(bytes);
+    const { keyRef } = minted;
+    if (!Object.hasOwn(signing.verifiers, keyRef)) {
+      throw new Error(
+        `signing: the signer minted keyRef '${String(keyRef)}' for record '${transition.recordId}' ` +
+          `at seq ${transition.seq}, but config.signing.verifiers holds no verifier for it; ` +
+          'nothing was put to the sidecar and nothing was appended',
+      );
+    }
+    let ok: unknown;
+    try {
+      ok = await signing.verifiers[keyRef]?.(bytes, minted.signature);
+    } catch (cause) {
+      throw new Error(
+        `signing: the verifier for keyRef '${keyRef}' threw or rejected while checking a fresh ` +
+          `signature over record '${transition.recordId}' at seq ${transition.seq}; nothing was ` +
+          'put to the sidecar and nothing was appended',
+        { cause },
+      );
+    }
+    if (ok !== true) {
+      throw new Error(
+        `signing: the signature the signer minted under keyRef '${keyRef}' for record ` +
+          `'${transition.recordId}' at seq ${transition.seq} does not verify under the ` +
+          'registered verifier for that keyRef; nothing was put to the sidecar and nothing ' +
+          'was appended',
+      );
+    }
+    return minted;
+  }
+
   async function signOne(transition: Transition): Promise<void> {
     let pending = signerResult.get(transition);
     if (pending === undefined) {
-      pending = signing.signer(encodeTransition(transition));
+      pending = mintAndCheck(transition);
       signerResult.set(transition, pending);
     }
     let minted: { keyRef: string; signature: string };
     try {
       minted = await pending;
     } catch (err) {
-      // A failed mint must not be remembered: the next attempt has to reach the signer again.
+      // A failed mint or mint check must not be remembered: the next attempt has to reach the signer again.
       // Delete only if the memo still holds THIS promise — a later caller may already have
       // installed a fresh attempt, and dropping that one would cost it a redundant mint.
       if (signerResult.get(transition) === pending) signerResult.delete(transition);

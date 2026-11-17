@@ -335,7 +335,10 @@ function memoRig() {
   };
   const signatures = new MemorySignatureStore();
   const signer: Signer = async () => ({ keyRef: 'key-1', signature: 'sig' });
-  const store = withSigning({ signer, verifiers: {}, signatures }, counting, () => true);
+  // A stub pair consistent with each other: the mint check needs a verifier that answers
+  // true for what this signer mints; the memo assertions are about something else.
+  const stubVerifiers = { 'key-1': (async () => true) as Verifier };
+  const store = withSigning({ signer, verifiers: stubVerifiers, signatures }, counting, () => true);
   return {
     store,
     signatures,
@@ -445,7 +448,10 @@ test('the memo never learns from an EMPTY chain: a non-genesis append that arriv
   const inner = new MemoryStore();
   const signatures = new MemorySignatureStore();
   const signer: Signer = async () => ({ keyRef: 'key-1', signature: 'sig' });
-  const store = withSigning({ signer, verifiers: {}, signatures }, inner, () => true);
+  // A stub pair consistent with each other: the mint check needs a verifier that answers
+  // true for what this signer mints; the memo assertions are about something else.
+  const stubVerifiers = { 'key-1': (async () => true) as Verifier };
+  const store = withSigning({ signer, verifiers: stubVerifiers, signatures }, inner, () => true);
 
   const genesis = storeGenesis('rec-early', 'test.signed.v1', 'subject:early');
   const early = storeNext(genesis, 'consultation-recorded', PROBE_PAYLOAD);

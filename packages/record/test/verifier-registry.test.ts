@@ -17,6 +17,7 @@
 // answer is truthy but not the literal `true`, which the same truthiness read admitted.
 
 import assert from 'node:assert/strict';
+import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';
 import { test } from 'vitest';
 
 import type { ConfirmProfile } from '../src/config.js';
@@ -101,18 +102,45 @@ for (const keyRef of ['valueOf', 'hasOwnProperty', 'isPrototypeOf', '__proto__']
 }
 
 test('a host verifier answering a truthy non-boolean does not verify: the layer requires the literal true', async () => {
-  // A rig whose ONLY verifier answers with a truthy string — a host bug, or a verifier
-  // library whose "success" is a status value. `Verifier` promises a boolean; anything else
-  // is not a verification, and the report must say so rather than pass it on truthiness.
+  // A registry whose verifier for the ORIGINAL keyRef answers with a truthy string — a host
+  // bug, or a verifier library whose "success" is a status value. `Verifier` promises a
+  // boolean; anything else is not a verification, and the report must say so rather than pass
+  // it on truthiness. The record is opened by an instance that verifies correctly (the mint
+  // check refuses an instance whose own signer cannot verify); the instance under test shares
+  // its store and sidecar, signs with a NEW keyRef it verifies truthfully, and misanswers
+  // only for 'key-1'.
   const store = new MemoryStore();
   const signatures = new MemorySignatureStore();
-  const signer: Signer = async () => ({ keyRef: 'key-1', signature: 'unused-by-this-verifier' });
+  const k1 = generateKeyPairSync('ed25519');
+  const k2 = generateKeyPairSync('ed25519');
+  const real =
+    (publicKey: typeof k1.publicKey): Verifier =>
+    async (bytes, signature) =>
+      edVerify(null, bytes, publicKey, Buffer.from(signature, 'base64'));
+  const signWith =
+    (keyRef: string, privateKey: typeof k1.privateKey): Signer =>
+    async (bytes) => ({
+      keyRef,
+      signature: edSign(null, bytes, privateKey).toString('base64'),
+    });
+  const opener = create({
+    ...makeConfig([signingProfile()], { store }),
+    signing: {
+      signer: signWith('key-1', k1.privateKey),
+      verifiers: { 'key-1': real(k1.publicKey) },
+      signatures,
+    },
+  });
+  const recordId = await openRecord(opener, CONTENT, PROFILE_ID, 'subject:vreg-truthy');
   const truthy = (async () => 'verified') as unknown as Verifier;
   const handles = create({
     ...makeConfig([signingProfile()], { store }),
-    signing: { signer, verifiers: { 'key-1': truthy }, signatures },
+    signing: {
+      signer: signWith('key-2', k2.privateKey),
+      verifiers: { 'key-1': truthy, 'key-2': real(k2.publicKey) },
+      signatures,
+    },
   });
-  const recordId = await openRecord(handles, CONTENT, PROFILE_ID, 'subject:vreg-truthy');
 
   const report = await handles.operator.verifySignatures(recordId);
   assert.ok(report.transitions.length > 0);

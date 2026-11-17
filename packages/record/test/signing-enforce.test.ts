@@ -320,7 +320,11 @@ test('order: the verifier is never consulted on a hash-broken chain; an unresolv
 
   // Hash-broken chain: a sibling signing instance over a tampered copy, with its OWN
   // fresh counting verifier — asserted at ZERO after the refusal, proving AL1 refused
-  // before the layer ever ran.
+  // before the layer ever ran. The encoding moved when the mint check landed: signing the
+  // compromise edge now consults the verifier registered for the signer's own keyRef, which
+  // is not the layer. So the sibling signs with a SEPARATE key ('key-2', verified by an
+  // uncounted verifier) and the counted verifier is registered only under 'key-1', the key
+  // the old entries carry — it is consulted only if the layer runs over them.
   const chain = await handles.operator.readChain(recordId);
   const { tamperNonLast } = await import('./helpers/profiles.js');
   const tamperedStore = new MemoryStore();
@@ -328,11 +332,23 @@ test('order: the verifier is never consulted on a hash-broken chain; an unresolv
     await tamperedStore.appendTransition(i === 0 ? null : 'open', t, { nonTerminal: true });
   }
   const sibling = countingVerifier();
+  const sibling2 = generateKeyPairSync('ed25519');
   const h2 = create({
     ...makeConfig([{ ...captureProfile({ id: 'test.enf.v1' }), signing: true as const }], {
       store: tamperedStore,
     }),
-    signing: { signer, verifiers: { 'key-1': sibling.verifier }, signatures },
+    signing: {
+      signer: async (bytes) => ({
+        keyRef: 'key-2',
+        signature: edSign(null, bytes, sibling2.privateKey).toString('base64'),
+      }),
+      verifiers: {
+        'key-1': sibling.verifier,
+        'key-2': async (bytes, signature) =>
+          edVerify(null, bytes, sibling2.publicKey, Buffer.from(signature, 'base64')),
+      },
+      signatures,
+    },
   });
   const broken = await h2.operator.finalize(recordId, identity(), CONTENT, facts());
   assert.equal(broken.status, 'refused');
