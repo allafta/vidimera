@@ -121,6 +121,16 @@ export function withSigning(
         // unsigned, which the fail-closed layer reads as chain-compromise.
         return false;
       }
+      if (genesis.recordId !== transition.recordId) {
+        // The store answered this record's read with ANOTHER record's chain (SPEC §8: a chain
+        // is addressed to the id it was requested for). Its genesis says nothing about
+        // whether THIS record signs, so the decision must not be cached under this id — a
+        // cached answer would outlive the fault and bind the wrong profile to the record.
+        // Sign: an extra sidecar entry is a harmless orphan, an unsigned landed edge on a
+        // signing record is condemned. Never throw here: the append is the very
+        // chain-compromise edge that reports the fault.
+        return true;
+      }
       const profileId = (genesis.payload as { profileId?: unknown }).profileId;
       signs = typeof profileId === 'string' && isSigningProfile(profileId);
     }

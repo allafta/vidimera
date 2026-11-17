@@ -739,7 +739,7 @@ async function seqConflict(
     const read = await store.readChain(recordId);
     // A foreign chain is carried as the re-read failure below (`fresh` stays unset), so the
     // conflict is reported as the fault it may be, never as contention.
-    assertChainFor(read, recordId, 'finalize');
+    assertChainFor(read, recordId, seam);
     fresh = read;
   } catch (err) {
     reReadFailure = err;

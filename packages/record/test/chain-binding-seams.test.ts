@@ -456,12 +456,17 @@ test('empty chains keep their behavior', async () => {
   const profile = { ...captureProfile(), signing: true as const };
   const { handles } = rig('MemoryStore', 'AL2', [profile]);
   assert.equal(await handles.operator.getRecord('rec-none'), null);
-  for (const call of [
-    handles.operator.replay('rec-none'),
-    handles.operator.review('rec-none'),
-    handles.operator.verifySignatures('rec-none'),
-  ]) {
-    await assert.rejects(call, (e: Error) => !FOREIGN.test(e.message));
+  const reads: [string, () => Promise<unknown>, RegExp][] = [
+    ['replay', () => handles.operator.replay('rec-none'), /replay: empty chain/],
+    ['review', () => handles.operator.review('rec-none'), /replay: empty chain/],
+    [
+      'verifySignatures',
+      () => handles.operator.verifySignatures('rec-none'),
+      /verifySignatures: unknown recordId 'rec-none'/,
+    ],
+  ];
+  for (const [, call, message] of reads) {
+    await assert.rejects(call(), (e: Error) => message.test(e.message) && !FOREIGN.test(e.message));
   }
 });
 

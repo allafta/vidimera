@@ -3,18 +3,25 @@
 // against the requested id rather than against whatever the first row claims.
 
 import assert from 'node:assert/strict';
+import { sign as edSign, generateKeyPairSync } from 'node:crypto';
 import { test } from 'vitest';
 
 import { transitionDigest } from '../src/chain/encoding.js';
 import { verifyChain } from '../src/chain/replay.js';
+import type { ConfirmProfile } from '../src/config.js';
 import { createWithClock } from '../src/create.js';
 import { resolveDueClock } from '../src/kernel/expiry.js';
 import { appendChainCompromise, refuseMaybeAppend } from '../src/kernel/finalize.js';
 import { profileDigest } from '../src/profile-digest.js';
+import { withSigning } from '../src/signing/decorate.js';
+import { MemorySignatureStore } from '../src/signing/memory.js';
+import type { SigningConfig } from '../src/signing/store.js';
 import { MemoryStore } from '../src/store/memory.js';
 import type { Transition } from '../src/types.js';
 import { buildChain } from './helpers/chain.js';
 import { captureProfile, makeConfig, openRecord } from './helpers/profiles.js';
+import { enforceableSigningSetup } from './helpers/signing.js';
+import { RelocatingStore } from './helpers/stores.js';
 
 function chainFor(recordId: string): Transition[] {
   return buildChain(recordId, [
@@ -147,4 +154,73 @@ test('resolveDueClock: the clock edge carries the recordId argument', async () =
   assert.equal(last?.recordId, x);
   assert.equal(last?.kind, 'expired');
   assert.deepEqual(await store.readChain(y), yBefore);
+});
+
+// === decorator: the signing decision is never cached from a foreign genesis ============
+
+/**
+ * X and Y on one inner store (S signs, N does not), a FRESH decorator over a relocating
+ * wrapper with its own sidecar, and a `refused`/`chain-compromise` transition addressed to X.
+ */
+async function decoratorRig(xProfile: 'S' | 'N') {
+  const S: ConfirmProfile = { ...captureProfile({ id: 'test.dec.s.v1' }), signing: true };
+  const N: ConfirmProfile = captureProfile({ id: 'test.dec.n.v1' });
+  const inner = new MemoryStore();
+  const { handles } = enforceableSigningSetup([S, N], { store: inner });
+  const content = { subject: 'week-1', total: 40 };
+  const [xp, yp] = xProfile === 'S' ? [S, N] : [N, S];
+  const x = await openRecord(handles, content, xp.id, 'subject:x');
+  const y = await openRecord(handles, content, yp.id, 'subject:y');
+  const relocating = new RelocatingStore(inner);
+  const signatures = new MemorySignatureStore();
+  const { privateKey } = generateKeyPairSync('ed25519');
+  const signing: SigningConfig = {
+    signer: async (bytes) => ({
+      keyRef: 'key-1',
+      signature: edSign(null, bytes, privateKey).toString('base64'),
+    }),
+    verifiers: {},
+    signatures,
+  };
+  const decorated = withSigning(signing, relocating, (id) => id === S.id);
+  const edge = async (): Promise<Transition> => {
+    const chain = await inner.readChain(x);
+    const last = chain.at(-1);
+    assert.ok(last !== undefined);
+    return {
+      recordId: x,
+      seq: last.seq + 1,
+      at: new Date(T0).toISOString(),
+      kind: 'refused',
+      payload: { code: 'chain-compromise' },
+      prevHash: transitionDigest(last),
+    };
+  };
+  const append = async (t: Transition): Promise<void> => {
+    await decorated.appendTransition('open', t, { nonTerminal: false }).catch(() => undefined);
+  };
+  return { x, y, relocating, signatures, edge, append };
+}
+
+test('decorator: a foreign genesis on a cold read signs the transition', async () => {
+  const { x, y, relocating, signatures, edge, append } = await decoratorRig('S');
+  relocating.relocate(x, y);
+  const t = await edge();
+  await append(t);
+  const entries = await signatures.listByRecord(x);
+  assert.ok(entries.some((e) => e.transitionDigest === transitionDigest(t)));
+});
+
+test('decorator: a foreign genesis is never cached', async () => {
+  const { x, y, relocating, signatures, edge, append } = await decoratorRig('N');
+  relocating.relocate(x, y);
+  await append(await edge());
+  assert.equal((await signatures.listByRecord(x)).length, 1, 'the foreign read signed');
+  relocating.restore();
+  await append(await edge());
+  assert.equal(
+    (await signatures.listByRecord(x)).length,
+    1,
+    'X is honestly non-signing: the second append adds no entry',
+  );
 });
