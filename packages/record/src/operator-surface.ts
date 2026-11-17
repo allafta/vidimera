@@ -130,7 +130,9 @@ export interface OperatorSurface {
    * fail-closed REPORTING, not a gate: the AL2 enforcement increment (second of three,
    * now landed) folds the layer into chain-compromise at the seams via its own
    * `signatureLayerHolds`, never by this read gating — and that primitive's obligation is the
-   * held profile's, not this report's `signingDeclared`. Throws only on the
+   * held profile's `signing` where this instance holds the record's profile, and otherwise the
+   * live declaration plus a genesis entry its verifier accepts, never this report's
+   * `signingDeclared` alone. Throws only on the
    * caller-error/unknown-record class every read takes, which now includes foreign persisted
    * data: a chain whose rows carry another record's id throws, as `getRecord`, `replay` and
    * `review` do (SPEC §8). Its `orphans` names the sidecar

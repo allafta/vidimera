@@ -55,8 +55,9 @@ export interface ConfirmProfile {
    * of three, now landed) is what CONSULTS it: every chain-verify site folds
    * `kernel/verify-signatures.ts`'s `signatureLayerHolds` into its own existing failure
    * arm on a record whose HELD profile declares it (an instance that does not hold the
-   * record's profile enforces only on a genesis entry its verifier accepts, and otherwise
-   * refuses `unknown-profile`). The literal `true` (never `boolean`) closes the
+   * record's profile enforces only when its own live same-id profile declares it AND the
+   * genesis entry verifies; at the operator seams it otherwise refuses `unknown-profile`,
+   * appending nothing). The literal `true` (never `boolean`) closes the
    * `signing: false` inertness at the type level for a TS caller — and, as of this
    * review's guard, at runtime too: `validateProfile` (below) throws on any declared
    * value other than `true`, so a non-TS caller cannot construct a silently-inert
