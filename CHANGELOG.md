@@ -470,6 +470,41 @@ is the summary, and that file wins on conflict.
   absence stays silent, and at AL1 an insider who rewrites every copied `recordId` and
   recomputes every link — or edits the head — is still not caught: SPEC §13A's residuals,
   unchanged. Pre-publication, so there is no advisory to issue.
+- **A recorded identity is now the values the library validated, never the object the host
+  passed** (the identity-snapshot increment, 2026-11-17, branch `identity-snapshot-2026-11-17`):
+  `isValidIdentity` checked an identity's own enumerable keys, then read `principal`,
+  `authority` and `proofRef` through ordinary property access — getters and the prototype
+  chain — while every seam embedded the caller's object itself, and the three serializers
+  (JCS, `MemoryStore`'s `structuredClone`, the SQL backings' `JSON.stringify`) each read it
+  their own way. A getter-backed or `Object.create`-built identity was digested and recorded
+  as `{}`, so a `sod.notActorOf` successor received `priorLegActors: [{}]` and the same
+  principal could confirm the checker leg: separation of duties failed open. A class with a
+  prototype `toJSON` persisted that view on the SQL backings — an extra e-mail key, a redacted
+  principal or a disallowed authority, the very leak the exact-shape fix of 2026-09-03 closed
+  for extra own keys, which had been verified against that variant only. On `MemoryStore` the
+  same shape in `facts.checker` made an untampered chain stop linking, so `verifyChain`
+  reported a break and the next seam appended `chain-compromise`. A getter-backed acker was
+  recorded as `{}`, and `finalize` then crashed with an unnamed `TypeError`. Now one validator
+  (`identitySnapshot`) reads each field once and returns a fresh `{ principal, authority,
+  proofRef? }` literal, which `finalize` and `decline` (the actor, `facts.checker` and each
+  obtained consultation's `checker`), `raiseFinding` and `acknowledge` record in place of the
+  object they were handed; a caller mutating its object after the call changes nothing
+  recorded. For a plain literal identity no recorded byte moves — the frozen byte-stability
+  digests are untouched — but `MemoryStore` no longer keeps an own `proofRef: undefined` key,
+  and the SQL backings' stored JSON lists `principal` then `authority`. `MemoryStore` now also
+  compares the digest of what it cloned with the digest of the transition it was given, and
+  throws before changing any state when they differ (after every conflict check), so the digest
+  an append returns is always that of the transition actually stored; a conformance case holds
+  every backing to the same statement. **Behavior change on the read side**: a recorded
+  prior-leg actor, `priorLegActors` entry, finding raiser or acknowledger that is not a valid
+  identity is now a named storage-fault throw — at a successor's `open()`, at `finalize` and
+  `decline`, and wherever a finding's acknowledgement coverage is computed (`finalize`,
+  `review`) — rather than a silent separation-of-duties pass or an unnamed `TypeError`. That
+  includes chains written before the exact-shape posture of 2026-09-03, whose actors carry
+  extra keys; the library is unpublished, so no release carries the old behavior. The honest
+  bound, in the same breath: only identities are snapshotted — other host values (profiles,
+  options, canonicalizer output) are not yet, and the exact-own-key check is unchanged.
+  Pre-publication, so there is no advisory to issue.
 
 ### Known not-done
 

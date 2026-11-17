@@ -42,8 +42,9 @@ Consequences, each reproduced:
   differs from `chainHead`; at AL2 the signature is filed under the returned digest and
   orphaned.
 - An acknowledgement by a getter-backed acker is recorded as `acker: {}`; `ackCounts`
-  (`kernel/findings.ts`) treats its empty principal as non-counting, so a covered finding reads
-  as unacknowledged and `finalize` refuses where it should confirm.
+  (`kernel/findings.ts`) took its `undefined` principal into a `.length` read, so `finalize`
+  crashed with an unnamed `TypeError` rather than refusing or confirming (measured at
+  execution; the first draft of this bullet said it refused).
 - Chains already written with such an `actor` stay fail-open on the read side:
   `verifyPriorLegs` (`kernel/prior-legs.ts`) rejects only an `undefined` actor, and
   `sodViolated` (`kernel/finalize.ts`) compares `priorActor.principal === identity.principal`, so

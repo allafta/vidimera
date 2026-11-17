@@ -151,6 +151,16 @@ And pass exactly those fields. The library rejects an identity carrying any key 
 closed rather than writing its e-mail addresses and tokens into a chain that cannot forget
 them.
 
+What the library records is not the object you pass. It checks the identity once, reads
+`principal`, `authority` and `proofRef` once each through ordinary property access, and records
+a fresh `{ principal, authority, proofRef? }` literal built from exactly those values — at
+`finalize` and `decline` (the actor, `facts.checker`, and each obtained consultation's
+`checker`) and at `raiseFinding` and `acknowledge`. A class with getters, an object built with
+`Object.create`, or a prototype `toJSON` is recorded as the values it validated: never as its
+`toJSON` view, and never changed by mutating your object after the call. The limit: only
+identities are snapshotted this way; other host values you hand the library — profiles,
+options, canonicalizer output — are not yet, so keep those plain data too.
+
 ## Handling outcomes
 
 One shape to handle everywhere:
