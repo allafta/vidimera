@@ -32,8 +32,8 @@ import {
   appendChainCompromise,
   batchSeqConflict,
   type Facts,
+  identitySnapshot,
   isValidFacts,
-  isValidIdentity,
   refuseMaybeAppend,
   SYSTEM_CHECKER,
   sodViolated,
@@ -142,7 +142,10 @@ export async function decline(
   }
 
   // --- (3) identity ---------------------------------------------------------------------
-  if (!isValidIdentity(identity) || !leg.allowedAuthorities.includes(identity.authority)) {
+  // finalize's rung (3) exactly: one fresh literal, read by the allowlist check, rung (3.5)
+  // and the recorded `actor` — never the caller's object again.
+  const actor = identitySnapshot(identity);
+  if (actor === null || !leg.allowedAuthorities.includes(actor.authority)) {
     return refuseMaybeAppend(
       store,
       recordId,
@@ -156,7 +159,7 @@ export async function decline(
   }
 
   // --- (3.5) separation of duties (SPEC §10.1: deciding includes declining) ------------
-  if (sodViolated(record, leg, identity, recordId, 'decline')) {
+  if (sodViolated(record, leg, actor, recordId, 'decline')) {
     return refuseMaybeAppend(store, recordId, 'sod-violation', leg, chain, resolved, finalLeg, now);
   }
 
@@ -251,7 +254,7 @@ export async function decline(
   };
   const factsConsultation: Consultation = {
     kind: 'facts',
-    checker: facts.checker,
+    checker: factsCheck.checker, // the literal gate (5) validated, never `facts.checker` re-read
     at: nowIso,
     payloadDigest: digest(factsCheck.canonical),
     verdict: 'pass',
@@ -279,7 +282,7 @@ export async function decline(
   for (const [i, entry] of supplied.obtained.entries()) {
     const consultation: Consultation = {
       kind: entry.kind,
-      checker: entry.checker,
+      checker: entry.checker, // the fresh literal `validateConsultations` built at intake
       at: nowIso,
       payloadDigest: entry.payloadDigest,
       verdict: entry.verdict,
@@ -304,7 +307,7 @@ export async function decline(
     seq: seqBase + 3 + suppliedTransitions.length,
     at: nowIso,
     kind: 'declined',
-    payload: { actor: identity },
+    payload: { actor },
     prevHash: suppliedPrevHash,
   };
 

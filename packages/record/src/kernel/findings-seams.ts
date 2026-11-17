@@ -40,7 +40,7 @@ import type {
   Transition,
 } from '../types.js';
 import { expiryDeadlineMs, resolveDueClock } from './expiry.js';
-import { appendChainCompromise, appendSeqConflict, isValidIdentity } from './finalize.js';
+import { appendChainCompromise, appendSeqConflict, identitySnapshot } from './finalize.js';
 import { heldProfile } from './held-profile.js';
 import { signatureLayerHolds } from './verify-signatures.js';
 
@@ -115,8 +115,16 @@ function validateInput(
   }
 }
 
-function validateSeamIdentity(seam: string, identity: IdentityAssertion): void {
-  if (!isValidIdentity(identity)) {
+/**
+ * The findings seams' identity intake: throws on a malformed identity (the caller-error
+ * posture above), and otherwise RETURNS the validator's fresh literal (`identitySnapshot`),
+ * which the seam holds across its chain load and records as `raiser`/`acker` — never the
+ * object it was handed, so the recorded principal is the one validated here and the one
+ * `ackCounts` (kernel/findings.ts) later compares.
+ */
+function validateSeamIdentity(seam: string, identity: IdentityAssertion): IdentityAssertion {
+  const snapshot = identitySnapshot(identity);
+  if (snapshot === null) {
     throw new Error(
       `${seam}: a malformed identity (not exactly { principal, authority, proofRef? } with a ` +
         'non-empty principal and authority) is a caller error — an empty principal could never ' +
@@ -124,6 +132,7 @@ function validateSeamIdentity(seam: string, identity: IdentityAssertion): void {
         'what a host leaks a secret through (SPEC §6)',
     );
   }
+  return snapshot;
 }
 
 type Loaded =
@@ -270,7 +279,7 @@ export async function raiseFinding(
   identity: IdentityAssertion,
 ): Promise<SeamResult> {
   validateInput('raiseFinding', finding as unknown as Record<string, unknown>, FINDING_KEYS, true);
-  validateSeamIdentity('raiseFinding', identity);
+  const raiser = validateSeamIdentity('raiseFinding', identity);
   const pre = await loadOpenDeclaringRecord(ctx, 'raiseFinding', recordId);
   if (!pre.ok) return pre.out;
   // (4) SPEC §10.2: "`kind` is immutable per `findingId` — a re-raise changing it
@@ -288,7 +297,7 @@ export async function raiseFinding(
     kind: finding.kind,
     findingDigest: finding.findingDigest,
     ...(finding.magnitude !== undefined ? { magnitude: finding.magnitude } : {}),
-    raiser: identity,
+    raiser,
   };
   return appendSeamTransition(
     ctx,
@@ -308,7 +317,7 @@ export async function acknowledge(
   identity: IdentityAssertion,
 ): Promise<SeamResult> {
   validateInput('acknowledge', ack as unknown as Record<string, unknown>, ACK_KEYS, false);
-  validateSeamIdentity('acknowledge', identity);
+  const acker = validateSeamIdentity('acknowledge', identity);
   const pre = await loadOpenDeclaringRecord(ctx, 'acknowledge', recordId);
   if (!pre.ok) return pre.out;
   // (4) SPEC §10.2: "An ack naming a `findingId` absent from the record throws (caller
@@ -326,7 +335,7 @@ export async function acknowledge(
     findingId: ack.findingId,
     findingDigest: ack.findingDigest,
     ...(ack.magnitude !== undefined ? { magnitude: ack.magnitude } : {}),
-    acker: identity,
+    acker,
   };
   return appendSeamTransition(
     ctx,

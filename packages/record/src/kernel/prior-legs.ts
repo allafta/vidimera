@@ -7,8 +7,9 @@
 // An unknown recordId REFUSES rather than throwing: the reference is host-supplied DATA
 // at a mutating seam, unlike replay()/verifyChain()'s audit-read caller-error posture.
 // The ONE loud throw: an intact chain that verified and replayed `confirmed` whose
-// confirmed payload carries no actor to derive — a storage/config fault (SPEC §8's
-// loud-throw posture; the garbled-tokenDigest precedent), never a domain refusal.
+// confirmed payload carries no actor to derive, or an actor that is not a valid identity —
+// a storage/config fault (SPEC §8's loud-throw posture; the garbled-tokenDigest
+// precedent), never a domain refusal.
 //
 // AL1 honesty note (SPEC §10.1): the priorLegActors this module derives live in the
 // successor's genesis payload, which IS the chain head until the successor's own next
@@ -22,6 +23,7 @@ import { transitionDigest } from '../chain/encoding.js';
 import { replay, verifyChain } from '../chain/replay.js';
 import type { KernelContext, ResolvedProfile } from '../create.js';
 import type { IdentityAssertion, RecordedPriorLegRef } from '../types.js';
+import { identitySnapshot } from './finalize.js';
 import { signatureLayerHolds } from './verify-signatures.js';
 
 export interface VerifiedPriorLegs {
@@ -92,12 +94,23 @@ export async function verifyPriorLegs(
         `verifyPriorLegs: prior leg record '${ref.recordId}' replays 'confirmed' with no actor in its confirmed payload — a garbled or foreign chain is a storage/config fault, not a domain outcome (SPEC §8)`,
       );
     }
+    // The same fault when the recorded actor is present but not a valid identity: a recorded
+    // `{}` (what a getter-backed or `Object.create`-built identity was written as before the
+    // identity-snapshot increment) has no principal to compare, so carrying it forward would
+    // let the successor's SoD gate pass silently. Fail closed here, and record the validated
+    // literal — the shape every seam now writes — into the successor's evidence.
+    const priorActor = identitySnapshot(prior.actor);
+    if (priorActor === null) {
+      throw new Error(
+        `verifyPriorLegs: prior leg record '${ref.recordId}' replays 'confirmed' with an actor that is not a valid identity in its confirmed payload — a garbled or foreign chain is a storage/config fault, not a domain outcome (SPEC §8)`,
+      );
+    }
     priorRecordRefs.push({
       recordId: ref.recordId,
       chainHead: ref.chainHead,
       legId: expectedLeg.id,
     });
-    priorLegActors.push(prior.actor);
+    priorLegActors.push(priorActor);
   }
   return { ok: true, verified: { priorRecordRefs, priorLegActors } };
 }
