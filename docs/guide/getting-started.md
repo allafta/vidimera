@@ -1,7 +1,9 @@
 # Getting started
 
 This walks you from a clean clone to your first verified decision record — including your
-first *refused* one, which is half the point of the library.
+first *refused* one, which is half the point of the library. A verified record is not a
+compliance claim: adopting the library makes no host compliant with any law or regulation
+([`faq.md`](faq.md)).
 
 **The honest precondition:** `@vidimera/record` is not published — there is no npm install
 yet. The package now builds (`pnpm build` → `dist/`), carries its `exports` map, and CI

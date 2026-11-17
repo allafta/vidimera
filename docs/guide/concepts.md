@@ -6,6 +6,9 @@ This is the derived, fast version. The normative version is
 in [`../concept/GLOSSARY.md`](../concept/GLOSSARY.md). Where this page and those disagree,
 this page is wrong.
 
+None of it is a compliance claim: adopting the library makes no host compliant with any law
+or regulation ([`faq.md`](faq.md)).
+
 ## The record and the chain
 
 A **decision record** is not a row you update — it is a fold over an append-only chain of

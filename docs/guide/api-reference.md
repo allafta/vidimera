@@ -14,7 +14,8 @@ declaration; and the package builds to `dist/` behind a real `exports` map (`.` 
 `./probes`; CI packs and consumer-tests the tarball on every run) but stays `private: true`
 and unpublished until the 0.1 cut — inside this workspace you still import from
 `packages/record/src/index.js`, and the `@vidimera/record` forms shown here resolve from
-the packed tarball.
+the packed tarball. No surface below is a compliance claim: adopting the library makes no
+host compliant with any law or regulation ([`faq.md`](faq.md)).
 
 ## `create(config)`
 

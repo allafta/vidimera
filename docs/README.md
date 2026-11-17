@@ -2,7 +2,9 @@
 
 Four areas, four different kinds of authority. Knowing which is which matters more here
 than in most repositories, because this project treats documentation claims as things that
-can be true or false — and says so when they can drift.
+can be true or false — and says so when they can drift. None of it, at any level, is a
+compliance claim: adopting the library makes no host compliant with any law or regulation
+([`guide/faq.md`](guide/faq.md)).
 
 | Area | What it is | Its authority |
 |---|---|---|

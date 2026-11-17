@@ -10,6 +10,9 @@ persist as `text`, never `jsonb`, so the stored transition bytes replay identica
 across the three reference backings. Its method signatures are public but explicitly
 unstable pre-1.0 — the behaviors are stable; the shapes freeze only at 1.0.
 
+It is not compliance: adopting this backing, or `@vidimera/record` itself, makes no host
+compliant with any law or regulation.
+
 > **Status: not yet published.** The package is pre-0.1 and consumed from source in its
 > repository. This line flips at the 0.1 cut.
 
