@@ -596,8 +596,8 @@ is the summary, and that file wins on conflict.
   (`scripts/test/compliance-statement.test.mjs`) fails when any of those pages, or a guide page
   added later, lacks it. It checks presence only — a page can carry the sentence and still read
   as a compliance claim elsewhere.
-- **The release workflow's guard checks the tag, the ref and lockstep versions, and only the
-  credential-holding publish jobs run after it.** The guard checked `private` and `0.0.0`
+- **The release workflow's guard checks the tag, the ref and lockstep versions, and in a real
+  run only the credential-holding publish jobs run after it.** The guard checked `private` and `0.0.0`
   only, though its header promised it refused a release that skipped the tag: a dispatch from
   `main` or a mismatched tag, or two packages at different versions, would have published. It is
   now `scripts/release-guard.mjs`, unit-tested, and also refuses a non-tag ref, a tag that is not
@@ -607,8 +607,8 @@ is the summary, and that file wins on conflict.
   then `publish-store-postgres` — no checkout, no install, no cache, in the `release`
   environment — publish exactly those tarballs, and a failure at the adapter re-runs without
   re-publishing record. A dry run now also runs a `publish-dry-run` job holding no publish
-  credential: the same publish commands under `--dry-run`. `first-use.yml` passes its dispatch inputs through
-  `env:` and checks the whole version value is semver before using it; CODEOWNERS owns
+  credential: the same publish commands under `--dry-run`. `first-use.yml` passes its dispatch
+  inputs through `env:` and checks the whole version value is semver before using it; CODEOWNERS owns
   `.github/` and `scripts/`; dependabot waits seven days before proposing a version update
   (security updates are not delayed); three wrong header facts are corrected. Limits: the split
   keeps the publish credentials away from the toolchain, not the toolchain away from the bytes —

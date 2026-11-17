@@ -224,7 +224,10 @@ a list rather than as code.
       with write access who pushes one can dispatch from it. A required reviewer on the
       environment (or a tag ruleset restricting who may create `v*` tags) is what limits that:
       **add the required reviewer** (recommended), and expect to approve each publish job in
-      turn, since each references the environment. Until this is done the environment is
+      turn, since each references the environment — approve the second promptly: between the
+      two approvals `@vidimera/record` is live without its adapter, the state the lockstep
+      ruling exists to avoid. While the dispatching owner is the only reviewer, leave the
+      environment's "prevent self-review" setting off, or no one can approve. Until this is done the environment is
       created on first use with no rule and the jobs read the repository secret: the guard and
       the job split still hold, the environment adds nothing.
 - [ ] GitHub **private vulnerability reporting** is enabled — `SECURITY.md` and

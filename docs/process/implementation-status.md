@@ -6106,8 +6106,9 @@ public`; with the new four-job file and only record's `./` dropped, three fail o
 file, up from 9.
 
 **The bound.** Nothing here has executed on GitHub: the YAML is parsed and its facts asserted.
-The dry-run dispatch the release checklist already requires is the first run of GitHub's own
-parser over this file, of the build job in full (`pnpm pack --pack-destination` on the runner
+GitHub parses the file on push (the earlier single-job shape's parser failure surfaced that
+way); the dry-run dispatch the release checklist already requires is the first run of the
+build job in full (`pnpm pack --pack-destination` on the runner
 included), of the artifact upload and download, and of the exact publish commands under
 `--dry-run` (argument parsing, tarball read). It never runs the real publish jobs, so the
 `release` environment's behavior, the OIDC token and provenance from a downloaded tarball,

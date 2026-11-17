@@ -124,8 +124,9 @@ above, the ruling stays as written for the record and this section supersedes it
   `npm publish ./release-tarballs/`, with a comment at the first that the `./` is load-bearing.
   The old single job's `./*.tgz` was right, so this was a regression of this increment, caught
   before anything ran. The workflow test pins each real publish command as an exact literal and
-  every `npm publish` line in any job as a `./` path; both were observed red against
-  `af824c7`'s workflow.
+  every `npm publish` line in any job as a `./` path. The `./` check was observed red against
+  `af824c7`'s workflow; the exact literal was observed red against the four-job file with
+  record's `./` removed (against `af824c7` an earlier credentials assertion fails first).
 - **Two publish jobs, not one** (supersedes §2's "Two jobs" goal and §5's `publish` rulings).
   `publish-record` (needs `build`) and `publish-store-postgres` (needs `publish-record`), each
   with the same `if:`, `environment: release`, `contents: read` and `id-token: write`, Node set
