@@ -273,7 +273,10 @@ const reopened = await operator.open(revisedStagedRef, {
 escalation is exactly that: re-open the same subject under a stricter profile (an added
 leg, a narrower `allowedAuthorities`, an eligibility check) instead of the one that was
 declined. There is no separate escalation call; it is the ordinary `open` + `supersedes`
-recipe with a different profile id.
+recipe with a different profile id. The limit, in the same breath: the instance must still
+hold the predecessor's profile — registered under its id, unedited — or the claim refuses
+`supersedes-unverified`, so keep the declined record's profile registered alongside the
+stricter one.
 
 The honest bound, in the same breath: `decline` proves who declined what they saw — never
 that the decline was *sound*. And a "no" that is never routed through this seam does not
@@ -577,9 +580,9 @@ What you get, with its limits in the same breath:
   that instance has no verifier for therefore reads there as carrying no obligation: the
   operator seams refuse `unknown-profile` and append nothing, where an instance that holds
   the profile still draws `chain-compromise`; a successor leg's `open()` refuses
-  `prior-leg-unverified`; and a `supersedes` claim over a terminal non-`confirmed`
-  predecessor verifies there, where a `confirmed` predecessor refuses
-  `supersedes-unverified`. Recover by restoring the profile's declarative fields exactly, or
+  `prior-leg-unverified`; and a `supersedes` claim over a predecessor of any terminal state
+  refuses `supersedes-unverified`, because recovery needs the instance to hold the
+  predecessor's profile. Recover by restoring the profile's declarative fields exactly, or
   by giving the edit a new id (see "Profile design" above).
 - No signature material enters the chain — signatures live in the detached sidecar, and a
   signed chain's bytes differ from an unsigned profile's only through the declaring

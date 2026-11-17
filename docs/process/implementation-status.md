@@ -113,11 +113,11 @@ any one exit.
   proved only that the step ran; this document's gate outputs were measured locally and
   stand. See the dedicated section at the end of this document; the numbers immediately
   below already include it.
-- **Measured against the current tree** (re-measured at the signing-obligation increment,
-  2026-11-17): `pnpm test` — 80 test files, 1080 tests, zero skips
+- **Measured against the current tree** (re-measured at the supersedes-binding increment,
+  2026-11-17): `pnpm test` — 81 test files, 1090 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
-  `pnpm lint` (`biome check .`) — 152 files checked, zero errors or warnings;
+  `pnpm lint` (`biome check .`) — 153 files checked, zero errors or warnings;
   `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 25 refusal codes, the twenty-fifth being
@@ -5776,7 +5776,8 @@ genesis key it holds no verifier for, or whose genesis entry fails. A same-id si
 and a holder of the profile still does. At `prior-legs` it refuses `prior-leg-unverified`, as
 before (the binding fold). At `supersedes` a `confirmed` predecessor refuses
 `supersedes-unverified` (the binding fold) and a terminal non-`confirmed` predecessor
-VERIFIES, where it refused before. A planted or broken genesis entry is the ambiguous case — a
+VERIFIED, where it refused before [closed by the supersedes-binding increment, the twenty-eighth
+section below: every terminal state now refuses there]. A planted or broken genesis entry is the ambiguous case — a
 tampered signing chain, or garbage a storage-writing insider put into a never-signed record's
 sidecar — and the rule takes the write-nothing side of it; only an entry the instance's own
 verifier accepts counts. Stated in `kernel/verify-signatures.ts`, in both guide pages and the
@@ -5796,7 +5797,10 @@ its own sanction.
 
 **Open, and not done here.**
 
-- **The `supersedes` fold for every predecessor state, now with two named cases.** A terminal
+- **[CLOSED by the supersedes-binding increment, the twenty-eighth section below: every terminal
+  state now refuses `supersedes-unverified` for a predecessor whose profile the instance does
+  not hold, and the two pins below were inverted there.] The `supersedes` fold for every
+  predecessor state, now with two named cases.** A terminal
   non-`confirmed` predecessor gets no binding check at `supersedes`, so a forged predecessor
   under an unregistered or non-signing profile still binds, as before. Two cases join it,
   both pinned as the recorded residual: (a) a same-id signing sibling over a signing
@@ -5836,3 +5840,118 @@ exit 0, no output. **The packed-tarball smoke test was not run on the authoring 
 broken `pnpm` launcher stops `scripts/smoke-pack.mjs` at its adapter pack step — and runs in CI on
 the pull request. Nothing in this increment touches either manifest, the build configuration or
 `packages/store-postgres`. `CLAUDE.md`'s measured sentence moved to 80 files / 1080 tests.
+
+## Post-build-order increment — Supersedes binding
+
+**The twenty-eighth post-build-order increment, exited (branch `supersedes-binding-2026-11-17`,
+stacked on `signing-obligation-2026-11-17` at `8db734d`: the design-and-plan commit, the
+code-and-pins commit `ad9b9f5`, and the record commit after it — `git log 8db734d..HEAD`
+enumerates them).** No sealed-set edit, no marker move, no new refusal code, and no change to
+`index.ts`, either manifest, any store file, `packages/store-postgres`, `verifyPriorLegs` or any
+public type. **One inversion — the fifteenth self-authored one**, argued below and at its pin.
+The design is `docs/superpowers/specs/2026-11-17-supersedes-binding-design.md` — its §3 argues
+why no sanction is needed and none is claimed — and the plan is
+`docs/superpowers/plans/2026-11-17-supersedes-binding.md`.
+
+**What it closes.** `verifySupersedes` (`kernel/supersedes.ts`) resolved the predecessor's
+profile only for a `confirmed` predecessor, the one state whose terminality depends on the
+profile. A `refused`, `expired`, `declined`, `redeemed` or `redemption-failed` predecessor
+verified whatever profile its genesis named — an id the instance never registered, or a
+registered id whose digest did not match. That is a route past the signature layer: a
+storage-writing insider without keys could write a whole forged terminal chain, AL1-intact
+because AL1 is not cryptographic, and have `open(…, { supersedes })` bind it as a verified
+predecessor in a new record's genesis, where SPEC §14 says a rebuilt chain "fails signature
+verification without trusting storage". The signing-obligation increment pinned two shapes of
+it as a recorded residual and named this increment as the one that closes them; the original
+shape, a forged chain naming an unregistered id, predates both. What this buys a host, with its
+limit: a predecessor decided under a profile the instance does not hold no longer binds — and
+recovery now needs that profile held (the cost, below).
+
+**What landed, commit by commit.**
+
+- the design and the plan, with their `docs/superpowers/INDEX.md` row and counts.
+- `ad9b9f5` — `verifySupersedes` calls `heldProfile(profiles, record)` (`kernel/held-profile.ts`:
+  the id registered AND its projection digesting to the genesis `profileDigest`, the comparison
+  `verifyPriorLegs` makes) after the subject check and before the state checks, for every
+  terminal state; `undefined` refuses `supersedes-unverified`, pre-record, never-append. The
+  `confirmed` branch reuses the held profile for its terminality derivation — no second lookup.
+  The checks before it (AL1, the signature layer, the claimed head, the subject) keep their
+  order. New pins in `test/supersedes-binding.test.ts`: a forged declined chain naming an
+  unregistered id, and one naming a registered id at a non-matching digest, each refuse with
+  no record created; every terminal state the fixtures reach verifies for the holder and
+  refuses for a same-id instance at a different digest; escalation (both profiles registered)
+  verifies; a registry lacking the predecessor's id refuses and re-registering it unchanged
+  recovers. The four inverted assertions are named under Inversions.
+- the record commit — `kernel/supersedes.ts`'s header and state-check comment were written with
+  the code; `kernel/verify-signatures.ts`'s per-site comment now says every terminal state
+  refuses; `docs/guide/integrating.md` (the AL2 bullet's per-site outcomes, and one sentence in
+  the escalation paragraph: the instance must hold the predecessor's profile, registered under
+  its id and unedited), `docs/guide/api-reference.md` (the `signingDeclared` paragraph's
+  per-site outcomes), `CHANGELOG.md` (a `Fixed` entry, and the signing-obligation entry's
+  residual sentence marked closed in place rather than deleted), the signing-obligation section
+  above (its open item and its per-site sentence marked closed in place), this section, and
+  `CLAUDE.md`'s measured sentence. The guide changes are prose only; no code sample moved, so
+  none needed a re-run.
+
+**What this reads, in the sealed text.** SPEC §4: "the two cross-record verifications (§10.1,
+§2) fold the same mismatch on the referenced record into their own claim refusals" — with no
+state qualifier. `verifyPriorLegs` folded it for every prior leg; `verifySupersedes` folded it
+for `confirmed` only. The code now meets the sentence as written, and OPEN-QUESTIONS §1's
+posture that a missing signature in a signing scope refuses the claim at the cross-record
+verifications now reaches a predecessor the instance does not hold. SPEC §2's recovery
+paragraph ("verified by replay … requires it intact and terminal") says nothing the fold
+contradicts.
+
+**Inversions.** One — the **fifteenth** self-authored inversion in this document's numbered
+sequence: the confirmed-only fold at `supersedes`. Where it was recorded: the profile-drift
+gate design's "two cross-record verifications" bullet
+(`docs/superpowers/specs/2026-09-03-profile-drift-gate-design.md`) ruled that a predecessor in
+a state terminal regardless of profile is unaffected — its profile not consulted then, not
+consulted after; the 2026-09-05 external-review triage
+(`docs/analysis/2026-09-05-external-code-review.md` §5.2) defended the asymmetry against a
+reviewer who called it unmotivated; and the pin was `test/profile-drift-gate.test.ts`'s
+supersedes test, whose declined half asserted `ok`. The argument for reversing it: that ruling
+was argued from terminality, and it is right about terminality — only `confirmed` needs the
+profile to prove it. It does not reach the question SPEC §4 asks, which is whether the instance
+holds the rules the referenced record was decided under and, since AL2, whether it can hold the
+predecessor to its signature obligation at all; the triage did not consider the signature layer,
+which is where the asymmetry turned into a forged binding. The pin's site:
+`test/profile-drift-gate.test.ts`, the test now titled "recovery (supersedes): a confirmed and a
+declined predecessor whose profile the sibling does not hold both refuse supersedes-unverified;
+the holder recovers the declined one" — the declined half flipped from `ok` to
+`supersedes-unverified`, argued in a comment at the site, with the holder's recovery of the same
+record asserted beside it. Three further pins in `test/signing-obligation.test.ts` (the
+add-signing supersedes-over-declined half and the two supersedes tests that recorded the
+residual) flipped too; they pinned the residual this increment closes, on an unmerged stacked
+branch, and are not a further inversion, so the sequence stands at fifteen. Exactly those four
+assertions changed truth value; measured before the design was written by applying the check
+and running the suite, the same four failed and every other test passed.
+
+**The cost, named.** Recovery now needs the predecessor's profile held. A host that edited a
+profile in place, or retired an id, must restore the profile's declarative fields exactly or
+re-register the prior version under its id to supersede its records — SPEC §4's version
+discipline, the same one every operator seam already demands. A record whose profile is gone
+can no longer be recovered by `supersedes`.
+
+**Open, and not done here.**
+
+- **Rehoming.** An insider rewriting a predecessor's genesis consistently onto a profile the
+  instance holds and that does not sign still verifies at AL1; closing it needs an obligation
+  anchored outside the chain (an instance-level policy), a design question of its own.
+- **A forged predecessor under a held non-signing profile** — the AL1 recompute route, inherent
+  to AL1; SPEC §14 names closing "the recompute residual" as AL2's job, for signing profiles.
+- **`review()`'s findings coverage** still reads the live profile.
+
+**Gate outputs, as measured on this branch at the record commit's tree.** `pnpm` fails on this
+machine, so each gate ran through the local binaries its script names. The whole suite —
+`vitest run` with the JSON reporter, then `node scripts/ci-assert-tests.mjs` over the report —
+`ci-assert-tests: ok — 1090 tests in 81 files (86 suites): 1090 passed, 0 failed, 0 skipped, 0
+todo`, vitest exit 0. Against the 1080 in 80 the signing-obligation increment measured, the
+difference is ten tests and one file: `supersedes-binding.test.ts`. Typecheck, both packages —
+exit 0; `biome check .` and `biome check --error-on-warnings .` — 153 files, exit 0 each; build,
+both packages' `tsconfig.build.json` — exit 0; `contract-scan`, `api-reference-sync` and
+`docs-index-sync` — exit 0, no output. **The packed-tarball smoke test was not run on the
+authoring machine** — the broken `pnpm` launcher stops `scripts/smoke-pack.mjs` at its adapter
+pack step — and runs in CI on the pull request. Nothing in this increment touches either
+manifest, the build configuration or `packages/store-postgres`; the byte-stability digests did
+not move. `CLAUDE.md`'s measured sentence moved to 81 files / 1090 tests.

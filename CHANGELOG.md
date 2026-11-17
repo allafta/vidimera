@@ -546,8 +546,35 @@ is the summary, and that file wins on conflict.
   non-matching `profileDigest` verifies there too. Not closed here: those two `supersedes`
   cases join the forged predecessor under an unregistered or non-signing profile, which
   already bound through `supersedes` for a terminal non-`confirmed` state and need folding
-  the binding for every predecessor state; a storage-writing insider rehoming a signing
-  record's genesis onto a co-registered non-signing profile is unchanged; and `review()`'s
+  the binding for every predecessor state [closed by the supersedes-binding increment, the
+  next entry: every terminal state now refuses there]; a storage-writing insider rehoming a
+  signing record's genesis onto a co-registered non-signing profile is unchanged; and
+  `review()`'s findings coverage still reads the live profile.
+  Pre-publication, so there is no advisory to issue.
+- **A forged terminal predecessor no longer verifies at `supersedes`** (the supersedes-binding
+  increment, 2026-11-17, branch `supersedes-binding-2026-11-17`): `verifySupersedes` resolved
+  the predecessor's profile only for a `confirmed` predecessor, so a `refused`, `expired`,
+  `declined`, `redeemed` or `redemption-failed` predecessor verified whatever profile its
+  genesis named — an id the instance never registered, or a registered id with a non-matching
+  `profileDigest`. That was a route past the signature layer: a storage-writing insider without
+  keys could write a whole forged terminal chain, AL1-intact because AL1 is not cryptographic,
+  and have `open(…, { supersedes })` bind it as a verified predecessor in a new record's
+  genesis. Now every terminal state requires the instance to HOLD the predecessor's profile
+  (the id registered AND a live digest equal to the genesis `profileDigest`, the comparison
+  `verifyPriorLegs` already makes), as SPEC §4's fold sentence says of the two cross-record
+  verifications, and a predecessor decided under a profile the instance does not hold refuses
+  `supersedes-unverified` pre-record, never-append. This also closes the two `supersedes`
+  cases the signing-obligation entry above left open. Recovery still works wherever the
+  instance holds the predecessor's profile: the rework recipe, escalation (both profiles
+  registered), and a profile revision registered under a new id with the old one kept. The cost,
+  in the same breath: a host that edited a profile in place, or retired an id, must restore or
+  re-register the prior version to supersede its records — the version discipline every
+  operator seam already demands. It reverses a recorded stance (the confirmed-only fold), the
+  fifteenth self-authored inversion in the status record, argued at its pin. No seam code outside
+  `verifySupersedes`, refusal code, report field or public type moved. Not closed here: a
+  storage-writing insider rehoming a predecessor's genesis consistently onto a profile the
+  instance holds and that does not sign still verifies at AL1; a forged predecessor under a held
+  non-signing profile is the AL1 recompute route SPEC §14 assigns to AL2; and `review()`'s
   findings coverage still reads the live profile.
   Pre-publication, so there is no advisory to issue.
 

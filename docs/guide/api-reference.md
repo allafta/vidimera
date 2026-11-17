@@ -595,8 +595,8 @@ profile; a signing record whose genesis entry was removed, fails, or names a key
 verifier for reads there as carrying no obligation. Per site: the operator seams refuse
 `unknown-profile` and append nothing, where a holder would draw `chain-compromise`; a
 successor leg's `open()` refuses `prior-leg-unverified`; and a `supersedes` claim over a
-terminal non-`confirmed` predecessor verifies, while one over a `confirmed` predecessor
-refuses `supersedes-unverified`. Where the obligation does apply and the layer fails, an
+predecessor of any terminal state refuses `supersedes-unverified` (recovery needs the
+predecessor's profile held). Where the obligation does apply and the layer fails, an
 operator seam draws its `chain-compromise` evidence edge first, holder or not (SPEC §4's
 exception), and the cross-record verifications refuse their claims.
 So `drifted` names exactly why a seam refused, or will — read the two fields together, and
