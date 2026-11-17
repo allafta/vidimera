@@ -175,3 +175,64 @@ Local names; the internal shape that carries a fault beside a verdict; test file
 
 Every gate green except `smoke` (CI). No existing assertion changes its truth value; the
 byte-stability digests do not move.
+
+## 8. Amended after the whole-branch review (binding; it replaces 5.2's fault/miss order and adds to 5.5)
+
+The whole-branch review approved the core — no verifier fault can let a seam decide or append —
+and found that three rulings above, as built, let a fault or a malformed sidecar field outrank
+evidence, or let the mint check leave orphans. Each amendment below binds; §§1–7 stand as
+written except where these replace them.
+
+**8.1 A definite miss outranks a fault (replaces 5.2's order).** In `signatureLayerHolds`,
+where the obligation applies: if ANY transition is definitely unverified — no sidecar entry, an
+unresolvable `keyRef`, a verifier answer other than the literal `true`, or (8.2) a non-string
+field — the layer does not hold and the gate returns `false`, so the seam draws or refuses
+`chain-compromise` exactly as OPEN-QUESTIONS §1 decided for a missing signature and an
+unresolvable key. Only when no transition is a definite miss and some transition faulted is the
+first fault in chain order rethrown. The non-holder rule of 5.2 is unchanged: a non-holder whose
+live same-id profile declares `signing` and whose GENESIS verification faulted rethrows, since
+its obligation cannot be computed and a miss elsewhere would then decide between two different
+outcomes (`chain-compromise` under an obligation, `unknown-profile` without one).
+`verifySignatures` (5.3) keeps rethrowing the first fault: it decides nothing, and its error
+names the `seq` and `keyRef` that locate the entry. Why: as built, a fault anywhere outranked a
+definite miss elsewhere, so a tampered record whose verifier also faulted on another transition
+threw instead of drawing the edge — OPEN-QUESTIONS §1's decided posture held only in the
+unmixed case.
+
+**8.2 Sidecar fields are typed before use (adds to 5.1).** In `layerVerdicts`, an entry whose
+`keyRef` or `signature` is not a string is a definite miss — `signed: true`, `verified: false`
+— and the verifier is never called with it; `Object.hasOwn` is never reached with a non-string,
+so an object `keyRef` such as `{"toString":"x"}` reads as a miss instead of throwing a raw
+`TypeError`. The report carries a `keyRef` only when it is a string. Why: the sidecar is
+storage, and storage is what the layer distrusts; as built, a planted `signature: null` reached
+a host verifier shaped like the guide's sample, which throws on it, so the planted entry became
+a fault and the seam threw instead of recording the tampering.
+
+**8.3 The batch mints and checks every element before any write (adds to 5.5).** In
+`signing/decorate.ts`, `appendBatch` first mints and checks every element through the memo of
+5.5, with no sidecar write; only when all succeed are all the entries put, and only then is the
+append delegated — still sign-before-append, so the ordering hazard deferral-register row 22
+names is untouched. A mint or check failure on element k leaves no entries for elements
+1..k−1. The single-transition path is unchanged in effect. Why: as built, a check failure on a
+batch's last element left an entry for every element before it on every attempt — a batch
+orphan producer the mint check itself had added.
+
+**8.4 Also corrected, recorded here so 5.4 and 5.6 do not read stale.** 5.6's verifier check
+covers every own string key of `verifiers`, enumerable or not (`Object.getOwnPropertyNames`),
+since the layer's `Object.hasOwn` resolves any own key; "every own enumerable value" above is
+superseded. And 5.4's thrown value no longer says the fault "is not a verification failure":
+it says the verifier for that `keyRef` could not answer for that `seq` and nothing was
+appended, that a transient outage clears on retry, and that a fault persisting while the
+verifier is otherwise healthy means the entry may be malformed or planted; `cause` is kept.
+
+**8.5 Pins.** Each amendment is pinned red before its code change: a definite miss beside a
+faulting verifier refuses `chain-compromise` at `finalize` (either chain order) and at `seal`
+while the fault alone still throws (8.1); a planted `null` signature and an object `keyRef`
+refuse and report `verified: false` with the verifier never called (8.2); a finalize batch
+whose last element fails its check, and one whose signer throws on the middle element, write no
+entry on any of three attempts (8.3); a non-enumerable non-function verifier throws at
+`create()` (8.4). Further pins state existing behavior the review asked to see: a non-holder
+whose genesis is missing, fails or names an unknown key refuses `unknown-profile` while a later
+transition faults; a hash-broken signing chain throws while the instance's own verifier faults
+(the compromise edge's mint check cannot run) and draws the edge once it recovers; and the mint
+check runs once per transition across the compromise walk's three candidates.

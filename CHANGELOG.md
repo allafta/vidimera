@@ -629,26 +629,37 @@ is the summary, and that file wins on conflict.
   increment, 2026-11-17, branch `verifier-faults-2026-11-17`). A `Verifier` that threw or
   rejected was read as `verified: false`, so during any outage every un-enlisted seam on a
   healthy signing record appended a terminal `chain-compromise` edge, which no later recovery
-  undoes. Now, wherever the signature layer applies to a record, a throwing or rejecting verifier
-  makes the seam throw with nothing appended (the host calls again once it recovers), and
-  `verifySignatures` throws too; the `Error` names the record, `seq` and `keyRef`, with the
-  verifier's error as `cause`. A `false`, a non-`true` answer and an unresolvable `keyRef` still
-  read `verified: false` and still refuse, and a record the layer does not apply to is unchanged
-  by a junk entry whose verifier throws (the `verifySignatures` read still throws on it). The
-  instance also checks every signature at the mint: the signer's `keyRef` must be an own key of
-  `verifiers` and its verifier must answer the literal `true`, or the seam throws with nothing put
-  to the sidecar or appended, even where it would have drawn `chain-compromise`; an empty
-  `verifiers` registry still constructs, and its first mint throws. `create()` refuses a
-  `config.signing` whose `signer` is not a function, whose `verifiers` is not a plain object of
-  functions, or whose sidecar lacks `put` or `listByRecord`, with a named `create:` error. The
-  guide states the verifier contract and the two-phase key rotation (a new key's verifier must
-  reach every instance, and every configuration a deployment may roll back to, before any
-  instance signs with it). Limits: a verifier that throws on malformed input turns a tampered
-  entry into a record whose seams throw until the entry is repaired, not an evidence edge; the
-  mint check proves this instance accepts its own signature, not that any other instance holds
-  the verifier, so a one-phase rotation still reads the new entries as unverified on an old
-  instance and refuses `chain-compromise`; `config.store`'s shape is still not checked at
-  `create()`. No refusal code, public type or sealed-set document changed; nine existing test
+  undoes. Now, wherever the signature layer applies to a record and nothing else decides it, a
+  throwing or rejecting verifier makes the seam throw with nothing appended, and a transient
+  outage clears when the host calls again; `verifySignatures` throws too. The `Error` names the
+  record, `seq` and `keyRef`, with the verifier's error as `cause`, and says that a fault which
+  persists while the verifier is otherwise healthy means that entry may be malformed or planted.
+  A fault never outranks a definite miss: a missing entry, a sidecar `keyRef` or `signature`
+  that is not a string (never handed to the verifier), an unresolvable `keyRef`, a `false` or
+  another non-`true` answer on any transition still reads `verified: false` and still refuses
+  `chain-compromise`, even while another transition's verifier faults. A record the layer does
+  not apply to is unchanged by a junk entry whose verifier throws (the `verifySignatures` read
+  still throws on it). The instance also checks every signature at the mint: the signer's
+  `keyRef` must be an own key of `verifiers` and its verifier must answer the literal `true`, or
+  the seam throws with nothing put to the sidecar or appended, even where it would have drawn
+  `chain-compromise`; a batch is minted and checked whole before any entry is written, so a
+  failure on one element writes nothing; an empty `verifiers` registry still constructs, and its
+  first mint throws. `create()` refuses a `config.signing` whose `signer` is not a function,
+  whose `verifiers` is not a plain object whose every own string key, enumerable or not, holds a
+  function, or whose sidecar lacks `put` or `listByRecord`, with a named `create:` error. The
+  guide states the verifier contract (answer `false` for any signature the verifier cannot
+  parse) and the two-phase key rotation (a new key's verifier must reach every instance, and
+  every configuration a deployment may roll back to, before any instance signs with it).
+  Limits: on an instance that holds the record's profile a seam throws instead of drawing the
+  edge only when no transition is a definite miss and some entry is a string the verifier cannot
+  answer for — a malformed or planted signature string that makes it throw — and the record
+  stays so until the entry is repaired (on an instance that does not hold the profile, a genesis
+  fault throws as well); every signed append, `open()` included, now needs the instance's own
+  verifier answering, so its outage defers even a hash-break `chain-compromise` edge until it
+  recovers; the mint check proves this instance accepts its own signature, not that any other
+  instance holds the verifier, so a one-phase rotation still reads the new entries as unverified
+  on an old instance and refuses `chain-compromise`; `config.store`'s shape is still not checked
+  at `create()`. No refusal code, public type or sealed-set document changed; nine existing test
   fixtures that minted with a key their own instance could not verify were reconfigured, each
   assertion kept.
 
