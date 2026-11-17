@@ -77,6 +77,7 @@
 // this increment.
 
 import { canonicalize, digest } from '../canonical.js';
+import { assertChainFor } from '../chain/binding.js';
 import { transitionDigest } from '../chain/encoding.js';
 import { replay, verifyChain } from '../chain/replay.js';
 import { type RedeemOptions, unknownOptionKey } from '../config.js';
@@ -105,7 +106,11 @@ import { signatureLayerHolds } from './verify-signatures.js';
  */
 async function residualRefusal(store: Store, recordId: string): Promise<Outcome<never>> {
   try {
-    const fresh = replay(await store.readChain(recordId));
+    const chain = await store.readChain(recordId);
+    // A foreign chain throws into the fallback below: it can never make this seam say
+    // `already-redeemed`.
+    assertChainFor(chain, recordId, 'redeem');
+    const fresh = replay(chain);
     if (fresh.state === 'redeemed') return refused('already-redeemed');
   } catch {
     // fall through — result-first either way

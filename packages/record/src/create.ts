@@ -29,6 +29,7 @@
 import { randomBytes } from 'node:crypto';
 import { type AgentSurface, makeAgentSurface } from './agent-surface.js';
 import { type Canonicalizer, resolveCanonicalizer } from './canonical.js';
+import { assertChainFor } from './chain/binding.js';
 import { replay as replayCore, verifyChain as verifyChainCore } from './chain/replay.js';
 import {
   type Config,
@@ -205,14 +206,20 @@ function makeKernel(ctx: KernelContext): Kernel {
     // --- reads: REAL (direct Store delegation) ---
     getRecord: async (recordId) => {
       const chain = await store.readChain(recordId);
-      return chain.length === 0 ? null : replayCore(chain);
+      if (chain.length === 0) return null;
+      assertChainFor(chain, recordId, 'getRecord');
+      return replayCore(chain);
     },
     readChain: (recordId) => store.readChain(recordId),
     chainHead: (recordId) => store.chainHead(recordId),
     listDue: () => store.listDue(ctx.now()),
 
     // --- audit wrappers: REAL (readChain + the pure chain/replay.ts core) ---
-    replay: async (recordId) => replayCore(await store.readChain(recordId)),
+    replay: async (recordId) => {
+      const chain = await store.readChain(recordId);
+      assertChainFor(chain, recordId, 'replay');
+      return replayCore(chain);
+    },
     // Bound to `recordId` (SPEC §5: "running over the chain the store returns for that
     // record"): another record's rows read back under this key report a break at seq 1.
     verifyChain: async (recordId) => verifyChainCore(await store.readChain(recordId), recordId),

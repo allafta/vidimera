@@ -13,10 +13,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
+import { transitionDigest } from '../src/chain/encoding.js';
 import { replay } from '../src/chain/replay.js';
 import type { ConfirmProfile, LegSpec } from '../src/config.js';
+import { create } from '../src/create.js';
 import { SqliteStore } from '../src/store/sqlite.js';
-import { captureProfile, facts, identity, openRecord } from './helpers/profiles.js';
+import { captureProfile, facts, identity, makeConfig, openRecord } from './helpers/profiles.js';
 import { enforceableSigningSetup } from './helpers/signing.js';
 
 const CONTENT = { subject: 'week-1', total: 40 };
@@ -37,7 +39,7 @@ function signedFlowProfile(): ConfirmProfile {
 test('a row-copying insider on SqliteStore can no longer redirect a signed edge (AL2)', async () => {
   const store = new SqliteStore(':memory:');
   const profile = signedFlowProfile();
-  const { handles } = enforceableSigningSetup([profile], { store });
+  const { handles, signatures: sidecar } = enforceableSigningSetup([profile], { store });
 
   const y = await openRecord(handles, CONTENT, profile.id, 'subject:y');
   const raised = await handles.operator.raiseFinding(
@@ -83,6 +85,12 @@ test('a row-copying insider on SqliteStore can no longer redirect a signed edge 
   assert.equal(last.recordId, x, 'the edge is addressed to X');
   assert.equal(last.kind, 'refused');
   assert.deepEqual(last.payload, { code: 'chain-compromise' });
+  assert.equal(transitionDigest(last), out.transitionRef, 'the outcome names the edge');
+  const xEntries = await sidecar.listByRecord(x);
+  assert.ok(
+    xEntries.some((e) => e.transitionDigest === out.transitionRef),
+    "the edge is SIGNED: X's sidecar holds an entry for it",
+  );
 
   // --- Y: chain, signatures and state as they were, and still able to decide ------------
   assert.deepEqual(await store.readChain(y), yBefore, "Y's chain is untouched");
@@ -98,4 +106,88 @@ test('a row-copying insider on SqliteStore can no longer redirect a signed edge 
     assert.notEqual(decided.code, 'record-not-open', 'Y is still open');
     assert.notEqual(decided.code, 'chain-compromise', 'Y still verifies');
   }
+});
+
+test('a verbatim row copy on SqliteStore (no payload edit) still refuses chain-compromise on X (AL2)', async () => {
+  const store = new SqliteStore(':memory:');
+  const profile = signedFlowProfile();
+  const { handles, signatures: sidecar } = enforceableSigningSetup([profile], { store });
+
+  const y = await openRecord(handles, CONTENT, profile.id, 'subject:y');
+  const raised = await handles.operator.raiseFinding(
+    y,
+    { findingId: 'f-1', kind: 'variance', findingDigest: D1 },
+    RAISER,
+  );
+  assert.equal(raised.status, 'ok', 'fixture: the finding is raised on Y');
+  const x = await openRecord(handles, CONTENT, profile.id, 'subject:x');
+  const yBefore = await store.readChain(y);
+
+  // The copy is verbatim: every row keeps Y's own `recordId`, no payload is touched, so the
+  // ONLY thing wrong with X's chain is whose chain it is.
+  const db = store.database;
+  db.prepare('DELETE FROM transitions WHERE record_id = ?').run(x);
+  db.prepare(
+    'INSERT INTO transitions (record_id, seq, transition_json) ' +
+      'SELECT ?, seq, transition_json FROM transitions WHERE record_id = ?',
+  ).run(x, y);
+
+  const out = await handles.operator.finalize(x, identity(), CONTENT, facts());
+  assert.equal(out.status, 'refused');
+  if (out.status !== 'refused') return;
+  assert.equal(out.code, 'chain-compromise');
+  assert.ok(out.transitionRef !== undefined, 'the evidence edge landed');
+
+  const xChain = await store.readChain(x);
+  assert.equal(xChain.length, 3, 'the edge sits at seq = length(Y) + 1');
+  const last = xChain.at(-1);
+  assert.ok(last !== undefined);
+  assert.equal(last.recordId, x, 'the edge is addressed to X');
+  assert.equal(last.kind, 'refused');
+  assert.deepEqual(last.payload, { code: 'chain-compromise' });
+  assert.equal(transitionDigest(last), out.transitionRef, 'the outcome names the edge');
+  const xEntries = await sidecar.listByRecord(x);
+  assert.ok(
+    xEntries.some((e) => e.transitionDigest === out.transitionRef),
+    "the edge is SIGNED: X's sidecar holds an entry for it",
+  );
+
+  assert.deepEqual(await store.readChain(y), yBefore, "Y's chain is untouched");
+});
+
+// At AL2 the two tests above are caught twice over: the binding refuses, and the sidecar
+// listed by X's id holds no entry for Y's transitions. This AL1 twin has no sidecar, so the
+// chain binding is the ONLY thing standing between X's call and Y's history.
+test('a verbatim row copy on SqliteStore refuses chain-compromise on X at AL1, where only the binding catches it', async () => {
+  const store = new SqliteStore(':memory:');
+  const { signing: _signing, ...profile } = signedFlowProfile();
+  const handles = create(makeConfig([profile], { store }));
+
+  const y = await openRecord(handles, CONTENT, profile.id, 'subject:y');
+  const raised = await handles.operator.raiseFinding(
+    y,
+    { findingId: 'f-1', kind: 'variance', findingDigest: D1 },
+    RAISER,
+  );
+  assert.equal(raised.status, 'ok', 'fixture: the finding is raised on Y');
+  const x = await openRecord(handles, CONTENT, profile.id, 'subject:x');
+  const yBefore = await store.readChain(y);
+
+  const db = store.database;
+  db.prepare('DELETE FROM transitions WHERE record_id = ?').run(x);
+  db.prepare(
+    'INSERT INTO transitions (record_id, seq, transition_json) ' +
+      'SELECT ?, seq, transition_json FROM transitions WHERE record_id = ?',
+  ).run(x, y);
+
+  const out = await handles.operator.finalize(x, identity(), CONTENT, facts());
+  assert.equal(out.status, 'refused');
+  if (out.status !== 'refused') return;
+  assert.equal(out.code, 'chain-compromise');
+  assert.ok(out.transitionRef !== undefined, 'the evidence edge landed');
+  const last = (await store.readChain(x)).at(-1);
+  assert.ok(last !== undefined);
+  assert.equal(last.recordId, x, 'the edge is addressed to X');
+  assert.equal(transitionDigest(last), out.transitionRef, 'the outcome names the edge');
+  assert.deepEqual(await store.readChain(y), yBefore, "Y's chain is untouched");
 });

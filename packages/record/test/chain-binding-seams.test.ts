@@ -35,7 +35,7 @@ import {
   twoLegProfile,
 } from './helpers/profiles.js';
 import { enforceableSigningSetup } from './helpers/signing.js';
-import { RelocatingStore } from './helpers/stores.js';
+import { RelocatingStore, TamperingStore } from './helpers/stores.js';
 
 type Handles = ReturnType<typeof create>;
 type Backing = 'MemoryStore' | 'SqliteStore';
@@ -389,4 +389,99 @@ test('operator verifyChain reports a relocated record as a break at seq 1', asyn
   assert.ok(report.detail.includes(x), 'the detail names the requested id');
   assert.ok(report.detail.includes(y), 'the detail names the id found');
   assert.deepEqual(await handles.operator.verifyChain(y), { intact: true }, 'Y itself verifies');
+});
+
+// === reads ===========================================================================
+// The NON-verifying loads (`getRecord`, `replay`, `review`, `verifySignatures`, `open()`'s
+// blocker read) cannot refuse `chain-compromise` — they verify nothing. A chain whose rows
+// carry another record's id is foreign persisted data, a storage fault, so they throw
+// (SPEC §8's loud-throw posture) and record nothing. An EMPTY chain keeps its old behavior.
+
+const FOREIGN = /foreign persisted data/;
+
+test('getRecord throws on a relocated record, on both handles', async () => {
+  const profile = captureProfile();
+  const { store, handles } = rig('MemoryStore', 'AL1', [profile]);
+  const x = await openRecord(handles, CONTENT, profile.id, SUBJECT_X);
+  const y = await openRecord(handles, CONTENT, profile.id, SUBJECT_Y);
+  store.relocate(x, y);
+  await assert.rejects(handles.operator.getRecord(x), FOREIGN);
+  await assert.rejects(handles.agent.getRecord(x), FOREIGN);
+  assert.equal((await handles.operator.getRecord(y))?.id, y, 'Y itself still reads');
+});
+
+test('replay, review and verifySignatures throw on a relocated record', async () => {
+  const profile = { ...captureProfile(), signing: true as const };
+  const { store, handles } = rig('MemoryStore', 'AL2', [profile]);
+  const x = await openRecord(handles, CONTENT, profile.id, SUBJECT_X);
+  const y = await openRecord(handles, CONTENT, profile.id, SUBJECT_Y);
+  store.relocate(x, y);
+  await assert.rejects(handles.operator.replay(x), FOREIGN);
+  await assert.rejects(handles.operator.review(x), FOREIGN);
+  // FOURTEENTH SELF-AUTHORED INVERSION — `verifySignatures` used to throw "only on the
+  // caller-error/unknown-record class every other read takes" (its doc comment, and the
+  // implementation status's §14 row). It now also throws on foreign persisted data. The
+  // recorded stance's own parallel — "every other read" — is KEPT, not abandoned: every other
+  // read (`getRecord`, `replay`, `review`, `open()`'s blocker read) now throws on foreign data
+  // too, so verifySignatures is still exactly as strict as they are, and the class widens for
+  // all of them together. Without this the audit would describe another record's transitions
+  // under X's name. It stays a read: it appends nothing and still never throws on a
+  // verification failure — only on a chain that is not the requested record's at all.
+  await assert.rejects(handles.operator.verifySignatures(x), FOREIGN);
+  assert.equal((await handles.operator.verifySignatures(y)).recordId, y, 'Y itself reports');
+});
+
+test('a mixed chain makes every read throw', async () => {
+  const profile = captureProfile();
+  const inner = new MemoryStore();
+  const plain = create(makeConfig([profile], { store: inner }));
+  const x = await openRecord(plain, CONTENT, profile.id, SUBJECT_X);
+  const y = await openRecord(plain, CONTENT, profile.id, SUBJECT_Y);
+  assertOk(await plain.operator.finalize(x, identity(), CONTENT, facts()), 'finalize X');
+  // Row 2 of X's chain claims to be Y's: a chain that is only partly the requested record's.
+  const handles = create(
+    makeConfig([profile], {
+      store: new TamperingStore(inner, x, (chain) =>
+        chain.map((t) => (t.seq === 2 ? { ...t, recordId: y } : t)),
+      ),
+    }),
+  );
+  await assert.rejects(handles.operator.getRecord(x), FOREIGN);
+  await assert.rejects(handles.agent.getRecord(x), FOREIGN);
+  await assert.rejects(handles.operator.replay(x), FOREIGN);
+  await assert.rejects(handles.operator.review(x), FOREIGN);
+});
+
+test('empty chains keep their behavior', async () => {
+  const profile = { ...captureProfile(), signing: true as const };
+  const { handles } = rig('MemoryStore', 'AL2', [profile]);
+  assert.equal(await handles.operator.getRecord('rec-none'), null);
+  for (const call of [
+    handles.operator.replay('rec-none'),
+    handles.operator.review('rec-none'),
+    handles.operator.verifySignatures('rec-none'),
+  ]) {
+    await assert.rejects(call, (e: Error) => !FOREIGN.test(e.message));
+  }
+});
+
+test('open() throws on a relocated blocker and appends nothing', async () => {
+  const profile = captureProfile({ ttl: 3600 });
+  const inner = new MemoryStore();
+  const store = new RelocatingStore(inner);
+  let now = new Date('2026-07-24T00:00:00.000Z');
+  const handles = createWithClock(makeConfig([profile], { store }), () => now);
+  const b = await openRecord(handles, CONTENT, profile.id, 'subject:s');
+  const z = await openRecord(handles, CONTENT, profile.id, 'subject:z');
+  now = new Date('2026-07-24T02:00:00.000Z'); // past both open windows
+  const bBefore = await inner.readChain(b);
+  const zBefore = await inner.readChain(z);
+  store.relocate(b, z);
+
+  const staged = await handles.agent.stage(CONTENT, profile.id, 'subject:s');
+  assert.equal(staged.status, 'ok');
+  if (staged.status !== 'ok') return;
+  await assert.rejects(handles.operator.open(staged.value.stagedRef), FOREIGN);
+  assert.deepEqual(await inner.readChain(b), bBefore, "B's chain is unchanged");
+  assert.deepEqual(await inner.readChain(z), zBefore, "Z's chain is unchanged");
 });

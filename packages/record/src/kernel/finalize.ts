@@ -108,6 +108,7 @@
 // and never append, `terminalRefusals` notwithstanding (SPEC §8).
 
 import { canonicalize, digest } from '../canonical.js';
+import { assertChainFor } from '../chain/binding.js';
 import { transitionDigest } from '../chain/encoding.js';
 import { replay, verifyChain } from '../chain/replay.js';
 import { type FinalizeOptions, type LegSpec, unknownOptionKey } from '../config.js';
@@ -735,7 +736,11 @@ async function seqConflict(
   let fresh: readonly Transition[] | undefined;
   let reReadFailure: unknown;
   try {
-    fresh = await store.readChain(recordId);
+    const read = await store.readChain(recordId);
+    // A foreign chain is carried as the re-read failure below (`fresh` stays unset), so the
+    // conflict is reported as the fault it may be, never as contention.
+    assertChainFor(read, recordId, 'finalize');
+    fresh = read;
   } catch (err) {
     reReadFailure = err;
   }

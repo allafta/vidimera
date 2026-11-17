@@ -101,8 +101,14 @@ export interface OperatorSurface {
   seal(
     recordId: string,
   ): Promise<Outcome<{ recordId: string; status: 'retired'; transitionRef: Digest }>>;
-  replay(recordId: string): Promise<DecisionRecord>; // audit wrapper (not Outcome)
+  /** Audit wrapper (not Outcome). Throws on an unknown recordId and, like `review`,
+   * `getRecord` and `verifySignatures`, on foreign persisted data: a chain whose rows carry
+   * another record's id is a storage fault (SPEC §8), never replayed as this record. */
+  replay(recordId: string): Promise<DecisionRecord>;
   verifyChain(recordId: string): Promise<ChainVerifyReport>; // audit wrapper (not Outcome)
+  /** `null` for an unknown recordId. THROWS when the store returns a chain holding another
+   * record's rows (foreign persisted data, SPEC §8) — the same posture `replay`, `review` and
+   * `verifySignatures` take; `readChain` is the raw read and checks nothing. */
   getRecord(recordId: string): Promise<DecisionRecord | null>;
   readChain(recordId: string): Promise<Transition[]>;
   chainHead(recordId: string): Promise<Digest | null>;
@@ -116,7 +122,9 @@ export interface OperatorSurface {
    * fail-closed REPORTING, not a gate: the AL2 enforcement increment (second of three,
    * now landed) folds the layer into chain-compromise at the seams via its own
    * `signatureLayerHolds`, never by this read gating. Throws only on the
-   * caller-error/unknown-record class every read takes. Its `orphans` names the sidecar
+   * caller-error/unknown-record class every read takes, which now includes foreign persisted
+   * data: a chain whose rows carry another record's id throws, as it does at every other
+   * read (SPEC §8). Its `orphans` names the sidecar
    * entries with no chain counterpart, sorted — reporting only, read by no gate; the host
    * prunes them, the library never does. */
   verifySignatures(recordId: string): Promise<SignatureReport>;

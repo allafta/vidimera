@@ -17,6 +17,7 @@
 // a caller error" posture (SPEC §8). This is the caller-error half of the exceptions
 // `outcome.ts` reserves; nothing was recorded here either.
 
+import { assertChainFor } from '../chain/binding.js';
 import { genesisPrevHash } from '../chain/encoding.js';
 import { replay } from '../chain/replay.js';
 import { type OpenOptions, unknownOptionKey } from '../config.js';
@@ -267,6 +268,9 @@ export async function open(
   // --- C1 exclusivity: gated expire-then-retry (SPEC §12's C1) --------------------------
   // A non-terminal record already holds (profileId, subjectRef); `blockingRecordId` names it.
   const blockerChain = await store.readChain(first.blockingRecordId);
+  // An identity check, NOT the pre-verify SPEC §5 says this en-passant path skips: a foreign
+  // blocker chain throws before anything is replayed, so no edge lands on either record.
+  assertChainFor(blockerChain, first.blockingRecordId, 'open');
   const blocker = replay(blockerChain);
 
   if (blocker.state === 'redeeming') {

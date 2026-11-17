@@ -12,6 +12,7 @@
 // — the same "a record that does not exist is a caller error" posture `open()`
 // (missing-stagedRef) and `replay()`/`verifyChain()` (empty chain) already take (SPEC §8).
 
+import { assertChainFor } from '../chain/binding.js';
 import { replay } from '../chain/replay.js';
 import type { KernelContext } from '../create.js';
 import type { Outcome } from '../outcome.js';
@@ -21,6 +22,7 @@ import { findingCoverage } from './findings.js';
 
 export async function review(ctx: KernelContext, recordId: string): Promise<Outcome<ReviewView>> {
   const chain = await ctx.store.readChain(recordId);
+  assertChainFor(chain, recordId, 'review');
   // replay() THROWS on an empty chain (nonexistent record) — see the module header.
   const record = replay(chain);
 

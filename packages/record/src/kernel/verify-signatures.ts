@@ -22,6 +22,7 @@
 // `true` for the same reason `verifySignatures.signingDeclared` reads false — a
 // non-signing record's layer has nothing to hold it to.
 
+import { assertChainFor } from '../chain/binding.js';
 import { encodeTransition, transitionDigest } from '../chain/encoding.js';
 import type { KernelContext } from '../create.js';
 import type { Digest, Transition } from '../types.js';
@@ -125,7 +126,11 @@ function resolveGenesisProfile(r: GenesisResolution): SignatureReport['genesisPr
  * never digests it — reporting only.
  * The sidecar is listed by `recordId`, the id the caller loaded the chain FOR — never by an
  * id read from the chain's own rows, which a storage-writing insider controls. Every caller
- * has already bound the chain to that id, so for an intact chain the two are the same.
+ * has already bound the chain to that id, so for an intact chain the two are the same: the
+ * mutating seams (`finalize`, `decline`, `redeem`, `seal`, `findings-seams`) through a
+ * `verifyChain(chain, recordId)` whose intactness gates this call, `prior-legs` and
+ * `supersedes` the same way against the referenced id, and `verifySignatures` through
+ * `assertChainFor`.
  */
 async function layerVerdicts(
   ctx: KernelContext,
@@ -217,6 +222,7 @@ export async function verifySignatures(
         'resolves to no chain is a caller error, not a domain refusal (SPEC §8)',
     );
   }
+  assertChainFor(chain, recordId, 'verifySignatures');
   const { signingDeclared, resolution, transitions, orphans } = await layerVerdicts(
     ctx,
     recordId,
