@@ -268,7 +268,11 @@ function validateSigningShape(signing: unknown): void {
         '(not an array, a Map, or another class instance)',
     );
   }
-  for (const [keyRef, verifier] of Object.entries(verifiers as object)) {
+  // EVERY own string key, enumerable or not: the signature layer resolves a keyRef with
+  // `Object.hasOwn`, which finds a non-enumerable own key as readily as any other, so a check
+  // over `Object.entries` alone would pass a registry the layer then calls a non-function from.
+  for (const keyRef of Object.getOwnPropertyNames(verifiers)) {
+    const verifier: unknown = (verifiers as Record<string, unknown>)[keyRef];
     if (typeof verifier !== 'function') {
       throw new Error(`create: config.signing.verifiers['${keyRef}'] must be a function`);
     }

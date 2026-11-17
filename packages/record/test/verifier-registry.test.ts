@@ -13,11 +13,16 @@
 // registry arrived with the AL2 mint increment and did not carry the guard. These pins cover
 // the family whole: the two members that returned truthy (red before the fix), the members
 // that already failed closed by throwing or by not being callable (a boundary pin — green
-// before the fix, kept so the family is named in one place; since the verifier-faults
-// increment these pins carry weight: without the own-key guard an inherited member's call would
-// throw inside the layer, which is now a fault, so finalize would throw instead of refusing),
-// and a host verifier whose
+// before the fix, kept so the family is named in one place), and a host verifier whose
 // answer is truthy but not the literal `true`, which the same truthiness read admitted.
+//
+// Since the verifier-faults increment the two halves of the family guard different things,
+// measured by deleting the own-key guard alone. The four throwing members' pins go RED: the
+// inherited member's call throws inside the layer, which is now a fault, so finalize throws
+// instead of refusing. The `toString` and `constructor` pins stay GREEN: their truthy return
+// is still not the literal `true`, so they read unverified; they would be ACCEPTED as verified
+// only with the old truthiness read restored as well — the shape the fix closed, now behind
+// two guards rather than one.
 
 import assert from 'node:assert/strict';
 import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';

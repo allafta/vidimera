@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';
 import { test } from 'vitest';
 
+import { encodeTransition } from '../src/chain/encoding.js';
 import { create } from '../src/create.js';
 import { withSigning } from '../src/signing/decorate.js';
 import { MemorySignatureStore } from '../src/signing/memory.js';
@@ -16,6 +17,7 @@ import type { Signer, Verifier } from '../src/signing/store.js';
 import { MemoryStore } from '../src/store/memory.js';
 import { storeGenesis } from './helpers/chain.js';
 import { captureProfile, facts, identity, makeConfig } from './helpers/profiles.js';
+import { breakOneSignature } from './helpers/signing.js';
 
 const CONTENT = { subject: 'week-1', total: 40 };
 const PROFILE_ID = 'test.cfg.v1';
@@ -195,6 +197,20 @@ const MALFORMED: Array<[string, () => unknown, RegExp]> = [
     /create: .*verifiers.*k1/,
   ],
   [
+    // The layer resolves any OWN key (`Object.hasOwn`), enumerable or not, so the check must
+    // see a non-enumerable one too.
+    'verifiers holds a non-enumerable non-function',
+    () => {
+      const signing = goodSigning();
+      Object.defineProperty(signing.verifiers, 'k2', {
+        value: 'not a function',
+        enumerable: false,
+      });
+      return signing;
+    },
+    /create: .*verifiers.*k2/,
+  ],
+  [
     'signatures missing',
     () => ({ ...goodSigning(), signatures: undefined }),
     /create: .*signatures/,
@@ -327,6 +343,140 @@ test('key retirement, the OLD shape: an instance whose signer still uses a key i
       `no orphan minted (call ${call})`,
     );
   }
+});
+
+// --- the batch: every element minted and checked before any write ---------------------
+
+/** The `kind` (and a consultation's own `kind`) an encoded transition carries. */
+function decoded(bytes: Uint8Array): { kind: string; payload: { kind?: unknown } } {
+  return JSON.parse(Buffer.from(bytes).toString('utf8'));
+}
+
+/**
+ * Drives finalize's success batch (chain-verify, facts, confirmed) into a failure on one
+ * element, three times over, and asserts each attempt wrote nothing to the sidecar; then lets
+ * it succeed. `arm` switches the failure on or off.
+ */
+async function pinBatchWritesNothing(
+  subject: string,
+  rig: (arm: () => boolean) => { signer: Signer; verifiers: Record<string, Verifier> },
+  failure: RegExp,
+): Promise<void> {
+  let armed = false;
+  const store = new MemoryStore();
+  const signatures = new MemorySignatureStore();
+  const spy = spySidecar(signatures);
+  const { signer, verifiers } = rig(() => armed);
+  const handles = build({ signer, verifiers, signatures: spy.sidecar }, store);
+  const opened = await stageAndOpen(handles, subject);
+  assert.equal(opened.status, 'ok');
+  if (opened.status !== 'ok') return;
+  const recordId = opened.value.recordId;
+  const sidecarBefore = await signatures.listByRecord(recordId);
+  const putsBefore = spy.puts.length;
+
+  armed = true;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    await assert.rejects(
+      () => handles.operator.finalize(recordId, identity(), CONTENT, facts()),
+      failure,
+    );
+    assert.equal(spy.puts.length, putsBefore, `no sidecar write at all (attempt ${attempt})`);
+    assert.deepEqual(
+      await signatures.listByRecord(recordId),
+      sidecarBefore,
+      `the sidecar is unchanged (attempt ${attempt})`,
+    );
+    assert.equal((await store.readChain(recordId)).length, 1, 'nothing appended');
+  }
+
+  armed = false;
+  const fin = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(fin.status, 'ok', 'the same call succeeds once the failure clears');
+  const chain = await store.readChain(recordId);
+  assert.equal((await signatures.listByRecord(recordId)).length, chain.length);
+}
+
+test("the batch mints and checks every element before any write: a mint check failing on the LAST element of finalize's success batch leaves no sidecar entry for the attempt, and repeated attempts leave the sidecar unchanged", async () => {
+  await pinBatchWritesNothing(
+    'subject:batch-check',
+    (armed) => {
+      const k = keyPair();
+      return {
+        signer: k.signer('k1'),
+        verifiers: {
+          k1: async (bytes, signature) => {
+            if (armed() && decoded(bytes).kind === 'confirmed') return false;
+            return k.verifier(bytes, signature);
+          },
+        },
+      };
+    },
+    /does not verify under the registered verifier/,
+  );
+});
+
+test("the batch mints and checks every element before any write: a signer that throws on the MIDDLE element of finalize's success batch leaves no sidecar entry for the attempt, and repeated attempts leave the sidecar unchanged", async () => {
+  await pinBatchWritesNothing(
+    'subject:batch-signer',
+    (armed) => {
+      const k = keyPair();
+      const base = k.signer('k1');
+      return {
+        signer: async (bytes) => {
+          const t = decoded(bytes);
+          if (armed() && t.kind === 'consultation-recorded' && t.payload.kind === 'facts') {
+            throw new Error('signer unavailable mid-batch');
+          }
+          return base(bytes);
+        },
+        verifiers: { k1: k.verifier },
+      };
+    },
+    /signer unavailable mid-batch/,
+  );
+});
+
+// --- the mint check across compare-and-swap candidates --------------------------------
+
+test('the mint check runs once per transition across compare-and-swap candidates: on a terminal-folded record the compromise walk tries three candidates, puts three times, and asks the verifier about the new edge once', async () => {
+  const k = keyPair();
+  const store = new MemoryStore();
+  const signatures = new MemorySignatureStore();
+  const spy = spySidecar(signatures);
+  const asked: Buffer[] = [];
+  const verifiers: Record<string, Verifier> = {
+    k1: async (bytes, signature) => {
+      asked.push(Buffer.from(bytes));
+      return k.verifier(bytes, signature);
+    },
+  };
+  const handles = build({ signer: k.signer('k1'), verifiers, signatures: spy.sidecar }, store);
+  const opened = await stageAndOpen(handles, 'subject:cas-walk');
+  assert.equal(opened.status, 'ok');
+  if (opened.status !== 'ok') return;
+  const recordId = opened.value.recordId;
+  const fin = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(fin.status, 'ok', 'fixture: a confirmed record');
+  await breakOneSignature(signatures, recordId, store);
+  const first = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(first.status, 'refused');
+  if (first.status !== 'refused') return;
+  assert.ok(first.transitionRef !== undefined, 'fixture: the edge landed; the record is refused');
+
+  const chain = await store.readChain(recordId);
+  const existing = chain.map((t) => Buffer.from(encodeTransition(t)));
+  const askedBefore = asked.length;
+  const putsBefore = spy.puts.length;
+  const out = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(out.status, 'refused');
+  if (out.status !== 'refused') return;
+  assert.equal(out.code, 'chain-compromise');
+  assert.equal(out.transitionRef, undefined, 'no candidate landed');
+  assert.equal((await store.readChain(recordId)).length, chain.length, 'chain flat');
+  assert.equal(spy.puts.length - putsBefore, 3, 'three candidates tried, one put each');
+  const overNewEdge = asked.slice(askedBefore).filter((b) => !existing.some((e) => e.equals(b)));
+  assert.equal(overNewEdge.length, 1, 'the mint check ran once for the three attempts');
 });
 
 test('a failed mint check drops the memo: the SAME transition object, appended again after the registry is repaired, succeeds and re-mints', async () => {

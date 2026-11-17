@@ -2,9 +2,11 @@
 // BOTH signing increments' work. `verifySignatures` (the AL2 mint increment) is a pure
 // chain-driven read: it reports, it never refuses or appends on a verification FAILURE —
 // fail-closed REPORTING (unresolvable keyRef, a verifier answering anything but the literal
-// `true`, missing entry all read `verified: false`). A verifier FAULT — a throw or a
-// rejection, the verifier saying it could not answer — is a different input and is never
-// folded into that reading: it propagates (see `layerVerdicts`, where the stance is argued).
+// `true`, missing entry, non-string sidecar field all read `verified: false`). A verifier FAULT
+// — a throw or a rejection, the verifier saying it could not answer — is a different input and
+// is never folded into that reading: the read propagates it, and the gate propagates it where
+// the layer applies unless a definite miss has already decided (see `layerVerdicts`, where the
+// stance is argued).
 // `signatureLayerHolds` (the AL2 enforcement
 // increment, second of three) is the one gate primitive built on the SAME correlation
 // core (`layerVerdicts` below, factored so neither consumer re-derives it): every
@@ -128,13 +130,16 @@ interface VerifierFault {
 }
 
 /** The thrown value for a verifier fault: names the record, the `seq` and the `keyRef`, says
- * it is a fault and that nothing was appended, and carries the verifier's own error as `cause`. */
+ * that nothing was appended, and carries the verifier's own error as `cause`. It does not
+ * claim the fault is an outage: a verifier that throws on a malformed or planted signature
+ * string looks exactly like one from here, so the message names both readings and the entry
+ * that tells them apart. */
 function verifierFaultError(recordId: string, seq: number, keyRef: string, cause: unknown): Error {
   return new Error(
-    `verifier fault: the verifier for keyRef '${keyRef}' threw or rejected over record ` +
-      `'${recordId}' at seq ${seq}, so the signature layer could not be answered; ` +
-      'nothing was appended — this is not a verification failure, and the call can be made ' +
-      'again once the verifier answers',
+    `verifier fault: the verifier for keyRef '${keyRef}' could not answer (it threw or ` +
+      `rejected) for seq ${seq} of record '${recordId}', and nothing was appended. A transient ` +
+      'outage clears on retry; a fault that persists while the verifier is otherwise healthy ' +
+      `means the sidecar entry at seq ${seq} under keyRef '${keyRef}' may be malformed or planted`,
     { cause },
   );
 }
@@ -143,12 +148,16 @@ function verifierFaultError(recordId: string, seq: number, keyRef: string, cause
  * The one correlation core both `verifySignatures` and `signatureLayerHolds` share:
  * walks `chain` (never the sidecar) and, for each transition, resolves whether it
  * carries a sidecar entry, whether that entry's `keyRef` resolves in `ctx.signing`'s
- * registry, and whether the resolved verifier accepts the canonical bytes. A verifier that
- * THROWS or REJECTS is recorded as a FAULT beside its transition (`faults`, in chain order)
- * and leaves that transition `verified: false`; this walk never decides what the fault
- * means — its two consumers do (`signatureLayerHolds` rethrows where the obligation applies,
- * `verifySignatures` always). A REJECTING sidecar store (`ctx.signing.signatures.listByRecord`)
- * propagates from here directly, a storage fault of the same class as a rejecting `readChain`.
+ * registry, and whether the resolved verifier accepts the canonical bytes. An entry whose
+ * `keyRef` or `signature` is not a string is a DEFINITE MISS (`signed`, never `verified`, the
+ * verifier never called), as is a missing entry, an unresolvable `keyRef` or a non-`true`
+ * answer. A verifier that THROWS or REJECTS is recorded as a FAULT beside its transition
+ * (`faults`, in chain order) and leaves that transition `verified: false`; this walk never
+ * decides what the fault means — its two consumers do (`signatureLayerHolds` lets a definite
+ * miss decide first and rethrows only where the obligation applies and nothing else decided,
+ * `verifySignatures` always rethrows). A REJECTING sidecar store
+ * (`ctx.signing.signatures.listByRecord`) propagates from here directly, a storage fault of
+ * the same class as a rejecting `readChain`.
  *
  * The sixteenth self-authored inversion, argued here. The stance recorded until now was that a
  * throwing verifier is fail-closed REPORTING: its throw never left this module and read as
@@ -161,12 +170,20 @@ function verifierFaultError(recordId: string, seq: number, keyRef: string, cause
  * timing out. Recording "could not answer" as "did not verify" is recording tampering that
  * never happened, and a terminal edge is the one outcome no host can undo. The posture
  * already taken for a rejecting `listByRecord` is the precedent: the same kind of fault one
- * hook over propagates and appends nothing, so the call can simply be made again. A fault
- * propagates only where the answer was needed: on a record the layer does not apply to the
- * gate never acts on a junk entry's fault, so it changes no seam's outcome there (the read,
- * `verifySignatures`, still propagates it).
- * Fail-closed is untouched: `false`, a non-boolean answer and an unresolvable `keyRef` still
- * read `verified: false` and still refuse.
+ * hook over propagates and appends nothing, so a transient outage clears when the call is made
+ * again. A fault propagates only where the answer was needed and nothing else decides: on a
+ * record the layer does not apply to the gate never acts on a junk entry's fault, so it changes
+ * no seam's outcome there (the read, `verifySignatures`, still propagates it); and where the
+ * layer applies, a definite miss on any transition decides the gate before any fault is
+ * rethrown. The limit, stated at its width: where this instance holds the record's profile, a
+ * seam throws rather than drawing the edge only when no transition is a definite miss and some
+ * entry is a string the verifier cannot answer for — a malformed or planted signature string
+ * that makes the host's verifier throw is that case, and it persists until the entry is
+ * repaired, which is why the fault message names the entry's `seq` and `keyRef` and the
+ * `Verifier` contract asks for `false` on input that does not parse; where it does not, a
+ * genesis fault also throws (the obligation rests on it — see `signatureLayerHolds`).
+ * Fail-closed is untouched: `false`, a non-boolean answer, an unresolvable `keyRef` and a
+ * non-string field still read `verified: false` and still refuse.
  * `signingDeclared` reads the GENESIS transition's own `profileId`, resolved against
  * THIS instance's profile registry — the live profile's declaration, REPORTING ONLY on its
  * own. The `obligation` it hands back is what the gate enforces: when this instance HOLDS the
@@ -244,6 +261,23 @@ async function layerVerdicts(
     const entry = byDigest.get(d);
     if (entry === undefined) {
       transitions.push({ seq: t.seq, transitionDigest: d, signed: false, verified: false });
+      continue;
+    }
+    // The entry's fields are TYPED before anything uses them, by the same reasoning as the
+    // own-key guard below: the sidecar is storage, and storage is what this layer distrusts. A
+    // non-string `keyRef` or `signature` is a definite miss — `signed`, never `verified` — and
+    // the verifier is never called with it: a host verifier that decodes the signature (the
+    // guide's sample does) would throw on a `null` and turn a planted entry into a fault, and an
+    // object `keyRef` would throw a raw TypeError out of `Object.hasOwn` before any verdict.
+    // A non-string `keyRef` is not reported either; the report's `keyRef` is a string or absent.
+    if (typeof entry.keyRef !== 'string' || typeof entry.signature !== 'string') {
+      transitions.push({
+        seq: t.seq,
+        transitionDigest: d,
+        signed: true,
+        ...(typeof entry.keyRef === 'string' ? { keyRef: entry.keyRef } : {}),
+        verified: false,
+      });
       continue;
     }
     let verified = false;
@@ -326,8 +360,10 @@ export async function verifySignatures(
     chain,
   );
   // A report that said "unverified" for "could not ask" would be false: the first fault in
-  // chain order propagates, as a rejecting `listByRecord` already does. A `false` verdict is
-  // still reported, never thrown.
+  // chain order propagates, as a rejecting `listByRecord` already does — even beside a definite
+  // miss, since the read decides nothing and the gate's miss-first rule has nothing to settle
+  // here. The error names the `seq` and `keyRef`, which locates the entry. A `false` verdict and
+  // a non-string field are still reported, never thrown.
   const fault = faults[0];
   if (fault !== undefined) throw fault.error;
   return {
@@ -346,15 +382,22 @@ export async function verifySignatures(
  * declare `signing` or the genesis transition carries no entry its verifier accepts
  * (`layerVerdicts` states the rule and its bound, per site) — or when EVERY transition
  * carries a sidecar entry whose keyRef resolves
- * and whose verifier passes over the canonical bytes. `false` on any miss, unresolvable
- * keyRef (an OWN key of the registry, never an inherited member), failing, or
- * non-boolean-answering verifier — fail closed. A verifier that THROWS or REJECTS is not a miss
- * but a fault, and it propagates where the answer was needed and nowhere else: when the
- * obligation applies, the first fault in chain order is rethrown and no caller appends; when
- * the obligation is false it is never seen; and for an instance that does not hold the
- * record's profile, a fault in the genesis verification rethrows when the live same-id profile
- * declares `signing` (the obligation then rests on a verdict that does not exist) and is
- * ignored when it does not. AL1 intactness is the CALLER's
+ * and whose verifier passes over the canonical bytes. `false` on any DEFINITE MISS — a missing
+ * entry, a non-string `keyRef` or `signature`, an unresolvable keyRef (an OWN key of the
+ * registry, never an inherited member), or a verifier answering anything but the literal
+ * `true` — fail closed. A verifier that THROWS or REJECTS is not a miss but a fault, and it
+ * propagates only where the answer was needed and nothing else decides: when the obligation
+ * applies, a definite miss on ANY transition already makes the layer fail, so it returns
+ * `false` and the caller fails closed into its own code — `chain-compromise` at a seam, the
+ * claim refusal at a cross-record verification — exactly as OPEN-QUESTIONS §1 decided for a
+ * missing signature or an unresolvable key, whatever another transition's verifier did; only
+ * when no transition is a definite miss and some transition faulted is the
+ * first fault in chain order rethrown, and then no caller appends. When the obligation is false
+ * a fault is never seen. For an instance that does not hold the record's profile, a fault in
+ * the genesis verification rethrows when the live same-id profile declares `signing` (the
+ * obligation then rests on a verdict that does not exist, so not even a definite miss can
+ * decide: a miss would draw `chain-compromise` under an obligation and resolve as
+ * `unknown-profile` without one) and is ignored when it does not. AL1 intactness is the CALLER's
  * first check — `verifyChain(chain, recordId)`, bound to the same `recordId` passed here —
  * so this layer runs only on intact chains loaded for `recordId`, and lists the sidecar by
  * that id. The rehoming residual is named in the status doc: the obligation keys on the
@@ -373,7 +416,11 @@ export async function signatureLayerHolds(
   const genesisFault = faults.find((f) => f.index === 0);
   if (obligationUndecided && genesisFault !== undefined) throw genesisFault.error;
   if (!obligation) return true; // the layer does not apply — nothing to hold it to
+  // A definite miss outranks a fault: an unverified transition whose verification did NOT
+  // fault is an answer, and one such answer already decides the layer.
+  const faulted = new Set(faults.map((f) => f.index));
+  if (transitions.some((t, index) => !t.verified && !faulted.has(index))) return false;
   const fault = faults[0];
   if (fault !== undefined) throw fault.error;
-  return transitions.every((t) => t.verified);
+  return true; // no miss and no fault: every transition verified
 }

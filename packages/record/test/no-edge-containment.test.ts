@@ -235,8 +235,10 @@ test('BASELINE — the sealed no-edge corner: six refusing finalize() calls, cha
 test('BASELINE — key retirement: dropping the keyRef from the verifier registry puts a HEALTHY sealed record into permanent minting — one orphan per refusing call', async () => {
   // Deferral register row 22's key-retirement reachability shape, pinned for the first
   // time (the register's own figure was measured on a rig that is gone): the record is
-  // untampered and sealed, the sidecar complete — only the registry moved. Nothing here
-  // contains the growth; the pin states it.
+  // untampered and sealed, the sidecar complete — the registry dropped the old key and the
+  // signer moved to a new key too (the realistic retirement; a signer still on the dropped key
+  // now throws at the mint, pinned in signing-config.test.ts). Nothing here contains the
+  // growth; the pin states it.
   const rig = countingSigningSetup();
   const recordId = await confirmedSigningRecord(rig, 'subject:noedge-retired');
   assert.equal((await rig.handles.operator.seal(recordId)).status, 'ok', 'fixture: sealed');

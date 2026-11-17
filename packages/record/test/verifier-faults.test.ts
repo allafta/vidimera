@@ -5,6 +5,13 @@
 // never seen. Before this increment a fault read as `verified: false` and every un-enlisted
 // seam appended a terminal `chain-compromise` edge to an untouched record.
 //
+// A fault never outranks a DEFINITE MISS: a missing entry, a non-string sidecar field, an
+// unregistered keyRef or a non-`true` answer on any transition still fails the layer closed
+// while another transition's verifier faults, and a non-string field never reaches the
+// verifier at all. The pins after the non-holder branch hold that line, and the cost the mint
+// check adds: on a hash-broken chain the compromise edge itself waits for the instance's own
+// verifier.
+//
 // The rig's verifier is real Ed25519 behind a switch: with the switch off it verifies, with
 // it set it throws synchronously ('throw') or rejects asynchronously ('reject'). Each seam
 // pin runs both modes, then clears the switch and calls again.
@@ -17,7 +24,7 @@ import { transitionDigest } from '../src/chain/encoding.js';
 import type { ConfirmProfile } from '../src/config.js';
 import { create } from '../src/create.js';
 import { MemorySignatureStore } from '../src/signing/memory.js';
-import type { Signer, SigningConfig, Verifier } from '../src/signing/store.js';
+import type { SignatureEntry, Signer, SigningConfig, Verifier } from '../src/signing/store.js';
 import { MemoryStore } from '../src/store/memory.js';
 import { SqliteStore } from '../src/store/sqlite.js';
 import type { Store } from '../src/store/store.js';
@@ -28,8 +35,10 @@ import {
   identity,
   makeConfig,
   openRecord,
+  tamperNonLast,
   twoLegProfile,
 } from './helpers/profiles.js';
+import { breakOneSignature } from './helpers/signing.js';
 
 const CONTENT = { subject: 'week-1', total: 40 };
 const WRONG = { subject: 'week-1', total: 41 };
@@ -470,9 +479,264 @@ test('the non-holder branch: a same-id signing sibling whose genesis verificatio
     // and the outcome is the ordinary non-holder refusal.
     const { signing: _dropped, ...unsigned } = flowProfile(id, { expiry: { ttl: 60 } });
     const plainSibling = instance([unsigned], store, tier);
+    const plainCallsBefore = tier.state.calls;
     const out = await plainSibling.operator.finalize(recordId, identity(), CONTENT, facts());
     assert.equal(out.status, 'refused', `non-signing sibling (${mode})`);
     assert.equal(out.code, 'unknown-profile');
     assert.equal(await chainLen(store, recordId), before, 'still nothing appended');
+    assert.ok(
+      tier.state.calls > plainCallsBefore,
+      'the verifier WAS consulted by the non-signing sibling — and its fault ignored',
+    );
+  }
+});
+
+// --- a definite miss, a non-string field, and the faults around them ----------------------
+
+/** The sidecar entry for the transition at `seq`, found through the chain (never by position). */
+async function entryAt(tier: Tier, store: Store, recordId: string, seq: number) {
+  const t = (await store.readChain(recordId))[seq - 1];
+  assert.ok(t !== undefined, `fixture: the chain has a transition at seq ${seq}`);
+  const digest = transitionDigest(t);
+  const entry = (await tier.signatures.listByRecord(recordId)).find(
+    (e) => e.transitionDigest === digest,
+  );
+  assert.ok(entry !== undefined, `fixture: seq ${seq} has a sidecar entry`);
+  return entry;
+}
+
+/**
+ * Makes the tier's verifier fault ONLY over one signature — a single transition's entry — and
+ * answer normally over everything else, the mint check's fresh signatures included. Returns how
+ * many times the fault fired.
+ */
+function faultOnly(tier: Tier, mode: Mode, victimSignature: string): () => number {
+  const healthy = tier.signing.verifiers['key-1'];
+  assert.ok(healthy !== undefined);
+  let fired = 0;
+  tier.signing.verifiers['key-1'] = (bytes, signature) => {
+    if (signature !== victimSignature) return healthy(bytes, signature);
+    fired += 1;
+    if (mode === 'throw') throw tier.state.outage;
+    return Promise.reject(tier.state.outage);
+  };
+  return () => fired;
+}
+
+/** The compromise edge, asserted drawn: refused `chain-compromise` whose ref is the new head. */
+async function assertEdgeDrawn(
+  out: { status: string; code?: string; transitionRef?: string },
+  store: Store,
+  recordId: string,
+  lengthBefore: number,
+  label: string,
+): Promise<void> {
+  assert.equal(out.status, 'refused', `${label}: refused, not thrown`);
+  assert.equal(out.code, 'chain-compromise', `${label}: chain-compromise`);
+  const after = await store.readChain(recordId);
+  assert.equal(after.length, lengthBefore + 1, `${label}: the compromise edge was appended`);
+  const head = after.at(-1);
+  assert.ok(head !== undefined);
+  assert.equal(head.kind, 'refused', `${label}: the edge is a refused transition`);
+  assert.equal(out.transitionRef, transitionDigest(head), `${label}: the refusal names the edge`);
+}
+
+test('a definite miss outranks a verifier fault: finalize on an open record with one entry deleted and another transition faulting refuses chain-compromise and draws the edge, in either chain order; the fault alone still throws', async () => {
+  const id = 'test.vf.miss.fin.v1';
+  for (const mode of MODES) {
+    for (const [missSeq, faultSeq] of [
+      [2, 1],
+      [1, 2],
+    ] as const) {
+      const label = `${mode}, miss at seq ${missSeq}, fault at seq ${faultSeq}`;
+      const tier = faultyTier();
+      const store = new MemoryStore();
+      const h = instance([flowProfile(id)], store, tier);
+      const recordId = await openRecord(h, CONTENT, id, 'subject:vf-18');
+      const raised = await h.operator.raiseFinding(
+        recordId,
+        { findingId: 'f-1', kind: 'variance', findingDigest: D1 },
+        identity({ principal: 'checker:1' }),
+      );
+      assert.equal(raised.status, 'ok', 'fixture: a two-transition open record');
+      const missing = await entryAt(tier, store, recordId, missSeq);
+      const victim = await entryAt(tier, store, recordId, faultSeq);
+      tier.signatures.delete(missing.transitionDigest);
+      const fired = faultOnly(tier, mode, victim.signature);
+      const lengthBefore = await chainLen(store, recordId);
+
+      const out = await h.operator.finalize(recordId, identity(), CONTENT, facts());
+      await assertEdgeDrawn(out, store, recordId, lengthBefore, label);
+      assert.ok(fired() > 0, `${label}: the other transition's verifier did fault`);
+    }
+
+    // The fault alone, with no miss anywhere: nothing decides the layer, so the seam throws.
+    const tier = faultyTier();
+    const store = new MemoryStore();
+    const h = instance([flowProfile(id)], store, tier);
+    const recordId = await openRecord(h, CONTENT, id, 'subject:vf-18');
+    const raised = await h.operator.raiseFinding(
+      recordId,
+      { findingId: 'f-1', kind: 'variance', findingDigest: D1 },
+      identity({ principal: 'checker:1' }),
+    );
+    assert.equal(raised.status, 'ok');
+    faultOnly(tier, mode, (await entryAt(tier, store, recordId, 2)).signature);
+    const lengthBefore = await chainLen(store, recordId);
+    await assert.rejects(
+      h.operator.finalize(recordId, identity(), CONTENT, facts()),
+      (e) => assertFault(e, recordId, tier, 2),
+      `the fault alone throws (${mode})`,
+    );
+    assert.equal(await chainLen(store, recordId), lengthBefore, 'the fault alone appends nothing');
+  }
+});
+
+test('a definite miss outranks a verifier fault at seal: a confirmed record with its last entry deleted and its genesis verification faulting refuses chain-compromise and draws the edge; the fault alone still throws', async () => {
+  const id = 'test.vf.miss.seal.v1';
+  for (const mode of MODES) {
+    const tier = faultyTier();
+    const store = new MemoryStore();
+    const h = instance([signingCapture(id)], store, tier);
+    const recordId = await openRecord(h, CONTENT, id, 'subject:vf-19');
+    const fin = await h.operator.finalize(recordId, identity(), CONTENT, facts());
+    assert.equal(fin.status, 'ok', 'fixture: a confirmed, completed record');
+    const lengthBefore = await chainLen(store, recordId);
+    const missing = await entryAt(tier, store, recordId, lengthBefore);
+    const victim = await entryAt(tier, store, recordId, 1);
+    tier.signatures.delete(missing.transitionDigest);
+    const fired = faultOnly(tier, mode, victim.signature);
+
+    const out = await h.operator.seal(recordId);
+    await assertEdgeDrawn(out, store, recordId, lengthBefore, `seal (${mode})`);
+    assert.ok(fired() > 0, `seal (${mode}): the genesis verifier did fault`);
+
+    // The fault alone: a second, healthy record on a fresh tier.
+    const tier2 = faultyTier();
+    const store2 = new MemoryStore();
+    const h2 = instance([signingCapture(id)], store2, tier2);
+    const recordId2 = await openRecord(h2, CONTENT, id, 'subject:vf-19');
+    const fin2 = await h2.operator.finalize(recordId2, identity(), CONTENT, facts());
+    assert.equal(fin2.status, 'ok');
+    faultOnly(tier2, mode, (await entryAt(tier2, store2, recordId2, 1)).signature);
+    const length2 = await chainLen(store2, recordId2);
+    await assert.rejects(
+      h2.operator.seal(recordId2),
+      (e) => assertFault(e, recordId2, tier2, 1),
+      `seal: the fault alone throws (${mode})`,
+    );
+    assert.equal(await chainLen(store2, recordId2), length2, 'the fault alone appends nothing');
+  }
+});
+
+test('a non-string sidecar field is a definite miss and never reaches the verifier: a planted null signature and a JSON-object keyRef report verified: false and refuse chain-compromise, with no throw', async () => {
+  const id = 'test.vf.typed.v1';
+  const plants: Array<[string, (e: SignatureEntry) => unknown, string | undefined]> = [
+    ['keyRef: a JSON object', (e) => ({ ...e, keyRef: JSON.parse('{"toString":"x"}') }), undefined],
+    ['signature: null', (e) => ({ ...e, signature: null }), 'key-1'],
+  ];
+  for (const [label, plant, reportedKeyRef] of plants) {
+    // The rig's healthy verifier is the guide's sample shape — `Buffer.from(signature,
+    // 'base64')` — which throws on a non-string signature.
+    const tier = faultyTier();
+    const store = new MemoryStore();
+    const h = instance([signingCapture(id)], store, tier);
+    const recordId = await openRecord(h, CONTENT, id, 'subject:vf-20');
+    const genesis = await entryAt(tier, store, recordId, 1);
+    await tier.signatures.put(plant(genesis) as SignatureEntry);
+
+    const callsBefore = tier.state.calls;
+    const report = await h.operator.verifySignatures(recordId);
+    assert.equal(tier.state.calls, callsBefore, `${label}: the verifier is never called`);
+    const t1 = report.transitions[0];
+    assert.ok(t1 !== undefined);
+    assert.equal(t1.signed, true, `${label}: an entry is present`);
+    assert.equal(t1.verified, false, `${label}: and it does not verify`);
+    assert.equal(t1.keyRef, reportedKeyRef, `${label}: a non-string keyRef is never reported`);
+
+    const lengthBefore = await chainLen(store, recordId);
+    const out = await h.operator.finalize(recordId, identity(), CONTENT, facts());
+    await assertEdgeDrawn(out, store, recordId, lengthBefore, label);
+  }
+});
+
+test('the non-holder branch with no genesis fault: a signing sibling over a record whose genesis entry is missing, fails, or names an unknown key, and whose LATER transition faults, refuses unknown-profile without throwing', async () => {
+  const id = 'test.vf.sib2.v1';
+  const shapes = ['missing', 'fails', 'unknown keyRef'] as const;
+  for (const mode of MODES) {
+    for (const shape of shapes) {
+      const label = `${mode}, genesis ${shape}`;
+      const tier = faultyTier();
+      const store = new MemoryStore();
+      const opener = instance([flowProfile(id)], store, tier);
+      const recordId = await openRecord(opener, CONTENT, id, 'subject:vf-21');
+      const raised = await opener.operator.raiseFinding(
+        recordId,
+        { findingId: 'f-1', kind: 'variance', findingDigest: D1 },
+        identity({ principal: 'checker:1' }),
+      );
+      assert.equal(raised.status, 'ok', 'fixture: a two-transition open record');
+      const genesis = await entryAt(tier, store, recordId, 1);
+      const later = await entryAt(tier, store, recordId, 2);
+      if (shape === 'missing') tier.signatures.delete(genesis.transitionDigest);
+      if (shape === 'fails') await breakOneSignature(tier.signatures, recordId, store);
+      if (shape === 'unknown keyRef') {
+        await tier.signatures.put({ ...genesis, keyRef: 'key-unknown' });
+      }
+      const fired = faultOnly(tier, mode, later.signature);
+      const lengthBefore = await chainLen(store, recordId);
+
+      const sibling = instance([flowProfile(id, { expiry: { ttl: 60 } })], store, tier);
+      const out = await sibling.operator.finalize(recordId, identity(), CONTENT, facts());
+      assert.equal(out.status, 'refused', `${label}: refused, not thrown`);
+      assert.equal(out.code, 'unknown-profile', `${label}: the ordinary non-holder refusal`);
+      assert.equal(await chainLen(store, recordId), lengthBefore, `${label}: nothing appended`);
+      assert.ok(fired() > 0, `${label}: the later transition's verifier did fault`);
+    }
+  }
+});
+
+test("a hash-broken signing chain while the instance's OWN verifier faults: the seam throws, since the compromise edge's mint check cannot run, and appends nothing; once the verifier recovers the same call draws chain-compromise", async () => {
+  const id = 'test.vf.hash.v1';
+  for (const mode of MODES) {
+    const tier = faultyTier();
+    const source = new MemoryStore();
+    const opener = instance([flowProfile(id)], source, tier);
+    const recordId = await openRecord(opener, CONTENT, id, 'subject:vf-22');
+    const raised = await opener.operator.raiseFinding(
+      recordId,
+      { findingId: 'f-1', kind: 'variance', findingDigest: D1 },
+      identity({ principal: 'checker:1' }),
+    );
+    assert.equal(raised.status, 'ok', 'fixture: a two-transition open record');
+    // A payload tamper of the genesis, copied into a second store: AL1 fails at seq 2.
+    const tampered = new MemoryStore();
+    for (const [i, t] of tamperNonLast(await source.readChain(recordId)).entries()) {
+      await tampered.appendTransition(i === 0 ? null : 'open', t, { nonTerminal: true });
+    }
+    const h = instance([flowProfile(id)], tampered, tier);
+    const chainBefore = await tampered.readChain(recordId);
+    const sidecarBefore = (await tier.signatures.listByRecord(recordId)).length;
+
+    tier.state.fault = mode;
+    let thrown: unknown;
+    try {
+      await h.operator.finalize(recordId, identity(), CONTENT, facts());
+    } catch (e) {
+      thrown = e;
+    }
+    assert.ok(thrown instanceof Error, `the seam threw (${mode})`);
+    assert.match(thrown.message, /signing: the verifier for keyRef 'key-1' threw or rejected/);
+    assert.strictEqual(thrown.cause, tier.state.outage, "the verifier's own error is the cause");
+    assert.deepEqual(await tampered.readChain(recordId), chainBefore, 'nothing appended');
+    assert.equal(
+      (await tier.signatures.listByRecord(recordId)).length,
+      sidecarBefore,
+      'nothing put to the sidecar',
+    );
+
+    tier.state.fault = undefined;
+    const out = await h.operator.finalize(recordId, identity(), CONTENT, facts());
+    await assertEdgeDrawn(out, tampered, recordId, chainBefore.length, `recovered (${mode})`);
   }
 });
