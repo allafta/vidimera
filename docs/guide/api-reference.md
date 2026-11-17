@@ -576,14 +576,29 @@ interface SignatureReport {                              // verifySignatures()'s
 profile is the one the record was opened under.** The genesis `profileId` is resolved against
 the profiles *this instance* holds; a same-id profile that has since dropped `signing: true`
 — or an instance that does not hold the id at all — makes a signing record read
-`signingDeclared: false` — and that instance does not HOLD the record's profile, so every seam
-it resolves the record at refuses `unknown-profile`, never-append. `genesisProfile` qualifies
+`signingDeclared: false` — and that instance does not HOLD the record's profile, so every
+operator seam it resolves the record at refuses `unknown-profile`, never-append (a successor
+leg's `open()` refuses `prior-leg-unverified` and a `supersedes` claim is checked as
+this paragraph goes on to state). `genesisProfile` qualifies
 that reading: `matches` when the live profile's data-only projection digests to the genesis
 `profileDigest`, `drifted` when the id resolves to a profile that digests differently
 (`signing` is a covered field, so is every other declarative field — a `ttl` edit lands here
 too), `unresolvable` when there is nothing to compare against.
-The field itself is reporting only, exactly as `orphans` is; the refusal lives at the seams,
-which make the same comparison and refuse `unknown-profile` when they do not hold the profile.
+The field itself is reporting only, exactly as `orphans` is, and it reads the same way in the
+other direction: a same-id profile that has since ADDED `signing: true` makes a never-signed
+record read `signingDeclared: true`. No seam enforces on this reading alone. The obligation a
+seam applies to the signature layer is the held profile's `signing` when the instance holds
+the record's profile, and otherwise `signingDeclared` AND a genesis transition whose sidecar
+entry this instance's verifier accepts. So an instance that does not hold the profile
+enforces the layer only on a chain whose genesis entry verifies under its own live signing
+profile; a signing record whose genesis entry was removed, fails, or names a key it holds no
+verifier for reads there as carrying no obligation. Per site: the operator seams refuse
+`unknown-profile` and append nothing, where a holder would draw `chain-compromise`; a
+successor leg's `open()` refuses `prior-leg-unverified`; and a `supersedes` claim over a
+terminal non-`confirmed` predecessor verifies, while one over a `confirmed` predecessor
+refuses `supersedes-unverified`. Where the obligation does apply and the layer fails, an
+operator seam draws its `chain-compromise` evidence edge first, holder or not (SPEC §4's
+exception), and the cross-record verifications refuse their claims.
 So `drifted` names exactly why a seam refused, or will — read the two fields together, and
 treat `drifted` on any record as a configuration event: restore the profile's declarative
 fields exactly, or keep the old version registered under its id and give the edit a new one.

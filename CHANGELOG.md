@@ -511,6 +511,45 @@ is the summary, and that file wins on conflict.
   bound, in the same breath: only identities are snapshotted — other host values (profiles,
   options, canonicalizer output) are not yet, and the exact-own-key check is unchanged.
   Pre-publication, so there is no advisory to issue.
+- **A same-id profile edit that adds `signing: true` no longer writes `chain-compromise` into
+  untampered records** (the signing-obligation increment, 2026-11-17, branch
+  `signing-obligation-2026-11-17`): the AL2 obligation every verification site enforces was
+  read from the live profile registered under the record's id, with no comparison against the
+  digest the record was opened under. An instance holding `{ ...P, signing: true }` over a
+  store of records opened under non-signing `P` therefore read each of them as a signing chain
+  with no signatures, and every operator seam appended a terminal `chain-compromise` edge —
+  open records through `finalize`, `decline` and the findings seams; confirmed records
+  through `seal` and the redemption seams, which could then never redeem — and restoring `P`
+  exactly met `record-not-open`. Now the obligation is the held profile's `signing` when the
+  instance holds the record's profile (same id AND a live digest equal to the genesis
+  `profileDigest`), and otherwise the live same-id profile's declaration only when the genesis
+  transition also carries a sidecar entry this instance's verifier accepts. The add direction
+  refuses `unknown-profile` with no edge at `finalize`, `decline`, `raiseFinding`,
+  `acknowledge`, `redeem`, `beginRedemption`, `completeRedemption` and `seal`; a successor
+  leg's `open()` refuses `prior-leg-unverified`, and a `supersedes` claim over a confirmed
+  predecessor refuses `supersedes-unverified`, as for every other drift. The drop direction is
+  exactly as it was: a sibling that dropped `signing` reads no obligation, so it refuses
+  `unknown-profile` with no edge even where it keeps the verifier — an earlier cut of this
+  rule applied the layer there and could draw an unsigned `chain-compromise` edge into an
+  untampered record whose later transition was signed under a key the sibling holds no
+  verifier for; that path was found before release and withdrawn. SPEC §4's exception keeps
+  its reach for a same-id signing sibling whose genesis entry verifies: a broken later
+  signature still draws `chain-compromise` from it as from a holder. A holder's behavior is
+  unchanged, and no seam code, refusal code, report field or public type moved. The honest
+  bound, in the same breath, per site: a same-id signing sibling (a `ttl` edit, say) over a
+  signing record whose genesis entry was removed, fails, or names a key it holds no verifier
+  for reads no obligation. At the five operator seams it refuses `unknown-profile` and
+  appends nothing, where it drew `chain-compromise` before and a holder still does; at a
+  successor leg's `open()` it refuses `prior-leg-unverified`, as before; at `supersedes` a
+  confirmed predecessor refuses and a terminal non-`confirmed` predecessor now verifies,
+  where it refused before — and a forged declined chain naming a registered signing id with a
+  non-matching `profileDigest` verifies there too. Not closed here: those two `supersedes`
+  cases join the forged predecessor under an unregistered or non-signing profile, which
+  already bound through `supersedes` for a terminal non-`confirmed` state and need folding
+  the binding for every predecessor state; a storage-writing insider rehoming a signing
+  record's genesis onto a co-registered non-signing profile is unchanged; and `review()`'s
+  findings coverage still reads the live profile.
+  Pre-publication, so there is no advisory to issue.
 
 ### Known not-done
 

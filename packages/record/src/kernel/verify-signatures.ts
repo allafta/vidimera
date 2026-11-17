@@ -9,7 +9,13 @@
 // now widens that same check to also consult this layer on a signing record, folding a
 // bad layer into each site's OWN existing failure arm — this file adds no new refusal
 // code and appends nothing itself. The read stays a read: `verifySignatures` never
-// gates, whatever `signatureLayerHolds` reports elsewhere for the same chain. Since the
+// gates, whatever `signatureLayerHolds` reports elsewhere for the same chain. The
+// obligation `signatureLayerHolds` enforces is the HELD profile's `signing` (the same
+// `held-profile.ts` comparison every seam makes) and, for an instance that does not hold the
+// record's profile, the live same-id profile's declaration ONLY when the chain's own genesis
+// transition also carries a sidecar entry that instance's verifier accepts — so an in-place
+// edit that ADDS `signing` can no longer read a never-signed record as a signing chain, and
+// one that drops it still reads as no obligation. Since the
 // security-findings pass (2026-09-03) the report also carries `genesisProfile`: whether
 // the live profile the verdicts were computed against is the one the record was opened
 // under, by the `opened` payload's own `profileDigest` (SPEC §4) — reporting only, again.
@@ -26,6 +32,7 @@ import { assertChainFor } from '../chain/binding.js';
 import { encodeTransition, transitionDigest } from '../chain/encoding.js';
 import type { KernelContext } from '../create.js';
 import type { Digest, Transition } from '../types.js';
+import { heldProfile } from './held-profile.js';
 
 export interface SignatureReport {
   recordId: string;
@@ -33,10 +40,14 @@ export interface SignatureReport {
    * Whether the genesis profile, resolved against THIS instance's registry, declares
    * `signing: true`. Computed from the LIVE profile, never from the chain: a same-id profile
    * that omits `signing` — or an instance that does not hold the id at all — reads `false`
-   * here for a record that WAS opened under a signing profile — and, since the profile-drift
-   * gate, no seam acts on that reading: an instance that does not hold the record's profile
-   * refuses `unknown-profile` at resolution. `genesisProfile` below says whether the live
-   * profile is the one the record was opened under; read the two together.
+   * here for a record that WAS opened under a signing profile, and one that adds it reads
+   * `true` for a record that never was. REPORTING ONLY: no seam enforces on this reading
+   * alone. The obligation a seam applies is the held profile's `signing` when this instance
+   * holds the record's profile, and otherwise this reading AND a genesis sidecar entry this
+   * instance's verifier accepts (see `layerVerdicts`); an operator seam on an instance that
+   * does not hold the profile then refuses `unknown-profile` at resolution, except where the
+   * obligation applies and the layer fails (SPEC §4's exception). `genesisProfile` below says
+   * whether the live profile is the one the record was opened under; read the two together.
    */
   signingDeclared: boolean;
   transitions: {
@@ -69,8 +80,9 @@ export interface SignatureReport {
    * binding), so there is nothing to compare. REPORTING ONLY, like `orphans`: no gate reads
    * THIS field and `signatureLayerHolds` never computes it. The refusal lives elsewhere: since
    * the profile-drift gate every seam that resolves a persisted record applies the same
-   * comparison through `kernel/held-profile.ts` and refuses `unknown-profile` when it does
-   * not hold the profile (SPEC §4, §8) — so `drifted` here names exactly why such a seam
+   * comparison through `kernel/held-profile.ts` and, at the operator seams, refuses
+   * `unknown-profile` when it does not hold the profile (SPEC §4, §8) — the cross-record
+   * verifications fold the miss into their own claim refusals — so `drifted` here names exactly why such a seam
    * refused, or will. The comparison itself is what SPEC §4 promised the binding for ("the
    * governing profile is detectable on replay").
    */
@@ -116,9 +128,29 @@ function resolveGenesisProfile(r: GenesisResolution): SignatureReport['genesisPr
  * different class and DOES propagate, a storage fault of the same class as a rejecting
  * `readChain`.
  * `signingDeclared` reads the GENESIS transition's own `profileId`, resolved against
- * THIS instance's profile registry — the id-resolution posture named at the two
- * call sites below: an instance that cannot resolve the genesis profile treats the
- * chain as non-signing rather than guessing. The same resolution is handed back raw
+ * THIS instance's profile registry — the live profile's declaration, REPORTING ONLY on its
+ * own. The `obligation` it hands back is what the gate enforces: when this instance HOLDS the
+ * record's profile (`held-profile.ts`: the id registered AND its projection digesting to the
+ * genesis `profileDigest`), the held profile's `signing`; otherwise `signingDeclared` AND the
+ * chain's first transition reported `signed` and `verified` by the walk below — a genesis
+ * entry this instance's own verifier accepts, never a bare sidecar entry, which a
+ * storage-writing insider can plant. Against the rule before the held profile decided, the
+ * only case that changes is "not held, live profile signing, genesis not verified": an
+ * in-place edit that ADDS `signing` over a never-signed record (now no obligation), and a
+ * same-id signing sibling over a signing record whose genesis entry is missing, fails, or
+ * names a key it holds no verifier for (narrowed). The drop direction is unchanged: a
+ * non-signing live profile never carries an obligation for a record it does not hold.
+ * The bound, per site. Such an instance cannot tell a never-signed record from a signing one
+ * whose genesis entry is missing, fails, or names a key it holds no verifier for, and reads
+ * all three as carrying no obligation. At the five operator seams (`finalize`, `decline`,
+ * the findings seams, the redemption seams, `seal`) it refuses `unknown-profile` and appends
+ * nothing, where a holder of the profile still draws `chain-compromise`. At `prior-legs` it
+ * refuses `prior-leg-unverified` (the binding fold). At `supersedes` a `confirmed`
+ * predecessor refuses (the binding fold) while a terminal non-`confirmed` predecessor
+ * VERIFIES — as it already did for a forged predecessor under an unregistered id, and now for
+ * a forged chain naming a registered signing id with a non-matching `profileDigest`. Folding
+ * the binding for every predecessor state is what closes that residual. The same resolution
+ * is handed back raw
  * (`resolution`: the claimed id, the bound `profileDigest`, the resolved profile's own
  * CACHED digest when the id resolves — never a recompute, so this stays the same value
  * every seam's `held-profile.ts` comparison reads) so `verifySignatures` can report
@@ -138,6 +170,7 @@ async function layerVerdicts(
   chain: readonly Transition[],
 ): Promise<{
   signingDeclared: boolean;
+  obligation: boolean;
   resolution: GenesisResolution;
   transitions: SignatureReport['transitions'];
   orphans: Digest[];
@@ -203,8 +236,18 @@ async function layerVerdicts(
   // keys costs no further read.
   const chainDigests = new Set(transitions.map((t) => t.transitionDigest));
   const orphans = [...byDigest.keys()].filter((d) => !chainDigests.has(d)).sort();
+  const held =
+    profileId === undefined || boundDigest === undefined
+      ? undefined
+      : heldProfile(ctx.profiles, { profileId, profileDigest: boundDigest });
+  const first = transitions[0];
+  const obligation =
+    held !== undefined
+      ? held.profile.signing === true
+      : signingDeclared && first?.signed === true && first.verified;
   return {
     signingDeclared,
+    obligation,
     resolution: { profileId, boundDigest, liveDigest },
     transitions,
     orphans,
@@ -239,23 +282,25 @@ export async function verifySignatures(
 
 /**
  * The AL2 enforcement increment's one gate primitive: does the signature layer HOLD for
- * this chain? `true` when the layer does not apply — the genesis profile is non-signing
- * or unresolvable in THIS instance (the id-resolution posture the build takes
- * everywhere) — or when EVERY transition carries a sidecar entry whose keyRef resolves
+ * this chain? `true` when the layer does not apply — this instance holds the record's profile
+ * and it is non-signing, or it does not hold it and either its live same-id profile does not
+ * declare `signing` or the genesis transition carries no entry its verifier accepts
+ * (`layerVerdicts` states the rule and its bound, per site) — or when EVERY transition
+ * carries a sidecar entry whose keyRef resolves
  * and whose verifier passes over the canonical bytes. `false` on any miss, unresolvable
  * keyRef (an OWN key of the registry, never an inherited member), failing, THROWING, or
  * non-boolean-answering verifier — fail closed. AL1 intactness is the CALLER's
  * first check — `verifyChain(chain, recordId)`, bound to the same `recordId` passed here —
  * so this layer runs only on intact chains loaded for `recordId`, and lists the sidecar by
  * that id. The rehoming residual is named in the status doc: the obligation keys on the
- * genesis's own profileId claim.
+ * genesis's own profileId and profileDigest claims.
  */
 export async function signatureLayerHolds(
   ctx: KernelContext,
   recordId: string,
   chain: readonly Transition[],
 ): Promise<boolean> {
-  const { signingDeclared, transitions } = await layerVerdicts(ctx, recordId, chain);
-  if (!signingDeclared) return true; // the layer does not apply — nothing to hold it to
+  const { obligation, transitions } = await layerVerdicts(ctx, recordId, chain);
+  if (!obligation) return true; // the layer does not apply — nothing to hold it to
   return transitions.every((t) => t.verified);
 }
