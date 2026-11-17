@@ -92,7 +92,7 @@ for (const keyRef of ['toString', 'constructor']) {
 }
 
 for (const keyRef of ['valueOf', 'hasOwnProperty', 'isPrototypeOf', '__proto__']) {
-  test(`boundary: the inherited member '${keyRef}' fails closed — it throws when called or is not callable — pinned so the family is whole`, async () => {
+  test(`the inherited member '${keyRef}' fails the own-key lookup (the verifier is never called): the report says unverified and finalize refuses chain-compromise`, async () => {
     const { handles, signatures } = enforceableSigningSetup([signingProfile()]);
     const recordId = await openRecord(handles, CONTENT, PROFILE_ID, `subject:vreg-${keyRef}`);
     await rekeyAll(signatures, recordId, keyRef);
