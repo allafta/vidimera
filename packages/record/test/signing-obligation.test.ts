@@ -11,8 +11,9 @@
 // the honest bound — an instance that does not hold the profile cannot tell a never-signed
 // record from a signing record whose GENESIS entry is missing, broken, or signed under a key it
 // holds no verifier for. It reads all three as carrying no obligation and appends nothing,
-// while a holder still draws the edge; the `supersedes` residual that follows from the same
-// reading is pinned as current behavior.
+// while a holder still draws the edge. The `supersedes` residual that follows from the same
+// reading is closed by the supersedes fold (kernel/supersedes.ts): a predecessor whose profile
+// the instance does not hold refuses `supersedes-unverified`, pinned below at all three shapes.
 
 import assert from 'node:assert/strict';
 import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';
@@ -108,6 +109,14 @@ function lastOf(chain: readonly Transition[]): Transition {
 }
 
 /** The never-append `unknown-profile` refusal, asserted whole. */
+function assertSupersedesUnverified(out: unknown, what: string): void {
+  const o = out as { status: string; code?: string; class?: string; transitionRef?: unknown };
+  assert.equal(o.status, 'refused', what);
+  assert.equal(o.code, 'supersedes-unverified', what);
+  assert.equal(o.class, 'refusal', what);
+  assert.equal(o.transitionRef, undefined, `${what}: never-append — no record, no ref`);
+}
+
 function assertUnknownProfile(out: unknown, seam: string): void {
   const o = out as { status: string; code?: string; class?: string; transitionRef?: unknown };
   assert.equal(o.status, 'refused', `${seam}: a profile this instance does not hold refuses`);
@@ -277,7 +286,7 @@ test("add-signing: a successor leg's open() refuses prior-leg-unverified — no 
   assert.equal(ok.status, 'ok', 'the refused open created nothing: the holder opens the successor');
 });
 
-test('add-signing: supersedes over a declined predecessor verifies and the new record opens; over a confirmed predecessor it refuses supersedes-unverified', async () => {
+test('add-signing: supersedes over a declined predecessor the sibling does not hold refuses supersedes-unverified, as over a confirmed one', async () => {
   const store = new MemoryStore();
   const holder = instance(base({ decline: true }), store);
   const sibling = instance(withSigning(base({ decline: true })), store, signingTier());
@@ -294,7 +303,7 @@ test('add-signing: supersedes over a declined predecessor verifies and the new r
   const r1 = await sibling.operator.open(s1.value.stagedRef, {
     supersedes: { recordId: declinedId, chainHead: dHead },
   });
-  assert.equal(r1.status, 'ok', 'declined is terminal regardless of profile — the claim verifies');
+  assertSupersedesUnverified(r1, 'declined predecessor, profile not held');
 
   const confirmedId = await openRecord(holder, CONTENT, ID, 'subject:ob-6');
   assert.equal(
@@ -308,16 +317,7 @@ test('add-signing: supersedes over a declined predecessor verifies and the new r
   const r2 = await sibling.operator.open(s2.value.stagedRef, {
     supersedes: { recordId: confirmedId, chainHead: cHead },
   });
-  assert.equal(r2.status, 'refused');
-  if (r2.status === 'refused') {
-    assert.equal(r2.code, 'supersedes-unverified');
-    assert.equal(r2.class, 'refusal');
-    assert.equal(
-      (r2 as { transitionRef?: unknown }).transitionRef,
-      undefined,
-      'never-append: no record, no ref',
-    );
-  }
+  assertSupersedesUnverified(r2, 'confirmed predecessor, profile not held');
 });
 
 test('add-signing on one SqliteStore file redeployed in place: finalize and seal refuse unknown-profile and the records keep their state', async () => {
@@ -590,7 +590,7 @@ async function claimSupersedes(
   });
 }
 
-test('the recorded residual at supersedes: a terminal non-confirmed predecessor verifies for a same-id signing sibling over a signing record with its genesis entry deleted and a forged declined head, where a holder refuses', async () => {
+test('the residual closed at supersedes: a same-id signing sibling refuses a signing record with its genesis entry deleted and a forged declined head, as a holder does', async () => {
   const store = new MemoryStore();
   const tier = signingTier();
   const holder = instance(withSigning(base({ decline: true })), store, tier);
@@ -626,15 +626,17 @@ test('the recorded residual at supersedes: a terminal non-confirmed predecessor 
     assert.equal(refused.class, 'refusal');
     assert.equal((refused as { transitionRef?: unknown }).transitionRef, undefined);
   }
-  const verified = await claimSupersedes(sibling, store, recordId, 'subject:ob-15');
-  assert.equal(verified.status, 'ok', 'recorded residual: the sibling reads no obligation');
+  assertSupersedesUnverified(
+    await claimSupersedes(sibling, store, recordId, 'subject:ob-15'),
+    'the sibling does not hold the profile',
+  );
 });
 
-test('the recorded residual at supersedes: a forged declined chain naming a registered signing id with a non-matching profileDigest verifies on an instance registering that id', async () => {
+test('the residual closed at supersedes: a forged declined chain naming a registered signing id with a non-matching profileDigest refuses on an instance registering that id', async () => {
   const store = new MemoryStore();
   const holder = instance(withSigning(base({ decline: true })), store, signingTier());
   await forgeDeclined(store, 'forged-ob-16', ID, `sha256:${'9'.repeat(64)}`, 'subject:ob-16');
 
   const out = await claimSupersedes(holder, store, 'forged-ob-16', 'subject:ob-16');
-  assert.equal(out.status, 'ok', 'recorded residual: no binding check on a declined predecessor');
+  assertSupersedesUnverified(out, 'the binding is checked for a declined predecessor');
 });
