@@ -151,9 +151,12 @@ async function loadOpenDeclaringRecord(
     );
   }
   // (1) chain-verify, FIRST. The AL2 enforcement increment folds the signature layer
-  // into this same arm.
-  if (!verifyChain(chain).intact || !(await signatureLayerHolds(ctx, chain))) {
-    return { ok: false, out: (await appendChainCompromise(store, chain, now)) as SeamResult };
+  // into this same arm. Both halves are bound to the requested `recordId`.
+  if (!verifyChain(chain, recordId).intact || !(await signatureLayerHolds(ctx, recordId, chain))) {
+    return {
+      ok: false,
+      out: (await appendChainCompromise(store, recordId, chain, now)) as SeamResult,
+    };
   }
   const record = replay(chain);
   // (2) profile/leg resolution.
@@ -195,7 +198,7 @@ async function loadOpenDeclaringRecord(
     // loser-agrees-with-reinvocation discipline finalize.ts's own rung (2) comment
     // records, tolerated for the same reason: the race is rare and the verdict stays
     // true of the record; re-invocation reports the fresh state).
-    const due = await resolveDueClock(store, chain, resolved, now());
+    const due = await resolveDueClock(store, recordId, chain, resolved, now());
     if (due.due && due.result.appended) {
       return {
         ok: false,
@@ -207,7 +210,7 @@ async function loadOpenDeclaringRecord(
   if (record.state !== 'open') {
     return { ok: false, out: refused('record-not-open') };
   }
-  const ex = await resolveDueClock(store, chain, resolved, now());
+  const ex = await resolveDueClock(store, recordId, chain, resolved, now());
   if (ex.due) {
     return { ok: false, out: refused('leg-expired') };
   }
@@ -218,6 +221,7 @@ async function loadOpenDeclaringRecord(
 async function appendSeamTransition(
   ctx: KernelContext,
   seam: 'raiseFinding' | 'acknowledge',
+  recordId: string,
   chain: readonly Transition[],
   resolved: ResolvedProfile,
   kind: 'finding-raised' | 'acknowledged',
@@ -228,7 +232,7 @@ async function appendSeamTransition(
   const genesis = chain[0];
   if (genesis === undefined) throw new Error('findings-seams: empty chain — the prologue holds');
   const transition: Transition = {
-    recordId: last.recordId,
+    recordId,
     seq: chain.length + 1,
     at: ctx.now().toISOString(),
     kind,
@@ -248,7 +252,7 @@ async function appendSeamTransition(
       // code true of an open record whose head moved is `record-contended` (SPEC §8, the
       // record-contended increment): a RETURNED refusal, never appends, re-invoke. An unmoved
       // head is a storage fault and throws — never record-not-open, which would be false here.
-      const verdict = await appendSeqConflict(seam, ctx.store, last.recordId, chain.length);
+      const verdict = await appendSeqConflict(seam, ctx.store, recordId, chain.length);
       if (verdict.contended) return refused('record-contended');
       throw verdict.fault;
     }
@@ -256,7 +260,7 @@ async function appendSeamTransition(
     // state the caller saw is gone; re-invocation re-reads (the established lost-race posture).
     return refused('record-not-open');
   }
-  return ok({ recordId: last.recordId, state: 'open', transitionRef: res.transitionDigest });
+  return ok({ recordId, state: 'open', transitionRef: res.transitionDigest });
 }
 
 export async function raiseFinding(
@@ -289,6 +293,7 @@ export async function raiseFinding(
   return appendSeamTransition(
     ctx,
     'raiseFinding',
+    recordId,
     pre.chain,
     pre.resolved,
     'finding-raised',
@@ -323,5 +328,13 @@ export async function acknowledge(
     ...(ack.magnitude !== undefined ? { magnitude: ack.magnitude } : {}),
     acker: identity,
   };
-  return appendSeamTransition(ctx, 'acknowledge', pre.chain, pre.resolved, 'acknowledged', payload);
+  return appendSeamTransition(
+    ctx,
+    'acknowledge',
+    recordId,
+    pre.chain,
+    pre.resolved,
+    'acknowledged',
+    payload,
+  );
 }

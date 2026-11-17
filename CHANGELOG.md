@@ -268,6 +268,26 @@ is the summary, and that file wins on conflict.
   a transiently failing verifier; keep a retired key's verifier registered), and its
   `SqliteStore` entry states the single-operator bound.
 
+- **`verifyChain` takes the record's id, and the non-verifying reads throw on another
+  record's rows** (the chain-binding increment, 2026-11-17, branch `chain-binding-2026-11-17`
+  — the public-surface half of the binding fix under Fixed): the exported pure
+  `verifyChain(chain, recordId?)` gains an optional `recordId`. Given, every transition must
+  carry it and the genesis link must derive from it, so another record's chain reports
+  `{ intact: false, firstBreakSeq: 1 }` with both ids in the detail; omitted, the function
+  behaves exactly as before — identity is checked against the genesis row's own id, which a
+  wholly relocated chain passes — so pass the id whenever you know it, an offline audit of an
+  archived chain included. The reads that use a chain without verifying it — `getRecord` on
+  both handles, `replay`, `review`, `verifySignatures` — and `open()`'s read of the record
+  blocking its `(profileId, subjectRef)` now throw an `Error` whose message contains
+  `foreign persisted data` and names the read and both ids, when the store returns rows whose
+  `recordId` is not the one asked for: a storage fault under SPEC §8's loud-throw posture,
+  nothing recorded. An empty chain keeps its old answer at each of them, `readChain` and
+  `chainHead` stay raw, and an honest store sees no change — the frozen byte-stability
+  digests did not move and no existing assertion changed its truth value.
+  `verifySignatures`'s recorded throw class ("only on the caller-error/unknown-record class
+  every other read takes") widens with the other reads' — the fourteenth self-authored
+  inversion, argued at its pin in `packages/record/test/chain-binding-seams.test.ts`.
+
 ### Fixed
 
 - **The verifier registry could be satisfied with no key** (2026-09-03, branch
@@ -416,6 +436,40 @@ is the summary, and that file wins on conflict.
   straddling clock. The signature-tamper probe flips the first character of the persisted
   signature instead of writing a fixed `AAAA` prefix, which was a no-op on a signature that
   already began so (one run in roughly sixteen million against a real signer).
+
+- **Another record's rows read back under a record's id no longer pass as that record, and
+  no library-built edge lands on the record they came from** (the chain-binding increment,
+  2026-11-17, branch `chain-binding-2026-11-17`): nothing bound a loaded chain to the
+  `recordId` it was loaded for. The SQL backings key a read by a `record_id` column that the
+  stored row's own JSON need not match, so a storage-writing insider who copied honest record
+  Y's rows under record X's key — no hashing, no signing — got `verifyChain(X)` intact and,
+  at AL2, `verifySignatures(X)` all-verified, Y's history passing as X's. The operator's
+  next ordinary call on X then built its edge — a `chain-compromise` refusal, a
+  `terminalRefusals` refusal, an `expired` clock edge, a finding, a `content-drift` edge;
+  signed, at AL2 — addressed from the loaded chain's last row, so it landed on Y: a terminal
+  edge could cost Y its pending decision, and Y still verified clean. A relocated prior leg
+  or predecessor also satisfied `priorRecordRefs` or `supersedes`, so a reference could
+  borrow another record's verified history — for a prior leg, another record's recorded
+  actor, which separation of duties then checked against. Now every verifying load binds to
+  the id it loaded by (each seam's chain-verify rung, `verifyPriorLegs` and
+  `verifySupersedes` against the referenced id, and the operator `verifyChain` wrapper); the
+  AL2 layer lists the sidecar by that id; and every edge the library builds is addressed by
+  the id the operation names (the caller's, or the blocker id the store named for `open()`'s
+  en-passant expiry), never by one read off the chain. A relocated X refuses
+  `chain-compromise` at every seam that acts on it, with the edge, when the store admits one,
+  on X and addressed to X; Y comes out exactly as it went in; the cross-record checks refuse
+  `prior-leg-unverified` and `supersedes-unverified`. The signing decorator, which reads a
+  record's signing decision from its genesis when its cache is cold, now signs — and caches
+  nothing — when that genesis belongs to another record, so the fault cannot pin Y's signing
+  decision on X for the rest of the process (where X signs and Y does not, X's later appends
+  would have landed unsigned, and X would then refuse `chain-compromise` for good). Pinned on
+  `MemoryStore` and `SqliteStore` at AL1 and AL2, by a real SQL row copy on `SqliteStore`,
+  and by a source census (`packages/record/test/chain-binding-census.test.ts`) that fails
+  when an unbound chain load or a chain-derived address appears. The honest bound, in the
+  same breath: this detects a chain relocated under another record's id. Whole-record
+  absence stays silent, and at AL1 an insider who rewrites every copied `recordId` and
+  recomputes every link — or edits the head — is still not caught: SPEC §13A's residuals,
+  unchanged. Pre-publication, so there is no advisory to issue.
 
 ### Known not-done
 

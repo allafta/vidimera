@@ -5,7 +5,7 @@
 // missing entry all read `verified: false`). `signatureLayerHolds` (the AL2 enforcement
 // increment, second of three) is the one gate primitive built on the SAME correlation
 // core (`layerVerdicts` below, factored so neither consumer re-derives it): every
-// verification site that already checks AL1 intactness (`verifyChain(chain).intact`)
+// verification site that already checks AL1 intactness (`verifyChain(chain, recordId)`)
 // now widens that same check to also consult this layer on a signing record, folding a
 // bad layer into each site's OWN existing failure arm — this file adds no new refusal
 // code and appends nothing itself. The read stays a read: `verifySignatures` never
@@ -22,6 +22,7 @@
 // `true` for the same reason `verifySignatures.signingDeclared` reads false — a
 // non-signing record's layer has nothing to hold it to.
 
+import { assertChainFor } from '../chain/binding.js';
 import { encodeTransition, transitionDigest } from '../chain/encoding.js';
 import type { KernelContext } from '../create.js';
 import type { Digest, Transition } from '../types.js';
@@ -123,9 +124,17 @@ function resolveGenesisProfile(r: GenesisResolution): SignatureReport['genesisPr
  * every seam's `held-profile.ts` comparison reads) so `verifySignatures` can report
  * whether the live profile IS the one the record was opened under; `signatureLayerHolds`
  * never digests it — reporting only.
+ * The sidecar is listed by `recordId`, the id the caller loaded the chain FOR — never by an
+ * id read from the chain's own rows, which a storage-writing insider controls. Every caller
+ * has already bound the chain to that id, so for an intact chain the two are the same: the
+ * mutating seams (`finalize`, `decline`, `redeem`, `seal`, `findings-seams`) through a
+ * `verifyChain(chain, recordId)` whose intactness gates this call, `prior-legs` and
+ * `supersedes` the same way against the referenced id, and `verifySignatures` through
+ * `assertChainFor`.
  */
 async function layerVerdicts(
   ctx: KernelContext,
+  recordId: string,
   chain: readonly Transition[],
 ): Promise<{
   signingDeclared: boolean;
@@ -145,11 +154,8 @@ async function layerVerdicts(
   const signingDeclared = resolvedProfile?.profile.signing === true;
   const liveDigest = resolvedProfile?.profileDigest;
 
-  const recordId = genesis?.recordId;
   const entries =
-    ctx.signing === undefined || recordId === undefined
-      ? []
-      : await ctx.signing.signatures.listByRecord(recordId);
+    ctx.signing === undefined ? [] : await ctx.signing.signatures.listByRecord(recordId);
   const byDigest = new Map(entries.map((e) => [e.transitionDigest, e]));
 
   const transitions: SignatureReport['transitions'] = [];
@@ -216,7 +222,12 @@ export async function verifySignatures(
         'resolves to no chain is a caller error, not a domain refusal (SPEC §8)',
     );
   }
-  const { signingDeclared, resolution, transitions, orphans } = await layerVerdicts(ctx, chain);
+  assertChainFor(chain, recordId, 'verifySignatures');
+  const { signingDeclared, resolution, transitions, orphans } = await layerVerdicts(
+    ctx,
+    recordId,
+    chain,
+  );
   return {
     recordId,
     signingDeclared,
@@ -234,14 +245,17 @@ export async function verifySignatures(
  * and whose verifier passes over the canonical bytes. `false` on any miss, unresolvable
  * keyRef (an OWN key of the registry, never an inherited member), failing, THROWING, or
  * non-boolean-answering verifier — fail closed. AL1 intactness is the CALLER's
- * first check; this layer runs only on intact chains. The rehoming residual is named in
- * the status doc: the obligation keys on the genesis's own profileId claim.
+ * first check — `verifyChain(chain, recordId)`, bound to the same `recordId` passed here —
+ * so this layer runs only on intact chains loaded for `recordId`, and lists the sidecar by
+ * that id. The rehoming residual is named in the status doc: the obligation keys on the
+ * genesis's own profileId claim.
  */
 export async function signatureLayerHolds(
   ctx: KernelContext,
+  recordId: string,
   chain: readonly Transition[],
 ): Promise<boolean> {
-  const { signingDeclared, transitions } = await layerVerdicts(ctx, chain);
+  const { signingDeclared, transitions } = await layerVerdicts(ctx, recordId, chain);
   if (!signingDeclared) return true; // the layer does not apply — nothing to hold it to
   return transitions.every((t) => t.verified);
 }

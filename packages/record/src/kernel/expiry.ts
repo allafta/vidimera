@@ -123,6 +123,7 @@ export type ResolveResult =
  */
 export async function resolveDueClock(
   store: Store,
+  recordId: string,
   chain: readonly Transition[],
   resolved: ResolvedProfile,
   now: Date,
@@ -138,7 +139,7 @@ export async function resolveDueClock(
   const kind = win.window === 'redeeming' ? 'redemption-failed' : 'expired';
   const target: RecordState = win.window; // 'open' | 'confirmed' | 'redeeming' — the CAS state
   const edge: Transition = {
-    recordId: last.recordId,
+    recordId,
     seq: chain.length + 1,
     at: now.toISOString(),
     kind,

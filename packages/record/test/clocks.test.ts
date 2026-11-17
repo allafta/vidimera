@@ -91,6 +91,7 @@ test('resolveDueClock: an elapsed confirmed window appends confirmed → expired
   clock.t = T0 + 400 * HOUR; // far past any declared bound
   const res = await resolveDueClock(
     store,
+    recordId,
     await store.readChain(recordId),
     resolved,
     new Date(clock.t),
@@ -131,6 +132,7 @@ test('resolveDueClock: a not-yet-elapsed window reports { due: false } and appen
   const before = (await store.readChain(recordId)).length;
   const res = await resolveDueClock(
     store,
+    recordId,
     await store.readChain(recordId),
     resolved,
     new Date(T0), // the same instant — nothing has elapsed
@@ -613,7 +615,7 @@ test('resolveDueClock derives the leg index: the expired append is terminal (non
   spy.captured = undefined;
 
   const past = new Date(Date.parse(confirmed.at) + (CONFIRM_BOUND + 10) * 1000);
-  const res = await resolveDueClock(spy, chain, resolved, past);
+  const res = await resolveDueClock(spy, 'rec-legindex', chain, resolved, past);
   assert.equal(res.due, true);
   if (!res.due) return;
   assert.equal(res.window, 'confirmed');
@@ -648,12 +650,12 @@ test('at now === deadline the store lists the record AND the kernel resolves it;
 
   assert.deepEqual(await store.listDue(new Date(deadline - 1)), [], 'not listed one ms early');
   assert.deepEqual(
-    await resolveDueClock(store, chain, resolved, new Date(deadline - 1)),
+    await resolveDueClock(store, recordId, chain, resolved, new Date(deadline - 1)),
     { due: false },
     'not resolved one ms early',
   );
   assert.deepEqual(await store.listDue(new Date(deadline)), [recordId], 'listed at the instant');
-  const res = await resolveDueClock(store, chain, resolved, new Date(deadline));
+  const res = await resolveDueClock(store, recordId, chain, resolved, new Date(deadline));
   assert.equal(res.due, true, 'resolved at the same instant — the kernel agrees with the listing');
   if (!res.due) return;
   assert.equal(res.result.appended, true);

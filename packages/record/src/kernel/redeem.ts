@@ -77,6 +77,7 @@
 // this increment.
 
 import { canonicalize, digest } from '../canonical.js';
+import { assertChainFor } from '../chain/binding.js';
 import { transitionDigest } from '../chain/encoding.js';
 import { replay, verifyChain } from '../chain/replay.js';
 import { type RedeemOptions, unknownOptionKey } from '../config.js';
@@ -105,7 +106,11 @@ import { signatureLayerHolds } from './verify-signatures.js';
  */
 async function residualRefusal(store: Store, recordId: string): Promise<Outcome<never>> {
   try {
-    const fresh = replay(await store.readChain(recordId));
+    const chain = await store.readChain(recordId);
+    // A foreign chain throws into the fallback below: it can never make this seam say
+    // `already-redeemed`.
+    assertChainFor(chain, recordId, 'redemption residual re-read');
+    const fresh = replay(chain);
     if (fresh.state === 'redeemed') return refused('already-redeemed');
   } catch {
     // fall through — result-first either way
@@ -129,6 +134,7 @@ async function residualRefusal(store: Store, recordId: string): Promise<Outcome<
  */
 async function refuseCorrespondenceMismatch(
   store: Store,
+  recordId: string,
   chain: readonly Transition[],
   resolved: ResolvedProfile,
   target: 'confirmed' | 'redeeming',
@@ -147,7 +153,7 @@ async function refuseCorrespondenceMismatch(
     throw new Error('redeem: empty chain — the caller length checks hold');
   }
   const edge: Transition = {
-    recordId: last.recordId,
+    recordId,
     seq: chain.length + 1,
     at: now().toISOString(),
     kind: 'refused',
@@ -161,7 +167,7 @@ async function refuseCorrespondenceMismatch(
   const res = await store.appendTransition(target, edge, meta);
   if (!res.appended) {
     // A racing writer moved the state — the family-wide CAS-residual discipline.
-    return residualRefusal(store, last.recordId);
+    return residualRefusal(store, recordId);
   }
   return refused('content-drift', res.transitionDigest);
 }
@@ -222,8 +228,9 @@ async function prologue(
   // AL1 intactness first; the AL2 enforcement increment folds the signature layer into
   // this same arm — inherited by the enlisted branch below, not re-decided: a
   // signature-broken chain refuses `chain-compromise` result-first over an enlisted
-  // caller exactly as a hash-broken one does.
-  if (!verifyChain(chain).intact || !(await signatureLayerHolds(ctx, chain))) {
+  // caller exactly as a hash-broken one does. Both halves are bound to the requested
+  // `recordId`, so another record's rows read back under this key refuse here too.
+  if (!verifyChain(chain, recordId).intact || !(await signatureLayerHolds(ctx, recordId, chain))) {
     if (tx !== undefined) {
       // ENLISTED: the host already has ITS OWN transaction open on this connection, and
       // appendChainCompromise's no-tx fallback would BEGIN a SECOND transaction on that
@@ -237,7 +244,7 @@ async function prologue(
       // caller keeps the full edge-appending behavior below.
       return { refusal: refused('chain-compromise') };
     }
-    return { refusal: await appendChainCompromise(store, chain, now) };
+    return { refusal: await appendChainCompromise(store, recordId, chain, now) };
   }
   const record = replay(chain);
   const resolved = heldProfile(profiles, record);
@@ -298,7 +305,7 @@ async function prologue(
       // and reports the same terminal truth.
       return { refusal: refused('unredeemable-state') };
     }
-    const due = await resolveDueClock(store, chain, resolved, instant);
+    const due = await resolveDueClock(store, recordId, chain, resolved, instant);
     if (due.due) {
       if (!due.result.appended) {
         return { refusal: await residualRefusal(store, recordId) };
@@ -411,7 +418,16 @@ export async function redeem(
   // to `content-drift` instead, appended terminal (`refuseCorrespondenceMismatch` below).
   const recomputed = digest(canonicalize(resolved.canonicalizer(content)));
   if (recomputed !== record.contentDigest) {
-    return refuseCorrespondenceMismatch(store, chain, resolved, 'confirmed', finalLeg, now, tx);
+    return refuseCorrespondenceMismatch(
+      store,
+      recordId,
+      chain,
+      resolved,
+      'confirmed',
+      finalLeg,
+      now,
+      tx,
+    );
   }
 
   // --- (6) append `confirmed → redeemed` -----------------------------------------------
@@ -512,7 +528,16 @@ export async function beginRedemption(
   // profile (SPEC §9.2, the live-capture increment), `effect-mismatch` otherwise.
   const recomputed = digest(canonicalize(resolved.canonicalizer(content)));
   if (recomputed !== record.contentDigest) {
-    return refuseCorrespondenceMismatch(store, chain, resolved, 'confirmed', finalLeg, now, tx);
+    return refuseCorrespondenceMismatch(
+      store,
+      recordId,
+      chain,
+      resolved,
+      'confirmed',
+      finalLeg,
+      now,
+      tx,
+    );
   }
 
   // --- (6) issue, then append `confirmed → redeeming` -----------------------------------
@@ -654,7 +679,16 @@ export async function completeRedemption(
   }
   const recomputed = digest(canonicalize(resolved.canonicalizer(content)));
   if (recomputed !== record.contentDigest) {
-    return refuseCorrespondenceMismatch(store, chain, resolved, 'redeeming', finalLeg, now, tx);
+    return refuseCorrespondenceMismatch(
+      store,
+      recordId,
+      chain,
+      resolved,
+      'redeeming',
+      finalLeg,
+      now,
+      tx,
+    );
   }
 
   // --- (6) append `redeeming → redeemed { via: 'token', tokenDigest, resultDigest? }` ---

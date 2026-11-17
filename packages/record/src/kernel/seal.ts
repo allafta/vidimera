@@ -52,9 +52,9 @@ export async function seal(
 
   // --- (1) chain-verify, FIRST ---------------------------------------------------------
   // AL1 intactness first; the AL2 enforcement increment folds the signature layer into
-  // this same arm.
-  if (!verifyChain(chain).intact || !(await signatureLayerHolds(ctx, chain))) {
-    return appendChainCompromise(store, chain, now);
+  // this same arm. Both halves are bound to the requested `recordId`.
+  if (!verifyChain(chain, recordId).intact || !(await signatureLayerHolds(ctx, recordId, chain))) {
+    return appendChainCompromise(store, recordId, chain, now);
   }
 
   const record = replay(chain);

@@ -76,9 +76,10 @@ export async function decline(
   }
 
   // --- (1) pre-seam chain-verify (SPEC §5: verification is first) ----------------------
-  const report = verifyChain(chain);
-  if (!report.intact || !(await signatureLayerHolds(ctx, chain))) {
-    return appendChainCompromise(store, chain, now);
+  // Bound to the requested `recordId` (kernel/finalize.ts's same rung argues it).
+  const report = verifyChain(chain, recordId);
+  if (!report.intact || !(await signatureLayerHolds(ctx, recordId, chain))) {
+    return appendChainCompromise(store, recordId, chain, now);
   }
 
   const record = replay(chain);
@@ -126,7 +127,7 @@ export async function decline(
     return refused('leg-expired');
   }
   if (record.state === 'confirmed' || record.state === 'redeeming') {
-    const due = await resolveDueClock(store, chain, resolved, now());
+    const due = await resolveDueClock(store, recordId, chain, resolved, now());
     if (due.due && due.result.appended) {
       return refused(due.window === 'confirmed' ? 'leg-expired' : 'record-not-open');
     }
@@ -135,7 +136,7 @@ export async function decline(
   if (record.state !== 'open') {
     return refused('record-not-open');
   }
-  const ex = await resolveDueClock(store, chain, resolved, now());
+  const ex = await resolveDueClock(store, recordId, chain, resolved, now());
   if (ex.due) {
     return refused('leg-expired');
   }
@@ -144,6 +145,7 @@ export async function decline(
   if (!isValidIdentity(identity) || !leg.allowedAuthorities.includes(identity.authority)) {
     return refuseMaybeAppend(
       store,
+      recordId,
       'identity-authority-refused',
       leg,
       chain,
@@ -155,19 +157,28 @@ export async function decline(
 
   // --- (3.5) separation of duties (SPEC §10.1: deciding includes declining) ------------
   if (sodViolated(record, leg, identity, recordId, 'decline')) {
-    return refuseMaybeAppend(store, 'sod-violation', leg, chain, resolved, finalLeg, now);
+    return refuseMaybeAppend(store, recordId, 'sod-violation', leg, chain, resolved, finalLeg, now);
   }
 
   // --- (4) content-drift — the decline is about THIS content or it does not land -------
   const recomputed = digest(canonicalize(resolved.canonicalizer(content)));
   if (recomputed !== record.contentDigest) {
-    return refuseMaybeAppend(store, 'content-drift', leg, chain, resolved, finalLeg, now);
+    return refuseMaybeAppend(store, recordId, 'content-drift', leg, chain, resolved, finalLeg, now);
   }
 
   // --- (5) facts — the decline binds what the decider saw when they said no ------------
   const factsCheck = isValidFacts(facts);
   if (!factsCheck.ok) {
-    return refuseMaybeAppend(store, 'consultation-missing', leg, chain, resolved, finalLeg, now);
+    return refuseMaybeAppend(
+      store,
+      recordId,
+      'consultation-missing',
+      leg,
+      chain,
+      resolved,
+      finalLeg,
+      now,
+    );
   }
 
   // --- (5.5) eligibility ONLY (SPEC §10.4; the "authority yes, evidence no" ruling):
@@ -181,10 +192,19 @@ export async function decline(
     }
     const obtained = supplied.obtained.find((entry) => entry.kind === 'eligibility');
     if (obtained === undefined) {
-      return refuseMaybeAppend(store, 'consultation-missing', leg, chain, resolved, finalLeg, now);
+      return refuseMaybeAppend(
+        store,
+        recordId,
+        'consultation-missing',
+        leg,
+        chain,
+        resolved,
+        finalLeg,
+        now,
+      );
     }
     if (obtained.verdict === 'fail') {
-      return refuseMaybeAppend(store, 'ineligible', leg, chain, resolved, finalLeg, now);
+      return refuseMaybeAppend(store, recordId, 'ineligible', leg, chain, resolved, finalLeg, now);
     }
     const bound =
       leg.freshness !== undefined && Object.hasOwn(leg.freshness, 'eligibility')
@@ -200,7 +220,16 @@ export async function decline(
         observedMs > nowMs ||
         nowMs - observedMs > bound * 1000
       ) {
-        return refuseMaybeAppend(store, 'consultation-stale', leg, chain, resolved, finalLeg, now);
+        return refuseMaybeAppend(
+          store,
+          recordId,
+          'consultation-stale',
+          leg,
+          chain,
+          resolved,
+          finalLeg,
+          now,
+        );
       }
     }
   }

@@ -47,8 +47,14 @@ import type { Outcome } from './outcome.js';
 import type { DecisionRecord, Digest, IdentityAssertion, ReviewView, Transition } from './types.js';
 
 export interface OperatorSurface {
+  /** Throws on foreign persisted data, as `getRecord`, `replay` and `review` do: when the
+   * record already holding the same `(profileId, subjectRef)` reads back as a chain holding
+   * another record's rows, that blocker chain is a storage fault (SPEC §8), never judged. */
   open(stagedRef: string, opts?: OpenOptions): Promise<Outcome<{ recordId: string }>>;
-  review(recordId: string): Promise<Outcome<ReviewView>>; // pure content-free read
+  /** Pure content-free read. Throws on foreign persisted data, as `getRecord` and `replay`
+   * do: a chain whose rows carry another record's id is a storage fault (SPEC §8), never
+   * reviewed as this record. */
+  review(recordId: string): Promise<Outcome<ReviewView>>;
   finalize(
     recordId: string,
     identity: IdentityAssertion,
@@ -101,8 +107,16 @@ export interface OperatorSurface {
   seal(
     recordId: string,
   ): Promise<Outcome<{ recordId: string; status: 'retired'; transitionRef: Digest }>>;
-  replay(recordId: string): Promise<DecisionRecord>; // audit wrapper (not Outcome)
-  verifyChain(recordId: string): Promise<ChainVerifyReport>; // audit wrapper (not Outcome)
+  /** Audit wrapper (not Outcome). Throws on an unknown recordId and, like `review`,
+   * `getRecord` and `verifySignatures`, on foreign persisted data: a chain whose rows carry
+   * another record's id is a storage fault (SPEC §8), never replayed as this record. */
+  replay(recordId: string): Promise<DecisionRecord>;
+  /** Audit wrapper (not Outcome). Bound to `recordId`: another record's rows read back
+   * under this key report a break at seq 1 rather than throwing. */
+  verifyChain(recordId: string): Promise<ChainVerifyReport>;
+  /** `null` for an unknown recordId. THROWS when the store returns a chain holding another
+   * record's rows (foreign persisted data, SPEC §8) — the same posture `replay`, `review` and
+   * `verifySignatures` take; `readChain` is the raw read and checks nothing. */
   getRecord(recordId: string): Promise<DecisionRecord | null>;
   readChain(recordId: string): Promise<Transition[]>;
   chainHead(recordId: string): Promise<Digest | null>;
@@ -116,7 +130,9 @@ export interface OperatorSurface {
    * fail-closed REPORTING, not a gate: the AL2 enforcement increment (second of three,
    * now landed) folds the layer into chain-compromise at the seams via its own
    * `signatureLayerHolds`, never by this read gating. Throws only on the
-   * caller-error/unknown-record class every read takes. Its `orphans` names the sidecar
+   * caller-error/unknown-record class every read takes, which now includes foreign persisted
+   * data: a chain whose rows carry another record's id throws, as `getRecord`, `replay` and
+   * `review` do (SPEC §8). Its `orphans` names the sidecar
    * entries with no chain counterpart, sorted — reporting only, read by no gate; the host
    * prunes them, the library never does. */
   verifySignatures(recordId: string): Promise<SignatureReport>;

@@ -22,13 +22,16 @@
 // to `kernel/seal.ts`, the operator-only chain-retirement seam that caps a verified
 // derived-terminal record with a `sealed` transition and reports `retired`. The reads
 // (`getRecord`/`readChain`/`chainHead`/`listDue`) and the `replay`/`verifyChain` `recordId`
-// audit wrappers are REAL: direct Store delegation + the pure `chain/replay.ts` core.
+// audit wrappers are REAL: Store delegation + the pure `chain/replay.ts` core. `getRecord`
+// and `replay` identity-check the chain they read (`chain/binding.ts`); raw `readChain` and
+// `chainHead` stay direct delegation and check nothing.
 // `listDue`, new at the third step-3 increment, is the sweep's one read —
 // `store.listDue(now())` under the injected clock, no append authority.
 
 import { randomBytes } from 'node:crypto';
 import { type AgentSurface, makeAgentSurface } from './agent-surface.js';
 import { type Canonicalizer, resolveCanonicalizer } from './canonical.js';
+import { assertChainFor } from './chain/binding.js';
 import { replay as replayCore, verifyChain as verifyChainCore } from './chain/replay.js';
 import {
   type Config,
@@ -202,18 +205,27 @@ function makeKernel(ctx: KernelContext): Kernel {
     // --- seal(): kernel/seal.ts — the operator-only chain-retirement seam ---
     seal: (recordId) => sealKernel(ctx, recordId),
 
-    // --- reads: REAL (direct Store delegation) ---
+    // --- reads: REAL (`getRecord` identity-checks the chain; the raw reads delegate directly) ---
     getRecord: async (recordId) => {
       const chain = await store.readChain(recordId);
-      return chain.length === 0 ? null : replayCore(chain);
+      if (chain.length === 0) return null;
+      assertChainFor(chain, recordId, 'getRecord');
+      return replayCore(chain);
     },
     readChain: (recordId) => store.readChain(recordId),
     chainHead: (recordId) => store.chainHead(recordId),
     listDue: () => store.listDue(ctx.now()),
 
-    // --- audit wrappers: REAL (readChain + the pure chain/replay.ts core) ---
-    replay: async (recordId) => replayCore(await store.readChain(recordId)),
-    verifyChain: async (recordId) => verifyChainCore(await store.readChain(recordId)),
+    // --- audit wrappers: REAL (readChain + the pure chain/replay.ts core; `replay`
+    // identity-checks the chain, `verifyChain` reports a foreign one as a break) ---
+    replay: async (recordId) => {
+      const chain = await store.readChain(recordId);
+      assertChainFor(chain, recordId, 'replay');
+      return replayCore(chain);
+    },
+    // Bound to `recordId` (SPEC §5: "running over the chain the store returns for that
+    // record"): another record's rows read back under this key report a break at seq 1.
+    verifyChain: async (recordId) => verifyChainCore(await store.readChain(recordId), recordId),
 
     // --- verifySignatures(): kernel/verify-signatures.ts — SPEC §14's AL2 mint
     // increment's one audit surface, a pure chain-driven read wired the same way every

@@ -22,6 +22,8 @@ export interface AgentSurface {
     subjectRef: string,
     legId?: string,
   ): Promise<Outcome<{ stagedRef: string }>>;
+  /** `null` for an unknown recordId. THROWS when the store returns a chain holding another
+   * record's rows (foreign persisted data, SPEC §8). */
   getRecord(recordId: string): Promise<DecisionRecord | null>;
   readChain(recordId: string): Promise<Transition[]>;
   chainHead(recordId: string): Promise<Digest | null>;

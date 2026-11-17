@@ -70,9 +70,11 @@ export async function verifySupersedes(
   const { store, profiles } = ctx;
   const chain = await store.readChain(ref.recordId);
   if (chain.length === 0) return { ok: false }; // an absent claim cannot be replayed
-  if (!verifyChain(chain).intact) return { ok: false };
+  // Bound to the REFERENCED id: another record's rows read back under `ref.recordId` are a
+  // break at seq 1, so the claim cannot borrow that record's terminal history.
+  if (!verifyChain(chain, ref.recordId).intact) return { ok: false };
   // The AL2 enforcement increment folds the signature layer into this same arm.
-  if (!(await signatureLayerHolds(ctx, chain))) return { ok: false };
+  if (!(await signatureLayerHolds(ctx, ref.recordId, chain))) return { ok: false };
   const last = chain.at(-1);
   if (last === undefined) return { ok: false };
   if (transitionDigest(last) !== ref.chainHead) return { ok: false };
