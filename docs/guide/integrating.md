@@ -104,7 +104,11 @@ allowed authority, a longer ttl, dropping `signing` — strands that profile's o
 nothing can finalize, decline, expire or take findings on them, and their subjects stay held
 by exclusivity, until you either restore the declarative fields exactly or register the edit
 under a new id and keep the old version registered for the records still under it. The second
-route is the convention; the first is the escape when you edited by mistake.
+route is the convention; the first is the escape when you edited by mistake. The same discipline
+governs recovery: an in-place edit or a retired version also blocks `supersedes` of that profile's
+terminal records, so keep prior versions registered for as long as you may want to supersede their
+records. What is lost is the verified `supersedes` link, not the subject: a terminal predecessor
+releases exclusivity, and a plain `open` still works.
 
 Fields worth deliberate choices:
 

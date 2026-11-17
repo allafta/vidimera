@@ -108,7 +108,7 @@ function lastOf(chain: readonly Transition[]): Transition {
   return t;
 }
 
-/** The never-append `unknown-profile` refusal, asserted whole. */
+/** The never-append `supersedes-unverified` refusal, asserted whole. */
 function assertSupersedesUnverified(out: unknown, what: string): void {
   const o = out as { status: string; code?: string; class?: string; transitionRef?: unknown };
   assert.equal(o.status, 'refused', what);
@@ -117,6 +117,7 @@ function assertSupersedesUnverified(out: unknown, what: string): void {
   assert.equal(o.transitionRef, undefined, `${what}: never-append — no record, no ref`);
 }
 
+/** The never-append `unknown-profile` refusal, asserted whole. */
 function assertUnknownProfile(out: unknown, seam: string): void {
   const o = out as { status: string; code?: string; class?: string; transitionRef?: unknown };
   assert.equal(o.status, 'refused', `${seam}: a profile this instance does not hold refuses`);

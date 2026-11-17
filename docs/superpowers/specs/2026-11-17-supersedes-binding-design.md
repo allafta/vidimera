@@ -74,8 +74,13 @@ triage (`docs/analysis/2026-09-05-external-code-review.md` §5.2), and pinned in
 
 ## 3. Constraints, and why no sanction is needed
 
-- The change makes the code meet sealed text it diverges from today: SPEC §4's fold sentence,
-  and OPEN-QUESTIONS §1's missing-signature posture at the cross-record verifications. No
+- SPEC §4's fold sentence carries no state qualifier, so it admits both readings: every
+  referenced record, or only those whose claim needs the profile. The profile-drift gate design
+  drafted it (its site 2), took the narrow reading in its cross-record bullet and acceptance
+  list, and stated the broad one in its own changelog entry and status summary. This increment
+  resolves that inconsistency toward the public statement; no sanction is needed because the
+  sealed words admit that reading, not because the code diverged from sealed text. The same goes
+  for OPEN-QUESTIONS §1's missing-signature posture at the cross-record verifications. No
   sealed-set edit; SPEC §2's recovery paragraph ("verified by replay … requires it intact and
   **terminal**") says nothing that the fold contradicts.
 - No new refusal code, no outcome-class change, no public type change.

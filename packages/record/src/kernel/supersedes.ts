@@ -11,7 +11,7 @@
 //    open predecessor replays as open, non-terminal, and refuses;
 //  - the same-subject/any-profile tightening: the predecessor decided THIS subject;
 //    a revised-profile re-open (SPEC §10.3's "disposal-and-re-open recovery") stays
-//    possible.
+//    possible while the predecessor's profile stays registered (id and digest).
 //
 // The AL2 enforcement increment folds the signature layer into this same
 // verify-by-replay discipline: a signature-broken predecessor refuses
@@ -63,12 +63,12 @@ export function validateSupersedesShape(value: unknown): asserts value is Supers
  * the claimed head, have decided the SAME subject, be decided under a profile this instance
  * HOLDS (every state — the fold above), and be TERMINAL by the derived formula (SPEC §2).
  * `confirmed` is the one state whose terminality needs that profile's content (final-leg +
- * effect-seam judgment), read from the same held resolution. A
- * NON-final leg's `confirmed` qualifies too, by that same formula (`isFinalLeg` false
- * makes `nonTerminal('confirmed', false, effectSeam)` false regardless of effect seam):
- * it is terminal FOR THAT LEG even though the predecessor's own flow may still proceed
- * to its next leg (SPEC §2) — this check reads only the named record's own leg, never
- * the whole multi-leg flow, and treats that leg's terminality as sufficient on its own.
+ * effect-seam judgment), read from the same held resolution. A NON-final leg's `confirmed`
+ * qualifies too, by that same formula (`isFinalLeg` false makes
+ * `nonTerminal('confirmed', false, effectSeam)` false regardless of effect seam): it is
+ * terminal FOR THAT LEG even though the predecessor's own flow may still proceed to its next
+ * leg (SPEC §2) — this check reads only the named record's own leg, never the whole
+ * multi-leg flow, and treats that leg's terminality as sufficient on its own.
  * Every failure is one refusal, `supersedes-unverified`, mapped by the caller.
  */
 export async function verifySupersedes(
