@@ -22,7 +22,9 @@
 // to `kernel/seal.ts`, the operator-only chain-retirement seam that caps a verified
 // derived-terminal record with a `sealed` transition and reports `retired`. The reads
 // (`getRecord`/`readChain`/`chainHead`/`listDue`) and the `replay`/`verifyChain` `recordId`
-// audit wrappers are REAL: direct Store delegation + the pure `chain/replay.ts` core.
+// audit wrappers are REAL: Store delegation + the pure `chain/replay.ts` core. `getRecord`
+// and `replay` identity-check the chain they read (`chain/binding.ts`); raw `readChain` and
+// `chainHead` stay direct delegation and check nothing.
 // `listDue`, new at the third step-3 increment, is the sweep's one read —
 // `store.listDue(now())` under the injected clock, no append authority.
 
@@ -203,7 +205,7 @@ function makeKernel(ctx: KernelContext): Kernel {
     // --- seal(): kernel/seal.ts — the operator-only chain-retirement seam ---
     seal: (recordId) => sealKernel(ctx, recordId),
 
-    // --- reads: REAL (direct Store delegation) ---
+    // --- reads: REAL (`getRecord` identity-checks the chain; the raw reads delegate directly) ---
     getRecord: async (recordId) => {
       const chain = await store.readChain(recordId);
       if (chain.length === 0) return null;
@@ -214,7 +216,8 @@ function makeKernel(ctx: KernelContext): Kernel {
     chainHead: (recordId) => store.chainHead(recordId),
     listDue: () => store.listDue(ctx.now()),
 
-    // --- audit wrappers: REAL (readChain + the pure chain/replay.ts core) ---
+    // --- audit wrappers: REAL (readChain + the pure chain/replay.ts core; `replay`
+    // identity-checks the chain, `verifyChain` reports a foreign one as a break) ---
     replay: async (recordId) => {
       const chain = await store.readChain(recordId);
       assertChainFor(chain, recordId, 'replay');

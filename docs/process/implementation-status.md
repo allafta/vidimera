@@ -5438,7 +5438,8 @@ them.
 - `651d2de` — the source census, `test/chain-binding-census.test.ts` (five pins): no
   `last.recordId` in `src/`; every `prevHash`-bearing object literal in `src/kernel/` writes
   `recordId` in shorthand — the variable of that name, never `recordId: <expression>`; every
-  `verifyChain(` call outside `chain/replay.ts` passes two arguments; every `.readChain(` call
+  `verifyChain(` call outside `chain/replay.ts` (and its `verifyChainCore` alias in `create.ts`)
+  passes the requested id — exactly `recordId` or `ref.recordId` — as its second argument; every `.readChain(` call
   site is on a per-file list with its binding (verify-bound, identity-checked, raw by contract,
   the decorator's check, or a pass-through), and each identity-checked file calls
   `assertChainFor(` the listed number of times; `layerVerdicts` lists the sidecar by its own
@@ -5494,7 +5495,7 @@ corrected comment in `test/replay-verify.test.ts` and the added argument at
 `test/clocks.test.ts`'s `resolveDueClock` calls; `test/byte-stability.test.ts` is untouched
 since `b2ea16b` and passes, so the frozen digests did not move.
 
-**Gate outputs, as measured on this branch with this paperwork in place (source at `651d2de`).**
+**Gate outputs, as measured on this branch with this paperwork in place (the tree of the increment's last commit, the final review's fix wave, whose source and test edits are comments and the census's tightening only).**
 `pnpm` fails on this machine with `CommandNotFound`, so each gate ran through the local binaries
 its script names. The whole suite — `vitest run` with the JSON reporter, then
 `node scripts/ci-assert-tests.mjs` over the report, the `pnpm test:ci` pair — 984 tests in 78
@@ -5515,4 +5516,10 @@ launcher. The adapter must be packed by pnpm (only pnpm's pack rewrites the `wor
 range), so no substitute ran here: that gate is unmeasured for this increment until a machine
 with a working `pnpm`, or CI's test matrix, runs it. Nothing in this increment touches either
 manifest, the build configuration, or `packages/store-postgres`. `CLAUDE.md`'s measured sentence
-still reads 74 files / 921 tests; it is left for the owner, who governs that file.
+moved to 78 files / 984 tests with this record, as the earlier increments' records moved it.
+
+**One residual the final review named, not fixed.** Ruling 5.6 signs the compromise edge when
+the decorator cannot take a record's signing decision from its own genesis, and the extra
+sidecar entry that can leave is a harmless orphan. That can also happen for a NON-signing
+record's compromise attempts, on the no-edge path, while a relocation persists; deferral
+register row 22's text speaks of signing records only. The register itself is not edited here.

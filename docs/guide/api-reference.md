@@ -255,7 +255,10 @@ Notes that save debugging time:
   `(profileId, subjectRef)` **throw** instead: the message contains `foreign persisted data`
   and names the read and both ids, and nothing is recorded on either record. An empty chain
   keeps its existing answer (`null` from `getRecord`, the unknown-record throw elsewhere), and
-  `readChain`/`chainHead` stay raw. With `config.signing` set, that compromise edge is signed
+  `readChain`/`chainHead` stay raw. That throw compares each row's `recordId` only, so a
+  relabelled copy — every row's `recordId` rewritten to X in place, links not recomputed —
+  passes `getRecord`, `replay` and `review` silently, as any in-place edit always has;
+  `verifyChain` and the seams catch it at the genesis link. With `config.signing` set, that compromise edge is signed
   even on a record whose profile does not sign, when the process has not yet cached that
   record's own signing decision: the decorator will not take the decision from another
   record's genesis, and signing is the fail-safe direction. The honest bound, in the same

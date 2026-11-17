@@ -122,10 +122,12 @@ export function withSigning(
         return false;
       }
       if (genesis.recordId !== transition.recordId) {
-        // The store answered this record's read with ANOTHER record's chain (SPEC §8: a chain
-        // is addressed to the id it was requested for). Its genesis says nothing about
-        // whether THIS record signs, so the decision must not be cached under this id — a
-        // cached answer would outlive the fault and bind the wrong profile to the record.
+        // The store answered this record's read with ANOTHER record's chain (SPEC §5: the audit
+        // functions run "over the chain the store returns for that record", and §4's genesis
+        // rule binds a chain's first link to its own id; a foreign answer is §8's storage
+        // fault). Its genesis says nothing about whether THIS record signs, so the decision
+        // must not be cached under this id — a cached answer would outlive the fault and bind
+        // the wrong profile to the record.
         // Sign: an extra sidecar entry is a harmless orphan, an unsigned landed edge on a
         // signing record is condemned. Never throw here: the append is the very
         // chain-compromise edge that reports the fault.

@@ -66,15 +66,13 @@ function callTexts(src: string, name: string): string[] {
   return out;
 }
 
-/** A parameter list, not an argument list: a top-level `name: Type` (an interface method). */
+/**
+ * A parameter list, not an argument list: its first parameter opens `identifier :` or
+ * `identifier?:` (an interface method). An argument that merely holds a `:` — a ternary —
+ * does not open that way, so it stays a call.
+ */
 function isDeclaration(inner: string): boolean {
-  let depth = 0;
-  for (const ch of inner) {
-    if ('([{'.includes(ch)) depth++;
-    else if (')]}'.includes(ch)) depth--;
-    else if (ch === ':' && depth === 0) return true;
-  }
-  return false;
+  return /^\s*[A-Za-z_$][\w$]*\s*\??\s*:/.test(inner);
 }
 
 /** Top-level argument count of a call's inner text (nesting-aware, trailing comma tolerated). */
@@ -91,6 +89,23 @@ function argCount(inner: string): number {
     } else if (!/\s/.test(ch)) seen = true;
   }
   return seen ? args + 1 : args;
+}
+
+/** The top-level arguments of a call's inner text, trimmed (nesting-aware). */
+function topArgs(inner: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let cur = '';
+  for (const ch of inner) {
+    if ('([{'.includes(ch)) depth++;
+    else if (')]}'.includes(ch)) depth--;
+    if (depth === 0 && ch === ',') {
+      out.push(cur.trim());
+      cur = '';
+    } else cur += ch;
+  }
+  if (cur.trim() !== '') out.push(cur.trim());
+  return out;
 }
 
 /** Top-level text of each `{...}` literal holding a `prevHash:` key (nested braces blanked). */
@@ -155,14 +170,20 @@ test('chain binding: every transition the library builds takes its recordId from
   assert.deepEqual(bad, [], 'a built transition takes its recordId from other than a parameter');
 });
 
-test('chain binding: every verifyChain call outside chain/replay.ts passes the requested id', () => {
+test('chain binding: every verifyChain call outside chain/replay.ts passes the requested id as its second argument', () => {
   const bad: string[] = [];
   let calls = 0;
   for (const f of FILES.filter((x) => x.rel !== 'chain/replay.ts')) {
-    for (const inner of callTexts(code(f.text), 'verifyChain')) {
+    // `verifyChain(?:Core)?`: create.ts imports the core under the alias `verifyChainCore`.
+    for (const inner of callTexts(code(f.text), 'verifyChain(?:Core)?')) {
       if (isDeclaration(inner)) continue;
       calls++;
-      if (argCount(inner) !== 2) bad.push(`${f.rel}: verifyChain(${inner.trim()})`);
+      const args = topArgs(inner);
+      // The second argument is the id the chain was loaded for: the seam's own `recordId`
+      // parameter, or a ref's `ref.recordId` — never an id read off the loaded chain.
+      if (argCount(inner) !== 2 || !['recordId', 'ref.recordId'].includes(args[1] ?? '')) {
+        bad.push(`${f.rel}: verifyChain(${inner.trim()})`);
+      }
     }
   }
   assert.ok(calls > 0, 'the scan found no verifyChain calls — it has gone blind');

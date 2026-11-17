@@ -333,8 +333,8 @@ export type ChainVerifyReport =
   | { intact: false; firstBreakSeq: number; detail: string };
 
 /**
- * `verifyChain(chain)` (SPEC §5 "Operator audit functions", the run of §5 that defines
- * both this and `replay`): recomputes every transition's digest linkage. Four checks, run
+ * `verifyChain(chain, recordId?)` (SPEC §5 "Operator audit functions", the run of §5 that
+ * defines both this and `replay`): recomputes every transition's digest linkage. Four checks, run
  * at each index IN THIS ORDER, so when several fail at one index the detail names the most
  * specific diagnosis first —
  *  1. seq continuity: `chain[i].seq` must equal `i + 1` for every `i` (1-based, +1 per

@@ -3,9 +3,12 @@
 // A load that verifies binds the chain it read to the recordId it read it for
 // (`verifyChain(chain, recordId)`), so a foreign chain reads as a break and the seam refuses
 // `chain-compromise`. A load that does not verify — `getRecord`, `replay`, `review`,
-// `verifySignatures`, `open()`'s blocker read, and the two diagnostic re-reads — has no
-// refusal to give, so a chain holding another record's rows is foreign persisted data: a
-// storage fault, thrown loudly and recorded nowhere (SPEC §8). This is a string comparison,
+// `verifySignatures` and `open()`'s blocker read — has no refusal to give, so a chain
+// holding another record's rows is foreign persisted data: a storage fault, thrown loudly
+// and recorded nowhere (SPEC §8). The two diagnostic re-reads (the redemption seams'
+// residual refusal and the append-conflict classifier) make the same check but do not let it
+// escape: the residual refusal catches the throw and answers `unredeemable-state`, and the
+// conflict classifier carries it as the thrown conflict fault's `cause` (the re-read failure). This is a string comparison,
 // not a hash walk, so it adds nothing to the en-passant path SPEC §5 keeps pre-verify-free.
 
 import type { Transition } from '../types.js';

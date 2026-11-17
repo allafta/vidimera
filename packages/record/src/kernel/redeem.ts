@@ -109,7 +109,7 @@ async function residualRefusal(store: Store, recordId: string): Promise<Outcome<
     const chain = await store.readChain(recordId);
     // A foreign chain throws into the fallback below: it can never make this seam say
     // `already-redeemed`.
-    assertChainFor(chain, recordId, 'redeem');
+    assertChainFor(chain, recordId, 'redemption residual re-read');
     const fresh = replay(chain);
     if (fresh.state === 'redeemed') return refused('already-redeemed');
   } catch {
