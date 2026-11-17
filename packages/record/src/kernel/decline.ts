@@ -76,8 +76,9 @@ export async function decline(
   }
 
   // --- (1) pre-seam chain-verify (SPEC §5: verification is first) ----------------------
-  const report = verifyChain(chain);
-  if (!report.intact || !(await signatureLayerHolds(ctx, chain))) {
+  // Bound to the requested `recordId` (kernel/finalize.ts's same rung argues it).
+  const report = verifyChain(chain, recordId);
+  if (!report.intact || !(await signatureLayerHolds(ctx, recordId, chain))) {
     return appendChainCompromise(store, recordId, chain, now);
   }
 

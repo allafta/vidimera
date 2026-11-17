@@ -204,9 +204,11 @@ export async function finalize(
   // --- (1) pre-seam chain-verify (FIRST after load) ------------------------------------
   // AL1 intactness first; the AL2 enforcement increment folds the signature layer into
   // this same arm — a signing record whose layer does not hold refuses chain-compromise
-  // identically to a hash-broken chain, both via the shared append below.
-  const report = verifyChain(chain);
-  if (!report.intact || !(await signatureLayerHolds(ctx, chain))) {
+  // identically to a hash-broken chain, both via the shared append below. Both halves are
+  // bound to the requested `recordId`: a chain whose rows belong to another record (another
+  // record's rows copied under this key) is a break at seq 1, never that record's history.
+  const report = verifyChain(chain, recordId);
+  if (!report.intact || !(await signatureLayerHolds(ctx, recordId, chain))) {
     return appendChainCompromise(store, recordId, chain, now);
   }
 

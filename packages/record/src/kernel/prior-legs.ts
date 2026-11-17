@@ -62,9 +62,11 @@ export async function verifyPriorLegs(
     const chain = await store.readChain(ref.recordId);
     if (chain.length === 0) return { ok: false }; // unknown recordId — and the
     // destroyed-prior posture: a chain that no longer exists cannot be replayed (§10.1)
-    if (!verifyChain(chain).intact) return { ok: false };
+    // Bound to the REFERENCED id: another record's rows read back under `ref.recordId` are a
+    // break at seq 1, so the reference cannot borrow that record's confirmed history.
+    if (!verifyChain(chain, ref.recordId).intact) return { ok: false };
     // The AL2 enforcement increment folds the signature layer into this same arm.
-    if (!(await signatureLayerHolds(ctx, chain))) return { ok: false };
+    if (!(await signatureLayerHolds(ctx, ref.recordId, chain))) return { ok: false };
     const last = chain.at(-1);
     if (last === undefined) return { ok: false };
     // "its recomputed head must equal the supplied `chainHead`" — the host's claim is

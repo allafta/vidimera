@@ -213,7 +213,9 @@ function makeKernel(ctx: KernelContext): Kernel {
 
     // --- audit wrappers: REAL (readChain + the pure chain/replay.ts core) ---
     replay: async (recordId) => replayCore(await store.readChain(recordId)),
-    verifyChain: async (recordId) => verifyChainCore(await store.readChain(recordId)),
+    // Bound to `recordId` (SPEC §5: "running over the chain the store returns for that
+    // record"): another record's rows read back under this key report a break at seq 1.
+    verifyChain: async (recordId) => verifyChainCore(await store.readChain(recordId), recordId),
 
     // --- verifySignatures(): kernel/verify-signatures.ts — SPEC §14's AL2 mint
     // increment's one audit surface, a pure chain-driven read wired the same way every

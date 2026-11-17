@@ -223,8 +223,9 @@ async function prologue(
   // AL1 intactness first; the AL2 enforcement increment folds the signature layer into
   // this same arm — inherited by the enlisted branch below, not re-decided: a
   // signature-broken chain refuses `chain-compromise` result-first over an enlisted
-  // caller exactly as a hash-broken one does.
-  if (!verifyChain(chain).intact || !(await signatureLayerHolds(ctx, chain))) {
+  // caller exactly as a hash-broken one does. Both halves are bound to the requested
+  // `recordId`, so another record's rows read back under this key refuse here too.
+  if (!verifyChain(chain, recordId).intact || !(await signatureLayerHolds(ctx, recordId, chain))) {
     if (tx !== undefined) {
       // ENLISTED: the host already has ITS OWN transaction open on this connection, and
       // appendChainCompromise's no-tx fallback would BEGIN a SECOND transaction on that

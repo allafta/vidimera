@@ -151,8 +151,8 @@ async function loadOpenDeclaringRecord(
     );
   }
   // (1) chain-verify, FIRST. The AL2 enforcement increment folds the signature layer
-  // into this same arm.
-  if (!verifyChain(chain).intact || !(await signatureLayerHolds(ctx, chain))) {
+  // into this same arm. Both halves are bound to the requested `recordId`.
+  if (!verifyChain(chain, recordId).intact || !(await signatureLayerHolds(ctx, recordId, chain))) {
     return {
       ok: false,
       out: (await appendChainCompromise(store, recordId, chain, now)) as SeamResult,
