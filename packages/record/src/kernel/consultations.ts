@@ -20,7 +20,7 @@ import {
   type UnreachableMarker,
 } from '../config.js';
 import type { IdentityAssertion } from '../types.js';
-import { isValidIdentity } from './finalize.js';
+import { identitySnapshot } from './identity.js';
 
 export interface PartitionedConsultations {
   obtained: ObtainedConsultation[]; // supplied order preserved — the batch records in this order
@@ -134,14 +134,18 @@ export function validateConsultations(
       }
     }
     // The exact-shape rule enforced by the two key-set loops above covers the ENTRY; the
-    // `checker` inside it is exact-shaped in turn by `isValidIdentity`, since the
+    // `checker` inside it is exact-shaped in turn by the identity validator (today
+    // `identitySnapshot`; `isValidIdentity` is its non-null test), since the
     // security-findings pass (2026-09-03). Until then this comment recorded the opposite
     // posture, shared with the `confirmed` payload's `actor` and `facts.checker` since the
     // kernel increment: extra keys inside a supplied checker were not rejected and reached
     // the digested payload as host attestation. The inversion is argued at
-    // `isValidIdentity`'s own site (kernel/finalize.ts); this throw's posture — a caller
-    // error, nothing appended — is unchanged.
-    if (!isValidIdentity(record.checker as IdentityAssertion)) {
+    // `isValidIdentity`'s own site (kernel/identity.ts); this throw's posture — a caller
+    // error, nothing appended — is unchanged. The entry carries the validator's fresh
+    // literal (`identitySnapshot`), never the supplied checker object, so the consultation
+    // finalize or decline records holds exactly the values validated here.
+    const checker = identitySnapshot(record.checker as IdentityAssertion);
+    if (checker === null) {
       throw new Error(
         `${seam}: consultations[${index}] (obtained '${kind}') has a malformed checker identity — a caller error (SPEC §11.1)`,
       );
@@ -176,7 +180,7 @@ export function validateConsultations(
     }
     obtained.push({
       kind,
-      checker: record.checker as ObtainedConsultation['checker'],
+      checker,
       payloadDigest: record.payloadDigest,
       verdict: record.verdict,
       ...(record.proofRef !== undefined ? { proofRef: record.proofRef } : {}),

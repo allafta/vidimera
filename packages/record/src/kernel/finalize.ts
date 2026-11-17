@@ -130,6 +130,7 @@ import { validateConsultations, validatePolicyInput } from './consultations.js';
 import { deadlineIso, resolveDueClock } from './expiry.js';
 import { findingCoverage } from './findings.js';
 import { heldProfile } from './held-profile.js';
+import { identitySnapshot } from './identity.js';
 import { signatureLayerHolds } from './verify-signatures.js';
 
 /**
@@ -318,7 +319,10 @@ export async function finalize(
   }
 
   // --- (3) identity — both branches → identity-authority-refused -----------------------
-  if (!isValidIdentity(identity) || !leg.allowedAuthorities.includes(identity.authority)) {
+  // Validated ONCE into a fresh literal (`identitySnapshot`); the allowlist check, rung (3.5)
+  // and the recorded `actor` all read that literal, never the caller's object again.
+  const actor = identitySnapshot(identity);
+  if (actor === null || !leg.allowedAuthorities.includes(actor.authority)) {
     return refuseMaybeAppend(
       store,
       recordId,
@@ -332,7 +336,7 @@ export async function finalize(
   }
 
   // --- (3.5) separation of duties (SPEC §10.1; second step-4 increment) ----------------
-  if (sodViolated(record, leg, identity, recordId, 'finalize')) {
+  if (sodViolated(record, leg, actor, recordId, 'finalize')) {
     return refuseMaybeAppend(store, recordId, 'sod-violation', leg, chain, resolved, finalLeg, now);
   }
 
@@ -541,7 +545,7 @@ export async function finalize(
   // them directly — the SAME `canonicalize(facts.figures)` result, digested once.
   const factsConsultation: Consultation = {
     kind: 'facts',
-    checker: facts.checker,
+    checker: factsCheck.checker, // the literal gate (5) validated, never `facts.checker` re-read
     at: nowIso,
     payloadDigest: digest(factsCheck.canonical),
     verdict: 'pass',
@@ -578,7 +582,7 @@ export async function finalize(
   for (const [i, entry] of supplied.obtained.entries()) {
     const consultation: Consultation = {
       kind: entry.kind,
-      checker: entry.checker,
+      checker: entry.checker, // the fresh literal `validateConsultations` built at intake
       at: nowIso,
       payloadDigest: entry.payloadDigest,
       verdict: entry.verdict,
@@ -604,7 +608,7 @@ export async function finalize(
     seq: seqBase + 3 + suppliedTransitions.length,
     at: nowIso,
     kind: 'confirmed',
-    payload: { actor: identity },
+    payload: { actor },
     prevHash: suppliedPrevHash,
   };
 
@@ -984,6 +988,14 @@ export async function refuseMaybeAppend(
  * Returns true when the seam must refuse `sod-violation`; THROWS on the garbled
  * paired-actor invariant (a storage/config fault, SPEC §8) — the boundary comments
  * from finalize's original rung travel here unchanged.
+ *
+ * `identity` is the seam's `identitySnapshot` literal, never the caller's object. The read
+ * side fails closed too, since the identity-snapshot increment: every recorded
+ * `priorLegActors` entry must itself be a valid identity, checked before any principal is
+ * compared. Until then a recorded `{}` (what a getter-backed or `Object.create`-built maker
+ * identity was written as) had no string principal, matched no finalizer, and let SoD pass —
+ * the same garbled-evidence storage fault as the unpaired-actor throw below, widened to the
+ * shape every seam now guarantees it writes.
  */
 export function sodViolated(
   record: DecisionRecord,
@@ -993,6 +1005,13 @@ export function sodViolated(
   seam: 'finalize' | 'decline',
 ): boolean {
   if (leg.sod !== undefined) {
+    for (const [index, priorActor] of (record.priorLegActors ?? []).entries()) {
+      if (identitySnapshot(priorActor) === null) {
+        throw new Error(
+          `${seam}: record '${recordId}' carries a prior-leg actor at index ${index} that is not a valid identity — a garbled or foreign chain is a storage/config fault (SPEC §8)`,
+        );
+      }
+    }
     for (const namedLegId of leg.sod.notActorOf) {
       const refIndex = (record.priorRecordRefs ?? []).findIndex((ref) => ref.legId === namedLegId);
       if (refIndex === -1) {
@@ -1027,46 +1046,6 @@ export function sodViolated(
   return leg.proposer !== undefined && leg.proposer === identity.principal;
 }
 
-const IDENTITY_KEYS: ReadonlySet<string> = new Set(['principal', 'authority', 'proofRef']);
-
-/**
- * An identity is valid iff it is EXACTLY an IdentityAssertion (SPEC §6): an object whose own
- * keys are a subset of `{ principal, authority, proofRef }`, with `principal` and `authority`
- * non-empty strings and `proofRef` either absent, an explicit `undefined` (the shape an
- * optional field takes under a spread), or a string. The arg is typed `IdentityAssertion`,
- * but the library must fail closed against a malformed/absent arg supplied at runtime (a
- * payload-carried or empty id) — hence the defensive runtime shape check.
- *
- * The exact-shape half is the TWELFTH self-authored inversion in the status record's own
- * numbered sequence, argued here at its site. From the kernel increment until the
- * security-findings pass (2026-09-03) the recorded posture was the opposite: extra keys on
- * an `actor`, a `checker`, a `raiser` or an `acker` were not rejected and reached the
- * digested payload as host attestation (kernel/consultations.ts, as it then read), and every
- * seam persisted the object it was handed — `payload: { actor: identity }`. The inversion's
- * argument: those extra keys are exactly where a host leaks an e-mail address, a display
- * name or a bearer token into a digested, immutable transition, in a record whose erasure
- * story (SPEC §6, §13) rests on the principal being a pseudonym resolvable OUTSIDE the
- * chain. An immutable chain cannot un-swallow what it took, and attestation no seam reads is
- * not a capability anyone lost. Every caller keeps its own posture toward an invalid
- * identity — finalize and decline refuse `identity-authority-refused`, the findings seams and
- * an obtained consultation's checker throw, `facts.checker` fails the facts gate; only what
- * counts as valid moved. Pinned in `test/identity-shape.test.ts`.
- */
-export function isValidIdentity(identity: IdentityAssertion): boolean {
-  const i = identity as unknown as Record<string, unknown> | null | undefined;
-  if (i == null || typeof i !== 'object') return false;
-  for (const key of Object.keys(i)) {
-    if (!IDENTITY_KEYS.has(key)) return false;
-  }
-  return (
-    typeof i.principal === 'string' &&
-    i.principal.length > 0 &&
-    typeof i.authority === 'string' &&
-    i.authority.length > 0 &&
-    (i.proofRef === undefined || typeof i.proofRef === 'string')
-  );
-}
-
 /**
  * Facts are present AND USABLE iff `figures` is supplied (not `undefined`), `checker` is a valid
  * identity, AND `figures` is library-JCS-canonicalizable. The gate's return WIDENS from a bare
@@ -1075,15 +1054,20 @@ export function isValidIdentity(identity: IdentityAssertion): boolean {
  * both) is NOT a valid facts payload, so the try/catch refuses it here (→ `consultation-missing`
  * at the call site) rather than letting the throw escape mid-batch at the facts-digest step. On
  * ok the carried `canonical` bytes are digested directly at the call site, so
- * `canonicalize(figures)` runs exactly once.
+ * `canonicalize(figures)` runs exactly once. The ok arm also carries `checker`, the
+ * `identitySnapshot` literal of `facts.checker` — the value the facts consultation records,
+ * so the call site never reads `facts.checker` a second time.
  *
  * EXPORTED for kernel/decline.ts, the second caller (the recorded-human-decline increment).
  */
-export function isValidFacts(facts: Facts): { ok: true; canonical: Uint8Array } | { ok: false } {
+export function isValidFacts(
+  facts: Facts,
+): { ok: true; canonical: Uint8Array; checker: IdentityAssertion } | { ok: false } {
   const f = facts as unknown as { figures?: unknown; checker?: unknown } | null | undefined;
   if (f == null || typeof f !== 'object') return { ok: false };
   if (f.figures === undefined) return { ok: false };
-  if (!isValidIdentity(f.checker as IdentityAssertion)) return { ok: false };
+  const checker = identitySnapshot(f.checker as IdentityAssertion);
+  if (checker === null) return { ok: false };
   let canonical: Uint8Array;
   try {
     canonical = canonicalize(f.figures);
@@ -1091,7 +1075,7 @@ export function isValidFacts(facts: Facts): { ok: true; canonical: Uint8Array } 
     // Non-canonicalizable figures (BigInt/circular) — a present-but-unusable facts payload.
     return { ok: false };
   }
-  return { ok: true, canonical };
+  return { ok: true, canonical, checker };
 }
 
 function dedupe<T>(values: T[]): T[] {

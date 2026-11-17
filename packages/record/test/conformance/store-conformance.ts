@@ -972,6 +972,42 @@ export function runStoreConformance(label: string, makeStore: () => Store): void
       assert.deepEqual(await store.listDue(new Date(Date.UTC(2100, 0, 1))), []);
     });
 
+    test("an append's returned digest is the stored transition's digest, or the append throws and writes nothing", async () => {
+      // A member with a prototype `toJSON`: the digest honours it, a structured clone drops
+      // it, and a SQL backing persists its JSON view. A backing may refuse the append or
+      // store the view; it may never return a digest the stored transition does not have.
+      class Viewed {
+        own = 'own-field';
+        toJSON(): Record<string, string> {
+          return { view: 'json-view' };
+        }
+      }
+      const store = makeStore();
+      const genesis = storeGenesis('rec-digest-agrees', 'profile.p1', 'subject:digest-agrees');
+      await store.appendTransition(null, genesis, { nonTerminal: true });
+      const before = await store.readChain('rec-digest-agrees');
+      const confirmed = storeNext(genesis, 'confirmed', { actor: new Viewed() });
+
+      let result: Awaited<ReturnType<Store['appendTransition']>>;
+      try {
+        result = await store.appendTransition('open', confirmed, { nonTerminal: false });
+      } catch {
+        assert.deepEqual(
+          await store.readChain('rec-digest-agrees'),
+          before,
+          'a refused append wrote nothing',
+        );
+        return;
+      }
+      assert.equal(result.appended, true, 'fixture: no conflict applies to this append');
+      if (!result.appended) return;
+      const head = await store.chainHead('rec-digest-agrees');
+      assert.equal(result.transitionDigest, head);
+      const stored = (await store.readChain('rec-digest-agrees')).at(-1);
+      assert.ok(stored !== undefined);
+      assert.equal(transitionDigest(stored), result.transitionDigest);
+    });
+
     test('listDue: presence sets, absence clears — an append whose meta omits dueAt clears the pending clock', async () => {
       // SPEC §12: "every state-leaving append that carries no new clock clears the column by
       // omission" — pinned here at the meta level, with no kernel involved: the store must
