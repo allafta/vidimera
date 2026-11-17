@@ -12,13 +12,14 @@
 import assert from 'node:assert/strict';
 import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';
 
-import { transitionDigest } from '../../src/chain/encoding.js';
+import { encodeTransition, transitionDigest } from '../../src/chain/encoding.js';
 import type { ConfirmProfile } from '../../src/config.js';
 import { create, createWithClock } from '../../src/create.js';
 import { MemorySignatureStore } from '../../src/signing/memory.js';
 import type { SignatureStore, Signer, Verifier } from '../../src/signing/store.js';
 import { MemoryStore } from '../../src/store/memory.js';
 import type { Store } from '../../src/store/store.js';
+import type { Transition } from '../../src/types.js';
 import { makeConfig } from './profiles.js';
 
 /**
@@ -57,13 +58,18 @@ export function signingSetup(profile: ConfirmProfile) {
  *   - `signatures`, the SAME `MemorySignatureStore` instance the config carries, so
  *     `breakOneSignature` below mutates what the kernel actually reads;
  *   - `store`, so an enlisted fixture can pass a `SqliteStore` and open a host transaction;
- *   - `calls`, a verifier invocation counter.
+ *   - `calls`, a verifier invocation counter, and `callsOver(chain)`, the number of those
+ *     invocations whose bytes are one of `chain`'s transitions.
  *
- * READ `calls` AS A DELTA, NEVER AS A TOTAL. `verifySignatures()` consults the verifier too,
- * so `calls() > 0` can be satisfied without the seam under test ever reaching the layer.
- * Snapshot before the seam call and compare. The delta is what distinguishes rung (1)'s two
- * disjuncts: the condition short-circuits on `||`, so a HASH-broken chain never calls
- * `signatureLayerHolds` at all and the delta stays zero.
+ * READ THEM AS A DELTA, NEVER AS A TOTAL. `verifySignatures()` consults the verifier too, so
+ * `calls() > 0` can be satisfied without the seam under test ever reaching the layer. And the
+ * mint check consults the verifier registered for the signer's own key over the bytes of the
+ * edge being signed, so a seam that draws a compromise edge raises `calls()` by itself even on
+ * a hash-broken chain. To tell whether the LAYER ran, read a chain BEFORE the seam call and
+ * snapshot `callsOver(thatChain)`: the layer verifies existing transitions, the mint check
+ * verifies only the new edge's bytes, which are never in that chain. That delta is what
+ * distinguishes rung (1)'s two disjuncts: the condition short-circuits on `||`, so a
+ * HASH-broken chain never calls `signatureLayerHolds` at all and the delta stays zero.
  *
  * Unlike `signingSetup` this uses the real clock (`create`, not `createWithClock`) — the
  * redemption seams stamp real `dueAt` values from `confirmToRedeem` and a frozen clock makes
@@ -74,19 +80,25 @@ export function enforceableSigningSetup(profiles: ConfirmProfile[], opts: { stor
   const store = opts.store ?? new MemoryStore();
   const signatures = new MemorySignatureStore();
   let verifyCount = 0;
+  const asked: Uint8Array[] = [];
   const signer: Signer = async (bytes) => ({
     keyRef: 'key-1',
     signature: edSign(null, bytes, privateKey).toString('base64'),
   });
   const verifier: Verifier = async (bytes, signature) => {
     verifyCount += 1;
+    asked.push(bytes);
     return edVerify(null, bytes, publicKey, Buffer.from(signature, 'base64'));
   };
   const config = {
     ...makeConfig(profiles, { store }),
     signing: { signer, verifiers: { 'key-1': verifier }, signatures },
   };
-  return { handles: create(config), store, signatures, calls: () => verifyCount };
+  const callsOver = (chain: readonly Transition[]): number => {
+    const encoded = chain.map((t) => Buffer.from(encodeTransition(t)));
+    return asked.filter((b) => encoded.some((e) => e.equals(Buffer.from(b)))).length;
+  };
+  return { handles: create(config), store, signatures, calls: () => verifyCount, callsOver };
 }
 
 /**

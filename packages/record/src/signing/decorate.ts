@@ -12,7 +12,9 @@
 // THE MINT CHECK: the one signer call is followed, inside the same memoized promise, by a
 // check against this instance's own `verifiers` — the minted keyRef must be an own key whose
 // verifier answers the literal `true` over the same bytes — and nothing is put or appended
-// unless it passes (`mintAndCheck` below). A configuration whose signer this instance cannot
+// unless it passes (`mintAndCheck` below). A failed check is a THROWN Error, never a `refused`
+// outcome, and it applies wherever the decorator signs: an instance that cannot verify its own
+// key throws even at an append that would have drawn or refused a `chain-compromise` edge. A configuration whose signer this instance cannot
 // verify is refused at the first append, not discovered as `chain-compromise` later.
 // The sidecar write is deliberately NOT part of any host transaction an enlisted
 // seam passes through (`tx` delegates untouched): an aborted effect's orphan
@@ -88,8 +90,8 @@ export function withSigning(
   // key either way — the repeat buys nothing and, on a host whose signer is a remote key
   // service, costs a round-trip each time.
   //
-  // Keyed by object identity, NOT by digest, and it memoizes the SIGNER's promise, not this
-  // function's. A digest-keyed memo would weaken the pinned guarantee from "this append is
+  // Keyed by object identity, NOT by digest, and it memoizes the MINT's promise (the signer's
+  // call plus the mint check that follows it, `mintAndCheck`), not this function's. A digest-keyed memo would weaken the pinned guarantee from "this append is
   // preceded by its OWN completed sidecar write" to "some earlier signing operation for this
   // digest happened", which lands an unsigned transition whenever the earlier entry is no
   // longer there. Memoizing this function's own promise would skip the `put` on every repeat
@@ -164,7 +166,8 @@ export function withSigning(
     const { keyRef } = minted;
     if (!Object.hasOwn(signing.verifiers, keyRef)) {
       throw new Error(
-        `signing: the signer minted keyRef '${String(keyRef)}' for record '${transition.recordId}' ` +
+        `signing: the signer minted keyRef '${String(keyRef)}' for record ` +
+          `'${transition.recordId}' ` +
           `at seq ${transition.seq}, but config.signing.verifiers holds no verifier for it; ` +
           'nothing was put to the sidecar and nothing was appended',
       );
@@ -201,7 +204,8 @@ export function withSigning(
     try {
       minted = await pending;
     } catch (err) {
-      // A failed mint or mint check must not be remembered: the next attempt has to reach the signer again.
+      // A failed mint or mint check must not be remembered: the next attempt has to reach the
+      // signer again.
       // Delete only if the memo still holds THIS promise — a later caller may already have
       // installed a fresh attempt, and dropping that one would cost it a redundant mint.
       if (signerResult.get(transition) === pending) signerResult.delete(transition);

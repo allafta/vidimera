@@ -74,7 +74,9 @@ export type Verifier = (bytes: Uint8Array, signature: string) => Promise<boolean
  * every value is a function (an empty registry is allowed — a prepared instance), `signatures`
  * an object with `put` and `listByRecord`. Every signature the signer mints is checked against
  * this registry before it is stored: the minted `keyRef` must be an own key of `verifiers`
- * and its verifier must answer `true`, or the append is refused with nothing written.
+ * and its verifier must answer `true`, or the append throws a named Error with nothing written (a thrown Error, not a `refused`
+ * outcome — and it applies wherever the instance signs, so an instance that cannot verify its
+ * own key throws even at an append that would have drawn or refused a `chain-compromise` edge).
  *
  * ROTATION. Every instance that can touch a record — and every configuration a deployment may
  * roll back to — must hold the verifier for every `keyRef` any instance signs with. Rotate in

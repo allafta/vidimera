@@ -260,9 +260,9 @@ function validateSigningShape(signing: unknown): void {
     throw new Error('create: config.signing.signer must be a function');
   }
   const verifiers = block.verifiers;
-  const proto =
-    typeof verifiers === 'object' && verifiers !== null ? Object.getPrototypeOf(verifiers) : 0;
-  if (proto !== Object.prototype && proto !== null) {
+  const isObject = typeof verifiers === 'object' && verifiers !== null;
+  const proto: unknown = isObject ? Object.getPrototypeOf(verifiers) : undefined;
+  if (!isObject || (proto !== Object.prototype && proto !== null)) {
     throw new Error(
       'create: config.signing.verifiers must be a plain object keyed by keyRef ' +
         '(not an array, a Map, or another class instance)',

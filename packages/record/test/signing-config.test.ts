@@ -10,9 +10,11 @@ import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:cr
 import { test } from 'vitest';
 
 import { create } from '../src/create.js';
+import { withSigning } from '../src/signing/decorate.js';
 import { MemorySignatureStore } from '../src/signing/memory.js';
 import type { Signer, Verifier } from '../src/signing/store.js';
 import { MemoryStore } from '../src/store/memory.js';
+import { storeGenesis } from './helpers/chain.js';
 import { captureProfile, facts, identity, makeConfig } from './helpers/profiles.js';
 
 const CONTENT = { subject: 'week-1', total: 40 };
@@ -51,6 +53,19 @@ async function stageAndOpen(handles: ReturnType<typeof create>, subject: string)
   return handles.operator.open(await stageOk(handles, subject));
 }
 
+/** A sidecar that counts `put` calls: a refused mint must never reach it. */
+function spySidecar(inner: MemorySignatureStore) {
+  const puts: unknown[] = [];
+  const sidecar = {
+    put: async (e: never) => {
+      puts.push(e);
+      await inner.put(e);
+    },
+    listByRecord: (id: string) => inner.listByRecord(id),
+  };
+  return { sidecar, puts };
+}
+
 // --- the mint check -------------------------------------------------------------------
 
 test('mint check: a keyRef absent from verifiers is refused before anything lands; a later fix succeeds', async () => {
@@ -58,13 +73,17 @@ test('mint check: a keyRef absent from verifiers is refused before anything land
   const store = new MemoryStore();
   const signatures = new MemorySignatureStore();
   const verifiers: Record<string, Verifier> = {};
-  const handles = build({ signer: k.signer('k1'), verifiers, signatures }, store);
+  const spy = spySidecar(signatures);
+  const handles = build({ signer: k.signer('k1'), verifiers, signatures: spy.sidecar }, store);
 
   const stagedRef = await stageOk(handles, 'subject:mc-1');
   await assert.rejects(() => handles.operator.open(stagedRef), /k1/);
   assert.equal(await store.findNonTerminal(PROFILE_ID, 'subject:mc-1'), null);
+  assert.equal(spy.puts.length, 0, 'nothing reached the sidecar');
 
-  verifiers.k1 = k.verifier; // the memo was dropped: the next attempt mints and checks anew
+  // Fixing the registry lets the next open() succeed. (Each open() builds a fresh transition,
+  // so the memo drop itself is pinned at the decorator below, not here.)
+  verifiers.k1 = k.verifier;
   const opened = await handles.operator.open(stagedRef);
   assert.equal(opened.status, 'ok');
   if (opened.status !== 'ok') return;
@@ -122,7 +141,8 @@ test('mint check: a verifier that throws during the check propagates with its ca
       throw boom;
     },
   };
-  const handles = build({ signer: k.signer('k1'), verifiers, signatures }, store);
+  const spy = spySidecar(signatures);
+  const handles = build({ signer: k.signer('k1'), verifiers, signatures: spy.sidecar }, store);
   const stagedRef = await stageOk(handles, 'subject:mc-4');
   let caught: unknown;
   try {
@@ -133,6 +153,7 @@ test('mint check: a verifier that throws during the check propagates with its ca
   assert.ok(caught instanceof Error, 'open() threw');
   assert.equal((caught as Error).cause, boom);
   assert.equal(await store.findNonTerminal(PROFILE_ID, 'subject:mc-4'), null);
+  assert.equal(spy.puts.length, 0, 'nothing reached the sidecar');
 
   verifiers.k1 = k.verifier;
   const opened = await handles.operator.open(stagedRef);
@@ -306,4 +327,32 @@ test('key retirement, the OLD shape: an instance whose signer still uses a key i
       `no orphan minted (call ${call})`,
     );
   }
+});
+
+test('a failed mint check drops the memo: the SAME transition object, appended again after the registry is repaired, succeeds and re-mints', async () => {
+  const k = keyPair();
+  const store = new MemoryStore();
+  const signatures = new MemorySignatureStore();
+  const verifiers: Record<string, Verifier> = {};
+  let mints = 0;
+  const base = k.signer('k1');
+  const signer: Signer = async (bytes) => {
+    mints += 1;
+    return base(bytes);
+  };
+  const decorated = withSigning({ signer, verifiers, signatures }, store, () => true);
+  const genesis = storeGenesis('rec-memo-drop', PROFILE_ID, 'subject:memo-drop');
+
+  await assert.rejects(
+    () => decorated.appendTransition(null, genesis, { nonTerminal: true }),
+    /k1/,
+  );
+  assert.equal(mints, 1);
+  assert.equal((await store.readChain('rec-memo-drop')).length, 0, 'nothing appended');
+
+  verifiers.k1 = k.verifier;
+  const res = await decorated.appendTransition(null, genesis, { nonTerminal: true });
+  assert.equal(res.appended, true);
+  assert.equal(mints, 2, 'the failed mint was not remembered: the signer ran again');
+  assert.equal((await signatures.listByRecord('rec-memo-drop')).length, 1);
 });
