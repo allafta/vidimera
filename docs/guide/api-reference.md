@@ -596,8 +596,9 @@ verifier for reads there as carrying no obligation. Per site: the operator seams
 `unknown-profile` and append nothing, where a holder would draw `chain-compromise`; a
 successor leg's `open()` refuses `prior-leg-unverified`; and a `supersedes` claim over a
 terminal non-`confirmed` predecessor verifies, while one over a `confirmed` predecessor
-refuses `supersedes-unverified`. The operator seams make the same held-profile comparison
-and refuse `unknown-profile` when they do not hold the profile.
+refuses `supersedes-unverified`. Where the obligation does apply and the layer fails, an
+operator seam draws its `chain-compromise` evidence edge first, holder or not (SPEC §4's
+exception), and the cross-record verifications refuse their claims.
 So `drifted` names exactly why a seam refused, or will — read the two fields together, and
 treat `drifted` on any record as a configuration event: restore the profile's declarative
 fields exactly, or keep the old version registered under its id and give the edit a new one.

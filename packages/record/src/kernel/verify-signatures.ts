@@ -80,8 +80,9 @@ export interface SignatureReport {
    * binding), so there is nothing to compare. REPORTING ONLY, like `orphans`: no gate reads
    * THIS field and `signatureLayerHolds` never computes it. The refusal lives elsewhere: since
    * the profile-drift gate every seam that resolves a persisted record applies the same
-   * comparison through `kernel/held-profile.ts` and refuses `unknown-profile` when it does
-   * not hold the profile (SPEC §4, §8) — so `drifted` here names exactly why such a seam
+   * comparison through `kernel/held-profile.ts` and, at the operator seams, refuses
+   * `unknown-profile` when it does not hold the profile (SPEC §4, §8) — the cross-record
+   * verifications fold the miss into their own claim refusals — so `drifted` here names exactly why such a seam
    * refused, or will. The comparison itself is what SPEC §4 promised the binding for ("the
    * governing profile is detectable on replay").
    */

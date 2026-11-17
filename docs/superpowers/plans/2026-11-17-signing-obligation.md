@@ -91,7 +91,7 @@ committed together with their `docs/superpowers/INDEX.md` row and file counts.
   - `add-signing: supersedes over a declined predecessor verifies and the new record opens; over a confirmed predecessor it refuses supersedes-unverified`
   - `add-signing on one SqliteStore file redeployed in place: finalize and seal refuse unknown-profile and the records keep their state` (opener closed before the edited instance opens the file; a temp file under `os.tmpdir()`, removed in `finally`)
   - `the exception keeps its reach: a ttl-edited signing sibling draws chain-compromise on a signing record whose later entry is broken — one edge`
-  - `the exception gains the drop direction: a sibling that dropped signing but keeps the verifier draws chain-compromise on the same break — one edge`
+  - `the exception gains the drop direction: a sibling that dropped signing but keeps the verifier draws chain-compromise on the same break — one edge` (withdrawn by the design's §8 amendment after the whole-branch review: the pin was inverted to "refuses unknown-profile with no edge", and a key-gap pin added)
   - `the bound: with the genesis entry deleted, and separately broken, a ttl-edited signing sibling refuses unknown-profile with no edge, while the holder refuses chain-compromise`
   Every refusal is asserted whole (status, code, class, and `transitionRef` absent for
   never-append refusals); every no-edge claim is a chain-length comparison.

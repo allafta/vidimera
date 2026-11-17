@@ -1,7 +1,7 @@
 // @vidimera/record — signing-obligation.test.ts: the AL2 obligation a verification site applies
 // comes from the profile this instance HOLDS for the record (kernel/held-profile.ts), and, where
-// the instance does not hold it, from the chain's own evidence — a genesis transition whose
-// sidecar entry the instance's verifier accepts. The recorded bug this closes: the obligation
+// the instance does not hold it, from the live same-id profile's declaration only when the
+// chain's own genesis carries a sidecar entry the instance's verifier accepts. The recorded bug this closes: the obligation
 // was read from the live same-id profile, so an instance holding `{ ...P, signing: true }` read
 // every never-signed record opened under `P` as a signing chain with no signatures, and every
 // operator seam appended a terminal `chain-compromise` edge to an untampered record. Pinned
@@ -623,6 +623,7 @@ test('the recorded residual at supersedes: a terminal non-confirmed predecessor 
   assert.equal(refused.status, 'refused', 'the holder enforces the layer');
   if (refused.status === 'refused') {
     assert.equal(refused.code, 'supersedes-unverified');
+    assert.equal(refused.class, 'refusal');
     assert.equal((refused as { transitionRef?: unknown }).transitionRef, undefined);
   }
   const verified = await claimSupersedes(sibling, store, recordId, 'subject:ob-15');
