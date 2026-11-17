@@ -18,7 +18,7 @@ the increment was written, which the code and the status doc may have since move
 A reader chasing current behavior reads the code and the status doc; a reader chasing how
 a past decision was reached reads the matching row below.
 
-**46 files in `specs/`, 49 in `plans/`** — not one-to-one. Three
+**47 files in `specs/`, 50 in `plans/`** — not one-to-one. Three
 plans carry no spec: the two step-1 completion/remediation plans
 (`2026-08-03-autonomous-step-1-completion.md`, `2026-08-03-step-1-remediation.md`) and
 this housekeeping plan's own (`2026-08-18-post-build-order-housekeeping.md`). Each is
@@ -84,3 +84,4 @@ close.
 | 2026-11-17 | Chain binding — every loaded chain bound to the recordId it was loaded for, every library-built transition addressed by the caller's id, and the non-verifying reads throwing on foreign persisted data, closing a relocation route past AL1 and AL2 reported by an external analysis | Post-build-order (no step) | [design](specs/2026-11-17-chain-binding-design.md) | [plan](plans/2026-11-17-chain-binding.md) |
 | 2026-11-17 | Identity snapshot — every seam records the `{ principal, authority, proofRef? }` literal it validated, never the caller's object; the read side fails closed on a recorded actor that is not a valid identity; `MemoryStore` refuses an append whose stored copy would digest differently | Post-build-order (no step) | [design](specs/2026-11-17-identity-snapshot-design.md) | [plan](plans/2026-11-17-identity-snapshot.md) |
 | 2026-11-17 | Signing obligation — the AL2 obligation every verification site enforces comes from the profile the instance holds for the record, or, where it does not hold it, from the live same-id declaration only when the chain's own genesis verifies (amended after the whole-branch review), so a same-id edit that adds `signing: true` refuses `unknown-profile` with no edge instead of writing `chain-compromise` into untampered records | Post-build-order (no step) | [design](specs/2026-11-17-signing-obligation-design.md) | [plan](plans/2026-11-17-signing-obligation.md) |
+| 2026-11-17 | Supersedes binding — `verifySupersedes` requires the instance to hold the predecessor's profile (id and digest) for every terminal state, not only `confirmed`, as SPEC §4's fold sentence states, so a forged terminal predecessor naming a profile the instance does not hold refuses `supersedes-unverified`; the fifteenth self-authored inversion | Post-build-order (no step) | [design](specs/2026-11-17-supersedes-binding-design.md) | [plan](plans/2026-11-17-supersedes-binding.md) |
