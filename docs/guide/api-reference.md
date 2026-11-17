@@ -582,8 +582,17 @@ that reading: `matches` when the live profile's data-only projection digests to 
 `profileDigest`, `drifted` when the id resolves to a profile that digests differently
 (`signing` is a covered field, so is every other declarative field — a `ttl` edit lands here
 too), `unresolvable` when there is nothing to compare against.
-The field itself is reporting only, exactly as `orphans` is; the refusal lives at the seams,
-which make the same comparison and refuse `unknown-profile` when they do not hold the profile.
+The field itself is reporting only, exactly as `orphans` is, and it reads the same way in the
+other direction: a same-id profile that has since ADDED `signing: true` makes a never-signed
+record read `signingDeclared: true`. No seam acts on either reading. The obligation a seam
+applies to the signature layer is the held profile's `signing` when the instance holds the
+record's profile, and otherwise whether the genesis transition carries a sidecar entry this
+instance's verifier accepts — so an instance that does not hold the profile enforces the layer
+only on a chain whose genesis entry verifies, and a signing record whose genesis entry was
+removed, fails, or names a key it holds no verifier for reads there as carrying no obligation
+(the seam refuses `unknown-profile` and appends nothing, where a holder would draw
+`chain-compromise`). The refusal lives at the seams, which make the same comparison and
+refuse `unknown-profile` when they do not hold the profile.
 So `drifted` names exactly why a seam refused, or will — read the two fields together, and
 treat `drifted` on any record as a configuration event: restore the profile's declarative
 fields exactly, or keep the old version registered under its id and give the edit a new one.

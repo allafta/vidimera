@@ -113,11 +113,11 @@ any one exit.
   proved only that the step ran; this document's gate outputs were measured locally and
   stand. See the dedicated section at the end of this document; the numbers immediately
   below already include it.
-- **Measured against the current tree** (re-measured at the identity-snapshot increment,
-  2026-11-17): `pnpm test` — 79 test files, 1068 tests, zero skips
+- **Measured against the current tree** (re-measured at the signing-obligation increment,
+  2026-11-17): `pnpm test` — 80 test files, 1077 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
-  `pnpm lint` (`biome check .`) — 151 files checked, zero errors or warnings;
+  `pnpm lint` (`biome check .`) — 152 files checked, zero errors or warnings;
   `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 25 refusal codes, the twenty-fifth being
@@ -5674,3 +5674,116 @@ previous increment — and runs in CI on the pull request. Nothing in this incre
 either manifest, the build configuration or `packages/store-postgres`. `CLAUDE.md`'s measured
 sentence moved to 79 files / 1068 tests with the fix wave, as the earlier increments' records
 moved it.
+
+## Post-build-order increment — Signing obligation
+
+**The twenty-seventh post-build-order increment, exited (branch `signing-obligation-2026-11-17`,
+stacked on `identity-snapshot-2026-11-17` at `1dde68b`: the design-and-plan commit `10998f2`, the
+code-and-pins commit `4705ded`, and this record commit, which `git log 1dde68b..HEAD` enumerates).**
+No sealed-set edit, no marker move, no new refusal code, and no change to `index.ts`, either
+manifest, any store file, `packages/store-postgres`, the seven verification call sites or the
+`SignatureReport` type. **No inversion** — the Inversions paragraph below says why. The design is
+`docs/superpowers/specs/2026-11-17-signing-obligation-design.md` — its §3 argues why no sanction
+is needed and none is claimed — and the plan is
+`docs/superpowers/plans/2026-11-17-signing-obligation.md`.
+
+**What it closes.** The AL2 obligation every verification site enforces was read from the live
+profile registered under the genesis `profileId`, with no comparison against the genesis
+`profileDigest`. An instance holding `{ ...P, signing: true }` over records opened under
+non-signing `P` read each as a signing chain with no signatures, and every operator seam
+appended a terminal `chain-compromise` edge to an untampered record: open records through
+`finalize`, `decline` and the findings seams, confirmed records through `seal`'s compromise
+carve-out and the redemption seams, which could then never redeem; restoring `P` exactly met
+`record-not-open`. The drop direction had been closed by the profile-drift gate; the add direction
+never was. What this buys a host, with its limit: an in-place edit that adds `signing: true`
+refuses `unknown-profile`, never-append, instead of destroying the records it touches — and an
+instance that does not hold a record's profile still cannot tell every signing chain from a
+never-signed one (the bound below).
+
+**What landed, commit by commit.**
+
+- `10998f2` — the design, the plan and their `docs/superpowers/INDEX.md` row and counts.
+- `4705ded` — one rule inside `layerVerdicts` (`kernel/verify-signatures.ts`), the correlation
+  core `signatureLayerHolds` and `verifySignatures` share. `layerVerdicts` now returns an
+  `obligation` beside `signingDeclared`: the held profile's `signing` when the instance holds the
+  record's profile (`heldProfile`: the id registered AND its live digest equal to the genesis
+  `profileDigest`), and otherwise whether the chain's first transition was reported `signed` and
+  `verified` by the walk that already verifies every transition — no new sidecar read, no second
+  verifier call. `signatureLayerHolds` enforces the layer exactly when the obligation is true.
+  The add direction refuses `unknown-profile` with no edge at `finalize`, `decline`,
+  `raiseFinding`, `acknowledge`, `redeem`, `beginRedemption`, `completeRedemption` and `seal`; a
+  successor leg's `open()` refuses `prior-leg-unverified`; a `supersedes` claim over a declined
+  predecessor verifies and over a confirmed one refuses `supersedes-unverified` (the binding
+  fold, as for every other drift). The exception SPEC §4 names keeps its reach and gains the
+  drop direction: a sibling that dropped `signing` but keeps the verifier now detects a broken
+  later signature and draws `chain-compromise`, one edge. `config.ts`'s `signing` comment and
+  `operator-surface.ts`'s `verifySignatures` comment state the rule. Nine pins in
+  `test/signing-obligation.test.ts`: the four operator-seam families, the redemption seams,
+  `seal`, a successor `open()` and `supersedes` on `MemoryStore`; `finalize` and `seal` on one
+  `SqliteStore` file redeployed in place; the exception both ways; the genesis-entry bound.
+- This commit, the record — `docs/guide/integrating.md` (the bullet on losing `signing` in place
+  now covers gaining it and states the bound; one sentence after the AL2 sample says enabling
+  AL2 on a profile with records is a profile edit — new id, old one kept registered; the sample
+  itself is unchanged, so it needed no re-run), `docs/guide/api-reference.md` (the
+  `signingDeclared` paragraph says the seams apply the held profile's obligation, not that
+  reading), `CHANGELOG.md`, this section, and `CLAUDE.md`'s measured sentence.
+
+**The report is unchanged.** `verifySignatures` keeps every field and value: `signingDeclared`
+is still the live profile's declaration and is reporting only, in both directions now — a
+same-id profile that adds `signing: true` makes a never-signed record read `signingDeclared:
+true`, and no seam acts on it. `genesisProfile` keeps naming the drift.
+
+**The profile-drift gate's sentence, made true for both directions.** That gate's design §5
+says "`signingDeclared` is still computed from the live profile, but that computation no longer
+reaches a seam that could act on it." It held only for the drop direction: a non-signing live
+profile read `signingDeclared: false`, the layer passed and resolution refused. For the add
+direction the live reading did reach every seam. After this increment it is true for both — the
+claim is made true, not reversed. A consequence the drop direction did not have before: a
+drop-direction sibling that keeps the verifier now has the obligation applied (it gains
+detection of a broken signing chain, SPEC §4's exception) where before the layer never ran on
+it.
+
+**The honest bound (design ruling 5.4).** An instance that does not hold a record's profile
+cannot tell a never-signed record from a signing record whose genesis entry was removed, whose
+genesis key it holds no verifier for, or whose genesis entry fails. It reads all three as
+carrying no obligation, refuses `unknown-profile` and appends nothing, while a holder of the
+profile still draws `chain-compromise`. A planted or broken genesis entry is the ambiguous case
+— a tampered signing chain, or garbage a storage-writing insider put into a never-signed
+record's sidecar — and the rule takes the write-nothing side of it; only an entry the
+instance's own verifier accepts counts. One case narrows, and no earlier pin covered it: a
+same-id signing sibling (a `ttl` edit, say) over a signing record whose GENESIS entry is broken
+drew the edge before and refuses `unknown-profile` after. Stated in
+`kernel/verify-signatures.ts`, in both guide pages and the changelog, and pinned.
+
+**Open, and not done here.**
+
+- **The `supersedes` fold for every predecessor state.** A forged predecessor under an
+  unregistered or non-signing profile still binds through `supersedes` for a terminal
+  non-`confirmed` state, as before. Folding the binding for every predecessor state, and
+  refusing an unheld predecessor, reverses a recorded stance (the confirmed-only fold) and
+  narrows recovery, so it needs its own argument.
+- **Rehoming.** A storage-writing insider rewriting a signing record's genesis onto a
+  co-registered non-signing profile with a consistent digest is unchanged; closing it needs an
+  obligation anchored outside the chain, which is a design question of its own.
+- **`review()`'s findings coverage** still reads the live profile.
+
+**Inversions.** None. The profile-drift gate's design §5 sentence is a claim this increment
+makes true, not a stance it reverses. The suite carried no pin of a drifted instance holding a
+verifier and refusing `unknown-profile` over a signature-broken signing chain (the drop-direction
+pins run without `config.signing`), so the gained detection inverts nothing, and no pin covered
+the narrowed genesis-broken case. No pinned assertion changed its truth value — the full suite
+stayed green with only the new file added — so the numbered sequence stays at fourteen.
+
+**Gate outputs, as measured on this branch at this commit.** `pnpm` fails on this machine, so
+each gate ran through the local binaries its script names. The whole suite — `vitest run` with
+the JSON reporter, then `node scripts/ci-assert-tests.mjs` over the report, the `pnpm test:ci`
+pair — 1077 tests in 80 files, zero skips (`ci-assert-tests: ok — 1077 tests in 80 files (85
+suites): 1077 passed, 0 failed, 0 skipped, 0 todo`), vitest exit 0. Against the 1068 in 79 the
+identity-snapshot increment last measured, the difference is nine tests and one file:
+`signing-obligation.test.ts`. Typecheck, both packages — exit 0; `biome check .` and
+`biome check --error-on-warnings .` — 152 files, exit 0 each; build, both packages'
+`tsconfig.build.json` — exit 0; `contract-scan`, `api-reference-sync` and `docs-index-sync` —
+exit 0, no output. **The packed-tarball smoke test was not run on the authoring machine** — the
+broken `pnpm` launcher stops `scripts/smoke-pack.mjs` at its adapter pack step — and runs in CI on
+the pull request. Nothing in this increment touches either manifest, the build configuration or
+`packages/store-postgres`. `CLAUDE.md`'s measured sentence moved to 80 files / 1077 tests.
