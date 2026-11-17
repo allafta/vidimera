@@ -176,7 +176,9 @@ function verifierFaultError(recordId: string, seq: number, keyRef: string, cause
  * no seam's outcome there (the read, `verifySignatures`, still propagates it); and where the
  * layer applies, a definite miss on any transition decides the gate before any fault is
  * rethrown. The limit, stated at its width: where this instance holds the record's profile, a
- * seam throws rather than drawing the edge only when no transition is a definite miss and some
+ * seam persistently throws rather than drawing the edge (an outage of the verifier the instance
+ * signs under only delays the edge, through the mint check) only when no transition is a
+ * definite miss and some
  * entry is a string the verifier cannot answer for — a malformed or planted signature string
  * that makes the host's verifier throw is that case, and it persists until the entry is
  * repaired, which is why the fault message names the entry's `seq` and `keyRef` and the
@@ -390,7 +392,9 @@ export async function verifySignatures(
  * applies, a definite miss on ANY transition already makes the layer fail, so it returns
  * `false` and the caller fails closed into its own code — `chain-compromise` at a seam, the
  * claim refusal at a cross-record verification — exactly as OPEN-QUESTIONS §1 decided for a
- * missing signature or an unresolvable key, whatever another transition's verifier did; only
+ * missing signature or an unresolvable key, whatever another transition's verifier did (the
+ * seam's edge itself still passes the mint check, so an outage of the verifier the instance
+ * signs under delays it until recovery); only
  * when no transition is a definite miss and some transition faulted is the
  * first fault in chain order rethrown, and then no caller appends. When the obligation is false
  * a fault is never seen. For an instance that does not hold the record's profile, a fault in

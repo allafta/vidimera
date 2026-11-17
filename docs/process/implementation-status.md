@@ -6290,11 +6290,13 @@ stood before the seam call, which only the layer makes. The per-fixture account 
 **The bound.** What still fails closed: a missing entry, a sidecar `keyRef` or `signature` that
 is not a string, a `false` or other non-`true` answer, and a `keyRef` that is not an own key of
 `verifiers` still read `verified: false` and still draw `chain-compromise` where the layer
-applies — on any transition, even while another transition's verifier faults. What does not
+applies — on any transition, even while another transition's verifier faults, unless the
+faulting verifier is the one the instance signs under, whose outage delays the edge's own mint
+check until it recovers (the availability coupling below). What does not
 change: a record the layer does not apply to is unaffected at every seam by a junk entry whose
 verifier throws, though `verifySignatures` on that record throws. The stuck-record limit, at its
-true width: on an instance that holds the record's profile, a seam throws instead of drawing the
-edge only when no transition is a definite miss and some entry is a string the verifier cannot
+true width: on an instance that holds the record's profile, a seam persistently throws instead
+of drawing the edge only when no transition is a definite miss and some entry is a string the verifier cannot
 answer for — a malformed or planted signature string that makes the host's verifier throw — and
 the record stays so until the entry is repaired; on an instance that does not hold it, a genesis
 fault throws as well, since the obligation rests on that answer. The guide asks a verifier to

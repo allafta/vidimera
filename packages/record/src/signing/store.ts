@@ -65,8 +65,10 @@ export type Signer = (bytes: Uint8Array) => Promise<{ keyRef: string; signature:
  * What the layer settles before it asks you: a sidecar entry whose `keyRef` or `signature` is
  * not a string is a miss and never reaches a verifier, and a definite miss on any transition
  * (no entry, a non-string field, an unregistered `keyRef`, a non-`true` answer) still refuses
- * `chain-compromise` even when another transition's verifier faults. So, on an instance that
- * holds the record's profile, a seam throws rather than drawing that edge only when no
+ * `chain-compromise` even when another transition's verifier faults — unless it is the verifier
+ * this instance signs under, whose outage delays the edge's own mint check until it recovers.
+ * So, on an instance that holds the record's profile, a seam persistently throws rather than
+ * drawing that edge only when no
  * transition is a definite miss and some entry is a string the verifier cannot answer for — a
  * malformed or planted signature string that makes it throw is exactly that case, and it
  * persists until the entry is repaired (a STUCK record, with nothing recording the tampering);

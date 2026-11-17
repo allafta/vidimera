@@ -643,8 +643,9 @@ a transition that is definitely unverified: no sidecar entry, an entry whose `ke
 the signature cannot be made to throw by a planted `null`), a `keyRef` that is not one you
 registered, or an answer other than the literal `true`. One such transition fails the layer
 closed — the seam draws or refuses `chain-compromise`, a cross-record verification refuses its
-claim — whatever another transition's verifier did, which is OPEN-QUESTIONS §1's decided
-posture for a missing signature and an unresolvable key. The limits, in the same breath: the
+claim — whatever another transition's verifier did (unless the faulting verifier is the one this instance signs under: its outage stops the
+compromise edge's own mint check, which delays the edge until the verifier recovers), which is OPEN-QUESTIONS
+§1's decided posture for a missing signature and an unresolvable key. The limits, in the same breath: the
 fault is seen only where the layer applies — on a record held as non-signing, a junk sidecar
 entry whose verifier throws changes no seam's outcome (the `verifySignatures` read still
 propagates it); and on an instance that does not hold the record's profile, a fault at the
@@ -679,8 +680,10 @@ one-phase rollout, a decided behavior and not a fault. A rolling deploy that sig
 new key on the first instance, before the others hold its verifier, is exactly that rollout.
 
 **The stuck-record limit, at its true width.** On an instance that holds the record's
-profile, a seam throws instead of drawing the evidence edge only when no transition is a
-definite miss and some entry is a string your verifier cannot answer for. A verifier that
+profile, a seam persistently throws instead of drawing the evidence edge only when no
+transition is a definite miss and some entry is a string your verifier cannot answer for (an
+outage of the verifier this instance signs under delays any edge, by the mint check, until it
+recovers — a delay, not a stuck record). A verifier that
 throws on a malformed or planted signature string, rather than answering `false`, produces
 exactly that: a record whose seams throw until the entry is repaired, with nothing appended
 and nothing recording the tampering. (On an instance that does not hold the profile, a

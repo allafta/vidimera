@@ -602,8 +602,10 @@ What you get, with its limits in the same breath:
   hide tampering either: a definite miss on any transition — no entry, a sidecar `keyRef` or
   `signature` that is not a string (never handed to your verifier), an unregistered `keyRef`,
   a `false` or other non-`true` answer — still fails the layer closed (`chain-compromise` at a
-  seam) even while another transition's verifier faults. The limit, at its true width: on an
-  instance that holds the record's profile, a seam throws instead of drawing the edge only when
+  seam) even while another transition's verifier faults — unless that verifier is the one the
+  instance signs under, whose outage delays the edge's own mint check until it recovers. The
+  limit, at its true width: on an instance that holds the record's profile, a seam persistently
+  throws instead of drawing the edge only when
   no transition is a definite miss and some entry is a string your verifier cannot answer for
   — a malformed or planted signature string that makes it throw is exactly that — and the
   record stays that way until the entry is repaired; on an instance that does not hold it, a

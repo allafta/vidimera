@@ -137,8 +137,8 @@ export interface OperatorSurface {
    * data: a chain whose rows carry another record's id throws, as `getRecord`, `replay` and
    * `review` do (SPEC §8). It also throws on a verifier fault: a verifier that throws or
    * rejects could not answer, so the read propagates the first such fault in chain order
-   * rather than report it as `verified: false` (a `false` answer and an unresolvable `keyRef`
-   * still report `verified: false`). Its `orphans` names the sidecar
+   * rather than report it as `verified: false` (a `false` answer, an unresolvable `keyRef`, and
+   * an entry whose `keyRef` or `signature` is not a string still report `verified: false`). Its `orphans` names the sidecar
    * entries with no chain counterpart, sorted — reporting only, read by no gate; the host
    * prunes them, the library never does. */
   verifySignatures(recordId: string): Promise<SignatureReport>;

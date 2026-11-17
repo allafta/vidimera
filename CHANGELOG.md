@@ -637,7 +637,9 @@ is the summary, and that file wins on conflict.
   A fault never outranks a definite miss: a missing entry, a sidecar `keyRef` or `signature`
   that is not a string (never handed to the verifier), an unresolvable `keyRef`, a `false` or
   another non-`true` answer on any transition still reads `verified: false` and still refuses
-  `chain-compromise`, even while another transition's verifier faults. A record the layer does
+  `chain-compromise`, even while another transition's verifier faults (unless it is the verifier
+  the instance signs under, whose outage delays the edge's own mint check until it recovers). A
+  record the layer does
   not apply to is unchanged by a junk entry whose verifier throws (the `verifySignatures` read
   still throws on it). The instance also checks every signature at the mint: the signer's
   `keyRef` must be an own key of `verifiers` and its verifier must answer the literal `true`, or
@@ -650,8 +652,8 @@ is the summary, and that file wins on conflict.
   guide states the verifier contract (answer `false` for any signature the verifier cannot
   parse) and the two-phase key rotation (a new key's verifier must reach every instance, and
   every configuration a deployment may roll back to, before any instance signs with it).
-  Limits: on an instance that holds the record's profile a seam throws instead of drawing the
-  edge only when no transition is a definite miss and some entry is a string the verifier cannot
+  Limits: on an instance that holds the record's profile a seam persistently throws instead of
+  drawing the edge only when no transition is a definite miss and some entry is a string the verifier cannot
   answer for — a malformed or planted signature string that makes it throw — and the record
   stays so until the entry is repaired (on an instance that does not hold the profile, a genesis
   fault throws as well); every signed append, `open()` included, now needs the instance's own
