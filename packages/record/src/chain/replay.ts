@@ -339,11 +339,15 @@ export type ChainVerifyReport =
  * specific diagnosis first —
  *  1. seq continuity: `chain[i].seq` must equal `i + 1` for every `i` (1-based, +1 per
  *     transition);
- *  2. record identity: every `chain[i].recordId` must equal `chain[0].recordId` — a chain
- *     is one record's. No store can persist a mixed chain (each backing keys the chain by
- *     the transition's own recordId), so this check exists for the exported offline read: a
- *     fabricated splice whose links were recomputed passes every other check and fails here;
- *  3. genesis: `chain[0].prevHash` must equal `genesisPrevHash(chain[0].recordId)`;
+ *  2. record identity: every `chain[i].recordId` must equal the requested `recordId` — or,
+ *     when none is given, the genesis row's `chain[0].recordId`. A chain is one record's, and
+ *     that id is what binds it to its record: the SQL backings key a read by a `record_id`
+ *     column that the row's own JSON need not match, so a store can hand back another
+ *     record's rows, or a splice, under the id that was asked for. Pass `recordId` whenever
+ *     the chain was fetched for a known id (and in an offline audit of an archived chain,
+ *     the id it is supposed to belong to); without it a wholly relocated chain verifies
+ *     clean, because it is compared only with itself;
+ *  3. genesis: `chain[0].prevHash` must equal `genesisPrevHash` of that same id;
  *  4. every subsequent `chain[i].prevHash` must equal `transitionDigest(chain[i-1])`
  *     (recomputed under `chain[i-1]`'s own recorded algorithm, via `encoding.ts`).
  * Reports `{intact:true}` if every check passes, or `{intact:false, firstBreakSeq,
@@ -365,19 +369,20 @@ export type ChainVerifyReport =
  * integrity of a chain that does not exist is a caller error, not a vacuous
  * `{intact:true}`.
  */
-export function verifyChain(chain: readonly Transition[]): ChainVerifyReport {
-  if (chain.length === 0) {
+export function verifyChain(chain: readonly Transition[], recordId?: string): ChainVerifyReport {
+  const genesis = chain[0];
+  if (genesis === undefined) {
     throw new Error(
       'verifyChain: empty chain (verifying a chain that does not exist is a caller error)',
     );
   }
 
   let expectedPrevHash: Digest | undefined;
-  const genesisRecordId = chain[0]?.recordId;
+  const expectedRecordId = recordId ?? genesis.recordId;
 
   for (const [i, transition] of chain.entries()) {
     const expectedSeq = i + 1;
-    expectedPrevHash ??= genesisPrevHash(transition.recordId);
+    expectedPrevHash ??= genesisPrevHash(expectedRecordId);
 
     if (transition.seq !== expectedSeq) {
       return {
@@ -387,11 +392,14 @@ export function verifyChain(chain: readonly Transition[]): ChainVerifyReport {
       };
     }
 
-    if (transition.recordId !== genesisRecordId) {
+    if (transition.recordId !== expectedRecordId) {
       return {
         intact: false,
         firstBreakSeq: expectedSeq,
-        detail: `recordId mismatch at seq ${expectedSeq}: expected '${genesisRecordId}' (the genesis recordId — a chain is one record's), found '${transition.recordId}'`,
+        detail:
+          recordId === undefined
+            ? `recordId mismatch at seq ${expectedSeq}: expected '${expectedRecordId}' (the genesis recordId — a chain is one record's), found '${transition.recordId}'`
+            : `recordId mismatch at seq ${expectedSeq}: expected '${expectedRecordId}' (the requested recordId), found '${transition.recordId}'`,
       };
     }
 
