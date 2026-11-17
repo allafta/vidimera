@@ -4,8 +4,9 @@
 code, no change to `index.ts`, either manifest, or any public type. Behavior change: the AL2
 signature obligation every verification site applies comes from the profile this instance
 HOLDS for the record — the same `kernel/held-profile.ts` comparison every seam already makes —
-and, where the instance does not hold it, from the chain's own evidence: a genesis transition
-whose sidecar entry verifies. A same-id profile edit that ADDS `signing: true` now refuses
+and, where the instance does not hold it, from the live same-id profile's declaration only when
+the chain's own genesis carries a sidecar entry this instance verifies (as amended after the
+whole-branch review, §8). A same-id profile edit that ADDS `signing: true` now refuses
 `unknown-profile`, never-append, at every operator seam, instead of writing a terminal
 `chain-compromise` edge into untampered records. Sanction: none needed, and none claimed — §3
 says why.**
@@ -206,3 +207,48 @@ the fixture used to break one later entry (the existing `breakOneSignature` help
 Every repository gate green except `smoke`, which cannot run on the authoring machine and runs
 in CI on the pull request. No existing assertion changes its truth value; the byte-stability
 digests do not move.
+
+## 8. Amendment after the whole-branch review (binding; it replaces 5.1, goal 4 and the parts of 5.4–5.5 it names)
+
+The whole-branch review found two consequences of ruling 5.1 as first written:
+
+- **A non-holder that keeps a verifier enforced the whole layer.** Under 5.1, a sibling that
+  dropped `signing` but kept `config.signing` enforced every transition once the genesis
+  verified. A later transition signed under a key it holds no verifier for (a rotation not
+  mirrored on it), or a verifier that throws, then drew `chain-compromise` — unsigned, since
+  the decorator decides by the live profile — on an untampered record. That breaks anti-goal 1.
+  Goal 4's "gained detection" is what bought that path.
+- **`supersedes` verifies in the narrowed case.** A terminal non-`confirmed` predecessor gets no
+  binding check there, so "no obligation" makes the claim verify where it refused before: a
+  same-id signing sibling over a signing predecessor whose genesis entry was removed and whose
+  head carries a forged unsigned edge; and a forged chain naming a registered signing id with a
+  `profileDigest` that does not match it. The insider gains no capability — a forged chain
+  naming an unregistered id already verified there, before and after — but the record said
+  "refuses" for every site.
+
+**8.1 The rule, amended.** Where the instance holds the profile: `held.profile.signing ===
+true`, unchanged. Where it does not: the live same-id profile declares `signing: true`
+(`signingDeclared`, today's reading) AND the genesis transition was reported `signed` and
+`verified` by the same walk. Against the code before this increment the only change is the
+case "not held, live profile signing, genesis not verified": the add direction (fixed) and a
+signing sibling over a signing record whose genesis entry is missing, broken or names a key it
+cannot verify (narrowed, 8.2). The drop direction is exactly as it was: no obligation, no edge,
+`unknown-profile`. Goal 4 is withdrawn; anti-goal 1 holds.
+
+**8.2 The bound, per site.** A same-id signing sibling over a signing record whose genesis
+entry is missing, broken, or names a key it holds no verifier for reads no obligation. At the
+five operator seams it refuses `unknown-profile` and appends nothing, where it drew
+`chain-compromise` before; a holder still draws it. At `prior-legs` it refuses
+`prior-leg-unverified`, as before (the binding fold). At `supersedes` a `confirmed`
+predecessor refuses (the binding fold) and a terminal non-`confirmed` predecessor VERIFIES,
+where it refused before. A forged predecessor chain that names a registered signing id with a
+non-matching `profileDigest` verifies there too. Both join the existing residual — a forged
+predecessor under an unregistered id — which the next increment's question (folding the binding
+for every predecessor state) closes. Stated per site in the guide, the CHANGELOG, the status
+record and `kernel/verify-signatures.ts`; pinned.
+
+**8.3 Pins, amended.** The drop-direction exception pin becomes its opposite: a sibling that
+dropped `signing` but keeps the verifier refuses `unknown-profile` with no edge over a signing
+record with a later entry broken, and over one whose later transition was signed under a key it
+holds no verifier for. The bound gains the no-verifier genesis case and the `supersedes`
+acceptance of 8.2 (both cases). The ttl exception pin asserts the sibling reads `drifted`.
