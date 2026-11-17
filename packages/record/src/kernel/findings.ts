@@ -12,7 +12,8 @@
 // half that makes the finalize half of that sentence real has since arrived.
 
 import type { LegSpec } from '../config.js';
-import type { RecordedAck, RecordedFinding } from '../types.js';
+import type { IdentityAssertion, RecordedAck, RecordedFinding } from '../types.js';
+import { identitySnapshot } from './finalize.js';
 
 /** The three ack modes SPEC §10.2 declares, relative to a finding's raiser. */
 export type AckMode = NonNullable<LegSpec['ackMode']>;
@@ -23,6 +24,30 @@ export type FindingCoverage = 'covered' | 'ack-missing' | 'ack-stale' | 'not-req
 
 function isNonEmptyString(value: string): boolean {
   return value.length > 0;
+}
+
+/**
+ * The principal of a recorded `raiser`/`acker`, read through `identitySnapshot`. A recorded
+ * identity that is not a valid one (a `{}` written before the seams recorded validated
+ * literals) has no principal to compare: a garbled or foreign chain is a storage/config fault,
+ * not a domain outcome (SPEC §8), so it throws instead of reading a property of it.
+ */
+function recordedPrincipal(
+  finding: RecordedFinding,
+  field: 'raiser' | 'acker',
+  recorded: IdentityAssertion,
+): string {
+  const snapshot = identitySnapshot(recorded);
+  if (snapshot === null) {
+    // An EMPTY-string principal on an otherwise object-shaped identity keeps its older,
+    // narrower meaning — "missing principal fails closed" (the caller's `isNonEmptyString`
+    // check returns `false`, never a throw) — so it is handed back as-is.
+    if (typeof recorded === 'object' && recorded !== null && recorded.principal === '') return '';
+    throw new Error(
+      `ackCounts: finding '${finding.findingId}' carries a recorded ${field} that is not a valid identity — a garbled or foreign chain is a storage/config fault, not a domain outcome (SPEC §8)`,
+    );
+  }
+  return snapshot.principal;
 }
 
 /**
@@ -52,8 +77,8 @@ export function ackCounts(finding: RecordedFinding, ack: RecordedAck, ackMode: A
   if ((finding.magnitude !== undefined) !== (ack.magnitude !== undefined)) return false;
   if (finding.magnitude !== undefined && finding.magnitude !== ack.magnitude) return false;
 
-  const raiserPrincipal = finding.raiser.principal;
-  const ackerPrincipal = ack.acker.principal;
+  const raiserPrincipal = recordedPrincipal(finding, 'raiser', finding.raiser);
+  const ackerPrincipal = recordedPrincipal(finding, 'acker', ack.acker);
   if (!isNonEmptyString(raiserPrincipal) || !isNonEmptyString(ackerPrincipal)) return false;
 
   const samePrincipal = raiserPrincipal === ackerPrincipal;

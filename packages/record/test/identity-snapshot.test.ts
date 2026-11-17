@@ -25,8 +25,14 @@ import { create } from '../src/create.js';
 import type { Outcome } from '../src/outcome.js';
 import { MemoryStore } from '../src/store/memory.js';
 import { SqliteStore } from '../src/store/sqlite.js';
-import type { Store } from '../src/store/store.js';
-import type { Digest, IdentityAssertion, Transition } from '../src/types.js';
+import type { AppendMeta, AppendResult, BatchResult, Store } from '../src/store/store.js';
+import type {
+  Digest,
+  IdentityAssertion,
+  RecordState,
+  StagedDraft,
+  Transition,
+} from '../src/types.js';
 import {
   captureProfile,
   facts,
@@ -173,6 +179,27 @@ const SITES: Site[] = [
       (payloadOf(chain, (t) => t.kind === 'declined') as { actor: unknown }).actor,
   },
   {
+    site: 'decline facts.checker',
+    principal: 'svc:review',
+    authority: 'mtls:review',
+    call: (h, id, who) => h.operator.decline(id, identity(), CONTENT, facts({ checker: who })),
+    recorded: (chain) =>
+      (payloadOf(chain, consultationNamed('facts')) as { checker: unknown }).checker,
+  },
+  {
+    site: 'decline consultation checker',
+    principal: 'svc:risk',
+    authority: 'mtls:risk',
+    call: (h, id, who) =>
+      h.operator.decline(id, identity(), CONTENT, facts(), {
+        consultations: [
+          { kind: 'risk-check', checker: who, payloadDigest: DIGEST, verdict: 'pass' },
+        ],
+      }),
+    recorded: (chain) =>
+      (payloadOf(chain, consultationNamed('risk-check')) as { checker: unknown }).checker,
+  },
+  {
     site: 'raiseFinding raiser',
     principal: 'checker:snap',
     authority: 'mtls:checker',
@@ -288,14 +315,58 @@ test('a getter read once', async () => {
   assert.equal(actor.principal, 'alice');
 });
 
-test('mutation after the call changes nothing recorded', async () => {
-  const { store, handles, recordId } = await flowRecord('subject:mutation-after');
+/** Wraps a MemoryStore and keeps every transition OBJECT handed to an append, by reference —
+ * the one place a seam embedding the caller's identity object would be visible, since both
+ * real backings copy on write. */
+class CapturingStore implements Store {
+  readonly captured: Transition[] = [];
+  readonly inner = new MemoryStore();
+  putStaged(s: StagedDraft): Promise<void> {
+    return this.inner.putStaged(s);
+  }
+  getStaged(r: string): Promise<StagedDraft | null> {
+    return this.inner.getStaged(r);
+  }
+  chainHead(r: string): Promise<Digest | null> {
+    return this.inner.chainHead(r);
+  }
+  appendTransition(e: RecordState | null, t: Transition, m: AppendMeta): Promise<AppendResult> {
+    this.captured.push(t);
+    return this.inner.appendTransition(e, t, m);
+  }
+  appendBatch(e: RecordState, ts: readonly Transition[], m: AppendMeta): Promise<BatchResult> {
+    this.captured.push(...ts);
+    return this.inner.appendBatch(e, ts, m);
+  }
+  readChain(r: string): Promise<Transition[]> {
+    return this.inner.readChain(r);
+  }
+  listDue(now: Date): Promise<string[]> {
+    return this.inner.listDue(now);
+  }
+  findNonTerminal(p: string, s: string): Promise<string | null> {
+    return this.inner.findNonTerminal(p, s);
+  }
+}
+
+test('mutation after the call changes nothing recorded: the store was handed a copy of the identity', async () => {
+  const store = new CapturingStore();
+  const handles = create(makeConfig([flowProfile()], { store }));
+  const recordId = await openRecord(handles, CONTENT, FLOW_ID, 'subject:mutation-after');
   const who: IdentityAssertion = { principal: 'approver:snap', authority: APPROVER_AUTHORITY };
   const out = await handles.operator.finalize(recordId, who, CONTENT, facts());
   assertOk(out, 'finalize');
   who.principal = 'mallory';
-  const actor = (await recordedActor(store, recordId)) as { principal?: unknown };
-  assert.equal(actor.principal, 'approver:snap');
+
+  const confirmed = store.captured.find((t) => t.kind === 'confirmed');
+  assert.ok(confirmed !== undefined, 'fixture: the store was handed a confirmed transition');
+  const actor = (confirmed.payload as { actor: unknown }).actor;
+  assert.notEqual(actor, who, 'the store must not be handed the identity object itself');
+  assert.deepEqual(actor, { principal: 'approver:snap', authority: APPROVER_AUTHORITY });
+  assert.equal(
+    ((await recordedActor(store, recordId)) as { principal?: unknown }).principal,
+    'approver:snap',
+  );
 });
 
 test('a throwing principal getter propagates', async () => {
@@ -324,7 +395,7 @@ function sodTwoLeg(): ConfirmProfile {
   const p = twoLegProfile({ id: TWO_LEG_ID });
   const checker = p.legs[1];
   if (checker === undefined) throw new Error('fixture: twoLegProfile has two legs');
-  p.legs[1] = { ...checker, sod: { notActorOf: ['maker-decide'] } };
+  p.legs[1] = { ...checker, decline: true, sod: { notActorOf: ['maker-decide'] } };
   return p;
 }
 
@@ -361,6 +432,26 @@ test('separation of duties holds for a getter-backed maker', async () => {
   const checkerId = await openChecker(handles, { recordId: makerId, chainHead: makerHead });
 
   const out = await handles.operator.finalize(
+    checkerId,
+    { principal: 'alice', authority: APPROVER_AUTHORITY },
+    CONTENT,
+    facts(),
+  );
+  assert.equal(out.status, 'refused', JSON.stringify(out));
+  if (out.status === 'refused') assert.equal(out.code, 'sod-violation');
+});
+
+test('separation of duties holds for decline after a getter-backed maker', async () => {
+  const store = new MemoryStore();
+  const handles = create(makeConfig([sodTwoLeg()], { store }));
+  const { makerId, makerHead } = await makerConfirmed(
+    handles,
+    store,
+    SHAPES.getters('alice', APPROVER_AUTHORITY),
+  );
+  const checkerId = await openChecker(handles, { recordId: makerId, chainHead: makerHead });
+
+  const out = await handles.operator.decline(
     checkerId,
     { principal: 'alice', authority: APPROVER_AUTHORITY },
     CONTENT,
@@ -448,7 +539,7 @@ test('a recorded {} prior actor is a storage fault: opening the successor leg th
     handles.operator.open(staged.value.stagedRef, {
       priorRecordRefs: [{ recordId: makerId, chainHead: transitionDigest(last) }],
     }),
-    /garbled or foreign chain/,
+    /actor that is not a valid identity in its confirmed payload/,
   );
 });
 
@@ -484,3 +575,54 @@ test('a recorded {} prior actor is a storage fault: a successor whose genesis pr
     /prior-leg actor .* is not a valid identity — a garbled or foreign chain/,
   );
 });
+
+// --- the findings read side fails closed too ---------------------------------------------------
+
+async function ackedFlowRecord(subjectRef: string) {
+  const inner = new MemoryStore();
+  const honest = create(makeConfig([flowProfile()], { store: inner }));
+  const recordId = await openRecord(honest, CONTENT, FLOW_ID, subjectRef);
+  assertOk(
+    await honest.operator.raiseFinding(
+      recordId,
+      { findingId: 'f-1', kind: 'variance', findingDigest: DIGEST },
+      identity({ principal: 'checker:1', authority: 'mtls:checker' }),
+    ),
+    'raiseFinding',
+  );
+  assertOk(
+    await honest.operator.acknowledge(
+      recordId,
+      { findingId: 'f-1', findingDigest: DIGEST },
+      identity({ principal: 'approver:snap', authority: APPROVER_AUTHORITY }),
+    ),
+    'acknowledge',
+  );
+  return { inner, recordId };
+}
+
+for (const [kind, field] of [
+  ['acknowledged', 'acker'],
+  ['finding-raised', 'raiser'],
+] as const) {
+  test(`a recorded {} ${field} is a storage fault: finalize throws, naming the finding`, async () => {
+    const { inner, recordId } = await ackedFlowRecord(`subject:garbled-${field}`);
+    const tampering = new TamperingStore(
+      inner,
+      recordId,
+      rewritePayload(kind, (payload) => ({ ...payload, [field]: {} })),
+    );
+    const handles = create(makeConfig([flowProfile()], { store: tampering }));
+    assert.deepEqual(
+      await handles.operator.verifyChain(recordId),
+      { intact: true },
+      'fixture: the rewritten chain still verifies',
+    );
+    await assert.rejects(
+      handles.operator.finalize(recordId, identity(), CONTENT, facts()),
+      new RegExp(
+        `finding 'f-1' carries a recorded ${field} that is not a valid identity — a garbled or foreign chain is a storage/config fault, not a domain outcome \\(SPEC §8\\)`,
+      ),
+    );
+  });
+}

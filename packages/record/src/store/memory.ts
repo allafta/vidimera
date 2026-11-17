@@ -61,14 +61,16 @@ interface StoredRecord {
  * `structuredClone` before storing or returning it. `structuredClone` THROWS
  * `DataCloneError` on a function- or symbol-valued member anywhere in the object graph —
  * a STRICTER tolerance than `jcs.ts`'s own JCS pass (`hasNoJsonForm`), which SILENTLY
- * OMITS such a member rather than throwing (matching `JSON.stringify`). Concretely:
- * `kernel/finalize.ts` embeds the caller-supplied `identity` argument verbatim as
- * `payload.actor` (and `facts.checker` into a Consultation payload) — an `IdentityAssertion`
- * that is a plain `{principal, authority, proofRef?}` literal (SPEC §6) clones fine, but one
- * built as a class instance carrying a method would newly THROW at this seam, even though
- * `transitionDigest` already accepts it today (the method is silently dropped by JCS before
- * this clone ever runs, since the digest is always computed BEFORE the clone at both write
- * sites below).
+ * OMITS such a member rather than throwing (matching `JSON.stringify`). Concretely: a
+ * payload member that is a class instance carrying a method would newly THROW at this seam,
+ * even though `transitionDigest` accepts it (the method is silently dropped by JCS). The
+ * clone has a second, quieter divergence: it drops a prototype, and with it a prototype
+ * `toJSON` that JCS honours, so a clone can digest DIFFERENTLY from the object it copies.
+ * The kernel closes that for identities (`kernel/finalize.ts`'s `identitySnapshot` embeds a
+ * plain literal), but a store must not trust its callers for it: at every write site, after
+ * every conflict check, this class compares the clone's digest with the caller's transition's
+ * digest and THROWS on a difference, before any state changes. The digest returned from an
+ * append is therefore always the digest of the transition actually stored.
  *
  * DECISION: use plain `structuredClone` and accept the throw as a deliberate narrowing —
  *  1. it is the reference implementation's own choice for this same fix; diverging here
@@ -90,6 +92,21 @@ interface StoredRecord {
  * Pinned by store-constraints.test.ts's "a payload member carrying a FUNCTION ... throws
  * DataCloneError" tests, so this choice cannot drift silently.
  */
+
+/**
+ * Clones `transition` and returns the clone, or throws when the clone's digest is not
+ * `digest` (the caller's transition's own) — a prototype `toJSON` or another non-plain member
+ * the clone does not carry. Pure: it touches no store state, so a throw leaves nothing behind.
+ */
+function cloneSameDigest(transition: Transition, digest: Digest): Transition {
+  const clone = structuredClone(transition);
+  if (transitionDigest(clone) !== digest) {
+    throw new Error(
+      `MemoryStore: transition seq ${transition.seq} of record '${transition.recordId}' does not survive a structured clone with the same digest (a prototype toJSON or another non-plain member) — refusing to store a chain that digests differently from what the append returns`,
+    );
+  }
+  return clone;
+}
 
 /**
  * The provisional in-memory `Store` (DECISIONS.md #24: "reference semantics, never
@@ -226,6 +243,7 @@ export class MemoryStore implements Store {
     // the two write paths' clone choice (see the store-clone decision comment above the
     // class) never moves a canonical byte, because it runs strictly after this line.
     const digest = transitionDigest(transition);
+    const stored = cloneSameDigest(transition, digest);
     this.records.set(transition.recordId, {
       id: transition.recordId,
       profileId: payload.profileId,
@@ -239,7 +257,7 @@ export class MemoryStore implements Store {
       // retry as a distinct object; named rather than line-pinned, because the previous pin
       // here went stale) — the caller's object must not become a live write handle into
       // what gets persisted here.
-      chain: [structuredClone(transition)],
+      chain: [stored],
       sealed: false,
     });
     return { appended: true, seq: transition.seq, transitionDigest: digest };
@@ -300,11 +318,11 @@ export class MemoryStore implements Store {
     // The digest is computed from the ORIGINAL object, before the clone-on-write below —
     // see the note in `appendGenesis` and the store-clone decision comment above the class.
     const digest = transitionDigest(transition);
-    // Clone on write: `kernel/finalize.ts` embeds the caller-supplied `identity` argument
-    // verbatim as `payload.actor` (and `facts.checker` into a consultation payload) — after
-    // a successful append the host still holds live references INTO those objects; without
-    // cloning, mutating them afterward would rewrite the stored chain's head.
-    existing.chain.push(structuredClone(transition));
+    // Clone on write, digest-checked (before any mutation): a caller may still hold live
+    // references INTO the transition's payload (an identity object, a consultation checker);
+    // without cloning, mutating them afterward would rewrite the stored chain's head.
+    const stored = cloneSameDigest(transition, digest);
+    existing.chain.push(stored);
     existing.nonTerminal = meta.nonTerminal;
     // Presence sets the pending-clock column, absence clears it (SPEC §12). Assigning
     // `meta.dueAt` unconditionally IS the clearing rule — an append that carries no new
@@ -393,10 +411,10 @@ export class MemoryStore implements Store {
     // Every check passed. Clone BEFORE the first push, not inside the push loop:
     // `structuredClone` is failable — it throws `DataCloneError` on a non-cloneable payload,
     // which this store deliberately lets propagate — and a throw interleaved with the pushes
-    // would leave the earlier elements on the chain. Every failable operation happens before
+    // would leave the earlier elements on the chain. The same holds for the digest check. Every failable operation happens before
     // any mutation, which is what makes "nothing applied" structural rather than a rollback.
     // A conflict still wins over a throw, because the check loop above returns first.
-    const cloned = transitions.map((t) => structuredClone(t));
+    const cloned = transitions.map((t, i) => cloneSameDigest(t, digests[i] as Digest));
     for (const c of cloned) {
       existing.chain.push(c);
     }

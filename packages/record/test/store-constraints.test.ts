@@ -135,3 +135,87 @@ test('MemoryStore rejects a supplied tx loudly — no driver, no transaction to 
     /no transaction to enlist/,
   );
 });
+
+// === A clone that digests differently is refused (store/memory.ts's clone-check) ========
+//
+// `structuredClone` drops a prototype, and with it a prototype `toJSON` the digest honours.
+// MemoryStore therefore clones first and compares digests, throwing before any state changes
+// — after every conflict check, so a conflict still wins.
+
+/** A class whose prototype `toJSON` shows the digest a different view than its own fields. */
+class ViewedMember {
+  secret = 'own-field';
+  toJSON(): Record<string, string> {
+    return { view: 'json-view' };
+  }
+}
+
+test('MemoryStore refuses an append whose clone would digest differently (subsequent append)', async () => {
+  const store = new MemoryStore();
+  const genesis = storeGenesis('rec-clone-sub', 'profile.p1', 'subject:clone-sub');
+  await store.appendTransition(null, genesis, { nonTerminal: true });
+  const before = await store.readChain('rec-clone-sub');
+  const head = await store.chainHead('rec-clone-sub');
+
+  const confirmed = storeNext(genesis, 'confirmed', { actor: new ViewedMember() });
+  await assert.rejects(
+    () => store.appendTransition('open', confirmed, { nonTerminal: false }),
+    /MemoryStore/,
+  );
+  assert.deepEqual(await store.readChain('rec-clone-sub'), before);
+  assert.equal(await store.chainHead('rec-clone-sub'), head);
+});
+
+test('MemoryStore refuses an append whose clone would digest differently (genesis append)', async () => {
+  const store = new MemoryStore();
+  const genesis: Transition = {
+    ...storeGenesis('rec-clone-gen', 'profile.p1', 'subject:clone-gen'),
+    payload: {
+      ...openedPayload('profile.p1', 'subject:clone-gen'),
+      extra: new ViewedMember(),
+    },
+  };
+  await assert.rejects(
+    () => store.appendTransition(null, genesis, { nonTerminal: true }),
+    /MemoryStore/,
+  );
+  assert.deepEqual(await store.readChain('rec-clone-gen'), []);
+  assert.equal(await store.chainHead('rec-clone-gen'), null);
+});
+
+test('MemoryStore refuses a batch whose last element would digest differently; nothing is stored', async () => {
+  const store = new MemoryStore();
+  const genesis = storeGenesis('rec-clone-batch', 'profile.p1', 'subject:clone-batch');
+  await store.appendTransition(null, genesis, { nonTerminal: true });
+  const before = await store.readChain('rec-clone-batch');
+  const head = await store.chainHead('rec-clone-batch');
+
+  const first = storeNext(genesis, 'consultation-recorded', { kind: 'k', checker: { a: 1 } });
+  const last = storeNext(first, 'confirmed', { actor: new ViewedMember() });
+  await assert.rejects(
+    () => store.appendBatch('open', [first, last], { nonTerminal: false }),
+    /MemoryStore/,
+  );
+  assert.deepEqual(await store.readChain('rec-clone-batch'), before);
+  assert.equal(await store.chainHead('rec-clone-batch'), head);
+});
+
+test('a plain payload is unaffected: the returned digests equal chainHead', async () => {
+  const store = new MemoryStore();
+  const genesis = storeGenesis('rec-clone-plain', 'profile.p1', 'subject:clone-plain');
+  const g = await store.appendTransition(null, genesis, { nonTerminal: true });
+  assert.equal(g.appended, true);
+  if (g.appended) assert.equal(g.transitionDigest, await store.chainHead('rec-clone-plain'));
+
+  const first = storeNext(genesis, 'consultation-recorded', { kind: 'k' });
+  const r = await store.appendTransition('open', first, { nonTerminal: true });
+  assert.equal(r.appended, true);
+  if (r.appended) assert.equal(r.transitionDigest, await store.chainHead('rec-clone-plain'));
+
+  const confirmed = storeNext(first, 'confirmed', { actor: { principal: 'a', authority: 'b' } });
+  const b = await store.appendBatch('open', [confirmed], { nonTerminal: false });
+  assert.equal(b.appended, true);
+  if (b.appended) {
+    assert.equal(b.transitionDigests.at(-1), await store.chainHead('rec-clone-plain'));
+  }
+});
