@@ -18,7 +18,7 @@ the increment was written, which the code and the status doc may have since move
 A reader chasing current behavior reads the code and the status doc; a reader chasing how
 a past decision was reached reads the matching row below.
 
-**49 files in `specs/`, 52 in `plans/`** — not one-to-one. Three
+**50 files in `specs/`, 53 in `plans/`** — not one-to-one. Three
 plans carry no spec: the two step-1 completion/remediation plans
 (`2026-08-03-autonomous-step-1-completion.md`, `2026-08-03-step-1-remediation.md`) and
 this housekeeping plan's own (`2026-08-18-post-build-order-housekeeping.md`). Each is
@@ -87,3 +87,4 @@ close.
 | 2026-11-17 | Supersedes binding — `verifySupersedes` requires the instance to hold the predecessor's profile (id and digest) for every terminal state, not only `confirmed`, as SPEC §4's fold sentence states, so a forged terminal predecessor naming a profile the instance does not hold refuses `supersedes-unverified`; the fifteenth self-authored inversion | Post-build-order (no step) | [design](specs/2026-11-17-supersedes-binding-design.md) | [plan](plans/2026-11-17-supersedes-binding.md) |
 | 2026-11-17 | Compliance statement — every user-facing page (both package READMEs, the documentation front door, every guide page) says adopting the library makes no host compliant with any law or regulation, as SCOPING-GUIDE §6 requires, held by a presence pin over the guide directory | Post-build-order (no step) | [design](specs/2026-11-17-compliance-statement-design.md) | [plan](plans/2026-11-17-compliance-statement.md) |
 | 2026-11-17 | Release hardening — the release guard refuses unless dispatched from the `v<version>` tag with both packages in lockstep; build and publish split so only the two publish jobs, which run no toolchain, hold `id-token: write` and the token, in a `release` environment (a dry run publishes nothing and runs the same commands under `--dry-run`); the toolchain still produces the packed bytes; first-use stops interpolating dispatch inputs into shell; CODEOWNERS owns `.github/` and `scripts/`; a dependabot cooldown | Post-build-order (no step) | [design](specs/2026-11-17-release-hardening-design.md) | [plan](plans/2026-11-17-release-hardening.md) |
+| 2026-11-17 | Verifier faults — a host verifier that throws or rejects is a fault wherever the signature layer applies (the seam throws, nothing is appended) rather than a terminal `chain-compromise` edge on a healthy record; the instance refuses to land a transition it cannot verify itself; `create()` refuses a malformed `config.signing`; two-phase key rotation documented; the sixteenth self-authored inversion | Post-build-order (no step) | [design](specs/2026-11-17-verifier-faults-design.md) | [plan](plans/2026-11-17-verifier-faults.md) |

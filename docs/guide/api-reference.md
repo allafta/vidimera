@@ -30,7 +30,15 @@ interface Surfaces {                         // the named handle pair
 
 Fail-fast, fail-closed at construction: every profile is validated, duplicate profile ids
 rejected, every `canonicalizerRef` must resolve, and a `signing: true` profile without
-`config.signing` throws. Validation also covers what the types already rule out for a
+`config.signing` throws. A `config.signing` that is present must also be well-formed — an
+object whose `signer` is a function, whose `verifiers` is a plain object of functions (its
+prototype `Object.prototype` or `null`, so a null-prototype object or a module namespace is
+accepted, while `null`, an array, a `Map` or any other class instance is refused; every own
+string key, enumerable or not, must hold a function; empty is allowed), and whose `signatures` has
+`put` and `listByRecord` functions — each violation throws a named `create:` error, where it
+once constructed and failed at a later seam; `config.store`'s shape is not checked at
+construction.
+Validation also covers what the types already rule out for a
 JavaScript caller — an unrecognized `captureMode` or `ackMode`, an `expiry` or `sod` of the
 wrong shape, an empty profile or leg id, a `terminalRefusals` member that could never take
 effect — each with the same `invalid profile` message, never a raw `TypeError` (the
@@ -611,19 +619,82 @@ versions registered for as long as you may want to supersede their records. What
 verified `supersedes` link, not the subject — a terminal predecessor releases exclusivity, and a
 plain `open` still works.
 
-**A `Verifier` answers the literal `true`, or the transition is unverified.** The layer
-compares with `=== true`: a truthy status string or object is reported `verified: false` and
-refuses at every enforcement site, exactly as a throwing verifier does. Two operational
-consequences follow, because an unverified transition of a signing record is `chain-compromise`
-at the seams — a terminal edge the record never recovers from: a verifier that can fail
-transiently (a remote key service, a rate limit, a timeout) should retry inside itself rather
-than throw, since the layer has no "unavailable" answer to give; and a retired key's verifier
-stays registered under its `keyRef` for as long as any record signed under it may be touched,
-because dropping it reads every such record as compromised at its next seam call. And `verifiers` is
-read as own keys only (`Object.hasOwn`): a sidecar entry whose `keyRef` is not a key you
-registered — including one naming an inherited `Object.prototype` member such as `toString` —
-resolves no verifier and fails closed. The sidecar is storage, and storage is what this layer
-exists to distrust.
+**A `Verifier` answers `true`, answers `false`, or throws only when it cannot answer.** The
+contract has three outcomes and the layer treats each differently. `true` — the literal
+`true`, compared with `===` — verifies the transition. Anything else it returns (`false`, or a
+truthy status string or object) is an answer that the bytes and signature do not match: the
+transition reads `verified: false` and refuses at every enforcement site. A signature the
+verifier cannot parse — the wrong length, not valid base64 — is such a case: answer `false`
+for it. A throw or a rejection is the verifier saying it could not answer at all — a key
+service down, a timeout, a rate limit — and is a FAULT, not a verdict: wherever the signature
+layer applies to a record and nothing else has decided it (below), the seam that needed the
+answer throws and appends nothing, and a transient outage clears when the host makes the call
+again; no retry inside the verifier is needed for that, and a verifier that cannot reach its
+key should throw rather than guess. `operator.verifySignatures(recordId)` propagates the same
+fault rather than report "could not ask" as "unverified". The thrown `Error` names the record,
+the `seq` and the `keyRef`, says nothing was appended, and carries the verifier's own error as
+`cause`; it says a transient outage clears on retry and that a fault which persists while the
+verifier is otherwise healthy means the sidecar entry at that `seq` under that `keyRef` may be
+malformed or planted — the `seq` and `keyRef` are how the operator finds it.
+
+**A fault never outranks a definite miss.** Before any fault is rethrown, the layer looks for
+a transition that is definitely unverified: no sidecar entry, an entry whose `keyRef` or
+`signature` is not a string (it is never handed to your verifier, so a verifier that decodes
+the signature cannot be made to throw by a planted `null`), a `keyRef` that is not one you
+registered, or an answer other than the literal `true`. One such transition fails the layer
+closed — the seam draws or refuses `chain-compromise`, a cross-record verification refuses its
+claim — whatever another transition's verifier did (unless the faulting verifier is the one this instance signs under: its outage stops the
+compromise edge's own mint check, which delays the edge until the verifier recovers), which is OPEN-QUESTIONS
+§1's decided posture for a missing signature and an unresolvable key. The limits, in the same breath: the
+fault is seen only where the layer applies — on a record held as non-signing, a junk sidecar
+entry whose verifier throws changes no seam's outcome (the `verifySignatures` read still
+propagates it); and on an instance that does not hold the record's profile, a fault at the
+genesis throws even beside a miss elsewhere, because whether the layer applies there rests on
+the genesis answer. Earlier versions read a throw as `verified: false`, which on a healthy
+signing record drew a terminal `chain-compromise` edge during any outage — an edge the record
+never recovers from.
+
+**The mint check.** An instance refuses to land a signature its own registry cannot verify.
+After the signer returns, the minted `keyRef` must be an own key of `verifiers` and that
+verifier must answer the literal `true` over the same bytes; otherwise the seam throws and
+nothing is put to the sidecar or appended. This holds even where the seam would have drawn a
+`chain-compromise` edge: an instance that cannot verify its own key throws instead of
+recording that edge. A batch (`finalize`'s success batch, `decline`'s) is minted and checked
+whole before any entry is written, so a failure on one element leaves the sidecar as it was.
+An empty `verifiers` registry still constructs (a prepared instance), and its first mint
+throws. Limits: the check proves this instance's verifier accepts this signature, not that any
+other instance holds that verifier — which is the rotation hazard below; and it couples
+availability to that verifier — every signed append, `open()` included, needs the instance's
+own verifier answering, so an outage of it makes those seams throw and defers even a
+hash-break (AL1) `chain-compromise` edge, which never consults the layer, until the verifier
+recovers.
+
+**Key rotation takes two phases.** The library does no rotation; `keyRef` naming and key
+distribution are yours, and a safe rollout has two halves. First, a NEW key's verifier must
+reach every instance — including every configuration a deployment may roll back to — before
+any instance signs with it. Second, a retired key's verifier stays registered under its
+`keyRef` for as long as any record signed under it may be touched. An instance that lacks a
+signer's verifier reads those entries as unverified (an unresolvable `keyRef` fails closed)
+and refuses `chain-compromise` on records nobody tampered with: that is the hazard of a
+one-phase rollout, a decided behavior and not a fault. A rolling deploy that signs with the
+new key on the first instance, before the others hold its verifier, is exactly that rollout.
+
+**The stuck-record limit, at its true width.** On an instance that holds the record's
+profile, a seam persistently throws instead of drawing the evidence edge only when no
+transition is a definite miss and some entry is a string your verifier cannot answer for (an
+outage of the verifier this instance signs under delays any edge, by the mint check, until it
+recovers — a delay, not a stuck record). A verifier that
+throws on a malformed or planted signature string, rather than answering `false`, produces
+exactly that: a record whose seams throw until the entry is repaired, with nothing appended
+and nothing recording the tampering. (On an instance that does not hold the profile, a
+genesis fault throws too, as above.) Have the verifier answer `false` for any signature it
+cannot parse, and reserve a throw for being unable to ask; `verifySignatures` names the `seq`
+and `keyRef` of the entry to inspect.
+
+And `verifiers` is read as own keys only (`Object.hasOwn`), with the `keyRef` typed first: a
+sidecar entry whose `keyRef` is not a string, or not a key you registered — including one
+naming an inherited `Object.prototype` member such as `toString` — resolves no verifier and
+fails closed. The sidecar is storage, and storage is what this layer exists to distrust.
 
 **An implementer must tolerate orphans.** A conforming `SignatureStore` will hold entries
 whose `transitionDigest` names no transition in the record's chain. That is a normal state,

@@ -320,7 +320,11 @@ test('order: the verifier is never consulted on a hash-broken chain; an unresolv
 
   // Hash-broken chain: a sibling signing instance over a tampered copy, with its OWN
   // fresh counting verifier — asserted at ZERO after the refusal, proving AL1 refused
-  // before the layer ever ran.
+  // before the layer ever ran. The encoding moved when the mint check landed: signing the
+  // compromise edge now consults the verifier registered for the signer's own keyRef, which
+  // is not the layer. So the sibling signs with a SEPARATE key ('key-2', verified by an
+  // uncounted verifier) and the counted verifier is registered only under 'key-1', the key
+  // the old entries carry — it is consulted only if the layer runs over them.
   const chain = await handles.operator.readChain(recordId);
   const { tamperNonLast } = await import('./helpers/profiles.js');
   const tamperedStore = new MemoryStore();
@@ -328,11 +332,23 @@ test('order: the verifier is never consulted on a hash-broken chain; an unresolv
     await tamperedStore.appendTransition(i === 0 ? null : 'open', t, { nonTerminal: true });
   }
   const sibling = countingVerifier();
+  const sibling2 = generateKeyPairSync('ed25519');
   const h2 = create({
     ...makeConfig([{ ...captureProfile({ id: 'test.enf.v1' }), signing: true as const }], {
       store: tamperedStore,
     }),
-    signing: { signer, verifiers: { 'key-1': sibling.verifier }, signatures },
+    signing: {
+      signer: async (bytes) => ({
+        keyRef: 'key-2',
+        signature: edSign(null, bytes, sibling2.privateKey).toString('base64'),
+      }),
+      verifiers: {
+        'key-1': sibling.verifier,
+        'key-2': async (bytes, signature) =>
+          edVerify(null, bytes, sibling2.publicKey, Buffer.from(signature, 'base64')),
+      },
+      signatures,
+    },
   });
   const broken = await h2.operator.finalize(recordId, identity(), CONTENT, facts());
   assert.equal(broken.status, 'refused');
@@ -352,7 +368,7 @@ test('decline refuses chain-compromise on a signature-broken signing record — 
     ...captureProfile({ id: 'test.enf.decline.v1', decline: true }),
     signing: true,
   };
-  const { handles, signatures, calls, store } = enforceableSigningSetup([profile]);
+  const { handles, signatures, callsOver, store } = enforceableSigningSetup([profile]);
   const recordId = await openRecord(handles, CONTENT, 'test.enf.decline.v1', 'subject:enf-9');
   await breakOneSignature(signatures, recordId, store);
 
@@ -360,7 +376,7 @@ test('decline refuses chain-compromise on a signature-broken signing record — 
   // AL1 is INTACT. Without this the refusal could be the hash disjunct and the test would
   // prove nothing about the signature layer.
   assert.equal(verifyChain(before).intact, true, 'fixture: hash-intact, signature-broken');
-  const callsBefore = calls();
+  const callsBefore = callsOver(before);
 
   const out = await handles.operator.decline(recordId, identity(), CONTENT, facts());
   assert.equal(out.status, 'refused');
@@ -373,7 +389,9 @@ test('decline refuses chain-compromise on a signature-broken signing record — 
   );
 
   // The DELTA, never the total: verifySignatures() consults the verifier too.
-  assert.ok(calls() > callsBefore, 'the AL2 disjunct ran — the verifier was consulted');
+  // Counted over the chain as it stood BEFORE the seam call (`callsOver`): the mint check
+  // also consults the verifier, over the NEW edge's bytes, which is not the layer.
+  assert.ok(callsOver(before) > callsBefore, 'the AL2 disjunct ran — the verifier was consulted');
 
   const after = await handles.operator.readChain(recordId);
   assert.equal(after.length, before.length + 1);
@@ -394,13 +412,13 @@ test('decline on a NON-declaring leg over a signature-broken chain appends the c
     ...captureProfile({ id: 'test.enf.nodecline.v1' }), // no decline declared
     signing: true,
   };
-  const { handles, signatures, calls, store } = enforceableSigningSetup([profile]);
+  const { handles, signatures, callsOver, store } = enforceableSigningSetup([profile]);
   const recordId = await openRecord(handles, CONTENT, 'test.enf.nodecline.v1', 'subject:enf-10');
   await breakOneSignature(signatures, recordId, store);
 
   const before = await handles.operator.readChain(recordId);
   assert.equal(verifyChain(before).intact, true, 'fixture: hash-intact, signature-broken');
-  const callsBefore = calls();
+  const callsBefore = callsOver(before);
 
   // No throw here is the whole point.
   const out = await handles.operator.decline(recordId, identity(), CONTENT, facts());
@@ -408,7 +426,7 @@ test('decline on a NON-declaring leg over a signature-broken chain appends the c
   if (out.status !== 'refused') return;
   assert.equal(out.code, 'chain-compromise');
   assert.equal(out.transitionRef, await store.chainHead(recordId));
-  assert.ok(calls() > callsBefore, 'the AL2 disjunct ran');
+  assert.ok(callsOver(before) > callsBefore, 'the AL2 disjunct ran');
 
   const after = await handles.operator.readChain(recordId);
   assert.equal(after.length, before.length + 1);
@@ -427,13 +445,13 @@ test('acknowledge refuses chain-compromise on a signature-broken signing record 
     signing: true,
     legs: [{ ...leg, ackMode: 'any', requiredAcks: ['variance'] }],
   };
-  const { handles, signatures, calls, store } = enforceableSigningSetup([profile]);
+  const { handles, signatures, callsOver, store } = enforceableSigningSetup([profile]);
   const recordId = await openRecord(handles, CONTENT, 'test.enf.ack.v1', 'subject:enf-11');
   await breakOneSignature(signatures, recordId, store);
 
   const before = await handles.operator.readChain(recordId);
   assert.equal(verifyChain(before).intact, true, 'fixture: hash-intact, signature-broken');
-  const callsBefore = calls();
+  const callsBefore = callsOver(before);
 
   const out = await handles.operator.acknowledge(
     recordId,
@@ -448,7 +466,7 @@ test('acknowledge refuses chain-compromise on a signature-broken signing record 
     await store.chainHead(recordId),
     'an open record admits the edge — ref = its digest',
   );
-  assert.ok(calls() > callsBefore, 'the AL2 disjunct ran');
+  assert.ok(callsOver(before) > callsBefore, 'the AL2 disjunct ran');
 
   const after = await handles.operator.readChain(recordId);
   assert.equal(after.length, before.length + 1);
@@ -471,14 +489,14 @@ test('beginRedemption and completeRedemption refuse chain-compromise on a signat
 
   // (a) beginRedemption
   {
-    const { handles, signatures, calls, store } = enforceableSigningSetup([profile]);
+    const { handles, signatures, callsOver, store } = enforceableSigningSetup([profile]);
     const recordId = await openRecord(handles, CONTENT, 'test.enf.token.v1', 'subject:enf-12');
     const fin = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
     assert.equal(fin.status, 'ok');
     await breakOneSignature(signatures, recordId, store);
     const before = await handles.operator.readChain(recordId);
     assert.equal(verifyChain(before).intact, true, 'fixture: hash-intact, signature-broken');
-    const callsBefore = calls();
+    const callsBefore = callsOver(before);
 
     const out = await handles.operator.beginRedemption(recordId, CONTENT);
     assert.equal(out.status, 'refused');
@@ -489,7 +507,7 @@ test('beginRedemption and completeRedemption refuse chain-compromise on a signat
       await store.chainHead(recordId),
       'un-enlisted: the edge appended — ref = its digest',
     );
-    assert.ok(calls() > callsBefore, 'the AL2 disjunct ran');
+    assert.ok(callsOver(before) > callsBefore, 'the AL2 disjunct ran');
     const after = await handles.operator.readChain(recordId);
     assert.equal(after.length, before.length + 1);
     assert.equal(after.at(-1)?.kind, 'refused');
@@ -498,7 +516,7 @@ test('beginRedemption and completeRedemption refuse chain-compromise on a signat
   // (c) completeRedemption — the token is issued CLEAN first, then a signature is broken,
   // which is what makes the `redeeming` state reachable at all.
   {
-    const { handles, signatures, calls, store } = enforceableSigningSetup([profile]);
+    const { handles, signatures, callsOver, store } = enforceableSigningSetup([profile]);
     const recordId = await openRecord(handles, CONTENT, 'test.enf.token.v1', 'subject:enf-13');
     const fin = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
     assert.equal(fin.status, 'ok');
@@ -509,7 +527,7 @@ test('beginRedemption and completeRedemption refuse chain-compromise on a signat
     await breakOneSignature(signatures, recordId, store);
     const before = await handles.operator.readChain(recordId);
     assert.equal(verifyChain(before).intact, true, 'fixture: hash-intact, signature-broken');
-    const callsBefore = calls();
+    const callsBefore = callsOver(before);
 
     const out = await handles.operator.completeRedemption(recordId, token, CONTENT);
     assert.equal(out.status, 'refused');
@@ -520,7 +538,7 @@ test('beginRedemption and completeRedemption refuse chain-compromise on a signat
       await store.chainHead(recordId),
       'un-enlisted: the edge appended — ref = its digest',
     );
-    assert.ok(calls() > callsBefore, 'the AL2 disjunct ran');
+    assert.ok(callsOver(before) > callsBefore, 'the AL2 disjunct ran');
     const after = await handles.operator.readChain(recordId);
     assert.equal(after.length, before.length + 1);
     assert.equal(after.at(-1)?.kind, 'refused');

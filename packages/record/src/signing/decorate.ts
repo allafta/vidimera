@@ -9,6 +9,19 @@
 // landed: `kernel/verify-signatures.ts`'s `signatureLayerHolds` treats a missing entry
 // as `false`, folded into `chain-compromise` at every verification site); the order
 // is pinned.
+// THE MINT CHECK: the one signer call is followed, inside the same memoized promise, by a
+// check against this instance's own `verifiers` — the minted keyRef must be an own key whose
+// verifier answers the literal `true` over the same bytes — and nothing is put or appended
+// unless it passes (`mintAndCheck` below). A failed check is a THROWN Error, never a `refused`
+// outcome, and it applies wherever the decorator signs: an instance that cannot verify its own
+// key throws even at an append that would have drawn or refused a `chain-compromise` edge. A
+// configuration whose signer this instance cannot verify is refused at the first append, not
+// discovered as `chain-compromise` later. The cost, in the same breath: every signed append,
+// `open()` included, now needs this instance's own verifier answering, so an outage of it
+// defers even a hash-break compromise edge (AL1, which never consults the layer) until the
+// verifier recovers — the seam throws and appends nothing meanwhile. A BATCH mints and checks
+// every element before it writes any entry (`appendBatch` below): a failure on any element
+// leaves the sidecar as it found it.
 // The sidecar write is deliberately NOT part of any host transaction an enlisted
 // seam passes through (`tx` delegates untouched): an aborted effect's orphan
 // signature is the same harmless class.
@@ -83,12 +96,14 @@ export function withSigning(
   // key either way — the repeat buys nothing and, on a host whose signer is a remote key
   // service, costs a round-trip each time.
   //
-  // Keyed by object identity, NOT by digest, and it memoizes the SIGNER's promise, not this
-  // function's. A digest-keyed memo would weaken the pinned guarantee from "this append is
-  // preceded by its OWN completed sidecar write" to "some earlier signing operation for this
-  // digest happened", which lands an unsigned transition whenever the earlier entry is no
-  // longer there. Memoizing this function's own promise would skip the `put` on every repeat
-  // and reach the same place. So the `put` ALWAYS runs, and only the mint is shared; storing
+  // Keyed by object identity, NOT by digest, and it memoizes the MINT's promise (the signer's
+  // call plus the mint check that follows it, `mintAndCheck`), not the whole signing step's
+  // (`mintChecked` then `putEntry`). A digest-keyed memo would weaken the pinned guarantee
+  // from "this append is preceded by its OWN completed sidecar write" to "some earlier signing
+  // operation for this digest happened", which lands an unsigned transition whenever the
+  // earlier entry is no longer there. Memoizing the whole step's promise would skip the `put`
+  // on every repeat and reach the same place. So the `put` ALWAYS runs, and only the mint is
+  // shared; storing
   // the in-flight promise means two concurrent appends of one object await one mint rather
   // than racing.
   //
@@ -140,22 +155,81 @@ export function withSigning(
     return signs;
   }
 
-  async function signOne(transition: Transition): Promise<void> {
+  // Mint, then verify what was minted, as ONE promise: the signer's output is only worth
+  // memoizing (and putting) once the instance's own registry accepts it. The check is the
+  // mint's other half — the keyRef must be an OWN key of `verifiers` (an inherited name such
+  // as `toString` never counts) and that verifier must answer the literal `true` over the very
+  // bytes that were signed. A signer whose key this instance cannot verify would otherwise land
+  // an entry every later seam reads as `chain-compromise`; refused here, nothing reaches the
+  // sidecar or the chain, and the host sees a named error at the append that caused it. A
+  // verifier that throws or rejects is a fault, as in `kernel/verify-signatures.ts`: it
+  // propagates wrapped, with the verifier's error as `cause`. Any failure drops the memo entry
+  // (in `mintChecked`), so a repaired configuration mints and checks anew; a success is memoized
+  // and not repeated for the next CAS candidate.
+  async function mintAndCheck(
+    transition: Transition,
+  ): Promise<{ keyRef: string; signature: string }> {
+    const bytes = encodeTransition(transition);
+    const minted = await signing.signer(bytes);
+    const { keyRef } = minted;
+    if (!Object.hasOwn(signing.verifiers, keyRef)) {
+      throw new Error(
+        `signing: the signer minted keyRef '${String(keyRef)}' for record ` +
+          `'${transition.recordId}' ` +
+          `at seq ${transition.seq}, but config.signing.verifiers holds no verifier for it; ` +
+          'nothing was put to the sidecar and nothing was appended',
+      );
+    }
+    let ok: unknown;
+    try {
+      ok = await signing.verifiers[keyRef]?.(bytes, minted.signature);
+    } catch (cause) {
+      throw new Error(
+        `signing: the verifier for keyRef '${keyRef}' threw or rejected while checking a fresh ` +
+          `signature over record '${transition.recordId}' at seq ${transition.seq}; nothing was ` +
+          'put to the sidecar and nothing was appended',
+        { cause },
+      );
+    }
+    if (ok !== true) {
+      throw new Error(
+        `signing: the signature the signer minted under keyRef '${keyRef}' for record ` +
+          `'${transition.recordId}' at seq ${transition.seq} does not verify under the ` +
+          'registered verifier for that keyRef; nothing was put to the sidecar and nothing ' +
+          'was appended',
+      );
+    }
+    return minted;
+  }
+
+  // The mint half of signing one transition: the memoized mint-and-check, with no sidecar
+  // write. Kept apart from `putEntry` so a batch can mint and check EVERY element before it
+  // writes any of them.
+  async function mintChecked(
+    transition: Transition,
+  ): Promise<{ keyRef: string; signature: string }> {
     let pending = signerResult.get(transition);
     if (pending === undefined) {
-      pending = signing.signer(encodeTransition(transition));
+      pending = mintAndCheck(transition);
       signerResult.set(transition, pending);
     }
-    let minted: { keyRef: string; signature: string };
     try {
-      minted = await pending;
+      return await pending;
     } catch (err) {
-      // A failed mint must not be remembered: the next attempt has to reach the signer again.
+      // A failed mint or mint check must not be remembered: the next attempt has to reach the
+      // signer again.
       // Delete only if the memo still holds THIS promise — a later caller may already have
       // installed a fresh attempt, and dropping that one would cost it a redundant mint.
       if (signerResult.get(transition) === pending) signerResult.delete(transition);
       throw err;
     }
+  }
+
+  // The write half: ALWAYS runs, on every attempt, before the append it precedes (see above).
+  async function putEntry(
+    transition: Transition,
+    minted: { keyRef: string; signature: string },
+  ): Promise<void> {
     await signing.signatures.put({
       transitionDigest: transitionDigest(transition),
       recordId: transition.recordId,
@@ -163,6 +237,11 @@ export function withSigning(
       keyRef: minted.keyRef,
       signature: minted.signature,
     });
+  }
+
+  // One transition, both halves: mint and check, then write.
+  async function signOne(transition: Transition): Promise<void> {
+    await putEntry(transition, await mintChecked(transition));
   }
 
   return {
@@ -184,7 +263,13 @@ export function withSigning(
     ): Promise<BatchResult> {
       const first = transitions[0];
       if (first !== undefined && (await recordSigns(first))) {
-        for (const t of transitions) await signOne(t);
+        // Every element is minted AND checked before any is written: a mint or check failure
+        // on element k throws with no entry put for elements 1..k-1, so a refused batch leaves
+        // the sidecar as it found it. Only then are all the entries put, in order, and only
+        // then does the append run — sign-before-append holds for the batch as a whole.
+        const minted: [Transition, { keyRef: string; signature: string }][] = [];
+        for (const t of transitions) minted.push([t, await mintChecked(t)]);
+        for (const [t, m] of minted) await putEntry(t, m);
       }
       return store.appendBatch(expectedCurrentState, transitions, meta, tx);
     },

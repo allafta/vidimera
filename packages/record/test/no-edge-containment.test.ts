@@ -235,21 +235,39 @@ test('BASELINE — the sealed no-edge corner: six refusing finalize() calls, cha
 test('BASELINE — key retirement: dropping the keyRef from the verifier registry puts a HEALTHY sealed record into permanent minting — one orphan per refusing call', async () => {
   // Deferral register row 22's key-retirement reachability shape, pinned for the first
   // time (the register's own figure was measured on a rig that is gone): the record is
-  // untampered and sealed, the sidecar complete — only the registry moved. Nothing here
-  // contains the growth; the pin states it.
+  // untampered and sealed, the sidecar complete — the registry dropped the old key and the
+  // signer moved to a new key too (the realistic retirement; a signer still on the dropped key
+  // now throws at the mint, pinned in signing-config.test.ts). Nothing here contains the
+  // growth; the pin states it.
   const rig = countingSigningSetup();
   const recordId = await confirmedSigningRecord(rig, 'subject:noedge-retired');
   assert.equal((await rig.handles.operator.seal(recordId)).status, 'ok', 'fixture: sealed');
   // NO breakOneSignature: chain and sidecar are both healthy.
 
-  // The retired instance: same store, same sidecar, same signer — but the verifier
-  // registry no longer resolves 'key-1' (the operator decommissioned the key).
+  // The retired instance: same store, same sidecar, but the operator rotated to 'key-2' and
+  // dropped 'key-1' — its registry holds ONLY key-2's verifier, so it cannot resolve the
+  // record's 'key-1' entries. It signs with key-2 (not the old signer) because the mint check
+  // refuses an instance whose own signer's keyRef its registry cannot verify; the realistic
+  // retirement is a signer that moved on, which is what this fixture now is.
+  const key2 = generateKeyPairSync('ed25519');
+  const retiredSigner: Signer = async (bytes) => ({
+    keyRef: 'key-2',
+    signature: edSign(null, bytes, key2.privateKey).toString('base64'),
+  });
+  const retiredVerifiers: Record<string, Verifier> = {
+    'key-2': async (bytes, signature) =>
+      edVerify(null, bytes, key2.publicKey, Buffer.from(signature, 'base64')),
+  };
   const retired = createWithClock(
     {
       ...makeConfig([{ ...captureProfile({ id: PROFILE_ID }), signing: true }], {
         store: rig.store,
       }),
-      signing: { signer: rig.signing.signer, verifiers: {}, signatures: rig.signing.signatures },
+      signing: {
+        signer: retiredSigner,
+        verifiers: retiredVerifiers,
+        signatures: rig.signing.signatures,
+      },
     },
     tickingClock('2026-08-29T02:00:00Z'),
   );

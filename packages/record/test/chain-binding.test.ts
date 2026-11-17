@@ -3,7 +3,7 @@
 // against the requested id rather than against whatever the first row claims.
 
 import assert from 'node:assert/strict';
-import { sign as edSign, generateKeyPairSync } from 'node:crypto';
+import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';
 import { test } from 'vitest';
 
 import { transitionDigest } from '../src/chain/encoding.js';
@@ -173,13 +173,19 @@ async function decoratorRig(xProfile: 'S' | 'N') {
   const y = await openRecord(handles, content, yp.id, 'subject:y');
   const relocating = new RelocatingStore(inner);
   const signatures = new MemorySignatureStore();
-  const { privateKey } = generateKeyPairSync('ed25519');
+  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+  // The decorator checks every mint against its registry, so the signer's keyRef carries a
+  // verifier that answers true for its own signatures; the assertions below are about the
+  // signing DECISION, which is unchanged.
   const signing: SigningConfig = {
     signer: async (bytes) => ({
       keyRef: 'key-1',
       signature: edSign(null, bytes, privateKey).toString('base64'),
     }),
-    verifiers: {},
+    verifiers: {
+      'key-1': async (bytes, signature) =>
+        edVerify(null, bytes, publicKey, Buffer.from(signature, 'base64')),
+    },
     signatures,
   };
   const decorated = withSigning(signing, relocating, (id) => id === S.id);
