@@ -210,6 +210,13 @@ a list rather than as code.
       **live granular access token** with publish rights for the scope — classic
       automation tokens can no longer be created, and granular tokens expire, so verify
       the token's validity near the dispatch, not weeks before.
+- [ ] **The `release` environment exists with a `v*` tag rule, and holds the token.**
+      `release.yml`'s publish job runs in the `release` environment (the release-hardening
+      increment). In Settings → Environments, create `release`, restrict its deployments to
+      tags matching `v*` (optionally add a required reviewer), add `NPM_TOKEN` there as an
+      environment secret, and delete the repository-level `NPM_TOKEN`. Until this is done the
+      environment is created on first use with no rule and the job reads the repository
+      secret: the guard and the job split still hold, the environment adds nothing.
 - [ ] GitHub **private vulnerability reporting** is enabled — `SECURITY.md` and
       `.github/ISSUE_TEMPLATE/config.yml` both route reporters there and are asserting a
       setting only this checkbox makes true.
@@ -226,12 +233,14 @@ was also the only one with nothing in front of it: `release.yml`'s guard checks 
 things the repository can see (`private`, `0.0.0`) and nothing about the registry it is
 about to write to. Do these in the same sitting as the dispatch, not the week before.
 
-- [ ] **Dispatch the release workflow once in dry-run mode** (`dry_run: true`) against the
-      release commit's tree and read it green: the guard reports without blocking (on a
-      pre-release tree it refuses and the run continues; on the release commit's tree it must
-      pass), both publish steps are skipped, every gate runs, and both tarballs pack — the
-      only way the job's YAML and its gate chain execute on the release runner before the
-      real dispatch. It was first dispatched
+- [ ] **Dispatch the release workflow once in dry-run mode** (`dry_run: true`) from the
+      release tag and read it green: the guard reports without blocking (on a pre-release
+      tree, or from any ref but the `v<version>` tag, it refuses and the run continues; from
+      the release tag on the release commit it must pass), the publish job is skipped, every
+      gate runs, and both tarballs pack and upload — the only way the build job's YAML and its
+      gate chain execute on the release runner before the real dispatch. (The two-job shape
+      dates from the release-hardening increment; the runs cited next exercised the earlier
+      single job.) It was first dispatched
       2026-09-03 against the pre-release tree (run 33713900951: every gate green, the guard
       and both publish steps skipped, both tarballs packed), then against a release-shaped
       rehearsal branch (run 33718633361: the guard PASSED, both tarballs named 0.1.0 —
@@ -265,11 +274,14 @@ about to write to. Do these in the same sitting as the dispatch, not the week be
 
 ## The dispatch
 
-- [ ] Run the **Release** workflow (`.github/workflows/release.yml`, dispatch-only). Its
-      guard refuses any package still carrying `private: true` or `0.0.0`; it re-runs
-      every gate, then publishes `@vidimera/record` first and `@vidimera/store-postgres`
-      second (tarball-first, so the adapter's `workspace:*` peer range is rewritten),
-      both with provenance. This is the register's row-1 trigger firing: the first
+- [ ] Run the **Release** workflow (`.github/workflows/release.yml`, dispatch-only) **from
+      the `v<version>` tag**. Its guard (`scripts/release-guard.mjs`) refuses a package still
+      carrying `private: true` or `0.0.0`, two packages at different versions, a dispatch from
+      anything but a tag, and a tag that is not `v<version>`; the build job re-runs every gate
+      and packs both tarballs (so the adapter's `workspace:^` peer range is rewritten); the
+      publish job, alone holding `id-token: write` and the token, publishes exactly those
+      tarballs, `@vidimera/record` first and `@vidimera/store-postgres` second, both with
+      provenance. This is the register's row-1 trigger firing: the first
       exercised publish.
 
 ## Verification, then the paperwork

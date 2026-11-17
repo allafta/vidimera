@@ -7,6 +7,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Wait a week before proposing a new release (the release-hardening increment): a
+    # compromised or yanked version usually surfaces within days of publication.
+    cooldown:
+      default-days: 7
     groups:
       npm-dependencies:
         patterns:
@@ -21,6 +25,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Wait a week before proposing a new release (the release-hardening increment): a
+    # compromised or yanked version usually surfaces within days of publication.
+    cooldown:
+      default-days: 7
     groups:
       actions:
         patterns:

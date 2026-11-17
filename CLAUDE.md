@@ -28,7 +28,7 @@ release-readiness reconciliation pass over the publish-facing docset. The worksp
 packages: `@vidimera/record` and `@vidimera/store-postgres` (the server-SQL third
 reference backing, tested against a real embedded Postgres the suite starts per run).
 Measured against the current
-tree: `pnpm test` — 82 test files, 1100 tests, zero skips; `packages/record/src/refusal-codes.ts`
+tree: `pnpm test` — 83 test files, 1111 tests, zero skips; `packages/record/src/refusal-codes.ts`
 carries 25 refusal codes; zero GOVERNED construction guards remain in `config.ts` — every
 field the feature-guard era installed has lifted behind real behavior at its own seam
 (`unknownOptionKey` — named `governedUnavailable` until the registry-hygiene increment —
@@ -203,8 +203,13 @@ contract-scan, `api-sync`, `docs-index-sync`, `lint:strict`), and a `test` matri
 (ubuntu @ 24), and Windows/macOS @ 22 — with pnpm caching, read-only token permissions,
 and one cancel-on-supersede concurrency group per ref. `.github/workflows/release.yml` is
 the dispatch-only, provenance-attested publish workflow (both packages, record first,
-behind the same report gate), unexercised for real until the 0.1 cut — its `dry_run` input runs every gate
-and packs both tarballs with the guard reporting but not blocking and both publish steps skipped;
+behind the same report gate), unexercised for real until the 0.1 cut — two jobs since the
+release-hardening increment: a credential-free `build` job runs the guard
+(`scripts/release-guard.mjs`: lockstep versions bumped, `private` dropped, dispatched from the
+`v<version>` tag) and every gate and packs both tarballs, and a `publish` job, alone holding
+`id-token: write` and the token in the `release` environment, publishes exactly those
+tarballs; its `dry_run` input runs the build job with the guard reporting but not blocking and
+skips the publish job;
 `docs/process/release-checklist.md` is release day's authoritative list.
 `scripts/test/workflows.test.mjs` parses every workflow file with `yaml` and asserts the facts the
 documents rely on (the dry-run input, the report gate's place, the exact-floor leg) — parse and
@@ -218,8 +223,9 @@ over `MemoryStore` and a PostgreSQL service, and pins the `node:sqlite` warning 
 ways (present on 22.16.0, absent on 24.15+); `source: registry` reuses it against the
 published packages after the cut. It is a deliberate release act, never a per-push gate —
 `pnpm smoke` remains that.
-`.github/dependabot.yml` groups weekly npm and actions updates; `.github/CODEOWNERS`
-guards `docs/concept/` and the frozen byte-stability test (binding once the
+`.github/dependabot.yml` groups weekly npm and actions updates behind a seven-day cooldown;
+`.github/CODEOWNERS` guards `docs/concept/`, the frozen byte-stability test, `.github/` and
+`scripts/` (binding once the
 require-review-from-code-owners branch protection is enabled — a release-day checklist
 item).
 

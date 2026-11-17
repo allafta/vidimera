@@ -113,8 +113,8 @@ any one exit.
   proved only that the step ran; this document's gate outputs were measured locally and
   stand. See the dedicated section at the end of this document; the numbers immediately
   below already include it.
-- **Measured against the current tree** (re-measured at the compliance-statement increment,
-  2026-11-17): `pnpm test` — 82 test files, 1100 tests, zero skips
+- **Measured against the current tree** (re-measured at the release-hardening increment,
+  2026-11-17): `pnpm test` — 83 test files, 1111 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
   `pnpm lint` (`biome check .`) — 153 files checked, zero errors or warnings;
@@ -6010,3 +6010,72 @@ project's process, not the library.
 suites): 1100 passed, 0 failed, 0 skipped, 0 todo`; typecheck, biome (`--error-on-warnings`),
 build, `contract-scan`, `api-reference-sync` and `docs-index-sync` all exit 0. `smoke` runs in
 CI. `CLAUDE.md`'s measured sentence moved to 82 files / 1100 tests.
+
+## Post-build-order increment — Release hardening
+
+**The thirtieth post-build-order increment, exited (branch `release-hardening-2026-11-17`,
+stacked on `compliance-statement-2026-11-17`).** The release surface only: `release.yml`,
+`first-use.yml`, CODEOWNERS, dependabot, a new guard script and its tests, the release
+checklist. No sealed-set edit, no library source change, no public-surface change. The design
+is `docs/superpowers/specs/2026-11-17-release-hardening-design.md` and the plan
+`docs/superpowers/plans/2026-11-17-release-hardening.md`; executed inline by the authoring
+session, then reviewed.
+
+**What it closes.** The release guard checked two things — `private` and `0.0.0` — while the
+workflow header promised it refused a release that skipped any release-day step, the tag
+included: a dispatch from `main`, from a branch, or from a tag that did not name the version
+would have published, and so would two packages at different versions. One job held
+`id-token: write` from its first step and received `NPM_TOKEN` at its last, after
+`pnpm install`, the whole dev toolchain, the suite and the smoke test's script-enabled registry
+installs had run in it. `first-use.yml` wrote its free-text `version` input, and `source`,
+straight into a shell `run:` block. The header named the wrong peer range (`workspace:*` for
+`workspace:^`), the wrong token type (an automation token, which can no longer be created) and
+said the dry run skips the guard (it runs and reports); the release checklist repeated the peer
+range. CODEOWNERS left the workflows, the gate scripts and itself unowned; dependabot proposed a
+release the day it was published.
+
+**What landed.** `scripts/release-guard.mjs` exports `guardFindings({ packages, refType,
+refName })` — every reason to refuse at once: private, `0.0.0`, versions out of lockstep, a
+non-tag ref (an absent ref included), a tag that is not `v<version>` — and a CLI that reads the
+two manifests and the ref from `REF_TYPE`/`REF_NAME`. Eight unit tests
+(`scripts/test/release-guard.test.mjs`), red (no module) before the script, green after.
+`release.yml` is two jobs: `build` (read-only contents, no secret) installs, runs the guard
+(reporting without blocking in a dry run) and every gate in the old order, packs both tarballs
+with `pnpm pack --pack-destination` and uploads them (`if-no-files-found: error`); `publish`
+(needs `build`; runs only outside a dry run and from a tag ref; `environment: release`; the
+only `id-token: write`) sets up Node with no cache, downloads the artifact, and publishes record
+first, then the adapter — no checkout, no install. Every action stays SHA-pinned, the artifact
+actions reusing `first-use.yml`'s pins. `first-use.yml` passes `source` and `version` through
+`env:` and refuses a version that is not semver. CODEOWNERS adds `/.github/` and `/scripts/`;
+both dependabot ecosystems gain a seven-day `cooldown`. The release checklist names the two
+owner settings (the `release` environment with a `v*` tag rule; the token moved into it),
+describes the dry run and the dispatch over two jobs from the tag, and says `workspace:^`.
+`CLAUDE.md`'s description of the workflow, dependabot and CODEOWNERS moved with it.
+
+**The workflow test.** `scripts/test/workflows.test.mjs`'s release test pinned the single-job
+shape. It is rewritten to pin the same guarantees over two jobs — the boolean `dry_run` input,
+the guard reporting without blocking only in a dry run, nothing published in a dry run, every
+gate in order before any publish — and three tests are added: only the publish job holds
+credentials and it runs no toolchain (the read-only default, the publish job's permissions and
+environment, its two actions, no cache, publish commands over the downloaded tarballs, the
+artifact name shared by upload and download); the guard step runs the script with the ref
+through `env:`; no `first-use.yml` `run:` block interpolates an input (red against the old
+file, green against the new). The old guarantees keep their truth value; only their encoding
+moved. Not an inversion.
+
+**The bound.** Nothing here has executed on GitHub: the YAML is parsed and its facts asserted,
+and GitHub's own parser, the `environment` behavior, provenance from a downloaded tarball, and
+`pnpm pack --pack-destination` on the runner are first exercised by the dry-run dispatch the
+release checklist already requires. Until the owner creates the `release` environment's `v*`
+rule and moves the token, the environment is created on first use with no rule and the job reads
+the repository secret — the guard and the split still hold. Open: pnpm's `minimumReleaseAge`
+(it changes resolution, which the authoring machine's broken `pnpm` cannot exercise) and a
+digest pin for `first-use.yml`'s `postgres:18` service image (a dispatch-only release act, not
+a per-push gate; the digest could not be looked up and verified here).
+
+**Inversions.** None.
+
+**Gates, measured on the authoring machine.** `ci-assert-tests: ok — 1111 tests in 83 files (88
+suites): 1111 passed, 0 failed, 0 skipped, 0 todo`; typecheck, biome (`--error-on-warnings`),
+build, `contract-scan`, `api-reference-sync` and `docs-index-sync` all exit 0. `smoke` runs in
+CI. `CLAUDE.md`'s measured sentence moved to 83 files / 1111 tests.

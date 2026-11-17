@@ -596,6 +596,22 @@ is the summary, and that file wins on conflict.
   (`scripts/test/compliance-statement.test.mjs`) fails when any of those pages, or a guide page
   added later, lacks it. It checks presence only — a page can carry the sentence and still read
   as a compliance claim elsewhere.
+- **The release workflow's guard checks the tag, the ref and lockstep versions, and only a
+  credential-holding publish job runs after it.** The guard checked `private` and `0.0.0`
+  only, though its header promised it refused a release that skipped the tag: a dispatch from
+  `main` or a mismatched tag, or two packages at different versions, would have published. It is
+  now `scripts/release-guard.mjs`, unit-tested, and also refuses a non-tag ref, a tag that is not
+  `v<version>`, and versions out of lockstep. The single job that held `id-token: write` and the
+  token while it installed and ran the whole toolchain is split: a credential-free `build` job
+  runs the guard and every gate and packs both tarballs; a `publish` job — no checkout, no
+  install, no cache, in the `release` environment — publishes exactly those tarballs.
+  `first-use.yml` passes its dispatch inputs through `env:` and checks the version is semver
+  before using it; CODEOWNERS owns `.github/` and `scripts/`; dependabot waits seven days before
+  proposing a release; three wrong header facts are corrected. Limits: the `release`
+  environment's `v*` tag rule and moving `NPM_TOKEN` into it are repository settings for the
+  owner (release checklist); the workflow has never run for real, and the first dry run after
+  merge is the first execution of the new YAML; pnpm's `minimumReleaseAge` and a digest pin for
+  first-use's `postgres:18` image stay open.
 
 ### Known not-done
 

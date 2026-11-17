@@ -91,12 +91,19 @@ jobs:
           mkdir app && cd app
           printf '{ "name": "first-use-app", "private": true, "type": "module" }\n' > package.json
           cp ../artifact/first-use.mjs .
+      # The dispatch inputs reach the script through the environment, never interpolated into
+      # it, and the version must be plain semver before it is used (the release-hardening
+      # increment).
       - name: install the packages (${{ inputs.source }})
         working-directory: app
+        env:
+          SOURCE: ${{ inputs.source }}
+          VERSION: ${{ inputs.version }}
         run: |
-          if [ "${{ inputs.source }}" = "registry" ]; then
-            test -n "${{ inputs.version }}" || { echo "source=registry needs a version input"; exit 1; }
-            npm install "@vidimera/record@${{ inputs.version }}" "@vidimera/store-postgres@${{ inputs.version }}" --no-audit --no-fund
+          if [ "$SOURCE" = "registry" ]; then
+            test -n "$VERSION" || { echo "source=registry needs a version input"; exit 1; }
+            printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' || { echo "the version input is not semver: refusing to use it"; exit 1; }
+            npm install "@vidimera/record@$VERSION" "@vidimera/store-postgres@$VERSION" --no-audit --no-fund
           else
             ls ../artifact/*.tgz
             npm install ../artifact/*.tgz --no-audit --no-fund

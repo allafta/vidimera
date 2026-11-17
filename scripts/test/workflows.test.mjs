@@ -71,12 +71,16 @@ test('every workflow has the shape the repository relies on', () => {
   for (const name of files) assertWorkflowShape(load(name), name);
 });
 
-test('release.yml: a boolean dry_run input; the guard reports without blocking in a dry run; both publish steps skip; every gate precedes them', () => {
+// The release workflow, since the release-hardening increment: two jobs. The guarantees the
+// single-job version pinned keep their truth value — the dry-run input, the guard reporting
+// without blocking only in a dry run, nothing published in a dry run, every gate before any
+// publish — and are asserted over the new structure; the split's own guarantees follow.
+test('release.yml: a boolean dry_run input; the guard reports without blocking in a dry run; the publish job skips in a dry run; every gate precedes any publish', () => {
   const doc = load('release.yml');
   const input = doc.on.workflow_dispatch.inputs.dry_run;
   assert.equal(input.type, 'boolean');
   assert.equal(input.default, false);
-  const steps = doc.jobs.publish.steps;
+  const steps = doc.jobs.build.steps;
   const guard = steps.find((s) => typeof s.name === 'string' && s.name.startsWith('guard'));
   assert.ok(guard, 'the pre-release guard step exists');
   assert.equal(
@@ -85,10 +89,19 @@ test('release.yml: a boolean dry_run input; the guard reports without blocking i
     'the guard reports without blocking only in a dry run',
   );
   assert.equal(guard.if, undefined, 'the guard runs in both modes');
-  const publish = steps.filter((s) => typeof s.name === 'string' && s.name.startsWith('publish '));
+  const publishJob = doc.jobs.publish;
+  assert.equal(publishJob.needs, 'build', 'nothing publishes before the build job has passed');
+  assert.equal(
+    publishJob.if,
+    ghExpr("!inputs.dry_run && github.ref_type == 'tag'"),
+    'the publish job is skipped in a dry run and for any ref that is not a tag',
+  );
+  const publish = publishJob.steps.filter(
+    (s) => typeof s.name === 'string' && s.name.startsWith('publish '),
+  );
   assert.equal(publish.length, 2, 'both packages publish');
-  for (const step of publish)
-    assert.equal(step.if, ghExpr('!inputs.dry_run'), `${step.name}: skipped in a dry run`);
+  assert.match(publish[0].name, /@vidimera\/record/, 'record publishes first');
+  assert.match(publish[1].name, /@vidimera\/store-postgres/, 'the adapter publishes second');
   const gates = [
     'pnpm typecheck',
     'pnpm test:ci',
@@ -100,14 +113,68 @@ test('release.yml: a boolean dry_run input; the guard reports without blocking i
     'pnpm api-sync',
     'pnpm docs-index-sync',
   ];
+  // Every gate runs in the build job, in order, after the guard and before the tarballs are
+  // packed; the publish job needs the build job, so every gate precedes any publish.
   const order = runs(steps);
-  const firstPublish = steps.indexOf(publish[0]);
-  let last = -1;
+  const guardAt = steps.indexOf(guard);
+  const packAt = steps.findIndex((s) => s.name === 'pack both tarballs');
+  assert.ok(packAt >= 0, 'the build job packs both tarballs');
+  let last = guardAt;
   for (const gate of gates) {
     const at = order.indexOf(gate);
-    assert.ok(at > last, `${gate} runs, after the previous gate`);
-    assert.ok(at < firstPublish, `${gate} runs before the first publish step`);
+    assert.ok(at > last, `${gate} runs, after the guard and the previous gate`);
+    assert.ok(at < packAt, `${gate} runs before the tarballs are packed`);
     last = at;
+  }
+});
+
+test('release.yml: only the publish job holds credentials, and it runs no toolchain', () => {
+  const doc = load('release.yml');
+  assert.deepEqual(doc.permissions, { contents: 'read' }, 'the workflow default is read-only');
+  assert.equal(doc.jobs.build.permissions, undefined, 'the build job inherits read-only');
+  assert.deepEqual(doc.jobs.publish.permissions, { contents: 'read', 'id-token': 'write' });
+  assert.equal(doc.jobs.publish.environment, 'release', 'the publish job runs in its environment');
+  const build = JSON.stringify(doc.jobs.build);
+  assert.ok(!build.includes('secrets.'), 'the build job reads no secret');
+  assert.ok(!build.includes('id-token'), 'the build job cannot mint an OIDC token');
+  const pub = doc.jobs.publish.steps;
+  const uses = pub.filter((s) => typeof s.uses === 'string').map((s) => s.uses.split('@')[0]);
+  assert.deepEqual(uses, ['actions/setup-node', 'actions/download-artifact']);
+  const setup = pub.find((s) => s.uses?.startsWith('actions/setup-node@'));
+  assert.equal(setup.with.cache, undefined, 'no dependency cache in the publish job');
+  for (const step of pub.filter((s) => typeof s.run === 'string')) {
+    assert.match(step.run.trim(), /^npm publish release-tarballs\/vidimera-[a-z-]+-\*\.tgz /);
+  }
+  const upload = doc.jobs.build.steps.find((s) => s.uses?.startsWith('actions/upload-artifact@'));
+  const download = pub.find((s) => s.uses?.startsWith('actions/download-artifact@'));
+  assert.equal(upload.with.name, download.with.name, 'publish downloads what build uploaded');
+  assert.equal(upload.with['if-no-files-found'], 'error');
+});
+
+test('release.yml: the guard runs the guard script with the ref through the environment', () => {
+  const doc = load('release.yml');
+  const guard = doc.jobs.build.steps.find((s) => s.name?.startsWith('guard'));
+  assert.equal(guard.run.trim(), 'node scripts/release-guard.mjs');
+  assert.deepEqual(guard.env, {
+    REF_TYPE: ghExpr('github.ref_type'),
+    REF_NAME: ghExpr('github.ref_name'),
+  });
+});
+
+test('first-use.yml: no run block interpolates a dispatch input — inputs reach scripts through env', () => {
+  const doc = load('first-use.yml');
+  const marker = ['$', '{{'].join('');
+  for (const [jobName, job] of Object.entries(doc.jobs)) {
+    for (const step of job.steps) {
+      if (typeof step.run !== 'string') continue;
+      const exprs = step.run.split(marker).slice(1);
+      for (const e of exprs) {
+        assert.ok(
+          !e.trimStart().startsWith('inputs.'),
+          `${jobName}: a run block interpolates an input: ${step.name ?? step.run.slice(0, 40)}`,
+        );
+      }
+    }
   }
 });
 
