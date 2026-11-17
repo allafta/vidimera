@@ -9,7 +9,10 @@
 // The bound, in the same breath: this checks that the statement is PRESENT, never that the
 // rest of the page avoids a compliance reading — a page can carry the sentence and still
 // overclaim elsewhere. The concept set (`docs/concept/`) and the process record are outside
-// the set: the first states the rule itself, the second is not user-facing.
+// the set: the first states the rule itself, the second is not user-facing. So are the
+// project-process pages (`CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, the `.github/`
+// templates) and the manifests' `description` fields, which describe how to work on the
+// project, not what the library is.
 
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
