@@ -563,20 +563,24 @@ What you get, with its limits in the same breath:
 - A `signing: true` profile on an instance without `config.signing` throws at
   construction — a loud error, never a silent downgrade to AL1.
   A profile can also lose `signing: true` — or gain it — in place, under the same id, and
-  that is not a downgrade either: the instance holding the edited profile does not hold the
-  record's profile at all, so every operator seam refuses `unknown-profile`, never-append,
-  and `operator.verifySignatures(recordId).genesisProfile` reports `drifted` with the bound
-  and live digests so you can see why. The obligation a seam applies to the signature layer
-  is the profile the instance HOLDS for that record, so an edit that adds `signing: true`
-  does not turn your existing unsigned records into signing chains with missing signatures
-  and does not write `chain-compromise` into them. The limit, in the same breath: an
-  instance that does not hold a record's profile can tell a signing chain only by a genesis
-  transition whose sidecar entry its own verifier accepts, so a signing record whose
-  genesis entry was removed, fails, or names a key that instance has no verifier for reads
-  there as carrying no obligation — it refuses `unknown-profile` and appends nothing,
-  while an instance that holds the profile still draws `chain-compromise`. Recover by
-  restoring the profile's declarative fields exactly, or by giving the edit a new id (see
-  "Profile design" above).
+  that is not a silent downgrade in either direction: the instance holding the edited
+  profile does not hold the record's profile at all, so every operator seam refuses
+  `unknown-profile`, never-append, and
+  `operator.verifySignatures(recordId).genesisProfile` reports `drifted` with the bound and
+  live digests so you can see why. The obligation a seam applies to the signature layer is
+  the profile the instance HOLDS for that record, so an edit that adds `signing: true` does
+  not turn your existing unsigned records into signing chains with missing signatures and
+  does not write `chain-compromise` into them. The limit, in the same breath, per site: an instance
+  that does not hold a record's profile applies the layer only when its own live profile
+  declares `signing: true` AND the record's genesis transition carries a sidecar entry its
+  verifier accepts. A signing record whose genesis entry was removed, fails, or names a key
+  that instance has no verifier for therefore reads there as carrying no obligation: the
+  operator seams refuse `unknown-profile` and append nothing, where an instance that holds
+  the profile still draws `chain-compromise`; a successor leg's `open()` refuses
+  `prior-leg-unverified`; and a `supersedes` claim over a terminal non-`confirmed`
+  predecessor verifies there, where a `confirmed` predecessor refuses
+  `supersedes-unverified`. Recover by restoring the profile's declarative fields exactly, or
+  by giving the edit a new id (see "Profile design" above).
 - No signature material enters the chain — signatures live in the detached sidecar, and a
   signed chain's bytes differ from an unsigned profile's only through the declaring
   profile's own genesis `profileDigest` (and its hash-chain derivations) — so enabling AL2
