@@ -207,7 +207,7 @@ export async function finalize(
   // identically to a hash-broken chain, both via the shared append below.
   const report = verifyChain(chain);
   if (!report.intact || !(await signatureLayerHolds(ctx, chain))) {
-    return appendChainCompromise(store, chain, now);
+    return appendChainCompromise(store, recordId, chain, now);
   }
 
   // The chain is intact — fold it and resolve its profile.
@@ -282,7 +282,7 @@ export async function finalize(
     // due-expired record"); an elapsed redeeming window resolves to `redemption-failed`
     // → `record-not-open` (a non-open, non-expired record). Not due, or the CAS lost to
     // a racing writer: the plain state verdict below — the record is not open either way.
-    const due = await resolveDueClock(store, chain, resolved, now());
+    const due = await resolveDueClock(store, recordId, chain, resolved, now());
     if (due.due && due.result.appended) {
       return refused(due.window === 'confirmed' ? 'leg-expired' : 'record-not-open');
     }
@@ -306,7 +306,7 @@ export async function finalize(
     return refused('record-not-open');
   }
   // state === 'open': en-passant expiry (resolveDueClock performs the CAS append if due).
-  const ex = await resolveDueClock(store, chain, resolved, now());
+  const ex = await resolveDueClock(store, recordId, chain, resolved, now());
   if (ex.due) {
     // Due — the `expired` transition was appended (the en-passant expiry edge; if the CAS
     // raced, the record is past its deadline regardless). `leg-expired` carries no
@@ -318,6 +318,7 @@ export async function finalize(
   if (!isValidIdentity(identity) || !leg.allowedAuthorities.includes(identity.authority)) {
     return refuseMaybeAppend(
       store,
+      recordId,
       'identity-authority-refused',
       leg,
       chain,
@@ -329,13 +330,13 @@ export async function finalize(
 
   // --- (3.5) separation of duties (SPEC §10.1; second step-4 increment) ----------------
   if (sodViolated(record, leg, identity, recordId, 'finalize')) {
-    return refuseMaybeAppend(store, 'sod-violation', leg, chain, resolved, finalLeg, now);
+    return refuseMaybeAppend(store, recordId, 'sod-violation', leg, chain, resolved, finalLeg, now);
   }
 
   // --- (4) content-drift ----------------------------------------------------------------
   const recomputed = digest(canonicalize(resolved.canonicalizer(content)));
   if (recomputed !== record.contentDigest) {
-    return refuseMaybeAppend(store, 'content-drift', leg, chain, resolved, finalLeg, now);
+    return refuseMaybeAppend(store, recordId, 'content-drift', leg, chain, resolved, finalLeg, now);
   }
 
   // --- (4.5) policy drift (SPEC §10.3; second step-6 increment) ------------------------
@@ -373,7 +374,16 @@ export async function finalize(
       // policySource does not digest to the record's binding and refuses unknown-profile at
       // resolution). Recovery is disposal + re-open, not retry (§10.3) — a declaring profile
       // SHOULD list policy-drift in terminalRefusals.
-      return refuseMaybeAppend(store, 'policy-drift', leg, chain, resolved, finalLeg, now);
+      return refuseMaybeAppend(
+        store,
+        recordId,
+        'policy-drift',
+        leg,
+        chain,
+        resolved,
+        finalLeg,
+        now,
+      );
     }
   }
 
@@ -383,7 +393,16 @@ export async function finalize(
   // step below; on ok, the carried `canonical` feeds the facts digest (no double-canonicalize).
   const factsCheck = isValidFacts(facts);
   if (!factsCheck.ok) {
-    return refuseMaybeAppend(store, 'consultation-missing', leg, chain, resolved, finalLeg, now);
+    return refuseMaybeAppend(
+      store,
+      recordId,
+      'consultation-missing',
+      leg,
+      chain,
+      resolved,
+      finalLeg,
+      now,
+    );
   }
 
   // --- (5.5) required consultations (SPEC §11.1; second step-5 increment) + eligibility
@@ -418,6 +437,7 @@ export async function finalize(
         // first); terminalRefusals-governed, open by default for a corrected retry.
         return refuseMaybeAppend(
           store,
+          recordId,
           'consultation-missing',
           leg,
           chain,
@@ -436,7 +456,7 @@ export async function finalize(
           requiredKind === 'eligibility' && leg.eligibility !== undefined
             ? 'ineligible'
             : 'consultation-failed';
-        return refuseMaybeAppend(store, code, leg, chain, resolved, finalLeg, now);
+        return refuseMaybeAppend(store, recordId, code, leg, chain, resolved, finalLeg, now);
       }
       // verdict 'pass': this required kind is satisfied; it records in the success
       // batch with every other obtained consultation (the first step-5 increment's
@@ -469,6 +489,7 @@ export async function finalize(
         ) {
           return refuseMaybeAppend(
             store,
+            recordId,
             'consultation-stale',
             leg,
             chain,
@@ -490,7 +511,7 @@ export async function finalize(
   // gates *raised* findings; it does not require findings to exist").
   for (const row of findingCoverage(record.findings, leg.ackMode, leg.requiredAcks)) {
     if (row.coverage === 'ack-missing' || row.coverage === 'ack-stale') {
-      return refuseMaybeAppend(store, row.coverage, leg, chain, resolved, finalLeg, now);
+      return refuseMaybeAppend(store, recordId, row.coverage, leg, chain, resolved, finalLeg, now);
     }
   }
 
@@ -844,6 +865,7 @@ const NO_EDGE_STATE = {
  */
 export async function appendChainCompromise(
   store: Store,
+  recordId: string,
   chain: readonly Transition[],
   now: () => Date,
 ): Promise<Outcome<never>> {
@@ -879,7 +901,7 @@ export async function appendChainCompromise(
     throw new Error('appendChainCompromise: empty chain — callers hold a loaded chain');
   }
   const refusedTransition: Transition = {
-    recordId: last.recordId,
+    recordId,
     seq: chain.length + 1,
     at: now().toISOString(),
     kind: 'refused',
@@ -919,6 +941,7 @@ export async function appendChainCompromise(
  */
 export async function refuseMaybeAppend(
   store: Store,
+  recordId: string,
   code: Exclude<RefusalCode, 'availability'>,
   leg: LegSpec,
   chain: readonly Transition[],
@@ -934,7 +957,7 @@ export async function refuseMaybeAppend(
     throw new Error('refuseMaybeAppend: empty chain — callers hold a loaded chain');
   }
   const refusedTransition: Transition = {
-    recordId: last.recordId,
+    recordId,
     seq: chain.length + 1,
     at: now().toISOString(),
     kind: 'refused',

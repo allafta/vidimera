@@ -129,6 +129,7 @@ async function residualRefusal(store: Store, recordId: string): Promise<Outcome<
  */
 async function refuseCorrespondenceMismatch(
   store: Store,
+  recordId: string,
   chain: readonly Transition[],
   resolved: ResolvedProfile,
   target: 'confirmed' | 'redeeming',
@@ -147,7 +148,7 @@ async function refuseCorrespondenceMismatch(
     throw new Error('redeem: empty chain — the caller length checks hold');
   }
   const edge: Transition = {
-    recordId: last.recordId,
+    recordId,
     seq: chain.length + 1,
     at: now().toISOString(),
     kind: 'refused',
@@ -161,7 +162,7 @@ async function refuseCorrespondenceMismatch(
   const res = await store.appendTransition(target, edge, meta);
   if (!res.appended) {
     // A racing writer moved the state — the family-wide CAS-residual discipline.
-    return residualRefusal(store, last.recordId);
+    return residualRefusal(store, recordId);
   }
   return refused('content-drift', res.transitionDigest);
 }
@@ -237,7 +238,7 @@ async function prologue(
       // caller keeps the full edge-appending behavior below.
       return { refusal: refused('chain-compromise') };
     }
-    return { refusal: await appendChainCompromise(store, chain, now) };
+    return { refusal: await appendChainCompromise(store, recordId, chain, now) };
   }
   const record = replay(chain);
   const resolved = heldProfile(profiles, record);
@@ -298,7 +299,7 @@ async function prologue(
       // and reports the same terminal truth.
       return { refusal: refused('unredeemable-state') };
     }
-    const due = await resolveDueClock(store, chain, resolved, instant);
+    const due = await resolveDueClock(store, recordId, chain, resolved, instant);
     if (due.due) {
       if (!due.result.appended) {
         return { refusal: await residualRefusal(store, recordId) };
@@ -411,7 +412,16 @@ export async function redeem(
   // to `content-drift` instead, appended terminal (`refuseCorrespondenceMismatch` below).
   const recomputed = digest(canonicalize(resolved.canonicalizer(content)));
   if (recomputed !== record.contentDigest) {
-    return refuseCorrespondenceMismatch(store, chain, resolved, 'confirmed', finalLeg, now, tx);
+    return refuseCorrespondenceMismatch(
+      store,
+      recordId,
+      chain,
+      resolved,
+      'confirmed',
+      finalLeg,
+      now,
+      tx,
+    );
   }
 
   // --- (6) append `confirmed → redeemed` -----------------------------------------------
@@ -512,7 +522,16 @@ export async function beginRedemption(
   // profile (SPEC §9.2, the live-capture increment), `effect-mismatch` otherwise.
   const recomputed = digest(canonicalize(resolved.canonicalizer(content)));
   if (recomputed !== record.contentDigest) {
-    return refuseCorrespondenceMismatch(store, chain, resolved, 'confirmed', finalLeg, now, tx);
+    return refuseCorrespondenceMismatch(
+      store,
+      recordId,
+      chain,
+      resolved,
+      'confirmed',
+      finalLeg,
+      now,
+      tx,
+    );
   }
 
   // --- (6) issue, then append `confirmed → redeeming` -----------------------------------
@@ -654,7 +673,16 @@ export async function completeRedemption(
   }
   const recomputed = digest(canonicalize(resolved.canonicalizer(content)));
   if (recomputed !== record.contentDigest) {
-    return refuseCorrespondenceMismatch(store, chain, resolved, 'redeeming', finalLeg, now, tx);
+    return refuseCorrespondenceMismatch(
+      store,
+      recordId,
+      chain,
+      resolved,
+      'redeeming',
+      finalLeg,
+      now,
+      tx,
+    );
   }
 
   // --- (6) append `redeeming → redeemed { via: 'token', tokenDigest, resultDigest? }` ---

@@ -297,7 +297,13 @@ export async function open(
   // One reading serves the blocker's resolution edge AND the retried genesis's stamp below,
   // so the new record opens at the very instant the blocker expired — never before it.
   const resolveNow = now();
-  const ex = await resolveDueClock(store, blockerChain, resolved, resolveNow);
+  const ex = await resolveDueClock(
+    store,
+    first.blockingRecordId,
+    blockerChain,
+    resolved,
+    resolveNow,
+  );
   if (!ex.due) {
     // The blocker's window (open or confirmed) has NOT elapsed — no CAS was attempted;
     // the live record still holds -> record-exists.

@@ -54,7 +54,7 @@ export async function seal(
   // AL1 intactness first; the AL2 enforcement increment folds the signature layer into
   // this same arm.
   if (!verifyChain(chain).intact || !(await signatureLayerHolds(ctx, chain))) {
-    return appendChainCompromise(store, chain, now);
+    return appendChainCompromise(store, recordId, chain, now);
   }
 
   const record = replay(chain);
