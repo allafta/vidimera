@@ -105,8 +105,12 @@ interface AgentSurface {
 
 `stage` digests the content through the profile's canonicalizer and persists a digest-only
 staged draft. `legId` omitted means the profile's first leg; a named leg absent from the
-profile refuses `unknown-leg`. The three reads are pure. Nothing on this handle
-transitions a record — asserted by its own test.
+profile refuses `unknown-leg`. The three reads are pure. `getRecord` answers `null` for an
+unknown `recordId` and **throws** when the store hands back a chain whose rows carry another
+record's id — foreign persisted data, a storage fault rather than a domain outcome (SPEC §8;
+see the chain-binding note under the operator surface). `readChain` and `chainHead` are the
+raw reads: they return what storage holds and check nothing, a transition's own `recordId`
+saying whose it is. Nothing on this handle transitions a record — asserted by its own test.
 
 ## The operator surface
 
@@ -148,7 +152,8 @@ interface OperatorSurface {
   seal(recordId: string):
     Promise<Outcome<{ recordId: string; status: 'retired'; transitionRef: Digest }>>;
 
-  // audit (not Outcome-shaped: an unknown record is a caller-error throw)
+  // audit (not Outcome-shaped: an unknown record is a caller-error throw; for another
+  // record's rows read back under this id, see the chain-binding note below)
   replay(recordId: string): Promise<DecisionRecord>;
   verifyChain(recordId: string): Promise<ChainVerifyReport>;
   verifySignatures(recordId: string): Promise<SignatureReport>;
@@ -233,6 +238,32 @@ Notes that save debugging time:
 - `verifySignatures` reports and never gates; enforcement is folded into the chain-verify
   arm at every seam on signing profiles. Its report type (`SignatureReport`) is exported
   from the entry point — the review's no-unspellable-names rule.
+- **Every chain the library folds or verifies is bound to the `recordId` it was loaded for**
+  (the chain-binding increment, 2026-11-17). The SQL backings key a read by a `record_id`
+  column that the stored row's own JSON need not match, so a store can answer `readChain(X)`
+  with another record's rows — the shape a storage-writing insider produces by copying record
+  Y's rows under X's key, with no hashing and no signing. `verifyChain(X)` reports
+  `{ intact: false, firstBreakSeq: 1, detail }`, the detail naming both ids (one foreign row
+  inside X's own chain breaks at that row's seq). Every seam that acts on X — `finalize`,
+  `decline`, `raiseFinding`, `acknowledge`, the three redemption seams, `seal` — refuses
+  `chain-compromise` at its chain-verify rung, and the `refused` edge it appends, when the
+  store admits one, is addressed to X, never to Y — Y is left exactly as it was (an enlisted
+  redemption appends nothing, as for any compromised chain). `open()`'s `priorRecordRefs` and
+  `supersedes` checks refuse `prior-leg-unverified` and `supersedes-unverified`. The reads that
+  use a chain without verifying it — `getRecord` (both handles), `replay`, `review`,
+  `verifySignatures` — and `open()`'s read of the record already holding the same
+  `(profileId, subjectRef)` **throw** instead: the message contains `foreign persisted data`
+  and names the read and both ids, and nothing is recorded on either record. An empty chain
+  keeps its existing answer (`null` from `getRecord`, the unknown-record throw elsewhere), and
+  `readChain`/`chainHead` stay raw. With `config.signing` set, that compromise edge is signed
+  even on a record whose profile does not sign, when the process has not yet cached that
+  record's own signing decision: the decorator will not take the decision from another
+  record's genesis, and signing is the fail-safe direction. The honest bound, in the same
+  breath: this detects a chain relocated under another record's id. It does not make
+  whole-record absence visible, and an insider who rewrites every copied row's `recordId` and
+  recomputes every link still produces a chain that verifies at AL1 — the recompute and
+  head-edit residuals SPEC §13A names are unchanged, and AL2 closes them only when the signing
+  key sits outside that insider's boundary.
 - SPEC §11.2 names one redemption verb; the three names here (`redeem`, `beginRedemption`,
   `completeRedemption`) are this build's own, ratified at the 2026-08-19 review.
 
@@ -435,9 +466,13 @@ type Canonicalizer = (content: unknown) => unknown;     // YOUR projection, run 
 // with no store and no handle.
 function replay(chain: readonly Transition[]): DecisionRecord;
 // verifyChain recomputes four things: the genesis link, every prevHash, seq continuity, and
-// record identity — every transition must name the genesis's recordId, so a spliced foreign
-// transition with recomputed links reports a break, not an intact chain.
-function verifyChain(chain: readonly Transition[]): ChainVerifyReport;
+// record identity. Pass the recordId the chain should belong to — the id you fetched it for,
+// or the one an archived chain is supposed to be — and every transition must name it and the
+// genesis link must derive from it, so another record's chain reports a break at seq 1. Omit
+// it and identity is checked against the genesis row's own recordId: a spliced foreign
+// transition with recomputed links still reports a break, but a whole chain belonging to
+// another record verifies intact, because it is compared only with itself.
+function verifyChain(chain: readonly Transition[], recordId?: string): ChainVerifyReport;
 
 // The profile binding (SPEC §4's `profileDigest`): the data-only projection of a profile —
 // every declarative field, every function member stripped — and its digest, which is what the

@@ -15,14 +15,17 @@ id at genesis). Two operator functions make the chain useful:
 
 - `replay(recordId)` folds the chain back into the record: its state, actor,
   consultations, findings, linkage.
-- `verifyChain(recordId)` recomputes every link and reports `{ intact: true }` or the
-  first break's sequence number.
+- `verifyChain(recordId)` recomputes every link, checks that every transition is
+  `recordId`'s own, and reports `{ intact: true }` or the first break's sequence number.
 
 The guarantee, with its limit in the same breath: the chain is **tamper-evident against
 non-recomputing edits**. Deleting, reordering, or editing a non-head transition breaks the
-next link and is caught on verify. A tamper to the *last* transition — or to a
-transition's own `prevHash` field — is indistinguishable from that transition never having
-existed, because a singly-linked chain protects each transition through the *next* link.
+next link and is caught on verify. Another record's rows copied unrewritten under this
+record's id are caught too: `verifyChain` reports a break (at seq 1 for a whole copied
+chain), the seams refuse `chain-compromise`, and the non-verifying reads throw. A tamper
+to the *last* transition — or to a transition's own `prevHash` field — is indistinguishable
+from that transition never having existed, because a singly-linked chain protects each
+transition through the *next* link.
 That is the AL1 bound; see "The assurance ladder" below for what upgrades it.
 
 Content is never persisted. The record binds a **digest** of the reviewed content
@@ -230,7 +233,8 @@ The other governed controls, one line each — the catalog with tiers and honest
 - **AL2 — signed** (built; operator-enabled): every transition of a declaring profile's
   records gets a detached signature at append, and every *seam* that verifies a chain
   before acting folds the signature layer into its verdict. (The standalone `verifyChain`
-  audit read checks linkage only; `verifySignatures` is the signature layer's own report.)
+  audit read checks linkage and record identity only; `verifySignatures` is the signature
+  layer's own report.)
   Raises the bar against a rewriting insider exactly when the signing key is held outside
   that insider's boundary — key custody is the host's problem, and the guarantee is only
   as good as it.

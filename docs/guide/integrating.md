@@ -175,7 +175,11 @@ switch (outcome.status) {
 
 Exceptions still happen — for *your* bugs: unknown ids, malformed inputs, construction-time
 contract violations, storage faults. Let them crash into your normal error handling; do not
-catch them into refusal handling.
+catch them into refusal handling. One storage fault is worth an alert of its own: a call that
+throws with `foreign persisted data` in its message means the store answered one record's id
+with rows that name another record — corruption, tampering, or a backing that keys its reads
+wrongly, never a bad argument. The throw recorded nothing; that record's seams refuse
+`chain-compromise` (the api-reference's chain-binding note has the full list).
 
 One refusal is neither an input problem nor a state change. A `finalize`, `decline`,
 `raiseFinding` or `acknowledge` that loses its append to a concurrent `raiseFinding` or
