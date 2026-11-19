@@ -260,13 +260,13 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   corrective-and-widening edit followed with no marker move — the profile-drift gate
   (2026-09-03), which widened `unknown-profile`'s producer text and the sentences it
   falsified across SPEC §§4, 8, 9, 10.1, 10.3 and the legend, OPEN-QUESTIONS §§1–2, CONTROLS,
-  GLOSSARY and DECISIONS #5, under the grant recorded in its design's §8. Three more followed
-  at the AL2 restatement (2026-11-19), none moving a marker: one, corrective, states AL2's
-  closure with its three conditions in SPEC §13A and §14, CONTROLS, ASSURANCE and OPEN-QUESTIONS
-  §1, under call 3 of `docs/analysis/2026-11-17-sanction-calls.md` (at most two sealed-set
-  commits; the second, narrowing condition (iii) to a separate sidecar, is reserved for the
-  transactional-sidecar increment and is pending after it); two more, under the
-  owner's own grant that day, condition the ten sentences outside call 3 that stated the closure
+  GLOSSARY and DECISIONS #5, under the grant recorded in its design's §8. Four more followed at
+  the AL2 restatement (2026-11-19 and 2026-11-20), none moving a marker: two, corrective, under
+  call 3 of `docs/analysis/2026-11-17-sanction-calls.md` (its whole budget) — the first states
+  AL2's closure with its three conditions in SPEC §13A and §14, CONTROLS, ASSURANCE and
+  OPEN-QUESTIONS §1, the second (after the transactional-sidecar increment) narrows where
+  condition (iii) fails to any sidecar other than the configured store's own; two more, under the
+  owner's own grant of 2026-11-19, condition the ten sentences outside call 3 that stated the closure
   without its conditions — SPEC §§5, 10.1, 10.3, ARCHITECTURE, SCOPING-GUIDE, OPEN-QUESTIONS and
   CONCEPT.md's honesty-discipline bullet, which by this file's own rule makes that change a fork
   of the concept, called out as one. A new
