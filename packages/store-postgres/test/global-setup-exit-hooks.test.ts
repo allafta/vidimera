@@ -12,7 +12,19 @@ import { test } from 'vitest';
 
 const packageDir = fileURLToPath(new URL('..', import.meta.url));
 
-test('the hazard: a bare import of embedded-postgres turns a process that set exitCode 1 into exit 0 — if THIS pin fails, the library fixed it and the workaround is obsolete', () => {
+/**
+ * Per-test budget for the three tests that spawn a Node child process which loads
+ * `embedded-postgres`. On the Windows CI runner that start-up varies widely: across ten Windows
+ * runs between 2026-11-17 and 2026-11-20 this file took 0.6s to 6.0s, and on 2026-11-19 one of
+ * these tests took 5.2s and failed at vitest's 5s default while every other leg passed (its rerun
+ * passed). Thirty seconds is five times the slowest file observed. A pass is still decided by the
+ * child's exit status and stderr, never by the clock.
+ */
+const SUBPROCESS_TIMEOUT_MS = 30_000;
+
+test('the hazard: a bare import of embedded-postgres turns a process that set exitCode 1 into exit 0 — if THIS pin fails, the library fixed it and the workaround is obsolete', {
+  timeout: SUBPROCESS_TIMEOUT_MS,
+}, () => {
   const run = (source: string) =>
     spawnSync(process.execPath, ['--input-type=module', '-e', source], {
       cwd: packageDir,
@@ -67,7 +79,9 @@ const throughWorkaround = (tail: string) =>
     { cwd: packageDir, encoding: 'utf8' },
   );
 
-test('through loadEmbeddedPostgres(), a process that set exitCode 1 exits 1 — the exit-phase rejection the workaround exposes never touches the code the CI gate reads', () => {
+test('through loadEmbeddedPostgres(), a process that set exitCode 1 exits 1 — the exit-phase rejection the workaround exposes never touches the code the CI gate reads', {
+  timeout: SUBPROCESS_TIMEOUT_MS,
+}, () => {
   const failing = throughWorkaround('process.exitCode = 1;');
   assert.equal(
     failing.status,
@@ -76,7 +90,9 @@ test('through loadEmbeddedPostgres(), a process that set exitCode 1 exits 1 — 
   );
 });
 
-test("the exposed noise itself: after a clean run the library's exit-event hook throws `done is not a function` on stderr — if THIS pin fails, the library fixed its exit path and row 24's noise note is stale", () => {
+test("the exposed noise itself: after a clean run the library's exit-event hook throws `done is not a function` on stderr — if THIS pin fails, the library fixed its exit path and row 24's noise note is stale", {
+  timeout: SUBPROCESS_TIMEOUT_MS,
+}, () => {
   const clean = throughWorkaround('process.exitCode = 0;');
   assert.equal(clean.status, 0, `the control run exits 0; stderr: ${clean.stderr}`);
   assert.match(
