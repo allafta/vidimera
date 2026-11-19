@@ -1,6 +1,7 @@
 # API reference
 
-**Derived from source, 2026-11-20.** This page enumerates the public surface as
+**Derived from source, 2026-08-21; its store and signing sections re-derived 2026-11-20.** This
+page enumerates the public surface as
 `packages/record/src/index.ts` exports it against the current tree. The source and
 [`../concept/SPEC.md`](../concept/SPEC.md) are authoritative; if this page disagrees with
 either, this page is stale — file it as a bug. Two standing caveats: the pre-0.1 API
