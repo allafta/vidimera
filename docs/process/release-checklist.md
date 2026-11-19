@@ -349,56 +349,9 @@ week before.
       NOT decided here):** carry forward. Nothing has changed signature encoding or key
       handling since the row opened on 2026-08-23 — the decorator's memo (the no-edge
       containment increment) changed how many times a signer is asked, never what is signed or
-      how it is keyed — so the row's first disjunct has not fired and the deferral's reason
-      stands. Carrying it forward means restating the row's trigger without the "or the 0.1
+      how it is keyed, and the transactional-sidecar increment (2026-11-19) changed where and
+      when a sidecar entry is written, never its encoding or the key that signs it — so the
+      row's first disjunct has not fired and the deferral's reason stands. Carrying it forward means restating the row's trigger without the "or the 0.1
       cut" disjunct and recording that ruling in `docs/process/implementation-status.md`.
-- [ ] Decide register row 22's disposition (`docs/process/deferral-register.md`, orphan
-      sidecar growth on the no-edge refusal path — the row's surviving half, 22a: each
-      refusing seam call against a record whose persisted state admits no CAS candidate
-      mints one orphan sidecar entry naming a transition that never lands. An orphan never
-      produces a verdict, because both AL2 kernel readers correlate from the chain to the
-      sidecar — but every sidecar row IS fetched on every verification, so this is a
-      storage and observability finding, not a soundness one. The redundant-signing half,
-      22b, CLOSED on behavior at the no-edge containment increment, 2026-08-29: one mint per
-      transition instead of one per CAS candidate, and one dead candidate dropped from the
-      walk — so no wasted-signing cost remains to weigh). What remains open cannot be closed
-      by a fix in this repository as it stands: every measured containment for 22a predicts
-      the store's C3 and C4 answer from a chain that failed verification, a chain-local
-      precheck was measured to suppress a compromise evidence edge that lands today, and the
-      two divergence shapes are permanent must-not-change pins
-      (`packages/record/test/no-edge-containment.test.ts`). Closing 22a therefore means
-      seeking a sanction for that trade, or accepting the delegation already stated in the
-      `SignatureStore` contract — a conforming sidecar holds orphans and a bounded backing
-      reconciles against the chain
-      (`docs/analysis/2026-08-24-no-edge-containment-investigation.md`). Its own trigger
-      (verbatim) — "The first increment that adds a durable `SignatureStore` backing beyond
-      `MemorySignatureStore` — the only implementation in the tree, and the reason unbounded
-      growth is unmeasured here; or that lifts `private: true` and publishes the package,
-      since a host's durable backing arrives through the documented `signatures:` hook in the
-      operator's own deployment, where no in-repo event fires; or that seeks a sanction
-      through `docs/concept/SCOPING-GUIDE.md` §§1–2 to decide C3 and C4 from the read chain,
-      the third horn; or the 0.1 cut — whichever lands first." — names this cut too, so
-      release day must retire it or explicitly carry it forward rather than leave it
-      unaddressed; if retired, give it the same retirement-note/roadmap-update treatment as
-      row 1. Note before ruling: behavior on a durable `SignatureStore` backing is a coverage
-      bound, NOT a mitigation — it is unmeasurable in this tree, because
-      `MemorySignatureStore` is the only implementation — so its absence from the evidence
-      must not be read as the finding being contained; and "carry forward, with the growth
-      visible" is the expected ruling — `verifySignatures(recordId).orphans` now names the
-      entries a host must reconcile, so the row's cost is a number rather than a warning —
-      and the third-horn sanction is DECLINED at this cut unless sought on its own merits,
-      since the alternative containments were measured and rejected rather than left
-      untried and the one horn-free deletion point (prune-at-seal) is recorded in the row
-      as identified, not built.
-      **Expected ruling, pre-argued 2026-08-29 (release day confirms or overrules; the row is
-      NOT decided here):** carry forward. The only measured containment for the orphan half
-      takes a horn that needs a sanction nobody has sought; the delegation in the
-      `SignatureStore` contract and the visibility `SignatureReport.orphans` gives a host are
-      what stand; the sanction is declined at this cut unless sought on its own merits.
-      Carrying it forward means restating the row's trigger without the TWO disjuncts the cut
-      itself fires — "or that lifts `private: true` and publishes the package" (the release
-      commit drops `private: true` and the dispatch publishes) and "or the 0.1 cut" — leaving
-      the durable-backing and third-horn-sanction disjuncts standing, and recording that
-      ruling in `docs/process/implementation-status.md`.
 - [ ] Update `docs/process/implementation-status.md`'s measured block (versions,
       published state) — dated, as always.

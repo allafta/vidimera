@@ -2,7 +2,7 @@
 
 This document is a **roadmap**: what gates the next cut and why, never how — no
 implementation plan lives here. It is derived from three sources, read whole rather than
-sampled: `docs/process/deferral-register.md`'s three live rows, `docs/concept/OPEN-QUESTIONS.md`
+sampled: `docs/process/deferral-register.md`'s four live rows, `docs/concept/OPEN-QUESTIONS.md`
 (sealed, read-only — quoted here, never edited), and `docs/process/implementation-status.md`'s
 "Still outstanding" and "The package is unconsumable today" sections. Nothing below is
 invented; every register row, quote, and section number is checked against those sources at
@@ -25,61 +25,21 @@ and "What is deliberately outside the scope" below says so in the concept's own 
 
 ## What gates the next cut
 
-Three deferral-register rows gate the next cut — down from four: the AL2
-signature-enforcement coverage increment retired rows 20 and 21 and opened row 22 in their
-place. Row 1, publish tooling, is the one that survives from the build order itself — its
-tooling landed at the phase-2 packaging increment, and the row stays open until the release
-workflow is exercised once at the 0.1 cut. The other two are both newer, opened by
-post-build-order findings rather than by the build order itself, and each of their own
-triggers names the 0.1 cut too, so both belong beside row 1 here rather than only in a
-build-order account. Row 19, the AL2 detached-signature sidecar pinning deferral, was
-opened by the byte-regression-pins increment; its trigger (verbatim): "The first increment
-that changes signature encoding or key handling, or the 0.1 cut — whichever lands first".
-Row 22, orphan sidecar growth on the no-edge refusal path, was opened by the AL2
-signature-enforcement coverage increment, which found it while closing rows 20 and 21 and
-recorded it rather than fixing it
-(`docs/analysis/2026-08-23-signature-enforcement-coverage.md`, Finding F). That was the
-right act — one cluster per increment — but the reason the row first gave was withdrawn as
-an exhaustive disjunction by the row-22 truth repairs (2026-08-28), after an investigation
-(`docs/analysis/2026-08-24-no-edge-containment-investigation.md`) found one containment
-that sits on neither horn and closes the redundant-signing half, and found that the only
-measured containment for the orphan half sits on a THIRD horn the sentence never named:
-it predicts the store's C3 and C4 answer from a chain that failed verification by
-construction. The row then carried two halves. **It carries one now.** The no-edge
-containment increment (2026-08-29) closed the redundant-signing half, 22b, on behavior —
-the signer-result memo keyed by transition object identity (one mint per transition, the
-put still written before every attempt) and the outcome-preserving narrowing that drops the
-one candidate C3 can never admit — and re-scoped the row to its orphan half, 22a, which
-stays open on the third horn: every measured containment for it predicts the backing's
-answer from the read chain, a chain-local precheck was measured to suppress a compromise
-evidence edge that lands today, and the two divergence shapes are now permanent must-not-
-change pins in `packages/record/test/no-edge-containment.test.ts`. Taking that horn needs a
-fresh sanction and a stated trade, not a fix. Two further findings that investigation
-produced took no register row of their own and are CLOSED: a third, sidecar-DRIVEN reader in
-`probes/probes.ts`, measured returning a FAIL against a sound build under a listing order the
-sidecar contract permits; and the same idiom in the corpus's shared break helper. The
-sidecar-contract increment — between the truth repairs and the containment — made both
-correlate through the chain and pinned the adverse ordering
-(`packages/record/test/sidecar-ordering.test.ts`); in the same change the `SignatureStore`
-contract and both guide documents gained the obligation that a conforming sidecar holds
-entries for transitions that never landed. That sentence is delegation, not a fix: 22a
-stays open. The sidecar-orphans-report increment (2026-08-29) made the delegated work
-visible — `verifySignatures(recordId).orphans` names the entries to prune, sorted, at no
-extra read — without closing 22a; prune-at-seal is recorded in the row's inventory as
-identified and gated on a durable backing, and the third-horn sanction is declined at this
-cut. Work with a named successor increment was sequenced, not deferred, which is why
-neither finding ever took a register row. Row 22's trigger, re-derived for 22a alone
-(verbatim):
-"The first increment that adds a durable `SignatureStore` backing beyond
-`MemorySignatureStore` — the only implementation in the tree, and the reason unbounded
-growth is unmeasured here; or that lifts `private: true` and publishes the package, since a
-host's durable backing arrives through the documented `signatures:` hook in the operator's
-own deployment, where no in-repo event fires; or that seeks a sanction through
-`docs/concept/SCOPING-GUIDE.md` §§1–2 to decide C3 and C4 from the read chain, the third
-horn; or the 0.1 cut — whichever lands first."
+Two deferral-register rows gate the next cut — down from three: the transactional-sidecar
+increment (2026-11-19) retired row 22 on measured behavior on all three reference backings, its
+account in its own section below. Row 1, publish tooling, is the one that survives from the
+build order itself — its tooling landed at the phase-2 packaging increment, and the row stays
+open until the release workflow is exercised once at the 0.1 cut. Row 19 is newer, opened by a
+post-build-order increment rather than by the build order itself, and its own trigger names the
+0.1 cut too, so it belongs beside row 1 here rather than only in a build-order account. Row 19,
+the AL2 detached-signature sidecar pinning deferral, was opened by the byte-regression-pins
+increment; its trigger (verbatim): "The first increment that changes signature encoding or key
+handling, or the 0.1 cut — whichever lands first". The transactional-sidecar increment did not
+fire it: it moved where and when a sidecar entry is written, never what is signed, how an entry
+is encoded, or how a key is handled.
 
-Rows 20 and 21 retired 2026-08-23, each with its account in its own section below. Every
-other row retired 2026-08-19, likewise each with its account in its
+Rows 20 and 21 retired 2026-08-23, and row 22 2026-11-19, each with its account in its own
+section below. Every other row retired 2026-08-19, likewise each with its account in its
 own section below: row 6 (the pre-0.1 API review), row 5 (the Biome migration), row 15
 (the server-SQL backing, landed whole as `@vidimera/store-postgres`), row 16 (the token
 seams' `tx?`), and row 4 (the workspace shape, its trigger fired deliberately by the
@@ -129,6 +89,66 @@ flip from a hand-maintained enumeration into a grep recipe;
   publishing BOTH packages — record first). The row stays open until the 0.1 cut
   exercises that workflow once; `docs/process/release-checklist.md` is release day's
   authoritative list.
+
+### Orphan sidecar growth on the no-edge refusal path — register row 22, retired 2026-11-19
+
+- Deferred item: on the no-edge refusal path, `appendChainCompromise` (`kernel/finalize.ts`)
+  rebuilds its `refused` transition on every call, and the signing decorator wrote each sidecar
+  entry BEFORE delegating the append, so a refusing seam call against a record whose persisted
+  state admits no compare-and-swap candidate left one orphan entry per call — six refusing
+  `finalize()` calls against a sealed signing record took the sidecar from 5 entries to 11 with
+  the chain flat at 5. Two further producers were named 2026-09-02: a `finalize`/`decline` batch
+  that loses to a concurrent append (`record-contended`), one entry per element; and `open()`'s
+  expire-then-retry under a moving clock, the first attempt's genesis entry. Opened 2026-08-23 by
+  the AL2 signature-enforcement coverage increment, which found it while closing rows 20 and 21
+  (`docs/analysis/2026-08-23-signature-enforcement-coverage.md`, Finding F); restated 2026-08-28
+  by the row-22 truth repairs with a measured containment inventory
+  (`docs/analysis/2026-08-24-no-edge-containment-investigation.md`); re-scoped 2026-08-29 to its
+  orphan half, 22a, once the no-edge containment increment closed the redundant-signing half,
+  22b, on behavior (one mint per transition object, one dead candidate dropped from the walk).
+  22a was then held open on a THIRD horn: every measured containment predicted the store's C3
+  and C4 answer from a chain that failed verification by construction, a chain-local precheck
+  was measured to suppress a compromise evidence edge that lands today, and the two divergence
+  shapes became permanent must-not-change pins in `packages/record/test/no-edge-containment.test.ts`.
+  Along the way the sidecar-contract increment closed two findings that took no row (the
+  sidecar-DRIVEN probe reader and the corpus's break helper, both now chain-correlated and
+  pinned in `packages/record/test/sidecar-ordering.test.ts`) and stated the orphan obligation in
+  the `SignatureStore` contract, and the sidecar-orphans-report increment made the growth
+  visible as `verifySignatures(recordId).orphans` — delegation and visibility, not a fix.
+- Trigger (verbatim, as re-derived for 22a): "The first increment that adds a durable
+  `SignatureStore` backing beyond `MemorySignatureStore` — the only implementation in the tree,
+  and the reason unbounded growth is unmeasured here; or that lifts `private: true` and
+  publishes the package, since a host's durable backing arrives through the documented
+  `signatures:` hook in the operator's own deployment, where no in-repo event fires; or that
+  seeks a sanction through `docs/concept/SCOPING-GUIDE.md` §§1–2 to decide C3 and C4 from the
+  read chain, the third horn; or the 0.1 cut — whichever lands first." Its first disjunct fired
+  as a prompting event: the transactional-sidecar increment adds durable `SignatureStore`
+  backings, one on each durable reference store, and the deferred behavior landed with them.
+- **What done would look like:** call 2 of `docs/analysis/2026-11-17-sanction-calls.md` licensed
+  the transactional-sidecar route as its own increment, with no sealed edit — signature entries
+  persisted atomically with the append they sign, after its compare-and-swap, on every backing
+  that can provide that — and declined the third horn; the row was to retire only on measured
+  behavior on all three reference backings.
+- **Done, 2026-11-19 (the transactional-sidecar increment, branch
+  `transactional-sidecar-2026-11-19`):** each reference store — `MemoryStore`, `SqliteStore`,
+  `PostgresStore` — exposes its own sidecar as `signatures`, and a signing instance configured
+  with that very object (`signatures: store.signatures`) runs INTEGRATED: the decorator still
+  mints and checks before the append, then hands the entries down on it, and the store writes
+  them inside the append's own atomic unit, after every check, only when it applies — through a
+  host's transaction when enlisted. Measured on all three backings, the row's own rig: six
+  refusing `finalize()` calls against a sealed signing record whose genesis entry was broken
+  leave chain 5 and sidecar 5 after every call, one mint per call, zero orphans; the same rig
+  with a separate `MemorySignatureStore` still goes 6, 7, 8, 9, 10, 11 — six orphans. Pinned on
+  each backing: that measurement, `open()`'s retry and a `record-contended` lost batch leaving no
+  orphan, and an enlisted redemption rolled back leaving none (SQLite and Postgres). The third
+  horn was not taken: both divergence pins stand unchanged. **What stays open, stated:** SEPARATE
+  mode — any sidecar that is not the store's own — keeps the write-first order and every
+  consequence, one orphan per refusing call included; an existing deployment switching to the
+  store's own sidecar must copy its entries across with `put` first (the library does not
+  migrate); and a store wrapper must expose the inner store's `signatures` and forward `meta`
+  intact, or it runs separate. The row is retired; `docs/process/implementation-status.md`'s
+  section of that name carries the account. The sealed-set restatement of condition (iii) that
+  call 3.2 reserves for this increment is pending, as its own change.
 
 ### Decline's rung-(1) coverage gap — register row 20, retired 2026-08-23
 
@@ -288,7 +308,7 @@ A `COLLATE "C"` hardening on the text `due_at` comparison rides with it. Trigger
 "The first host that needs two enlisted seam calls on one record inside one transaction; or the
 first increment that changes any `Store` read signature; or the 1.0 freeze of the `Store`
 contract (`docs/concept/OPEN-QUESTIONS.md` §9's gate) — whichever lands first. Does not gate
-the 0.1 cut." It does not gate the cut, so it sits here beside the three rows that do rather
+the 0.1 cut." It does not gate the cut, so it sits here beside the rows that do rather
 than among them. Two related signals ride with it: the `seq` conflict arms carrying the
 head seq the store adjudicated against, which would make the kernel's contention-versus-fault
 split exact rather than inferred from a later re-read; and a detected pool-size floor for
@@ -308,7 +328,7 @@ workaround is test infrastructure only, and no published package carries the lib
 Trigger (verbatim): "The hazard pin failing — the library, or its exit hook, no longer exits 0
 over the process's exit code — or the library being replaced; either removes the workaround
 and both pins together. Does not gate the 0.1 cut." Like row 23, it sits here beside the
-three rows that gate the cut rather than among them.
+rows that gate the cut rather than among them.
 
 A note added 2026-09-05, recorded in the row itself: the workaround has a visible side effect.
 With the `beforeExit` listener gone, the library's `exit`-event hook runs with no callback, and
@@ -401,9 +421,12 @@ commit message on `code-review-fixes`; for the fourth, in
   `contentDigest`; the divergence is derivable from the recorded reference, and equality would
   change no bytes and break no test, but it adds a condition to the verifier's enumerated list.
 - **Two-phase sidecar cleanup and orphan classification.** Ruled out today by the sidecar
-  contract's "the library performs no pruning" and by register row 22's third horn; the
-  `seq`-based split a host can compute (beyond-head means never landed; an occupied slot means
-  a competing signed transition) never changes a verdict.
+  contract's "the library performs no pruning", and by register row 22's third horn while that
+  row was open; the `seq`-based split a host can compute (beyond-head means never landed; an
+  occupied slot means a competing signed transition) never changes a verdict. Since the
+  transactional-sidecar increment (2026-11-19) the question matters for separate mode only: a
+  sidecar that is the store's own holds no entry for a transition that never landed, so its
+  orphans are entries of deleted or rewritten committed transitions, or planted ones.
 - **An `unavailable` answer for the signature layer — DECIDED 2026-11-17**
   (`docs/analysis/2026-11-17-sanction-calls.md`, call 1: a throwing verifier propagates as a
   fault and appends nothing, a non-`true` answer stays fail-closed; the availability-class

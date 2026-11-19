@@ -160,10 +160,13 @@ test('ENLISTED SIGNING: a signing effect-seam profile signs the enlisted redeem(
   // The AL2 mint increment's one sqlite pin (signing.test.ts's own suite pins the layer
   // in isolation; this test pins it riding an enlisted redeem()): the neighboring
   // ENLISTMENT test's plumbing, plus `signing: true` on the profile and a
-  // `config.signing` block. `signing/decorate.ts`'s sidecar write is deliberately OUTSIDE
-  // the host's transaction, so the redeemed edge's signature lands regardless of the tx's
-  // own fate — this test pins the ordinary commit path, proving the tx semantics the
-  // ENLISTMENT test above establishes are unchanged by signing riding along. The
+  // `config.signing` block. Its sidecar is a `MemorySignatureStore`, not `sqlite.signatures`,
+  // so the decorator runs in SEPARATE mode, where `signing/decorate.ts`'s sidecar write is
+  // deliberately OUTSIDE the host's transaction and the redeemed edge's signature lands
+  // regardless of the tx's own fate (in integrated mode it would ride the tx instead —
+  // `transactional-sidecar.test.ts` pins that). This test pins the ordinary commit path,
+  // proving the tx semantics the ENLISTMENT test above establishes are unchanged by signing
+  // riding along. The
   // verifier below matches the stub signer's own scheme — the AL2 enforcement increment
   // now consults it at every chain-verify site (this fixture predates that increment,
   // when `verifiers: {}` was inert; it must resolve now, or every finalize/redeem call

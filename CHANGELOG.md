@@ -162,6 +162,35 @@ is the summary, and that file wins on conflict.
   (red first: the field absent, the exports missing). The profile-drift gate (under Changed,
   2026-09-03) closed the configuration route that same day; this entry is left as the history
   it is.
+- **The integrated sidecar: a signature written with the append it signs** (2026-11-19, branch
+  `transactional-sidecar-2026-11-19`; call 2 of `docs/analysis/2026-11-17-sanction-calls.md`, no
+  sealed-set edit, no marker move). `MemoryStore`, `SqliteStore` and `PostgresStore` each expose
+  their own detached-signature sidecar as `signatures` (a map; a `signatures` table on the same
+  connection; a `signatures` table in the same schema, which existing SQLite files and Postgres
+  schemas gain on open or first use). Configure `signing.signatures: store.signatures` and the
+  instance runs INTEGRATED: each signature is still minted and checked before the append, then
+  rides it as `AppendMeta.signatures`, and the store writes it inside the append's own atomic
+  unit, after every check, only when the append applies — through the host's transaction when a
+  seam is enlisted. No entry then outlives an uncommitted append: six refusing `finalize` calls on
+  a sealed signing record leave the sidecar equal to the chain (5 and 5) on all three stores,
+  measured, where the old order left six orphans; `open()`'s retry, a `record-contended` lost
+  batch and a rolled-back enlisted redemption leave none; and SPEC §14's condition (iii) splice is
+  refused `chain-compromise` (pinned over `SqliteStore`). Deferral-register row 22 retires on that
+  measurement. New public
+  surface: the optional `Store.signatures` and `AppendMeta.signatures`, each store's
+  `signatures`, and `signatureEntriesToWrite`, the one entry check the three stores share.
+  `SqliteStore` now runs every enlisted write in a savepoint, so an enlisted append that throws
+  leaves none of its rows in the host's transaction. The limits, in the same breath: any other
+  sidecar runs SEPARATE mode — the old write-first order, unchanged, with its orphans and its
+  spliceable signatures, so condition (iii) stays open there; an existing deployment switching to
+  the store's own sidecar must copy its entries across with `put` first, or those records read
+  unsigned and refuse `chain-compromise` (nothing is migrated); a store wrapper must expose the
+  inner store's `signatures` and forward `meta` intact, or it runs separate — and one that drops
+  `meta.signatures` lands transitions unsigned, which the next seam refuses; and if a seam throws
+  inside a host transaction, roll it back (on Postgres the failed statement has already aborted
+  it). Mode is selected by identity, once, at construction, and reported nowhere but the
+  configuration. The sealed set's own statement of condition (iii) still describes the old order;
+  its narrowing to a separate sidecar is the pending second commit call 3 reserves.
 
 ### Changed
 

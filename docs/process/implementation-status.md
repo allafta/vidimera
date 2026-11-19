@@ -82,7 +82,9 @@ any one exit.
   dilemma it first recorded, and re-scoped 2026-08-29 by the no-edge containment increment,
   which closed its redundant-signing half on behavior and left its orphan half open). See
   the dedicated sections at the end of this document for the full accounts; the numbers
-  immediately below already include them.
+  immediately below already include them. (**Updated 2026-11-19:** row 22 has since RETIRED,
+  at the transactional-sidecar increment, which leaves no orphan on that path when the
+  configured sidecar is the store's own; the bullet stays as the narrative it was.)
 - **A further increment, past the build order, has landed: code-review fixes (six phases)** —
   a 2026-09-02 code review of the tree at `d5fc3b9`, worked phase by phase on branch
   `code-review-fixes`, one commit per phase with the argument in its message. Behavior moved in
@@ -114,43 +116,35 @@ any one exit.
   proved only that the step ran; this document's gate outputs were measured locally and
   stand. See the dedicated section at the end of this document; the numbers immediately
   below already include it.
-- **Measured against the current tree** (re-measured at the AL2 restatement increment,
-  2026-11-19): `pnpm test` — 86 test files, 1165 tests, zero skips
+- **Measured against the current tree** (re-measured at the transactional-sidecar increment,
+  2026-11-19): `pnpm test` — 88 test files, 1237 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
-  `pnpm lint` (`biome check .`) — 159 files checked, zero errors or warnings;
+  `pnpm lint` (`biome check .`) — 161 files checked, zero errors or warnings;
   `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 25 refusal codes, the twenty-fifth being
   `record-contended` (the record-contended increment); zero GOVERNED construction guards
   remain in `config.ts`.
-- **The live deferral-register rows**: five — row 23 (the optional `tx` on the Store's five
+- **The live deferral-register rows**: four — row 23 (the optional `tx` on the Store's five
   reads, opened 2026-09-02 by the code-review-fixes increment; it does not gate the cut — its
   own bullet in "Still outstanding" below), row 24 (the `embedded-postgres` exit-hook
   workaround, opened 2026-09-03 by the CI test-gate follow-ups; it does not gate the cut — its
-  trigger is the hazard pin failing or the library being replaced) and the three that gate the cut: row 1 (publish tooling, whose tooling landed
+  trigger is the hazard pin failing or the library being replaced) and the two that gate the
+  cut: row 1 (publish tooling, whose tooling landed
   at the phase-2 packaging increment and which stays open until the release workflow is
-  exercised once at the 0.1 cut); row 19 (the AL2 detached-signature sidecar pinning
+  exercised once at the 0.1 cut); and row 19 (the AL2 detached-signature sidecar pinning
   deferral, added by the byte-regression-pins increment, held open until the first
   increment that changes signature encoding or key handling, or the 0.1 cut, whichever
-  lands first); and row 22 (orphan sidecar growth on the no-edge refusal path — its
-  surviving half, 22a: each refusing seam call against a compromised record whose persisted
-  state admits no CAS candidate mints a sidecar entry naming a transition that never lands;
-  an orphan never produces a verdict, because both AL2 kernel readers correlate from the
-  chain to the sidecar, but every sidecar row IS fetched and materialized on every
-  verification, and the third, formerly sidecar-DRIVEN reader in `probes/probes.ts`
-  correlates through the chain as of the sidecar-contract increment — so a storage and
-  observability finding rather than a soundness one; behavior on a durable `SignatureStore`
-  backing is UNMEASURED, a coverage bound rather than a mitigation. Its redundant-signing
-  half, 22b — one mint per CAS candidate — CLOSED on behavior at the no-edge containment
-  increment: one mint per transition object, and one dead candidate dropped from the walk).
-  Row 22 was added by the AL2 signature-enforcement coverage increment, which found it while
-  closing rows 20 and 21 and recorded it rather than fixing it; was restated 2026-08-28 by
-  the row-22 truth-repairs increment with a measured containment inventory; and was
-  re-scoped 2026-08-29 to 22a, which stays open on the third horn — every measured
-  containment for it predicts the store's answer from a chain that failed verification, and
-  taking that horn needs a fresh sanction. Its re-derived trigger is quoted verbatim in the
-  "Still outstanding" row-22 bullet below rather than paraphrased here.
+  lands first — the transactional-sidecar increment changed neither). **Row 22 retired
+  2026-11-19** at the transactional-sidecar increment (orphan sidecar growth on the no-edge
+  refusal path, opened 2026-08-23, restated 2026-08-28, re-scoped 2026-08-29 to its orphan
+  half and held open on the third horn): with the configured sidecar the store's own, each
+  reference store writes a signature entry inside the atomic unit of the append it signs, and
+  six refusing calls against a sealed signing record leave zero orphans on all three backings,
+  measured — the third horn not taken. Its separate-mode residual is stated, not closed: a
+  sidecar that is not the store's own still takes one orphan per refusing call. Its account is
+  in "Still outstanding" below and in the increment's own section at the end.
   **Rows 20 and 21 retired 2026-08-23** at
   that same increment, their accounts in "Still outstanding" below; both had been added by
   the signature-enforcement-coverage findings record
@@ -1227,7 +1221,29 @@ Carried in the deferral register, with triggers:
   Full account: `docs/analysis/2026-08-23-signature-enforcement-coverage.md` (Findings C
   and D), and the increment section at the end of this document. Kept here as the record;
   the register carries the numbering gap.
-- **Row 22** — orphan sidecar growth on the no-edge refusal path: the surviving half, 22a,
+- **Row 22** — RETIRED 2026-11-19 (the transactional-sidecar increment, on call 2 of
+  `docs/analysis/2026-11-17-sanction-calls.md`): each reference store — `MemoryStore`,
+  `SqliteStore`, `PostgresStore` — exposes its own sidecar as `signatures`, and a signing
+  instance configured with that very object runs INTEGRATED: the decorator still mints and
+  checks before the append, then hands the entries down on it, and the store writes them inside
+  the append's own atomic unit, after every check, only when it applies — through a host's
+  transaction when enlisted. Measured on all three backings with the row's own rig (a sealed
+  signing record, its genesis entry broken, a one-second ticking clock, six refusing
+  `finalize()` calls): integrated, chain 5 and sidecar 5 after every call, one mint per call,
+  zero orphans; the same rig with a separate `MemorySignatureStore`, sidecar 6, 7, 8, 9, 10, 11
+  — six orphans. Pinned on each backing: that measurement, `open()`'s moving-clock retry, and a
+  `record-contended` lost batch leaving no orphan; and on SQLite and Postgres an enlisted
+  redemption rolled back leaving none. The trigger's first disjunct fired as a prompting event —
+  the increment adds durable `SignatureStore` backings beyond `MemorySignatureStore` — and the
+  behavior landed with it; the third horn was NOT taken, and both divergence pins in
+  `no-edge-containment.test.ts` stand unchanged. The SEPARATE-MODE RESIDUAL, stated: a sidecar
+  that is not the store's own keeps the write-first order — one orphan per refusing call, a
+  spliceable signature over every append that does not commit — and that file's baselines keep
+  measuring it; an existing deployment switching to the store's own sidecar must copy its
+  entries across with `put` first (the library does not migrate); a store wrapper must expose
+  the inner store's `signatures` and forward `meta` intact, or it runs separate. The account as
+  it stood until then follows, kept as the record; the register carries the numbering gap.
+  It was the surviving half, 22a,
   of a row added by the AL2 signature-enforcement coverage increment (which found it while
   closing rows 20 and 21 and recorded it rather than fixing it), restated 2026-08-28 by the
   row-22 truth-repairs increment, and re-scoped 2026-08-29 by the no-edge containment
@@ -1311,20 +1327,18 @@ Rows 17 and 18 both retired at the self-test-tier increment — step 8's own fou
 last tail item landed (see the CONTROLS §4 row and the boundary above for the full
 account, including the ELEVENTH self-authored inversion row 18 carries), so neither is
 listed here any longer. **The build order is complete: no row above carries any of the
-eight build-order steps as unfinished work** — of the three surviving rows, row 1 (publish
+eight build-order steps as unfinished work** — of the four surviving rows, row 1 (publish
 tooling) is a hygiene gate that outlives the build order by design, held open until the
 release workflow it authored is exercised once at the 0.1 cut; row 19 (the AL2
 detached-signature sidecar pinning deferral) is a scope gate opened by a later,
 post-build-order increment, held open until a signature-encoding or key-handling change
-lands, or the 0.1 cut, whichever comes first; and row 22 (orphan sidecar growth on the
-no-edge refusal path, restated 2026-08-28 and re-scoped 2026-08-29 to its orphan half once
-the no-edge containment increment closed its redundant-signing half on behavior) is a
-sanction gate rather than a containment gate now — every measured containment for the orphan
-half takes a horn that needs a fresh sanction — held open until a durable sidecar backing,
-or publication of the package, or a sanction sought for deciding C3 and C4 from the read
-chain, or the 0.1 cut, whichever comes first. Rows 20 and 21 — the two
+lands, or the 0.1 cut, whichever comes first; and rows 23 and 24, opened later still, do not
+gate the cut. Row 22 (orphan sidecar growth on the no-edge refusal path, restated 2026-08-28
+and re-scoped 2026-08-29 to its orphan half, then held open as a sanction gate on the third
+horn) retired 2026-11-19 at the transactional-sidecar increment, on behavior that took no horn
+at all — its account kept above. Rows 20 and 21 — the two
 coverage gates a documentation-only findings record opened over this same surface — retired
-at that increment, their accounts kept above.
+at the AL2 signature-enforcement coverage increment, their accounts kept above.
 
 Raised by this step's own review and planning documents and **not in the deferral register** —
 recorded here so the step does not exit with them unstated, and left as their sources state
@@ -6742,3 +6756,165 @@ legs). The latest runs sit at
 not the code. Sixty seconds is about twice the worst observed. A pass is still decided by the probe
 verdicts, never by the clock; the budget only stops a slow runner from failing a correct run. No
 source file, recorded byte, digest or maturity marker moves, and no assertion changes.
+
+## Post-build-order increment — Transactional sidecar (call 2; register row 22 retired)
+
+**The thirty-third post-build-order increment (branch `transactional-sidecar-2026-11-19`, off
+`main` at `ff608bf`).** Behavior in the signing decorator and in all three reference stores, one
+new export (`signatureEntriesToWrite`), two optional members on the provisional `Store` contract
+(`Store.signatures`, `AppendMeta.signatures`); no sealed-set edit, no maturity marker moved, no
+new refusal code, no change to either manifest; the byte-stability digests did not move. The
+design is `docs/superpowers/specs/2026-11-19-transactional-sidecar-design.md` and the plan
+`docs/superpowers/plans/2026-11-19-transactional-sidecar.md`; the sanction question it answers is
+call 2 of `docs/analysis/2026-11-17-sanction-calls.md` ("build it, as its own increment, and do
+not take the third horn"), which needed none.
+
+**What it closes.** The signing decorator wrote a transition's sidecar entry with `put` before it
+delegated the append, outside any transaction, so every append that then did not commit left a
+valid signature over a transition that never landed: an enlisted seam whose host transaction
+rolled back, a lost compare-and-swap (the compromise edge's candidate walk, a `record-contended`
+batch, `open()`'s re-stamped retry), a crash between the write and the append. Each such orphan
+is inert to verification and spliceable — SPEC §14's condition (iii), pinned as a gap by
+`packages/record/test/al2-conditions.test.ts` at the AL2 restatement — and the no-edge refusal
+path minted one per refusing call: deferral-register row 22, then one of the three rows gating
+the 0.1 cut.
+
+**What landed, per commit.**
+
+- `c71c2e0` — the design and the plan, with the INDEX row and counts.
+- `6e89b8f` — the contract, the decorator's two modes, and `MemoryStore`. `Store` gains an
+  optional `readonly signatures?: SignatureStore` and `AppendMeta` an optional
+  `signatures?: readonly SignatureEntry[]`; the `Store.signatures` JSDoc states the contract: one
+  entry per appended transition, in order, naming its own digest, record and seq, or a caller
+  error before anything is written; written inside the append's atomic unit, after every
+  compare-and-swap and constraint check; none on any conflict arm; through a host `tx` when
+  enlisted. `withSigning` decides its mode once, when it is built: INTEGRATED exactly when
+  `signing.signatures !== undefined && signing.signatures === store.signatures`, SEPARATE
+  otherwise. Integrated mode keeps the mint, the mint check, the per-object memo and the batch's
+  mint-and-check-every-element-first order, then appends with `meta.signatures` and never calls
+  `put`; separate mode keeps the old call sequence exactly; a non-signing record's `meta` passes
+  through untouched in both. `MemoryStore` gains its sidecar over a private map, written in the
+  synchronous mutation section after the last failable step. The conformance suite gains an
+  integrated-sidecar block, registered only for a backing whose `signatures` is defined (no
+  skip, no vacuous pass), and `packages/record/test/transactional-sidecar.test.ts` (new) pins
+  row 22 and the retry over `MemoryStore`, mode selection by identity alone, a wrapper hiding
+  `signatures` running separate, the mode fixed at construction, and the mint still before the
+  append in integrated mode.
+- `d385910` — `SqliteStore`: a `signatures` table (`STRICT`, keyed by `transition_digest`,
+  indexed on `record_id`) created with the schema, so an existing file gains it on open; the
+  entries inserted as the last statement before each `appended: true` return, on the store's
+  transaction or the host's. The conformance suite gains an optional `HostTransactions` hook and
+  its enlisted commit and rollback pins. Condition (iii) met, in `al2-conditions.test.ts`: the
+  rollback splice and the lost-batch splice repeated over `sqlite.signatures` — each spliced
+  transition has no entry, and the seam refuses `chain-compromise`. The two existing (iii) pins
+  keep every assertion and now say they describe separate mode.
+- `b576e8b` — one entry check for every backing: `signatureEntriesToWrite` in
+  `store/semantics.ts`, exported beside the adapter-author helpers. It returns, per entry, a
+  fresh object holding exactly the five `SignatureEntry` fields, each read from the caller's
+  entry once, and refuses a non-string `keyRef` or `signature`; `MemoryStore` and `SqliteStore`
+  drop their own copies, and `api-reference.md` documents it.
+- `8a688a8` — `PostgresStore`: the same table in the store's schema, created by the lazy DDL, the
+  entries inserted through the append body's client; the conformance caller passes
+  `HostTransactions`, so the integrated block registers there too; and
+  `packages/store-postgres/test/transactional-sidecar.test.ts` (new). Atomicity on the store's
+  OWN transaction is pinned on SQLite and Postgres with a `BEFORE INSERT` trigger on `signatures`
+  that aborts: a non-enlisted genesis, append and batch each reject with the chain unchanged and
+  no entry. No earlier pin caught an entry write moved after the store's own COMMIT: under that
+  mutation, on either backing, only the new pin failed.
+- `50a54b4` — `SqliteStore` runs every enlisted body in a savepoint (`SAVEPOINT
+  vidimera_enlisted`; on a throw, `ROLLBACK TO` and `RELEASE`, the body's own error rethrown), and
+  `MemoryStore.signatures.put` stores exactly the five fields.
+- This increment's records commit: the guide — `integrating.md`'s AL2 section (the sample's
+  `signatures: store.signatures`, both modes and how one is chosen, the switching step, the
+  wrapper rule, the enlisted-throw contract, the orphans bullet by mode), `api-reference.md`
+  (`Store.signatures`, `AppendMeta.signatures`, each store's member, the orphans paragraph by
+  mode, the header's count of names added since the review — ten, measured: 62 exported names
+  against the review's 52, `profileDigest` and `projectProfile` having been missed by that count
+  since 2026-09-03), and condition (iii)'s sentences in `concepts.md`, `faq.md` and `SECURITY.md`;
+  the store-postgres README; the register, `next-phases.md`, `release-checklist.md`,
+  `CHANGELOG.md`, `CLAUDE.md` and this section; and, per the design's ruling 5.7, every comment
+  that described only the write-first order without naming separate mode —
+  `probes/probes.ts`, `kernel/finalize.ts`, `kernel/verify-signatures.ts`'s `orphans` JSDoc,
+  `test/helpers/signing.ts`, `sidecar-ordering.test.ts`, `sidecar-orphans-report.test.ts`,
+  `no-edge-containment.test.ts`'s header, `redeem.test.ts` and `signing-enforce.test.ts`.
+  Comments only; no assertion moved.
+
+**Inversions.** The SEVENTEENTH self-authored inversion — this build reversing its own recorded
+stance, not an inherited pinned assertion. The stance, recorded in `signing/decorate.ts`'s
+header until this increment, verbatim: "The sidecar write is deliberately NOT part of any host
+transaction an enlisted seam passes through (`tx` delegates untouched): an aborted effect's
+orphan signature is the same class — inert to verification, and spliceable." The argument, made
+at its site in `signing/decorate.ts`: the stance held because the only alternative to writing
+first was writing after the append, which is the landed-but-unsigned hazard; an orphan is a
+valid signature over a transition that never committed, which condition (iii) makes a gap in the
+closure rather than an inert leftover; and atomicity removes it without reopening the hazard,
+because the entry and the transition are written in one unit and neither survives without the
+other. It reverses for integrated mode only: separate mode keeps the stance and its orphans, so
+no existing pin flipped, as the design predicted — the suite went from 1165 tests to 1237 with
+every earlier assertion unchanged and green at every commit. One behavior change was judged NOT
+an inversion, stated so the judgment can be checked: `SqliteStore`'s enlisted body was recorded
+as running "on the open transaction with NO BEGIN/COMMIT/ROLLBACK of our own"; the savepoint
+keeps that — the host's transaction boundary is never touched — and no assertion pinned the
+partial state a throwing enlisted body used to leave.
+
+**The controller's rulings, recorded.** Four, each with its cost if wrong. *The SQLite savepoint*:
+without it, an enlisted SQLite append that throws part-way — at its entry insert, after its
+transition rows — leaves those rows in the host's transaction, because SQLite rolls back only
+the failed statement, and a host that commits anyway lands them unsigned, which is not "inside
+the append's atomic unit"; cost if wrong, a small behavior change to enlisted SQLite appends,
+strictly more atomic. Postgres needs none: a failed statement aborts the host's whole
+transaction (pinned). *The shared validator*: three backings, one rule, on the drift argument
+that put the C3/C4 helpers in `store/semantics.ts`. *The five-field rule*: every backing stores
+the five `SignatureEntry` fields by name and refuses a non-string `keyRef` or `signature` before
+writing — unchecked, SQLite would store `42` as the text `'42.0'` and a null would fail only at
+the entry insert, after the transition rows. *The Postgres NUL limit, accepted*: a `keyRef` or
+`signature` containing `\0` passes the validator and fails at the insert, because Postgres
+`text` cannot hold NUL; the failure is atomic and loud (the store's own transaction rolls back,
+a host's is aborted), but it is a refusal SQLite does not make. Two further decisions rode the
+reviews: the handle `withSigning` returns does not re-expose `signatures` (the kernel reads the
+sidecar from `config.signing`, and re-exposing it would invite a double wrap that selects
+integrated mode on the wrapper), and, because the two transactional backings leave different
+states behind when an enlisted seam throws, the guide states one contract for both — roll the
+transaction back.
+
+**Measured: row 22 on all three backings.** Re-measured for this record with a throwaway rig
+(deleted): a sealed signing record whose genesis entry was broken, a one-second ticking clock, a
+real Ed25519 signer, chain `opened, consultation-recorded, consultation-recorded, confirmed,
+sealed`. Integrated (`signatures: store.signatures`), on `MemoryStore`, `SqliteStore` and
+`PostgresStore` alike: sidecar 5 before the calls, and after each of six refusing `finalize()`
+calls, `chain-compromise` with no edge, chain 5, sidecar 5, one mint per call;
+`verifySignatures(...).orphans` empty. Separate (a `MemorySignatureStore`), the same rig on each
+backing: sidecar 6, 7, 8, 9, 10, 11 — six orphans. Pinned on each backing besides: `open()`'s
+moving-clock retry and a `record-contended` lost batch leave no orphan; on SQLite and Postgres,
+an enlisted redemption the host rolls back leaves none.
+
+**What is not closed, stated.** SEPARATE mode — any sidecar that is not the configured store's
+own, which is every host-supplied sidecar over other storage — keeps the write-first order and
+every consequence: one orphan per refusing call, and a spliceable signature over every append
+that does not commit, so condition (iii) stays open there; `no-edge-containment.test.ts`'s
+baselines keep measuring it. **Switching** an existing deployment from a separate sidecar to the
+store's own leaves the earlier entries behind: those records read unsigned and their next seam
+refuses `chain-compromise`, unless the host copies the entries across with `put` first — the
+library migrates nothing (measured while writing the guide: an uncopied record refuses
+`chain-compromise` at `seal`, a copied one seals). **A wrapper** around a store must expose the
+inner store's `signatures` and forward `meta` intact, or it runs separate; one that exposes
+`signatures` but drops `meta.signatures` lands transitions unsigned, and the next seam refuses
+`chain-compromise` (measured the same way: a dropped genesis entry, then `finalize` refused).
+Integrated mode still verifies only what exists: orphans arise there from committed transitions
+an insider deleted or rewrote, and from planted entries, and the absence residual SPEC §13A names
+is untouched. Row 19 did not fire: this increment changed where and when an entry is written,
+never what is signed, how an entry is encoded, or how a key is handled.
+
+**The sealed follow-up, pending.** Call 3 of the sanction calls reserves its second sealed-set
+commit for this increment's landing: "condition (iii) narrows to the host-supplied sidecar that
+cannot join the append's unit, in the same sentences, and nowhere else". It lands after this
+increment, as its own change, and spends call 3's sanction; until it does, the sealed set still says this build's
+sign-before-append order does not meet condition (iii), which is now true of separate mode only.
+The guide, `SECURITY.md` and this record already state the narrower truth.
+
+**Gates, measured on the authoring machine at the records commit.** `ci-assert-tests: ok — 1237
+tests in 88 files (96 suites): 1237 passed, 0 failed, 0 skipped, 0 todo` (the known
+`embedded-postgres` teardown trace follows the summary, register row 24); typecheck (both
+packages), biome (`--error-on-warnings`, 161 files checked, no findings), both builds,
+`contract-scan`, `api-reference-sync` and `docs-index-sync` all exit 0. `smoke` cannot run here
+and runs in CI. `CLAUDE.md`'s measured sentence moved to 88 files / 1237 tests.

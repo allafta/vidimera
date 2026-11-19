@@ -862,10 +862,12 @@ const signatureTamperRefuses: Probe = {
     // Chain-driven correlation, never sidecar-driven: `verifySignatures` walks the CHAIN and
     // reports each transition's own digest, so a victim chosen from its report always names a
     // transition that actually landed. `listByRecord` promises no order, and a signing
-    // deployment accumulates entries for transitions that never landed — every refusing seam
-    // call against a record admitting no CAS candidate leaves one, because the decorator signs
-    // before delegating. Taking the list's first element could therefore garble an orphan,
-    // leave every real signature intact, and fail a sound build.
+    // deployment can hold entries that name no chain transition: in separate mode (a sidecar
+    // that is not the store's own) every refusing seam call against a record admitting no CAS
+    // candidate leaves one, because the decorator writes the entry before delegating; in
+    // integrated mode an append that does not land leaves none, but a deleted or rewritten
+    // transition still leaves its entry behind. Taking the list's first element could therefore
+    // garble an orphan, leave every real signature intact, and fail a sound build.
     const report = await handles.operator.verifySignatures(recordId);
     const signed = report.transitions.find((t) => t.signed);
     if (signed === undefined) {

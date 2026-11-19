@@ -109,9 +109,12 @@ export function enforceableSigningSetup(profiles: ConfirmProfile[], opts: { stor
  *
  * CHAIN-DRIVEN, NEVER SIDECAR-DRIVEN, and this is a correlation change, not a target change.
  * The helper used to take `listByRecord`'s first element. `signing/store.ts` promises no order
- * ("chain order not guaranteed"), and a signing deployment accumulates entries for transitions
- * that never landed — the compromise append signs before delegating, so every refusing call
- * against a record admitting no CAS candidate leaves one — so position is not identity: under
+ * ("chain order not guaranteed"), and a signing deployment in separate mode — a sidecar that is
+ * not the store's own, as every rig in this file configures — accumulates entries for
+ * transitions that never landed: the decorator writes the compromise append's entry before
+ * delegating, so every refusing call against a record admitting no CAS candidate leaves one
+ * (integrated mode, where the store writes each entry with its append, leaves none). So
+ * position is not identity: under
  * a legal orphan-first ordering the old helper tampered the orphan while BOTH of its guard
  * assertions passed, and the fixture proved nothing. Reading the genesis digest from the chain
  * and looking THAT up is what the contract tells every caller to do. The target is unchanged:

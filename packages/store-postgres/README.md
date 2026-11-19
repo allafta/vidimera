@@ -53,6 +53,14 @@ From here the flow is identical to every other backing — the store is just
 applies unchanged. The schema's tables are created lazily on first use, so
 construction is synchronous and never touches the database.
 
+For AL2 detached signing, the store exposes its own signature sidecar as
+`store.signatures` — a `signatures` table in the same schema, created by the same lazy
+DDL. Configure `signing.signatures: store.signatures` and each signature is written inside
+the transaction of the append it signs, so an append that does not commit leaves none; any
+other sidecar is written before the append, outside it. The repository's
+`docs/guide/integrating.md` AL2 section states both modes, switching an existing
+deployment, and the rule for a wrapper around the store.
+
 ## Testing posture
 
 The suite runs against a real embedded PostgreSQL started per run (no Docker, no

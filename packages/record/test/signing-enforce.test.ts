@@ -96,9 +96,11 @@ test('finalize refuses chain-compromise on a signature-broken signing record —
   assert.equal(last?.kind, 'refused', 'the compromise edge appended');
   // Sound only after exactly ONE refusing call — a second would mint another sidecar entry
   // against a digest that never lands, because the record is now terminal `refused` and no
-  // candidate can win its CAS. That is deferral-register row 22's OPEN orphan half; the
-  // no-edge containment increment closed the redundant-signing half (one mint per call, not
-  // one per candidate) and left this one standing — `no-edge-containment.test.ts` pins both.
+  // candidate can win its CAS. That is deferral-register row 22's orphan half, which stands in
+  // SEPARATE mode — this rig's sidecar is a `MemorySignatureStore`, not the store's own — and
+  // retired 2026-11-19 on integrated mode, where an append that does not land writes no entry;
+  // the no-edge containment increment had closed the redundant-signing half (one mint per call,
+  // not one per candidate) — `no-edge-containment.test.ts` pins both, in separate mode.
   const entries = await signatures.listByRecord(recordId);
   assert.equal(
     entries.length,
@@ -397,9 +399,10 @@ test('decline refuses chain-compromise on a signature-broken signing record — 
   assert.equal(after.length, before.length + 1);
   assert.equal(after.at(-1)?.kind, 'refused');
   assert.deepEqual(after.at(-1)?.payload, { code: 'chain-compromise' });
-  // Sound only after exactly ONE refusing call — a second would mint another sidecar entry
-  // against a digest that never lands (one entry per call, however many candidates the walk
-  // tries; `no-edge-containment.test.ts` pins that minting). See deferral-register row 22.
+  // Sound only after exactly ONE refusing call — in separate mode, which this rig runs (a
+  // `MemorySignatureStore` sidecar), a second would mint another sidecar entry against a
+  // digest that never lands (one entry per call, however many candidates the walk tries;
+  // `no-edge-containment.test.ts` pins that minting). See deferral-register row 22.
   const entries = await signatures.listByRecord(recordId);
   assert.equal(entries.length, after.length, 'the compromise edge is itself signed');
 });

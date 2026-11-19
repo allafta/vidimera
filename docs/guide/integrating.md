@@ -550,10 +550,63 @@ const { agent, operator } = create({
       'ap-console-2026-08': async (bytes, sig) =>
         edVerify(null, bytes, publicKey, Buffer.from(sig, 'base64')),
     },
-    signatures: mySignatureStore, // { put(entry), listByRecord(recordId) } — the sidecar
+    signatures: store.signatures, // the store's own sidecar: integrated mode (below)
   },
 });
 ```
+
+`store` is the reference store you constructed — a `MemoryStore`, `SqliteStore` or
+`PostgresStore` — and each exposes its own sidecar as `signatures`, over its own storage (a
+map, a `signatures` table on the same connection, a `signatures` table in the same schema).
+Pass the instance itself: the `Store` interface types the member optional, so a `Store`-typed
+reference does not satisfy `signatures` here. An existing SQLite file gains the table when
+`SqliteStore` opens it, and an existing Postgres schema on the store's first use; nothing already
+in another sidecar is copied into it.
+
+**The sidecar you pass selects one of two modes**, decided once when `create()` builds the
+instance and never per append. Nothing reports the mode back at runtime: your configuration is
+the record of which one you run.
+
+- **Integrated** — `config.signing.signatures` *is* `config.store.signatures`, the same object.
+  Each signature is still minted and checked before the append, but its entry is not written
+  ahead of it: the entry rides the append (`AppendMeta.signatures`), and the store writes it
+  inside that append's own atomic unit, after every compare-and-swap and constraint check has
+  passed, and only then — through your transaction when a seam is enlisted in one. An append
+  that does not land (it lost its compare-and-swap, it threw, or your transaction rolled it
+  back) leaves no entry, and one that lands always carries its own. Measured on all three
+  reference stores: six refusing `finalize` calls on a sealed signing record whose genesis
+  signature was broken leave the sidecar equal to the chain — 5 entries for 5 transitions after
+  every call, no orphan — where separate mode grows it from 5 to 11. The limit, in the same
+  breath: this holds only for those three stores, or a store of your own that keeps the same
+  contract (`Store.signatures` in the [API reference](api-reference.md#stores)).
+- **Separate** — any other sidecar: one over other storage (a `MemorySignatureStore`, your own
+  table on another connection), which cannot join the append's unit. The decorator writes each
+  entry with `put` *before* it delegates the append, outside any transaction — the order every
+  signing instance ran before integrated mode existed — with every consequence the orphans
+  bullet below states.
+
+**Switching an existing deployment** from a separate sidecar to the store's own leaves the
+entries already written where they were: under the new configuration the records they sign
+read unsigned, and their next seam refuses `chain-compromise`, appending that edge. Copy them
+across before you switch — `put` every entry the old sidecar lists for each record into
+`store.signatures`. The library does not migrate them.
+
+**A store wrapper** — one you put around a reference store for instrumentation, tenancy or
+retries — must expose the inner store's own `signatures` object, or it runs in separate mode,
+and must forward `meta` to the inner store intact. A wrapper that exposes `signatures` but
+rebuilds `meta` from `nonTerminal` and `dueAt` alone drops the entries: its transitions land
+unsigned, and the next seam refuses `chain-compromise` — loud rather than silent, but a terminal
+edge on a record nobody tampered with. The handle `withSigning` returns does not re-expose
+`signatures` either; the instance reads the sidecar from `config.signing`, never through the
+store.
+
+**If a seam throws inside your transaction, roll the transaction back.** An enlisted seam
+(`redeem`, `beginRedemption` or `completeRedemption` with `opts.tx`) writes through your
+transaction — its transitions, and in integrated mode their entries — and the backings leave
+different things behind when it throws: `SqliteStore` runs every enlisted write in a savepoint
+and undoes the whole append, leaving your transaction open and usable; on `PostgresStore` a
+failed statement aborts your whole transaction, so a COMMIT after it lands nothing. Rolling back
+is the one response correct on both.
 
 Enabling AL2 on a profile that already has records is a profile edit, not a switch: give
 the signing version a new id and keep the old one registered, because editing the profile in
@@ -569,8 +622,8 @@ ones.
 
 What you get, with its limits in the same breath:
 
-- Every transition a declaring profile's records append is signed **before** the append;
-  every *seam* that verifies a chain before acting folds signature verification into its
+- Every transition a declaring profile's records append is signed — minted and checked —
+  **before** the append, in either mode; every *seam* that verifies a chain before acting folds signature verification into its
   own failure arm; and `operator.verifySignatures(recordId)` reports per-transition
   sign/verify status (reporting only — the gate lives at the seams, and the standalone
   `verifyChain` audit read checks linkage and record identity only).
@@ -584,8 +637,9 @@ What you get, with its limits in the same breath:
   non-signing profile (its digest is computable with the exported `profileDigest`, or
   copied from any record under it) leaves the layer, while an instance registering only
   signing profiles refuses that record `unknown-profile` rather than flagging it; and no
-  signature outlives an append that never committed, which this build does not yet meet (the
-  sidecar bullet below). Under all three, AL2 still verifies only what exists: an insider who
+  signature outlives an append that never committed — met when the configured sidecar is the
+  store's own on the three reference stores (integrated mode, above), open for a separate
+  sidecar (the orphans bullet below). Under all three, AL2 still verifies only what exists: an insider who
   deletes a record's most recent transitions needs neither a key nor a recomputation, every
   remaining signature verifies, and a deleted `redeemed` head lets the record be redeemed
   again (SPEC §13A's absence residual, which AL2 does not close).
@@ -646,25 +700,39 @@ What you get, with its limits in the same breath:
   signed chain's bytes differ from an unsigned profile's only through the declaring
   profile's own genesis `profileDigest` (and its hash-chain derivations) — so enabling AL2
   does not fork your record format.
-- Your sidecar **will accumulate entries for transitions that never landed** — the library
-  signs before it appends, so a lost compare-and-swap or a crash leaves an entry behind, and
-  a seam that refuses against a record admitting no append target leaves one on every such
-  call. They are inert to verification, because correlation runs chain-to-sidecar and never
-  the reverse — inert, not harmless: an entry over a transition that was attempted and never
-  committed (a redemption your transaction rolled back, a compare-and-swap that lost) is a
-  valid signature over that transition, and an insider who writes it back into the chain
-  where it was signed for is not caught. That route is open from the signature until the
-  entry is pruned, and a splice already made is no longer an orphan, so pruning cannot undo
-  it. An orphan can also be evidence: when an insider deletes a committed head, its entry
-  becomes an orphan and may be the only trace that the head existed, so keep or archive what
-  you prune. They are safe to prune, for verification, whenever no chain transition
-  references them —
-  the library does no pruning, so a durable backing that must stay bounded reconciles
-  against the chain itself — and `operator.verifySignatures(recordId).orphans` names
-  exactly the entries to remove, sorted, so the reconciliation is a delete of what it
-  lists — run it only when no seam call on that record is in flight, because an
-  in-flight append's entry and an orphan carry the same `seq`. Stated, not enforced:
-  nothing here reads your implementation.
+- **Orphans** — sidecar entries whose digest names no transition in the chain — depend on the
+  mode. They are inert to verification in both, because correlation runs chain-to-sidecar and
+  never the reverse; inert is not harmless.
+  - *Integrated mode:* no entry outlives an append that did not commit. A lost
+    compare-and-swap, a seam refusing against a record admitting no append target, `open()`'s
+    retry under a moving clock and a redemption your transaction rolled back each leave none,
+    because the entry and the transition are written in one unit, and the condition-(iii)
+    splice is refused `chain-compromise` (the spliced transition has no entry). Orphans arise
+    only from committed transitions an insider deleted or rewrote — their entries stay behind —
+    or from entries written into the sidecar by something other than an append (planted, or
+    your own `put`). The orphan of a deleted head may be the only trace that the head existed,
+    so keep or archive what you prune.
+  - *Separate mode:* your sidecar **will accumulate entries for transitions that never
+    landed** — the library writes each entry before it appends, so a lost compare-and-swap or a
+    crash leaves an entry behind, and a seam that refuses against a record admitting no append
+    target leaves one on every such call (six refusing calls, six orphans, measured on all three
+    reference stores). An entry over a transition that was attempted and never committed (a
+    redemption your transaction rolled back, a compare-and-swap that lost) is a valid signature
+    over that transition, and an insider who writes it back into the chain where it was signed
+    for is not caught. That route is open from the signature until the entry is pruned, and a
+    splice already made is no longer an orphan, so pruning cannot undo it. An orphan can also be
+    evidence: when an insider deletes a committed head, its entry becomes an orphan and may be
+    the only trace that the head existed, so keep or archive what you prune.
+
+  In either mode they are safe to prune, for verification, whenever no chain transition
+  references them — the library does no pruning, so a durable backing that must stay bounded
+  reconciles against the chain itself — and `operator.verifySignatures(recordId).orphans`
+  names exactly the entries to remove, sorted, so the reconciliation is a delete of what it
+  lists. Run it only when no seam call on that record is in flight: in separate mode an
+  in-flight append's entry and an orphan carry the same `seq`, and in either mode
+  `verifySignatures` reads the chain before it lists the sidecar, so an append that commits
+  between the two reads lists as an orphan. Stated, not enforced: nothing here reads your
+  implementation.
 
 The signing tier is root-reachable: `SigningConfig`, `Signer`, `Verifier`,
 `SignatureStore`, `SignatureEntry`, the reference `MemorySignatureStore`, and the

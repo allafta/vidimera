@@ -1,8 +1,9 @@
 // @vidimera/record — no-edge-containment.test.ts (the no-edge containment increment). Pins
 // over `appendChainCompromise`'s candidate walk and the signing decorator's per-attempt mint
 // on the NO-EDGE path: a refusing seam call against a record whose persisted state admits no
-// CAS candidate, so the compromise edge never lands while the decorator — which signs BEFORE
-// delegating — has already minted and written a sidecar entry for every attempt.
+// CAS candidate, so the compromise edge never lands while the decorator — which, in SEPARATE
+// mode, signs and writes BEFORE delegating — has already minted and written a sidecar entry for
+// every attempt.
 //
 // What this file pins, and in the same breath what it cannot. Before it, the corpus asserted
 // no signer-invocation count anywhere and pinned orphan minting in neither direction, so the
@@ -26,8 +27,15 @@
 //     population the signature layer serves. They are the tripwire for that whole family.
 //
 // Deferral-register row 22 is the finding these pins serve. Its redundant-signing half is what
-// the decorator change closes; its orphan half — one sidecar entry per refusing call — stays
-// open, and nothing in this file asserts the sidecar stops growing.
+// the decorator change closes; its orphan half — one sidecar entry per refusing call — stands
+// in SEPARATE mode, which every pin in this file runs: each rig's sidecar is a
+// `MemorySignatureStore` (counted through a wrapper), never the store's own, so "signs BEFORE
+// delegating", "one orphan per refusing call" and "the orphan half" below all describe that
+// mode, and nothing in this file asserts the sidecar stops growing. The row retired 2026-11-19
+// on INTEGRATED mode (the configured sidecar IS the store's own), where the store writes each
+// entry inside the atomic unit of the append it signs and the same six refusing calls leave
+// zero orphans on all three reference backings (`transactional-sidecar.test.ts` here and in
+// the store-postgres package).
 
 import assert from 'node:assert/strict';
 import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';
