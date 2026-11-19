@@ -22,6 +22,7 @@
 // `AppendResult`) rather than duplicating/redefining it. `AppendResult`, `AppendMeta`, and
 // `BatchResult` all have no earlier home, so they are defined here.
 
+import type { SignatureEntry, SignatureStore } from '../signing/store.js';
 import type { Digest, RecordState, StagedDraft, Transition } from '../types.js';
 
 export type { StagedDraft };
@@ -72,10 +73,18 @@ export type AppendResult =
  * §12's optional caller-supplied transaction rides beside this as `tx?` on each write
  * method — adapter-generic, validated by each backing (`store/sqlite.ts` enlists its own
  * connection's open transaction; `MemoryStore` throws on presence, having no driver).
+ *
+ *  - `signatures` — this build's channel, not one of §12's flags: the detached-signature
+ *    entries for the transitions this append carries, which a store exposing
+ *    `Store.signatures` persists inside the append's own atomic unit (that member's doc
+ *    states the whole contract). The signing decorator (`signing/decorate.ts`) sets it only
+ *    when the configured sidecar IS the store's own; a store without `signatures` never
+ *    receives it.
  */
 export interface AppendMeta {
   nonTerminal: boolean;
   dueAt?: string;
+  signatures?: readonly SignatureEntry[];
 }
 
 /**
@@ -106,13 +115,17 @@ export type BatchResult =
 /**
  * The provisional Store — SPEC §12's storage surface, complete at the method level: all
  * eight methods §12 gives a signature to are shipped here — `putStaged`/`getStaged`/
- * `appendTransition`/`readChain`/`chainHead`/`appendBatch`/`listDue`/`findNonTerminal`.
+ * `appendTransition`/`readChain`/`chainHead`/`appendBatch`/`listDue`/`findNonTerminal` —
+ * plus one OPTIONAL member §12 does not name, the integrated sidecar `signatures` (its own
+ * doc comment, at the end of the interface).
  * `seal` is not a Store method at all: SPEC §9 lists
  * `seal()` operator-only, alongside `open()`/`review()`/`finalize()`/`redeem()`, built atop
  * this interface rather than part of it (`kernel/seal.ts`). `appendTransition`'s `meta`
- * parameter (`AppendMeta` above) now matches §12's `meta = { nonTerminal, dueAt? }` shape
- * exactly, and `tx?` (below) is likewise no longer narrowed as of the fifth step-2
- * increment — nothing about either parameter is narrowed anymore. `dueAt` now has both a
+ * parameter (`AppendMeta` above) now carries §12's `meta = { nonTerminal, dueAt? }` shape
+ * whole — plus one optional field §12 does not name, the integrated sidecar's `signatures`
+ * channel, which widens it rather than narrowing it — and `tx?` (below) is likewise no
+ * longer narrowed as of the fifth step-2 increment — nothing about either parameter is
+ * narrowed anymore. `dueAt` now has both a
  * producer (the genesis `opened` append, from the profile's open-window ttl —
  * `kernel/open.ts`) and a reader (`listDue` itself,
  * narrowed to recordIds — see its own doc comment). §12 is explicit that what is durable is
@@ -214,4 +227,32 @@ export interface Store {
    * is satisfied structurally — a string is immutable, so there is nothing to clone.
    */
   findNonTerminal(profileId: string, subjectRef: string): Promise<string | null>;
+
+  /**
+   * OPTIONAL, and not one of §12's eight: a detached-signature sidecar
+   * (`signing/store.ts`'s `SignatureStore`) that this store persists ATOMICALLY with its own
+   * appends — the integrated sidecar. A store that exposes it and receives `meta.signatures`
+   * (`AppendMeta` above) on `appendTransition` or `appendBatch`:
+   *
+   *  - requires exactly one entry per appended transition, in order, each naming that
+   *    transition's own `transitionDigest`, `recordId` and `seq` — otherwise it throws a
+   *    caller error before writing anything;
+   *  - writes the entries inside the append's atomic unit, after every compare-and-swap and
+   *    constraint check has passed, upserting by `transitionDigest` exactly as `put` does;
+   *  - writes none when the append does not apply (every conflict arm);
+   *  - with a host `tx`, writes them through that transaction, so they commit or roll back
+   *    with it.
+   *
+   * Outside an append it is an ordinary `SignatureStore` over the same storage: `put` is a
+   * standalone upsert, `listByRecord` promises no order. It must be ONE stable object for the
+   * store's lifetime, because identity is what selects it: the signing decorator
+   * (`signing/decorate.ts`) hands entries down this way only when `config.signing.signatures`
+   * IS this object, decided once when the decorator is built; with any other sidecar it
+   * writes each entry itself before the append — the separate mode, where an append that does
+   * not land leaves its entry behind — and this store never receives the field. A wrapper
+   * around a store that hides this member therefore runs its host in separate mode; a wrapper
+   * that exposes it must also forward `meta` intact, or its transitions land unsigned, which
+   * the next seam to verify the record refuses `chain-compromise` — loud, not silent.
+   */
+  readonly signatures?: SignatureStore;
 }

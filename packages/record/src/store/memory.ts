@@ -13,7 +13,8 @@
 // single-threaded (no real concurrency in-process), `appendTransition`/`appendBatch` still
 // MODEL the transactional shape a real DB txn would need — every check below runs
 // synchronously against `this.records`/`this.staged`, with the mutation (the `Map.set` /
-// `chain.push`) as the LAST step, only after every check AND every other failable
+// `chain.push`, and the integrated sidecar's entry write beside them — `writeEntries`) as the
+// LAST step, only after every check AND every other failable
 // operation has completed, and with no `await` anywhere in between. `appendBatch`'s own
 // mutation step clones every element BEFORE pushing any of them, for exactly this reason:
 // `structuredClone` is itself failable (`DataCloneError` on a function- or symbol-valued
@@ -23,6 +24,7 @@
 // the append, never an advisory pre-check" means when ported to a real transaction.
 
 import { transitionDigest } from '../chain/encoding.js';
+import type { SignatureEntry, SignatureStore } from '../signing/store.js';
 import type { Digest, RecordState, Transition } from '../types.js';
 import { type GenesisPayload, isCompromiseCarveOut, isStateLeaving, stateOf } from './semantics.js';
 import type { AppendMeta, AppendResult, BatchResult, StagedDraft, Store } from './store.js';
@@ -50,7 +52,9 @@ interface StoredRecord {
    * — this one is the store's own, derived from the transition's kind. C4 is one of §12's
    * "Constraints an adapter MUST provide", and constraints are the store's work: C1 scans
    * records, C2 computes `max+1`, C3 already switches on the kind. Putting `sealed` in
-   * `AppendMeta` instead would break the §12 meta shape.
+   * `AppendMeta` instead would break the §12 meta shape. (`AppendMeta`'s one later addition,
+   * the optional `signatures` channel, is evidence the store writes beside the append, never a
+   * flag it decides by — so it leaves this reasoning where it was.)
    */
   sealed: boolean;
 }
@@ -126,6 +130,43 @@ function cloneSameDigest(transition: Transition, digest: Digest): Transition {
 }
 
 /**
+ * The integrated sidecar's entry check (`Store.signatures`). When an append carries
+ * `meta.signatures`, it must hold exactly one entry per appended transition, in order, each
+ * naming that transition's own `transitionDigest`, `recordId` and `seq`; anything else is a
+ * caller error, thrown here. Returns COPIES of the entries for the append to write — a caller
+ * mutating its own entry objects afterwards cannot reach what was stored — or `undefined` when
+ * the append carries none. Pure, like `cloneSameDigest`: it touches no store state, and both
+ * append methods call it before any other check, so a throw leaves nothing behind and wins
+ * over every conflict the append would otherwise have reported.
+ */
+function entriesToWrite(
+  transitions: readonly Transition[],
+  meta: AppendMeta,
+): SignatureEntry[] | undefined {
+  const carried = meta.signatures;
+  if (carried === undefined) return undefined;
+  if (!Array.isArray(carried) || carried.length !== transitions.length) {
+    const count = Array.isArray(carried) ? `${carried.length} entries` : 'no array';
+    throw new Error(
+      `MemoryStore: meta.signatures must carry exactly one entry per appended transition, in order — it carries ${count} for ${transitions.length} transition(s); nothing was applied`,
+    );
+  }
+  return transitions.map((t, i) => {
+    const entry: SignatureEntry | undefined = carried[i];
+    if (
+      entry?.transitionDigest !== transitionDigest(t) ||
+      entry.recordId !== t.recordId ||
+      entry.seq !== t.seq
+    ) {
+      throw new Error(
+        `MemoryStore: meta.signatures[${i}] does not name appended transition ${i} (record '${t.recordId}', seq ${t.seq}) — each entry must carry its own transition's transitionDigest, recordId and seq; nothing was applied`,
+      );
+    }
+    return { ...entry };
+  });
+}
+
+/**
  * The provisional in-memory `Store` (DECISIONS.md #24: "reference semantics, never
  * durable evidence"). Re-exported from the
  * library's public index as the seam adopters should wire
@@ -144,6 +185,30 @@ function cloneSameDigest(transition: Transition, digest: Digest): Transition {
 export class MemoryStore implements Store {
   private readonly staged = new Map<string, StagedDraft>();
   private readonly records = new Map<string, StoredRecord>();
+  /** The integrated sidecar's storage, keyed by `transitionDigest` (one entry per digest). */
+  private readonly signatureEntries = new Map<Digest, SignatureEntry>();
+
+  /**
+   * This store's integrated sidecar (`Store.signatures`): a `SignatureStore` over
+   * `signatureEntries`, which `appendTransition`/`appendBatch` also write — in their
+   * synchronous mutation section, with the transitions — whenever an append carries
+   * `meta.signatures`. The same semantics as `signing/memory.ts`'s `MemorySignatureStore`,
+   * without its `delete`: `put` upserts a copy by digest, `listByRecord` returns copies in no
+   * promised order. One object for the store's lifetime — identity is what puts a signing
+   * instance configured with it into integrated mode.
+   */
+  readonly signatures: SignatureStore = {
+    put: async (entry: SignatureEntry): Promise<void> => {
+      this.signatureEntries.set(entry.transitionDigest, { ...entry });
+    },
+    listByRecord: async (recordId: string): Promise<SignatureEntry[]> => {
+      const out: SignatureEntry[] = [];
+      for (const entry of this.signatureEntries.values()) {
+        if (entry.recordId === recordId) out.push({ ...entry });
+      }
+      return out;
+    },
+  };
 
   /**
    * SPEC §12's caller-transaction seam is adapter-generic — "its concrete type is the
@@ -187,12 +252,24 @@ export class MemoryStore implements Store {
     tx?: unknown,
   ): Promise<AppendResult> {
     MemoryStore.rejectTx(tx);
+    const entries = entriesToWrite([transition], meta);
     const existing = this.records.get(transition.recordId);
 
     if (expectedCurrentState === null) {
-      return this.appendGenesis(transition, meta, existing);
+      return this.appendGenesis(transition, meta, existing, entries);
     }
-    return this.appendSubsequent(expectedCurrentState, transition, meta, existing);
+    return this.appendSubsequent(expectedCurrentState, transition, meta, existing, entries);
+  }
+
+  /**
+   * The integrated sidecar's write, upserting by digest as `signatures.put` does. Called only
+   * from an append's mutation section — after every check and every failable step has passed,
+   * in the same synchronous run as the chain mutation — so an append that conflicts or throws
+   * writes no entry, and one that lands always writes its own.
+   */
+  private writeEntries(entries: readonly SignatureEntry[] | undefined): void {
+    if (entries === undefined) return;
+    for (const entry of entries) this.signatureEntries.set(entry.transitionDigest, entry);
   }
 
   /**
@@ -225,12 +302,14 @@ export class MemoryStore implements Store {
    *  2. C1 exclusivity — no OTHER record sharing (profileId, subjectRef) may currently
    *     be flagged nonTerminal.
    *  3. C2 sequencing — a genesis transition's seq must be exactly 1.
-   * Only once all three pass does the record get inserted (the mutation).
+   * Only once all three pass does the record get inserted (the mutation), with the entry the
+   * append carries in `meta.signatures`, if any — checked by the caller before step 1.
    */
   private appendGenesis(
     transition: Transition,
     meta: AppendMeta,
     existing: StoredRecord | undefined,
+    entries: readonly SignatureEntry[] | undefined,
   ): AppendResult {
     if (existing) {
       // expectedCurrentState:null requires the record not to exist yet (SPEC §12: "a
@@ -277,6 +356,7 @@ export class MemoryStore implements Store {
       chain: [stored],
       sealed: false,
     });
+    this.writeEntries(entries);
     return { appended: true, seq: transition.seq, transitionDigest: digest };
   }
 
@@ -294,13 +374,15 @@ export class MemoryStore implements Store {
    *     see `isCompromiseCarveOut`'s doc comment).
    *  4. C2 sequencing — the proposed `transition.seq` must equal the store's
    *     authoritative `max+1` (`existing.chain.length + 1`).
-   * Only once all four pass does the append land (push + flag/state update).
+   * Only once all four pass does the append land (push + flag/state update + the entry the
+   * append carries in `meta.signatures`, if any — checked by the caller before step 1).
    */
   private appendSubsequent(
     expectedCurrentState: RecordState,
     transition: Transition,
     meta: AppendMeta,
     existing: StoredRecord | undefined,
+    entries: readonly SignatureEntry[] | undefined,
   ): AppendResult {
     if (!existing || existing.state !== expectedCurrentState) {
       return { appended: false, conflict: 'state-mismatch' };
@@ -352,13 +434,16 @@ export class MemoryStore implements Store {
     if (transition.kind === 'sealed') {
       existing.sealed = true;
     }
+    this.writeEntries(entries);
     return { appended: true, seq: transition.seq, transitionDigest: digest };
   }
 
   /**
    * SPEC §12's atomic batch. Every check and every failable operation runs before any
    * mutation, so the "nothing applied" guarantee is structural rather than a rollback: the
-   * first `chain.push` happens only after the last element has been checked and cloned.
+   * first `chain.push` happens only after the last element has been checked and cloned. The
+   * integrated sidecar follows the same shape: the entries in `meta.signatures` are checked
+   * before anything else (`entriesToWrite`) and written after the last push (`writeEntries`).
    *
    * The terminality INPUT is `existing.nonTerminal` read once at entry, while the state the
    * checks run against EVOLVES element by element (SPEC §12: a record "cannot become
@@ -372,6 +457,7 @@ export class MemoryStore implements Store {
     tx?: unknown,
   ): Promise<BatchResult> {
     MemoryStore.rejectTx(tx);
+    const entries = entriesToWrite(transitions, meta);
     const first = transitions[0];
     if (first === undefined) {
       throw new Error(
@@ -441,6 +527,7 @@ export class MemoryStore implements Store {
     if (cloned.some((t) => t.kind === 'sealed')) {
       existing.sealed = true;
     }
+    this.writeEntries(entries);
     return { appended: true, transitionDigests: digests };
   }
 

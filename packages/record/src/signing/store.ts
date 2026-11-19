@@ -22,15 +22,24 @@ export interface SignatureEntry {
 }
 
 /** The detached-signature sidecar. Deliberately NOT part of the frozen Store
- * contract: signatures are an additive evidence layer beside the chain, stored and
- * injected separately (SPEC §14's "detached"). Same provisional-signature discipline
- * as the Store: behaviors stable, method shapes pre-1.0.
+ * contract: signatures are an additive evidence layer beside the chain, never inside its
+ * bytes (SPEC §14's "detached"). Same provisional-signature discipline as the Store:
+ * behaviors stable, method shapes pre-1.0.
  *
- * AN IMPLEMENTER MUST TOLERATE ORPHANS. Entries whose `transitionDigest` names no
- * transition in the record's chain are a normal, expected state, not corruption: the
- * signing decorator signs BEFORE delegating the append, so a lost CAS or a crash leaves
- * the entry behind, and a seam that refuses against a record admitting no append target
- * leaves one on every call. They are safe to prune whenever no chain transition
+ * TWO MODES, and the configuration says which (`signing/decorate.ts`'s header). INTEGRATED:
+ * the configured sidecar IS the store's own (`Store.signatures`, which each reference backing
+ * exposes) — an entry is then written WITH its append, inside the append's atomic unit, after
+ * every check has passed, so an append that does not land leaves no entry and a landed one
+ * always has its own. SEPARATE: any other sidecar — one over other storage, which cannot join
+ * the append's unit — is written by the decorator BEFORE it delegates the append.
+ *
+ * AN IMPLEMENTER MUST TOLERATE ORPHANS — they arise in separate mode. Entries whose
+ * `transitionDigest` names no transition in the record's chain are a normal, expected state
+ * there, not corruption: the decorator signs and writes before delegating the append, so a
+ * lost CAS, a rolled-back host transaction or a crash leaves the entry behind, and a seam that
+ * refuses against a record admitting no append target leaves one on every call. (Integrated
+ * mode writes none of these; a `put` the host makes itself can still leave one in either
+ * mode.) They are safe to prune whenever no chain transition
  * references them — verification is chain-driven, so an entry with no chain counterpart
  * is never read for a verdict. Inert is not harmless: an orphan over a transition that was
  * attempted and never committed is a valid signature over it, so a storage-writing insider
@@ -85,7 +94,9 @@ export type Verifier = (bytes: Uint8Array, signature: string) => Promise<boolean
 /** The instance-level signing block (SPEC §14: "Signing ships as an optional hook;
  * key distribution and rotation are host-declared"). The library holds no keys:
  * `signer` mints, `verifiers` (keyed by the opaque keyRef) check, `signatures` is
- * the detached sidecar — an evidence layer BESIDE the chain, never inside its bytes.
+ * the detached sidecar — an evidence layer BESIDE the chain, never inside its bytes. Setting
+ * `signatures` to the configured store's own sidecar (`store.signatures`, the very object)
+ * selects the integrated mode `SignatureStore` describes; any other sidecar, separate mode.
  *
  * The shape is checked at `create()`: `signer` a function, `verifiers` a plain object whose
  * every own string key, enumerable or not, holds a function (an empty registry is allowed — a
