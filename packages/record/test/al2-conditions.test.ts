@@ -14,8 +14,8 @@
 //         passes once rehomed. Registering only signing profiles closes the route — the
 //         rehomed record names a profile the instance does not hold, and the seam refuses
 //         `unknown-profile` (a refusal, not a `chain-compromise` edge). The condition binds
-//         every instance acting on the store: the pin's signing-only instance refuses the record
-//         that a mixed-registry instance over the same store seals.
+//         every instance acting on the store: the pin's signing-only instance refuses the same
+//         forgery that a mixed-registry instance over the same store seals.
 //   (iii) no signature outlives an uncommitted append. The signing decorator writes a
 //         transition's sidecar entry before it delegates the append, outside the append's
 //         transaction, so a rolled-back enlisted redemption leaves a valid signature over a
@@ -23,7 +23,10 @@
 //         digest, so a key-less insider who splices that transition back in is not caught:
 //         `verifySignatures` reports it signed and verified, the record replays as redeemed,
 //         and seal retires it. A lost compare-and-swap leaves the same kind of entry over the
-//         losing transition; the rollback is the shape pinned here. The pin reads the attempted
+//         losing transition — pinned below too: a finalize batch that loses its race is a
+//         signed branch, and with the committed tail deleted (the absence residual) it replaces
+//         the recorded decision, with no key and no recompute. So (iii) binds the recompute
+//         threat as well as the head edits. The rollback pin reads the attempted
 //         row inside the host's own transaction, standing in for whatever the insider can see;
 //         the bytes are recoverable without that read too, since for this profile only `at`
 //         varies, and a search over `at` against the sidecar digest finds them. This pin
@@ -41,6 +44,7 @@
 
 import assert from 'node:assert/strict';
 import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';
+import type { DatabaseSync } from 'node:sqlite';
 import { test } from 'vitest';
 
 import { transitionDigest } from '../src/chain/encoding.js';
@@ -50,6 +54,7 @@ import { create } from '../src/create.js';
 import { MemorySignatureStore } from '../src/signing/memory.js';
 import type { Signer, Verifier } from '../src/signing/store.js';
 import { SqliteStore } from '../src/store/sqlite.js';
+import type { Store } from '../src/store/store.js';
 import type { Transition } from '../src/types.js';
 import {
   captureProfile,
@@ -67,7 +72,7 @@ const CONTENT = { subject: 'week-1', total: 40 };
  * so two instances with different registries read the same records. One Ed25519 key signs and
  * verifies for all of them.
  */
-function rig(profiles: ConfirmProfile[]) {
+function rig(profiles: ConfirmProfile[], wrap?: (sqlite: SqliteStore) => Store) {
   const { publicKey, privateKey } = generateKeyPairSync('ed25519');
   const sqlite = new SqliteStore(':memory:');
   const signatures = new MemorySignatureStore();
@@ -78,8 +83,9 @@ function rig(profiles: ConfirmProfile[]) {
   const verifier: Verifier = async (bytes, signature) =>
     edVerify(null, bytes, publicKey, Buffer.from(signature, 'base64'));
   const signing = { signer, verifiers: { 'key-1': verifier }, signatures };
+  const store = wrap === undefined ? sqlite : wrap(sqlite);
   const instance = (registered: ConfirmProfile[]) =>
-    create({ ...makeConfig(registered, { store: sqlite }), signing });
+    create({ ...makeConfig(registered, { store }), signing });
   return { sqlite, signatures, handles: instance(profiles), instance };
 }
 
@@ -316,5 +322,93 @@ test('the absence residual: a deleted redemption head leaves every remaining sig
     (await handles.operator.redeem(recordId, CONTENT)).status,
     'ok',
     'the record is redeemed a second time',
+  );
+});
+
+/**
+ * A backing that holds the FIRST `appendBatch` until a second one arrives, then lets both
+ * through: both batches are built and signed over the same head before either is adjudicated,
+ * so exactly one wins and the other loses its compare-and-swap, deterministically. It records
+ * every batch it was handed — what an insider watching the writes would see.
+ */
+function raceBatches(inner: SqliteStore): { store: Store; batches: Transition[][] } {
+  const batches: Transition[][] = [];
+  let release: (() => void) | undefined;
+  const store: Store = {
+    putStaged: (staged, tx) => inner.putStaged(staged, tx as DatabaseSync | undefined),
+    getStaged: (ref) => inner.getStaged(ref),
+    appendTransition: (expected, transition, meta, tx) =>
+      inner.appendTransition(expected, transition, meta, tx as DatabaseSync | undefined),
+    async appendBatch(expected, transitions, meta, tx) {
+      batches.push(structuredClone([...transitions]));
+      if (batches.length === 1) {
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+      } else if (batches.length === 2) {
+        release?.();
+      }
+      return inner.appendBatch(expected, transitions, meta, tx as DatabaseSync | undefined);
+    },
+    readChain: (recordId) => inner.readChain(recordId),
+    chainHead: (recordId) => inner.chainHead(recordId),
+    listDue: (now) => inner.listDue(now),
+    findNonTerminal: (profileId, subjectRef) => inner.findNonTerminal(profileId, subjectRef),
+  };
+  return { store, batches };
+}
+
+test('condition (iii), the lost compare-and-swap: a finalize batch that loses its race is a signed branch, and with the committed tail deleted it replaces the recorded decision', async () => {
+  const profile: ConfirmProfile = {
+    ...effectSeamProfile({ id: 'test.al2c.race.v1' }),
+    signing: true,
+  };
+  let race: ReturnType<typeof raceBatches> | undefined;
+  const { sqlite, handles } = rig([profile], (inner) => {
+    race = raceBatches(inner);
+    return race.store;
+  });
+  assert.ok(race !== undefined);
+  const recordId = await openRecord(handles, CONTENT, profile.id, 'subject:al2c-race');
+  const base = await sqlite.readChain(recordId); // [opened]: the head both batches chain over
+
+  const outcomes = await Promise.all([
+    handles.operator.finalize(recordId, identity({ principal: 'approver:A' }), CONTENT, facts()),
+    handles.operator.finalize(recordId, identity({ principal: 'approver:B' }), CONTENT, facts()),
+  ]);
+  assert.deepEqual(
+    outcomes.map((o) => o.status).sort(),
+    ['ok', 'refused'],
+    'one decision lands, the other loses its compare-and-swap',
+  );
+  assert.equal(race.batches.length, 2, 'both batches were built and signed');
+  const decider = (chain: readonly Transition[]): string => {
+    const confirmed = chain.find((t) => t.kind === 'confirmed');
+    assert.ok(confirmed !== undefined, 'fixture: a confirmed transition');
+    return (confirmed.payload as { actor: { principal: string } }).actor.principal;
+  };
+  const winner = decider(await sqlite.readChain(recordId));
+  const lost = race.batches.find((b) => decider(b) !== winner);
+  assert.ok(lost !== undefined, 'the losing batch differs from the committed one');
+
+  // The committed decision is buried under a redemption.
+  assert.equal((await handles.operator.redeem(recordId, CONTENT)).status, 'ok');
+
+  // The insider deletes everything after the shared genesis and writes the losing batch in.
+  // Nothing is signed and nothing is recomputed: the losing batch chains over that genesis.
+  const rewritten = [...base, ...lost];
+  overwrite(sqlite, rewritten, { state: 'confirmed', nonTerminal: 1 });
+  assert.equal(verifyChain(rewritten, recordId).intact, true);
+
+  const report = await handles.operator.verifySignatures(recordId);
+  assert.ok(
+    report.transitions.every((t) => t.signed && t.verified),
+    "every transition verifies, the losing batch's included",
+  );
+  assert.notEqual(decider(await sqlite.readChain(recordId)), winner, 'the decider is rewritten');
+  assert.equal(
+    (await handles.operator.redeem(recordId, CONTENT)).status,
+    'ok',
+    'and the record redeems a second time',
   );
 });
