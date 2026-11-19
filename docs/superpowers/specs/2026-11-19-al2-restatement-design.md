@@ -100,11 +100,11 @@ Current:
 
 Proposed:
 
-> The first two residuals close at AL2 under the three conditions §14 states — every
-> profile the instance registers signs, the key sits outside the insider's boundary, and no
-> signature outlives an uncommitted append, which this build's sign-before-append order does
-> not yet meet; detached signing (AL2, §14) is the upgrade for those, stated with the absence
-> caveat and those conditions.
+> The first two residuals close at AL2 under the three conditions §14
+> states — every profile the instance registers signs, the key sits outside the insider's
+> boundary, and no signature outlives an uncommitted append, which this build's
+> sign-before-append order does not yet meet; detached signing (AL2, §14) is the upgrade for
+> those, stated with the absence caveat and those conditions.
 
 **Site 2 — SPEC §14, the AL2 bullet.** The sentence "it closes the recompute residual … without
 trusting storage." gains the conditions; the bullet's other sentences are unchanged.
@@ -459,5 +459,5 @@ Current:
 Proposed:
 
 > AL2 is insider-resistant (when the key
->   is outside the insider boundary, every registered profile signs, and no signature outlives an
->   uncommitted append — `SPEC.md` §14);
+>   is outside the insider boundary, every registered profile signs, and no signature
+>   outlives an uncommitted append — `SPEC.md` §14);
