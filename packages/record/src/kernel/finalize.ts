@@ -820,9 +820,12 @@ const NO_EDGE_STATE = {
  * bars the edge. Nothing else is predicted from the folded state — the three producible
  * targets are always tried, because the backing decides them against its own persisted row,
  * which the chain handed here (a chain that failed verification by construction) does not
- * determine. Under a signing profile every attempt is signed and written before it is tried,
- * so a refusing call on this corner still leaves ONE sidecar entry with no chain counterpart
- * (deferral-register row 22); the narrowing does not change that.
+ * determine. Under a signing profile in separate mode (a sidecar that is not the store's own,
+ * `signing/decorate.ts`) every attempt is signed and written before it is tried, so a refusing
+ * call on this corner still leaves ONE sidecar entry with no chain counterpart
+ * (deferral-register row 22); the narrowing does not change that. In integrated mode every
+ * attempt is still signed first, but its entry rides the attempt's own append, so an attempt
+ * that loses its CAS writes none.
  *
  * The CAS target state is the REPLAYED current state of the (tampered) chain — `open→refused`
  * for an unconfirmed record; `confirmed→refused` rides the Store's C3 compromise carve-out for

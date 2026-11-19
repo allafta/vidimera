@@ -22,6 +22,16 @@
 // because jsonb normalizes key order and number forms and the cross-backing
 // byte-identity proof is about the stored transition bytes replaying identically. The
 // JCS-invisible-member round-trip behavior is therefore exactly SqliteStore's.
+//
+// The integrated sidecar (`Store.signatures`) is the `signatures` table in this store's
+// schema. An append that carries `meta.signatures` inserts its entries through the append
+// body's own client — the store's pooled transaction, or the host's client when enlisted —
+// after the transition rows and after every check has passed, so they commit or roll back
+// with the transitions they sign. Every conflict arm returns from that body before the
+// insert; the transaction it then commits carries no entry. A schema created before the table
+// existed gains it on first use: the lazy DDL is `IF NOT EXISTS` throughout. Entries already
+// in a separate sidecar are not copied in — the host does that, with `put`, before it
+// switches.
 
 import type {
   AppendMeta,
@@ -30,11 +40,19 @@ import type {
   Digest,
   GenesisPayload,
   RecordState,
+  SignatureEntry,
+  SignatureStore,
   StagedDraft,
   Store,
   Transition,
 } from '@vidimera/record';
-import { isCompromiseCarveOut, isStateLeaving, stateOf, transitionDigest } from '@vidimera/record';
+import {
+  isCompromiseCarveOut,
+  isStateLeaving,
+  signatureEntriesToWrite,
+  stateOf,
+  transitionDigest,
+} from '@vidimera/record';
 import type pg from 'pg';
 
 export interface PostgresStoreOptions {
@@ -58,6 +76,15 @@ interface RecordRow {
   sealed: boolean;
 }
 
+/** One `signatures` row: the five `SignatureEntry` fields, as named columns. */
+interface SignatureRow {
+  transition_digest: Digest;
+  record_id: string;
+  seq: number;
+  key_ref: string;
+  signature: string;
+}
+
 // Identifiers are interpolated into SQL (DDL and table references cannot be
 // parameterized), so the schema name is constrained instead of escaped.
 const SCHEMA_NAME = /^[a-z_][a-z0-9_]*$/;
@@ -70,6 +97,37 @@ export class PostgresStore implements Store {
   readonly #pool: pg.Pool;
   readonly #schema: string;
   #ready: Promise<void> | undefined;
+
+  /**
+   * This store's integrated sidecar (`Store.signatures`): a `SignatureStore` over the
+   * `signatures` table, which `appendTransition`/`appendBatch` also write — through the append
+   * body's own client, after the transition rows — whenever an append carries
+   * `meta.signatures`. `put` is one standalone upsert by digest through the pool, committing on
+   * its own; `listByRecord` is a select through the pool returning plain entries, in no
+   * promised order. Both wait for the lazy DDL first. One object for the store's lifetime —
+   * identity is what puts a signing instance configured with it into integrated mode.
+   */
+  readonly signatures: SignatureStore = {
+    put: async (entry: SignatureEntry): Promise<void> => {
+      await this.#ensureReady();
+      await this.#upsertEntry(this.#pool, entry);
+    },
+    listByRecord: async (recordId: string): Promise<SignatureEntry[]> => {
+      await this.#ensureReady();
+      const { rows } = await this.#pool.query(
+        `SELECT transition_digest, record_id, seq, key_ref, signature FROM ${this.#t('signatures')} WHERE record_id = $1`,
+        [recordId],
+      );
+      // Plain objects built field by field, the shape every backing's sidecar returns.
+      return (rows as SignatureRow[]).map((r) => ({
+        transitionDigest: r.transition_digest,
+        recordId: r.record_id,
+        seq: r.seq,
+        keyRef: r.key_ref,
+        signature: r.signature,
+      }));
+    },
+  };
 
   constructor(pool: pg.Pool, options: PostgresStoreOptions) {
     if (!SCHEMA_NAME.test(options.schema)) {
@@ -137,6 +195,15 @@ export class PostgresStore implements Store {
           transition_json text NOT NULL,
           PRIMARY KEY (record_id, seq)
         );
+        CREATE TABLE IF NOT EXISTS ${this.#t('signatures')} (
+          transition_digest text PRIMARY KEY,
+          record_id         text NOT NULL,
+          seq               integer NOT NULL,
+          key_ref           text NOT NULL,
+          signature         text NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS signatures_by_record
+          ON ${this.#t('signatures')} (record_id);
       `);
     });
   }
@@ -259,6 +326,29 @@ export class PostgresStore implements Store {
     );
   }
 
+  /** One entry, upserted by `transitionDigest` (at most one row per digest, as `put` promises). */
+  async #upsertEntry(c: Queryable, entry: SignatureEntry): Promise<void> {
+    await c.query(
+      `INSERT INTO ${this.#t('signatures')} (transition_digest, record_id, seq, key_ref, signature)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (transition_digest) DO UPDATE SET record_id = EXCLUDED.record_id,
+         seq = EXCLUDED.seq, key_ref = EXCLUDED.key_ref, signature = EXCLUDED.signature`,
+      [entry.transitionDigest, entry.recordId, entry.seq, entry.keyRef, entry.signature],
+    );
+  }
+
+  /**
+   * The integrated sidecar's write. Called only as the last step of an append body's success
+   * path — after every check and after the transition rows — through the body's own client, so
+   * an append that conflicts or throws writes no entry, and one that lands always writes its
+   * own. An insert that fails fails the body: the store's own transaction rolls the transition
+   * rows back with it, and a host's transaction is left aborted, so its COMMIT lands nothing.
+   */
+  async #writeEntries(c: Queryable, entries: readonly SignatureEntry[] | undefined): Promise<void> {
+    if (entries === undefined) return;
+    for (const entry of entries) await this.#upsertEntry(c, entry);
+  }
+
   async putStaged(staged: StagedDraft, tx?: unknown): Promise<void> {
     // Idempotent, first-write-wins (SPEC §12) — literally ON CONFLICT DO NOTHING.
     await this.#inTransaction(tx, async (c) => {
@@ -287,10 +377,14 @@ export class PostgresStore implements Store {
     tx?: unknown,
   ): Promise<AppendResult> {
     return this.#inTransaction(tx, async (c) => {
+      // The integrated sidecar's entry check (record's `signatureEntriesToWrite`) first, ahead
+      // of every conflict check, as in the other backings: pure, so a throw writes nothing. Its
+      // fresh five-field objects are what `#writeEntries` inserts.
+      const entries = signatureEntriesToWrite('PostgresStore', [transition], meta);
       if (expectedCurrentState === null) {
-        return this.#appendGenesis(c, transition, meta);
+        return this.#appendGenesis(c, transition, meta, entries);
       }
-      return this.#appendSubsequent(c, expectedCurrentState, transition, meta);
+      return this.#appendSubsequent(c, expectedCurrentState, transition, meta, entries);
     });
   }
 
@@ -299,11 +393,14 @@ export class PostgresStore implements Store {
    * (profile, subject) serialize on a transaction-scoped advisory lock — making the
    * blocker SELECT and the insert one atomic step without ever tripping the C1 index
    * inside a caller's enlisted transaction. The partial unique index (and the records
-   * PK) remain the durable backstop underneath. */
+   * PK) remain the durable backstop underneath. The entries `meta.signatures` carried, if
+   * any, are inserted last: after the records insert reported a row, and after the
+   * transition row. */
   async #appendGenesis(
     c: Queryable,
     transition: Transition,
     meta: AppendMeta,
+    entries: readonly SignatureEntry[] | undefined,
   ): Promise<AppendResult> {
     const payload = transition.payload as GenesisPayload;
     // The lock key is JSON-encoded: ids may legally contain characters a Postgres text
@@ -350,16 +447,19 @@ export class PostgresStore implements Store {
       return { appended: false, conflict: 'state-mismatch' };
     }
     await this.#insertTransition(c, transition);
+    await this.#writeEntries(c, entries);
     return { appended: true, seq: transition.seq, transitionDigest: digest };
   }
 
   /** Check order mirrors the other backings exactly: state CAS, C4, C3, C2, then
-   * insert — all behind the FOR UPDATE row lock taken by the first read. */
+   * insert — all behind the FOR UPDATE row lock taken by the first read: the transition row,
+   * the record row, and last the entries `meta.signatures` carried, if any. */
   async #appendSubsequent(
     c: Queryable,
     expectedCurrentState: RecordState,
     transition: Transition,
     meta: AppendMeta,
+    entries: readonly SignatureEntry[] | undefined,
   ): Promise<AppendResult> {
     const row = await this.#recordRowForUpdate(c, transition.recordId);
     if (row === undefined || row.state !== expectedCurrentState) {
@@ -392,6 +492,7 @@ export class PostgresStore implements Store {
         transition.recordId,
       ],
     );
+    await this.#writeEntries(c, entries);
     return { appended: true, seq: transition.seq, transitionDigest: digest };
   }
 
@@ -408,6 +509,9 @@ export class PostgresStore implements Store {
       await this.#ensureReady();
       await this.#validateTx(tx);
     }
+    // The entry check next, ahead of the empty-batch check and every conflict, in the other
+    // backings' order; pure, so it needs no transaction.
+    const entries = signatureEntriesToWrite('PostgresStore', transitions, meta);
     const first = transitions[0];
     if (first === undefined) {
       throw new Error(
@@ -468,6 +572,7 @@ export class PostgresStore implements Store {
           first.recordId,
         ],
       );
+      await this.#writeEntries(c, entries);
       return { appended: true, transitionDigests: digests };
     });
   }

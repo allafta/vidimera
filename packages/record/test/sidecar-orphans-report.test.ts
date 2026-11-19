@@ -1,13 +1,17 @@
 // @vidimera/record — sidecar-orphans-report.test.ts (the sidecar-orphans-report increment).
 // Pins over `SignatureReport.orphans`: every sidecar digest for the record that names no
 // transition in the chain, sorted, computed inside the one pass `verifySignatures` already
-// makes. Deferral-register row 22's open half is one orphan per refusing seam call against a
-// record admitting no CAS candidate; the `SignatureStore` contract tells a host to prune
-// entries no chain transition references, and this field is how a host learns which those are.
+// makes. Deferral-register row 22's orphan half is one orphan per refusing seam call against a
+// record admitting no CAS candidate — in SEPARATE mode, a sidecar that is not the store's own,
+// which every pin in this file runs (`MemorySignatureStore` sidecars). The row retired
+// 2026-11-19 on integrated mode, where the store writes each entry with the append it signs and
+// that path leaves none (`transactional-sidecar.test.ts`); in separate mode it stands. The
+// `SignatureStore` contract tells a host to prune entries no chain transition references, and
+// this field is how a host learns which those are, in either mode.
 //
 // What these pins prove, and in the same breath what they cannot: the report NAMES orphans.
 // Nothing here bounds them, deletes them, or lets them gate anything — the never-gates pin
-// below is the load-bearing one, and the row stays open.
+// below is the load-bearing one, and in separate mode nothing bounds them at all.
 
 import assert from 'node:assert/strict';
 import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';

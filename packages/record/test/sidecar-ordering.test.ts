@@ -5,10 +5,13 @@
 // element instead — the `signature-tamper-refuses` operator-assurance probe in production
 // source, and the corpus's shared `breakOneSignature` helper — and both happened to work only
 // because `MemorySignatureStore` iterates its `Map` in insertion order, so the first entry
-// was the genesis. Nothing pinned that. A signing deployment also accumulates entries whose
-// digest names no transition in the chain (deferral-register row 22: the compromise append
-// signs before delegating, so every refusing call against a record admitting no CAS candidate
-// leaves one), so under any other legal ordering a positional reader can pick an orphan.
+// was the genesis. Nothing pinned that. A signing deployment can also hold entries whose digest
+// names no transition in the chain — in separate mode, which every pin in this file runs (its
+// sidecars are `MemorySignatureStore`s, not the store's own), because the decorator writes the
+// compromise append's entry before delegating, so every refusing call against a record admitting
+// no CAS candidate leaves one (deferral-register row 22); and in either mode once a committed
+// transition is deleted or rewritten — so under any other legal ordering a positional reader can
+// pick an orphan.
 //
 // Each pin injects an orphan-FIRST ordering through a contract-legal wrapper and asserts the
 // reader still did its job: the probe still PASSES against a sound build, and the helper still
@@ -43,9 +46,10 @@ import { breakOneSignature, enforceableSigningSetup } from './helpers/signing.js
  * order not guaranteed", and the wrapper stops injecting once its own digest is present in the
  * backing, so `listByRecord` never returns two entries for one `transitionDigest` — the one
  * thing `signing/store.ts` calls out of contract. The orphan's digest names no transition in
- * the chain, which is the state a signing deployment reaches on its own: the compromise append
- * signs before delegating, so every refusing call against a record admitting no CAS candidate
- * leaves one behind.
+ * the chain, which is the state a signing deployment in separate mode reaches on its own: the
+ * decorator writes the compromise append's entry before delegating, so every refusing call
+ * against a record admitting no CAS candidate leaves one behind. (Integrated mode leaves none on
+ * that path; a deleted or rewritten committed transition leaves one in either mode.)
  *
  * ID-AGNOSTIC ON PURPOSE. The probe mints its own record inside `run()`, after `makeConfig()`
  * has already handed this store over, so no caller can gate the injection on a recordId.

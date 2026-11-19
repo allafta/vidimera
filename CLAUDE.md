@@ -28,7 +28,7 @@ release-readiness reconciliation pass over the publish-facing docset. The worksp
 packages: `@vidimera/record` and `@vidimera/store-postgres` (the server-SQL third
 reference backing, tested against a real embedded Postgres the suite starts per run).
 Measured against the current
-tree: `pnpm test` — 86 test files, 1165 tests, zero skips; `packages/record/src/refusal-codes.ts`
+tree: `pnpm test` — 88 test files, 1240 tests, zero skips; `packages/record/src/refusal-codes.ts`
 carries 25 refusal codes; zero GOVERNED construction guards remain in `config.ts` — every
 field the feature-guard era installed has lifted behind real behavior at its own seam
 (`unknownOptionKey` — named `governedUnavailable` until the registry-hygiene increment —
@@ -55,18 +55,18 @@ removed.
 `docs/process/implementation-status.md` is the authoritative account of what this build
 does and does not implement, step by step, with gate outputs and the outstanding list —
 read it rather than trusting any count here, which is a claim with a shelf life and no way
-to fail loudly. `docs/process/next-phases.md` names what gates the next cut (three of the five live
+to fail loudly. `docs/process/next-phases.md` names what gates the next cut (two of the four live
 deferral-register rows — row 23, the optional `tx` on the Store's five reads opened 2026-09-02
 by the code-review-fixes increment, and row 24, the `embedded-postgres` exit-hook workaround
-opened 2026-09-03 by the CI test-gate follow-ups, do NOT gate it; the three that do are row 1, publish tooling, held open until the release workflow runs
+opened 2026-09-03 by the CI test-gate follow-ups, do NOT gate it; the two that do are row 1, publish tooling, held open until the release workflow runs
 once for real (its `dry_run` dispatch exercises the build job and the publish commands under
-`--dry-run`, never the real publish, and does not retire the row); row 19, the AL2 detached-signature sidecar pinning deferral; and row 22, orphan
-sidecar growth on the no-edge refusal path, opened by the AL2 signature-enforcement
-coverage increment that retired rows 20 and 21, restated 2026-08-28 with a measured
-containment inventory, and re-scoped 2026-08-29 to its orphan half alone once the no-edge
-containment increment closed its redundant-signing half on behavior — the orphan half stays
-open on a third horn that needs a fresh sanction, not on a missing fix; rows 19 and 22's own
-triggers both also name the 0.1 cut, so each gates the cut too) and what
+`--dry-run`, never the real publish, and does not retire the row); and row 19, the AL2
+detached-signature sidecar pinning deferral, whose own trigger also names the 0.1 cut, so it
+gates the cut too. Row 22, orphan sidecar growth on the no-edge refusal path, retired
+2026-11-19 at the transactional-sidecar increment: with the configured sidecar the store's own,
+each reference store writes a signature entry inside the atomic unit of the append it signs,
+and six refusing calls leave zero orphans on all three backings, measured — while a separate
+sidecar keeps the old write-first order and its orphans, stated rather than closed) and what
 stays deliberately out of scope; `docs/process/release-checklist.md` is release day's
 authoritative list.
 
@@ -264,7 +264,8 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   at the AL2 restatement (2026-11-19), none moving a marker: one, corrective, states AL2's
   closure with its three conditions in SPEC §13A and §14, CONTROLS, ASSURANCE and OPEN-QUESTIONS
   §1, under call 3 of `docs/analysis/2026-11-17-sanction-calls.md` (at most two sealed-set
-  commits; the second is reserved for the transactional-sidecar increment); two more, under the
+  commits; the second, narrowing condition (iii) to a separate sidecar, is reserved for the
+  transactional-sidecar increment and is pending after it); two more, under the
   owner's own grant that day, condition the ten sentences outside call 3 that stated the closure
   without its conditions — SPEC §§5, 10.1, 10.3, ARCHITECTURE, SCOPING-GUIDE, OPEN-QUESTIONS and
   CONCEPT.md's honesty-discipline bullet, which by this file's own rule makes that change a fork

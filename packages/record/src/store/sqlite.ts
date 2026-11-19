@@ -26,6 +26,18 @@
 // rejection/round-trip shape, and the two disagreeing on posture is consistent, not
 // corrupt.
 //
+// The integrated sidecar (`Store.signatures`, `store/store.ts`) is the `signatures` table on
+// this same connection. An append that carries `meta.signatures` inserts its entries inside its
+// own transaction body — the store's own transaction, or the host's when enlisted — after the
+// transition rows and after every check has passed, so they commit or roll back with the
+// transitions they sign. A conflict returns from that body before the insert; the empty
+// transaction it then commits carries no entry. Enlisted, the body runs inside a savepoint
+// (`inEnlistedUnit`), so an append that throws part-way leaves none of its rows in the host's
+// transaction — SQLite rolls back only the failed statement. A database file created before
+// the table existed gains it on open: the schema is `IF NOT EXISTS` throughout. Entries
+// already in a separate sidecar are not copied in — the host does that, with `put`, before it
+// switches.
+//
 // WATCH ITEM: `node:sqlite` is experimental — its API may move under a Node upgrade; the
 // conformance suite is what catches it. The engines floor is >=22.16: the module lost its
 // CLI flag at 22.13, and `isTransaction` — which `validateTx` relies on — arrived at 22.16
@@ -33,8 +45,15 @@
 
 import { DatabaseSync, type StatementSync } from 'node:sqlite';
 import { transitionDigest } from '../chain/encoding.js';
+import type { SignatureEntry, SignatureStore } from '../signing/store.js';
 import type { Digest, RecordState, StagedDraft, Transition } from '../types.js';
-import { type GenesisPayload, isCompromiseCarveOut, isStateLeaving, stateOf } from './semantics.js';
+import {
+  type GenesisPayload,
+  isCompromiseCarveOut,
+  isStateLeaving,
+  signatureEntriesToWrite,
+  stateOf,
+} from './semantics.js';
 import type { AppendMeta, AppendResult, BatchResult, Store } from './store.js';
 
 interface RecordRow {
@@ -66,7 +85,24 @@ CREATE TABLE IF NOT EXISTS transitions (
   transition_json TEXT NOT NULL,
   PRIMARY KEY (record_id, seq)
 ) STRICT;
+CREATE TABLE IF NOT EXISTS signatures (
+  transition_digest TEXT PRIMARY KEY,
+  record_id         TEXT NOT NULL,
+  seq               INTEGER NOT NULL,
+  key_ref           TEXT NOT NULL,
+  signature         TEXT NOT NULL
+) STRICT;
+CREATE INDEX IF NOT EXISTS signatures_by_record ON signatures(record_id);
 `;
+
+/** One `signatures` row: the five `SignatureEntry` fields, as named columns. */
+interface SignatureRow {
+  transition_digest: Digest;
+  record_id: string;
+  seq: number;
+  key_ref: string;
+  signature: string;
+}
 
 /**
  * The provisional embedded `Store`. Same public marking as `MemoryStore`: PUBLIC BUT
@@ -77,6 +113,34 @@ export class SqliteStore implements Store {
   /** One prepared statement per SQL text, prepared on first use and reused: `StatementSync`
    * is reusable across runs and across transactions, so re-preparing per call bought nothing. */
   private readonly statements = new Map<string, StatementSync>();
+
+  /**
+   * This store's integrated sidecar (`Store.signatures`): a `SignatureStore` over the
+   * `signatures` table, which `appendTransition`/`appendBatch` also write — inside their
+   * transaction body, after the transition rows — whenever an append carries `meta.signatures`.
+   * `put` is one standalone upsert by digest on this connection: it commits on its own, or rides
+   * a transaction the host has open on the connection. `listByRecord` is a select returning plain
+   * entries, in no promised order. One object for the store's lifetime — identity is what puts a
+   * signing instance configured with it into integrated mode.
+   */
+  readonly signatures: SignatureStore = {
+    put: async (entry: SignatureEntry): Promise<void> => {
+      this.upsertEntry(entry);
+    },
+    listByRecord: async (recordId: string): Promise<SignatureEntry[]> => {
+      const rows = this.stmt(
+        'SELECT transition_digest, record_id, seq, key_ref, signature FROM signatures WHERE record_id = ?',
+      ).all(recordId) as unknown as SignatureRow[];
+      // Plain objects built field by field: node:sqlite's rows are not plain objects.
+      return rows.map((r) => ({
+        transitionDigest: r.transition_digest,
+        recordId: r.record_id,
+        seq: r.seq,
+        keyRef: r.key_ref,
+        signature: r.signature,
+      }));
+    },
+  };
 
   constructor(location: string) {
     this.db = new DatabaseSync(location);
@@ -166,14 +230,52 @@ export class SqliteStore implements Store {
   }
 
   /** Enlisted (SPEC §12: "enlisted in that transaction and commits or rolls back with
-   * it") — the body runs on the open transaction with NO BEGIN/COMMIT/ROLLBACK of our
-   * own; or, with no tx, inside our own transaction. */
+   * it") — the body runs on the open transaction inside a savepoint (`inEnlistedUnit`), and
+   * nothing here ends the host's transaction: no BEGIN, COMMIT or ROLLBACK of our own, only the
+   * savepoint's `ROLLBACK TO`, which undoes the body's own rows on a throw; or, with no tx,
+   * inside our own transaction. */
   private inTransaction<T>(tx: DatabaseSync | undefined, body: () => T): T {
     if (tx !== undefined) {
       this.validateTx(tx);
-      return body();
+      return this.inEnlistedUnit(body);
     }
     return this.inOwnTransaction(body);
+  }
+
+  /**
+   * An enlisted body as one unit inside the host's transaction: `SAVEPOINT`, the body, then
+   * `RELEASE` on success; on a throw, `ROLLBACK TO` and `RELEASE` — undoing every row the body
+   * wrote while leaving the host's transaction open and usable — and the ORIGINAL error
+   * rethrown, never a cleanup failure (a failure severe enough to have ended the host's
+   * transaction already leaves no savepoint to roll back to).
+   *
+   * Why: an append's entries are written inside its atomic unit and, with a host tx, commit or
+   * roll back with it (`Store.signatures`). On SQLite a failed statement rolls back only itself
+   * and the transaction stays open, so without this an enlisted append that throws part-way —
+   * at its entry insert, after its transition rows, say — would leave those rows in the host's
+   * transaction, and a host that commits anyway would land them unsigned: the
+   * landed-but-unsigned transition the integrated sidecar exists to rule out. The no-tx path
+   * needs none of this: `inOwnTransaction` already rolls back whole.
+   *
+   * The savepoint name is fixed: an enlisted body never enlists another, and a host savepoint
+   * of the same name is shadowed, not touched — `ROLLBACK TO` and `RELEASE` act on the most
+   * recent savepoint of that name, which is this one.
+   */
+  private inEnlistedUnit<T>(body: () => T): T {
+    this.db.exec('SAVEPOINT vidimera_enlisted');
+    try {
+      const result = body();
+      this.db.exec('RELEASE vidimera_enlisted');
+      return result;
+    } catch (err) {
+      try {
+        this.db.exec('ROLLBACK TO vidimera_enlisted');
+        this.db.exec('RELEASE vidimera_enlisted');
+      } catch {
+        // Surface the body's error, never this one.
+      }
+      throw err;
+    }
   }
 
   private recordRow(recordId: string): RecordRow | undefined {
@@ -197,6 +299,25 @@ export class SqliteStore implements Store {
       'SELECT id FROM records WHERE profile_id = ? AND subject_ref = ? AND non_terminal = 1',
     ).get(profileId, subjectRef) as { id: string } | undefined;
     return row?.id ?? null;
+  }
+
+  /** One entry, upserted by `transitionDigest` (at most one row per digest, as `put` promises). */
+  private upsertEntry(entry: SignatureEntry): void {
+    this.stmt(
+      'INSERT INTO signatures (transition_digest, record_id, seq, key_ref, signature) VALUES (?, ?, ?, ?, ?) ' +
+        'ON CONFLICT(transition_digest) DO UPDATE SET record_id = excluded.record_id, ' +
+        'seq = excluded.seq, key_ref = excluded.key_ref, signature = excluded.signature',
+    ).run(entry.transitionDigest, entry.recordId, entry.seq, entry.keyRef, entry.signature);
+  }
+
+  /**
+   * The integrated sidecar's write. Called only as the last step of an append body's success
+   * path — after every check and after the transition rows — on the same transaction, so an
+   * append that conflicts or throws writes no entry, and one that lands always writes its own.
+   */
+  private writeEntries(entries: readonly SignatureEntry[] | undefined): void {
+    if (entries === undefined) return;
+    for (const entry of entries) this.upsertEntry(entry);
   }
 
   private insertTransition(t: Transition): void {
@@ -233,15 +354,24 @@ export class SqliteStore implements Store {
     tx?: DatabaseSync,
   ): Promise<AppendResult> {
     return this.inTransaction(tx, () => {
+      // The integrated sidecar's entry check (`store/semantics.ts`) first, ahead of every
+      // conflict check, as in `store/memory.ts`: pure, so a throw writes nothing. Its fresh
+      // five-field objects are what `writeEntries` inserts — what was checked is what is stored.
+      const entries = signatureEntriesToWrite('SqliteStore', [transition], meta);
       if (expectedCurrentState === null) {
-        return this.appendGenesis(transition, meta);
+        return this.appendGenesis(transition, meta, entries);
       }
-      return this.appendSubsequent(expectedCurrentState, transition, meta);
+      return this.appendSubsequent(expectedCurrentState, transition, meta, entries);
     });
   }
 
-  /** Check order mirrors `store/memory.ts` exactly: state CAS, C1, C2, then the insert. */
-  private appendGenesis(transition: Transition, meta: AppendMeta): AppendResult {
+  /** Check order mirrors `store/memory.ts` exactly: state CAS, C1, C2, then the insert — the
+   * record row, the transition row, and last the entries `meta.signatures` carried, if any. */
+  private appendGenesis(
+    transition: Transition,
+    meta: AppendMeta,
+    entries: readonly SignatureEntry[] | undefined,
+  ): AppendResult {
     if (this.recordRow(transition.recordId) !== undefined) {
       return { appended: false, conflict: 'state-mismatch' };
     }
@@ -265,14 +395,17 @@ export class SqliteStore implements Store {
       meta.dueAt ?? null,
     );
     this.insertTransition(transition);
+    this.writeEntries(entries);
     return { appended: true, seq: transition.seq, transitionDigest: digest };
   }
 
-  /** Check order mirrors `store/memory.ts` exactly: state CAS, C4, C3, C2, then insert. */
+  /** Check order mirrors `store/memory.ts` exactly: state CAS, C4, C3, C2, then insert — the
+   * transition row, the record row, and last the entries `meta.signatures` carried, if any. */
   private appendSubsequent(
     expectedCurrentState: RecordState,
     transition: Transition,
     meta: AppendMeta,
+    entries: readonly SignatureEntry[] | undefined,
   ): AppendResult {
     const row = this.recordRow(transition.recordId);
     if (row === undefined || row.state !== expectedCurrentState) {
@@ -304,6 +437,7 @@ export class SqliteStore implements Store {
       row.sealed === 1 || transition.kind === 'sealed' ? 1 : 0,
       transition.recordId,
     );
+    this.writeEntries(entries);
     return { appended: true, seq: transition.seq, transitionDigest: digest };
   }
 
@@ -319,6 +453,9 @@ export class SqliteStore implements Store {
       // precedence should not depend on which backing is behind the interface.
       this.validateTx(tx);
     }
+    // The entry check next, ahead of the empty-batch check and every conflict, in
+    // `store/memory.ts`'s order; pure, so it needs no transaction.
+    const entries = signatureEntriesToWrite('SqliteStore', transitions, meta);
     const first = transitions[0];
     if (first === undefined) {
       throw new Error(
@@ -378,6 +515,7 @@ export class SqliteStore implements Store {
         transitions.some((t) => t.kind === 'sealed') ? 1 : 0,
         first.recordId,
       );
+      this.writeEntries(entries);
       return { appended: true, transitionDigests: digests };
     });
   }

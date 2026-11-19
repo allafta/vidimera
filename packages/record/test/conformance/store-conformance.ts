@@ -2,7 +2,8 @@
 // conformance suite — SPEC §12: an inheriting project's backings are "held equivalent by a
 // single **backing-parameterized conformance suite** that is the executable definition of a
 // correct `Store`". Every test in here drives a Store instance directly through the
-// eight-method interface with hand-supplied meta flags; kernel-driven tests stay in their
+// eight-method interface with hand-supplied meta flags (and, for a backing that exposes one,
+// its `signatures` sidecar with hand-supplied entries); kernel-driven tests stay in their
 // own files, and MemoryStore's own implementation decisions (the structuredClone /
 // DataCloneError pins) stay in the backing-specific files — a SQL backing rejects a
 // non-serializable payload differently, so that shape is not contract.
@@ -15,10 +16,26 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'vitest';
 import { transitionDigest } from '../../src/chain/encoding.js';
-import type { Store } from '../../src/store/store.js';
+import type { SignatureEntry, SignatureStore } from '../../src/signing/store.js';
+import type { AppendMeta, Store } from '../../src/store/store.js';
 import type { Transition } from '../../src/types.js';
 import { storeGenesis, storeNext } from '../helpers/chain.js';
 import { APPROVER, fiveElementBatch, openRecord, successBatch } from '../helpers/store-fixtures.js';
+
+/**
+ * A transactional backing's host transaction, for the pins that enlist an append in one (SPEC
+ * §12: an enlisted write "commits or rolls back with it"). `begin` opens a transaction `store`
+ * can enlist in and returns the handle an append takes as `tx`; `commit` and `rollback` end
+ * it, and each releases whatever `begin` acquired (a pooled client, say). The suite calls
+ * exactly one of them per `begin`, `rollback` also when the enlisted body throws. A backing
+ * that cannot enlist (the memory backing rejects every `tx`) passes none, and the pins it
+ * gates are not registered for it.
+ */
+export interface HostTransactions<S extends Store = Store> {
+  begin(store: S): Promise<unknown>;
+  commit(store: S, tx: unknown): Promise<void>;
+  rollback(store: S, tx: unknown): Promise<void>;
+}
 
 /**
  * Registers the conformance suite for one backing. `makeStore` must return a FRESH, empty
@@ -27,9 +44,14 @@ import { APPROVER, fiveElementBatch, openRecord, successBatch } from '../helpers
  * (docs/analysis/2026-08-20-conformance-export.md): not exported while the Store
  * signatures are provisional pre-1.0; a host verifying its own adapter vendors this file
  * (Apache-2.0 — and a vendored copy gone stale fails loudly against a moved interface,
- * never falsely passes); the 1.0 freeze re-asks the question.
+ * never falsely passes); the 1.0 freeze re-asks the question. `hostTransactions` is optional:
+ * a transactional backing passes it to register the enlisted pins (`HostTransactions` above).
  */
-export function runStoreConformance(label: string, makeStore: () => Store): void {
+export function runStoreConformance<S extends Store>(
+  label: string,
+  makeStore: () => S,
+  hostTransactions?: HostTransactions<S>,
+): void {
   describe(`Store conformance: ${label}`, () => {
     // === putStaged / getStaged ======================================================
 
@@ -1028,5 +1050,667 @@ export function runStoreConformance(label: string, makeStore: () => Store): void
       assert.equal(res.appended, true, 'fixture: the state-leaving append must land');
       assert.deepEqual(await store.listDue(past), [], 'the omitted dueAt cleared the clock');
     });
+
+    // === the integrated sidecar (Store.signatures, AppendMeta.signatures) ============
+    //
+    // A store that exposes `signatures` writes the entries an append carries in
+    // `meta.signatures` inside that append's own atomic unit, after every check has passed,
+    // and only then — `store/store.ts`'s `Store.signatures`. Registered only for a backing
+    // whose fresh store exposes the sidecar, probed once here at registration: a backing
+    // without one registers nothing, rather than reporting skips or passing vacuously, and
+    // every backing that carries a sidecar has a pin of its own that it exposes one, so this
+    // block cannot drop out for it unnoticed. The signatures are opaque strings to a store —
+    // it never verifies them — so these pins use fixed placeholder values. A backing that also
+    // passes `hostTransactions` registers the two enlisted pins at the end of the block.
+    if (makeStore().signatures !== undefined) {
+      describe('the integrated sidecar', () => {
+        /** The sidecar of a store this block was registered for. */
+        function sidecarOf(store: Store): SignatureStore {
+          const sidecar = store.signatures;
+          assert.ok(sidecar !== undefined, 'fixture: the backing exposes its sidecar');
+          return sidecar;
+        }
+
+        /** An entry naming `t`: its own digest, recordId and seq. */
+        function entryFor(t: Transition, signature = `sig:${t.recordId}:${t.seq}`): SignatureEntry {
+          return {
+            transitionDigest: transitionDigest(t),
+            recordId: t.recordId,
+            seq: t.seq,
+            keyRef: 'key-1',
+            signature,
+          };
+        }
+
+        /** `meta` carrying one entry per transition, in the order given. */
+        function signed(meta: AppendMeta, ...transitions: Transition[]): AppendMeta {
+          return { ...meta, signatures: transitions.map((t) => entryFor(t)) };
+        }
+
+        /** A record's entries in seq order — no backing promises an order. */
+        async function listed(sidecar: SignatureStore, recordId: string) {
+          const entries = await sidecar.listByRecord(recordId);
+          return entries.sort(
+            (a, b) => a.seq - b.seq || a.transitionDigest.localeCompare(b.transitionDigest),
+          );
+        }
+
+        test('an append carrying meta.signatures persists its entries — a genesis, a subsequent append, and every element of a batch', async () => {
+          const store = makeStore();
+          const sidecar = sidecarOf(store);
+          const genesis = storeGenesis('rec-int-listed', 'profile.p1', 'subject:int-listed');
+          const opened = await store.appendTransition(
+            null,
+            genesis,
+            signed({ nonTerminal: true }, genesis),
+          );
+          assert.equal(opened.appended, true, 'fixture: the genesis lands');
+          assert.deepEqual(await listed(sidecar, 'rec-int-listed'), [entryFor(genesis)]);
+
+          const batch = successBatch(genesis);
+          const landed = await store.appendBatch(
+            'open',
+            batch,
+            signed({ nonTerminal: false }, ...batch),
+          );
+          assert.equal(landed.appended, true, 'fixture: the batch lands');
+          const head = batch.at(-1);
+          assert.ok(head !== undefined);
+          const sealed = storeNext(head, 'sealed', { chainHead: transitionDigest(head) });
+          const sealedRes = await store.appendTransition(
+            'confirmed',
+            sealed,
+            signed({ nonTerminal: false }, sealed),
+          );
+          assert.equal(sealedRes.appended, true, 'fixture: the seal lands');
+
+          const chain = await store.readChain('rec-int-listed');
+          assert.equal(chain.length, 5);
+          assert.deepEqual(
+            await listed(sidecar, 'rec-int-listed'),
+            chain.map((t) => entryFor(t)),
+            'exactly one entry per landed transition, each naming its own digest, recordId and seq',
+          );
+        });
+
+        test('an append without meta.signatures writes no entry', async () => {
+          const store = makeStore();
+          const sidecar = sidecarOf(store);
+          const genesis = await openRecord(store, 'rec-int-unsigned');
+          const res = await store.appendBatch('open', successBatch(genesis), {
+            nonTerminal: false,
+          });
+          assert.equal(res.appended, true, 'fixture: the batch lands');
+          assert.deepEqual(await sidecar.listByRecord('rec-int-unsigned'), []);
+        });
+
+        test('appendTransition: the state, genesis-exists and seq conflict arms write no entry', async () => {
+          const store = makeStore();
+          const sidecar = sidecarOf(store);
+          const genesis = storeGenesis('rec-int-state', 'profile.p1', 'subject:int-state');
+          await store.appendTransition(null, genesis, signed({ nonTerminal: true }, genesis));
+          const before = await listed(sidecar, 'rec-int-state');
+          assert.deepEqual(before, [entryFor(genesis)], 'fixture: the genesis entry');
+
+          const confirmed = storeNext(genesis, 'confirmed', { actor: APPROVER });
+          assert.deepEqual(
+            await store.appendTransition(
+              'confirmed',
+              confirmed,
+              signed({ nonTerminal: false }, confirmed),
+            ),
+            { appended: false, conflict: 'state-mismatch' },
+            'the CAS names the wrong state',
+          );
+          const again = storeGenesis('rec-int-state', 'profile.p1', 'subject:int-state-other');
+          assert.deepEqual(
+            await store.appendTransition(null, again, signed({ nonTerminal: true }, again)),
+            { appended: false, conflict: 'state-mismatch' },
+            'a genesis against a record that already exists',
+          );
+          const skipped: Transition = { ...confirmed, seq: 3 };
+          assert.deepEqual(
+            await store.appendTransition('open', skipped, signed({ nonTerminal: false }, skipped)),
+            { appended: false, conflict: 'seq' },
+            'C2: not max+1',
+          );
+          assert.deepEqual(await listed(sidecar, 'rec-int-state'), before, 'no entry written');
+        });
+
+        test('appendTransition: the C1 exclusivity arm writes no entry for the rejected genesis', async () => {
+          const store = makeStore();
+          const sidecar = sidecarOf(store);
+          const blocker = storeGenesis('rec-int-blocker', 'profile.p1', 'subject:int-shared');
+          await store.appendTransition(null, blocker, signed({ nonTerminal: true }, blocker));
+          const challenger = storeGenesis('rec-int-challenger', 'profile.p1', 'subject:int-shared');
+          assert.deepEqual(
+            await store.appendTransition(
+              null,
+              challenger,
+              signed({ nonTerminal: true }, challenger),
+            ),
+            { appended: false, conflict: 'exclusivity', blockingRecordId: 'rec-int-blocker' },
+          );
+          assert.deepEqual(await sidecar.listByRecord('rec-int-challenger'), []);
+          assert.deepEqual(await listed(sidecar, 'rec-int-blocker'), [entryFor(blocker)]);
+        });
+
+        test('appendTransition: the C3 and C4 arms write no entry', async () => {
+          const store = makeStore();
+          const sidecar = sidecarOf(store);
+          const genesis = storeGenesis('rec-int-c3c4', 'profile.p1', 'subject:int-c3c4');
+          await store.appendTransition(null, genesis, signed({ nonTerminal: true }, genesis));
+          const confirmed = storeNext(genesis, 'confirmed', { actor: APPROVER });
+          await store.appendTransition(
+            'open',
+            confirmed,
+            signed({ nonTerminal: false }, confirmed),
+          );
+
+          const drift = storeNext(confirmed, 'refused', { code: 'content-drift' });
+          assert.deepEqual(
+            await store.appendTransition('confirmed', drift, signed({ nonTerminal: false }, drift)),
+            { appended: false, conflict: 'state-mismatch' },
+            'C3: a state-leaving, non-carve-out append onto a terminal record',
+          );
+
+          const sealed = storeNext(confirmed, 'sealed', { chainHead: transitionDigest(confirmed) });
+          const sealedRes = await store.appendTransition(
+            'confirmed',
+            sealed,
+            signed({ nonTerminal: false }, sealed),
+          );
+          assert.equal(sealedRes.appended, true, 'fixture: the seal lands');
+          const later = storeNext(sealed, 'finding-raised', { note: 'after the seal' });
+          const compromise = storeNext(sealed, 'refused', { code: 'chain-compromise' });
+          for (const barred of [later, compromise]) {
+            assert.deepEqual(
+              await store.appendTransition(
+                'confirmed',
+                barred,
+                signed({ nonTerminal: false }, barred),
+              ),
+              { appended: false, conflict: 'state-mismatch' },
+              `C4: ${barred.kind} after the seal`,
+            );
+          }
+          assert.deepEqual(
+            await listed(sidecar, 'rec-int-c3c4'),
+            [entryFor(genesis), entryFor(confirmed), entryFor(sealed)],
+            'only the three landed transitions have entries',
+          );
+        });
+
+        test("appendBatch: no conflict arm writes an entry — the entry CAS, an element's seq, C3 at entry, C4 at entry", async () => {
+          const store = makeStore();
+          const sidecar = sidecarOf(store);
+          const genesis = storeGenesis('rec-int-batch', 'profile.p1', 'subject:int-batch');
+          await store.appendTransition(null, genesis, signed({ nonTerminal: true }, genesis));
+          const batch = successBatch(genesis);
+          const [cv, facts] = batch;
+          assert.ok(cv !== undefined && facts !== undefined, 'fixture: the batch has three');
+
+          assert.deepEqual(
+            await store.appendBatch('confirmed', batch, signed({ nonTerminal: false }, ...batch)),
+            { appended: false, conflict: 'state-mismatch', index: 0 },
+            'the entry CAS names the wrong state',
+          );
+          const stale: Transition = { ...facts, seq: facts.seq + 5 };
+          assert.deepEqual(
+            await store.appendBatch('open', [cv, stale], signed({ nonTerminal: true }, cv, stale)),
+            { appended: false, conflict: 'seq', index: 1 },
+            'the second element carries a stale seq',
+          );
+          assert.deepEqual(
+            await listed(sidecar, 'rec-int-batch'),
+            [entryFor(genesis)],
+            'neither batch wrote an entry — not even for the element that passed its checks',
+          );
+
+          const landed = await store.appendBatch(
+            'open',
+            batch,
+            signed({ nonTerminal: false }, ...batch),
+          );
+          assert.equal(landed.appended, true, 'fixture: the batch lands; the record is terminal');
+          const head = batch.at(-1);
+          assert.ok(head !== undefined);
+          const expired = storeNext(head, 'expired', { bound: '2026-07-25T00:00:00.000Z' });
+          assert.deepEqual(
+            await store.appendBatch(
+              'confirmed',
+              [expired],
+              signed({ nonTerminal: false }, expired),
+            ),
+            { appended: false, conflict: 'state-mismatch', index: 0 },
+            'C3 at entry',
+          );
+          const sealed = storeNext(head, 'sealed', { chainHead: transitionDigest(head) });
+          await store.appendTransition('confirmed', sealed, signed({ nonTerminal: false }, sealed));
+          const a = storeNext(sealed, 'consultation-recorded', { kind: 'facts', verdict: 'pass' });
+          const b = storeNext(a, 'refused', { code: 'chain-compromise' });
+          assert.deepEqual(
+            await store.appendBatch('confirmed', [a, b], signed({ nonTerminal: false }, a, b)),
+            { appended: false, conflict: 'state-mismatch', index: 0 },
+            'C4 at entry',
+          );
+
+          const chain = await store.readChain('rec-int-batch');
+          assert.equal(chain.length, 5, 'genesis, the three-element batch, the seal');
+          assert.deepEqual(
+            await listed(sidecar, 'rec-int-batch'),
+            chain.map((t) => entryFor(t)),
+            'the sidecar is exactly the chain',
+          );
+        });
+
+        test('a miscounted or mismatched meta.signatures throws a caller error and applies nothing', async () => {
+          const store = makeStore();
+          const sidecar = sidecarOf(store);
+          const genesis = storeGenesis('rec-int-mismatch', 'profile.p1', 'subject:int-mismatch');
+          const other = storeGenesis('rec-int-other', 'profile.p1', 'subject:int-other');
+          const right = entryFor(genesis);
+          const badGenesis: [string, AppendMeta][] = [
+            ['no entry', { nonTerminal: true, signatures: [] }],
+            ['two entries', signed({ nonTerminal: true }, genesis, genesis)],
+            ["another transition's entry", signed({ nonTerminal: true }, other)],
+            [
+              'a foreign digest',
+              {
+                nonTerminal: true,
+                signatures: [{ ...right, transitionDigest: transitionDigest(other) }],
+              },
+            ],
+            [
+              'a foreign recordId',
+              { nonTerminal: true, signatures: [{ ...right, recordId: 'rec-int-other' }] },
+            ],
+            ['a wrong seq', { nonTerminal: true, signatures: [{ ...right, seq: 2 }] }],
+          ];
+          for (const [label, meta] of badGenesis) {
+            await assert.rejects(
+              () => store.appendTransition(null, genesis, meta),
+              /meta\.signatures/,
+              `genesis, ${label}`,
+            );
+          }
+          assert.deepEqual(await store.readChain('rec-int-mismatch'), [], 'no genesis landed');
+          assert.equal(await store.findNonTerminal('profile.p1', 'subject:int-mismatch'), null);
+          assert.deepEqual(await sidecar.listByRecord('rec-int-mismatch'), []);
+          assert.deepEqual(await sidecar.listByRecord('rec-int-other'), []);
+          const opened = await store.appendTransition(
+            null,
+            genesis,
+            signed({ nonTerminal: true }, genesis),
+          );
+          assert.equal(opened.appended, true, 'the same genesis, rightly signed, still lands');
+
+          const confirmed = storeNext(genesis, 'confirmed', { actor: APPROVER });
+          await assert.rejects(
+            () =>
+              store.appendTransition('open', confirmed, {
+                nonTerminal: false,
+                signatures: [{ ...entryFor(confirmed), seq: 1 }],
+              }),
+            /meta\.signatures/,
+            'a subsequent append, wrong seq',
+          );
+
+          const batch = successBatch(genesis);
+          const [cv, facts, done] = batch;
+          assert.ok(cv !== undefined && facts !== undefined && done !== undefined);
+          const badBatch: [string, AppendMeta][] = [
+            ['one short', signed({ nonTerminal: false }, cv, facts)],
+            ['one long', signed({ nonTerminal: false }, cv, facts, done, done)],
+            ['out of order', signed({ nonTerminal: false }, facts, cv, done)],
+          ];
+          for (const [label, meta] of badBatch) {
+            await assert.rejects(
+              () => store.appendBatch('open', batch, meta),
+              /meta\.signatures/,
+              `batch, ${label}`,
+            );
+          }
+          assert.deepEqual(
+            await store.readChain('rec-int-mismatch'),
+            [genesis],
+            'nothing applied past the genesis',
+          );
+          assert.deepEqual(await listed(sidecar, 'rec-int-mismatch'), [right]);
+          const landed = await store.appendBatch(
+            'open',
+            batch,
+            signed({ nonTerminal: false }, ...batch),
+          );
+          assert.equal(landed.appended, true, 'the record is where it was: the batch still lands');
+        });
+
+        test('an entry whose keyRef or signature is not a string throws a caller error and applies nothing', async () => {
+          // A SQL backing stores a number as other text and refuses a null only at the entry
+          // insert, after the transition rows; every backing therefore checks both fields with
+          // the rest, before anything is written.
+          const store = makeStore();
+          const sidecar = sidecarOf(store);
+          const genesis = storeGenesis('rec-int-strings', 'profile.p1', 'subject:int-strings');
+          const right = entryFor(genesis);
+          const badGenesis: [string, unknown][] = [
+            ['a numeric keyRef', { ...right, keyRef: 42 }],
+            ['a null keyRef', { ...right, keyRef: null }],
+            ['a missing signature', { ...right, signature: undefined }],
+            ['an object signature', { ...right, signature: { value: 'sig' } }],
+          ];
+          for (const [label, entry] of badGenesis) {
+            await assert.rejects(
+              () =>
+                store.appendTransition(null, genesis, {
+                  nonTerminal: true,
+                  signatures: [entry as SignatureEntry],
+                }),
+              /meta\.signatures/,
+              `genesis, ${label}`,
+            );
+          }
+          assert.deepEqual(await store.readChain('rec-int-strings'), [], 'no genesis landed');
+          assert.equal(await store.findNonTerminal('profile.p1', 'subject:int-strings'), null);
+          assert.deepEqual(await sidecar.listByRecord('rec-int-strings'), []);
+          const opened = await store.appendTransition(null, genesis, {
+            nonTerminal: true,
+            signatures: [right],
+          });
+          assert.equal(opened.appended, true, 'the same genesis, rightly signed, lands');
+
+          const batch = successBatch(genesis);
+          const entries: unknown[] = batch.map((t) => entryFor(t));
+          entries[1] = { ...entryFor(batch[1] as Transition), signature: 7 };
+          await assert.rejects(
+            () =>
+              store.appendBatch('open', batch, {
+                nonTerminal: false,
+                signatures: entries as SignatureEntry[],
+              }),
+            /meta\.signatures/,
+            "batch, the second element's numeric signature",
+          );
+          assert.deepEqual(await store.readChain('rec-int-strings'), [genesis], 'nothing applied');
+          assert.deepEqual(await listed(sidecar, 'rec-int-strings'), [right]);
+        });
+
+        test("an appended entry is stored as its five fields, each read once from the caller's entry: an extra member is not stored, and what was checked is what is stored", async () => {
+          const store = makeStore();
+          const sidecar = sidecarOf(store);
+          const genesis = storeGenesis('rec-int-fields', 'profile.p1', 'subject:int-fields');
+          let keyRefReads = 0;
+          const carried = {
+            ...entryFor(genesis),
+            extra: 'not an entry field',
+            // A string on the first read, a number on any later one: a store that checked one
+            // read and stored another would store the number.
+            get keyRef(): unknown {
+              keyRefReads += 1;
+              return keyRefReads === 1 ? 'key-1' : 42;
+            },
+          };
+          const opened = await store.appendTransition(null, genesis, {
+            nonTerminal: true,
+            signatures: [carried as unknown as SignatureEntry],
+          });
+          assert.equal(opened.appended, true, 'fixture: the genesis lands');
+          assert.equal(keyRefReads, 1, 'keyRef was read once');
+          assert.deepEqual(
+            await listed(sidecar, 'rec-int-fields'),
+            [entryFor(genesis)],
+            'the five fields, as first read, and nothing else',
+          );
+        });
+
+        test('put is a standalone upsert by transitionDigest, an append upserts the same way, and every entry is a copy', async () => {
+          const store = makeStore();
+          const sidecar = sidecarOf(store);
+          const genesis = storeGenesis('rec-int-upsert', 'profile.p1', 'subject:int-upsert');
+
+          // A put needs no append: an entry with no chain counterpart is a legal state.
+          const first = entryFor(genesis, 'sig:first');
+          await sidecar.put(first);
+          first.signature = 'mutated-after-put';
+          assert.deepEqual(
+            await listed(sidecar, 'rec-int-upsert'),
+            [entryFor(genesis, 'sig:first')],
+            'put stored a copy',
+          );
+
+          const carried = entryFor(genesis, 'sig:second');
+          const opened = await store.appendTransition(null, genesis, {
+            nonTerminal: true,
+            signatures: [carried],
+          });
+          assert.equal(opened.appended, true, 'fixture: the genesis lands');
+          carried.signature = 'mutated-after-append';
+          assert.deepEqual(
+            await listed(sidecar, 'rec-int-upsert'),
+            [entryFor(genesis, 'sig:second')],
+            'the append replaced the entry under the same digest, and stored a copy',
+          );
+
+          await sidecar.put(entryFor(genesis, 'sig:third'));
+          const read = await listed(sidecar, 'rec-int-upsert');
+          assert.deepEqual(read, [entryFor(genesis, 'sig:third')], 'one entry per digest');
+          const returned = read[0];
+          assert.ok(returned !== undefined);
+          returned.signature = 'mutated-after-read';
+          assert.deepEqual(
+            await listed(sidecar, 'rec-int-upsert'),
+            [entryFor(genesis, 'sig:third')],
+            'listByRecord returned a copy',
+          );
+          assert.deepEqual(await sidecar.listByRecord('rec-int-unknown'), []);
+        });
+
+        test("put stores exactly the five entry fields, each read once from the caller's entry: an extra member does not come back from listByRecord", async () => {
+          const store = makeStore();
+          const sidecar = sidecarOf(store);
+          const genesis = storeGenesis('rec-int-put-fields', 'profile.p1', 'subject:int-put');
+          const digest = transitionDigest(genesis);
+          let digestReads = 0;
+          const putEntry = {
+            ...entryFor(genesis),
+            extra: 'not an entry field',
+            // The digest is the key: a store that keyed by one read and stored another could
+            // file an entry under a digest it does not carry.
+            get transitionDigest(): string {
+              digestReads += 1;
+              return digest;
+            },
+          };
+          await sidecar.put(putEntry as unknown as SignatureEntry);
+          assert.equal(digestReads, 1, 'transitionDigest was read once');
+          assert.deepEqual(
+            await listed(sidecar, 'rec-int-put-fields'),
+            [entryFor(genesis)],
+            'the five fields, and nothing else',
+          );
+        });
+
+        // --- enlisted in a host transaction: the entries commit and roll back with it ---
+        //
+        // Registered only for a backing that passes `hostTransactions`. The commit pin is the
+        // rollback pin's control: it shows the enlisted appends do write their entries, so an
+        // empty sidecar after the rollback is the rollback's work, not a write that never ran.
+        // Nothing is read inside the transaction: a backing's reads need not see it (the Store's
+        // reads take no `tx`), so both pins judge after the transaction has ended.
+        if (hostTransactions !== undefined) {
+          const host = hostTransactions;
+
+          /**
+           * Runs `body` enlisted in a host transaction on `store`, then ends it as `end` says.
+           * When `body` throws, the transaction is rolled back and the body's error is what
+           * surfaces: a rollback that also throws is swallowed, so it cannot mask the failure
+           * that caused it.
+           */
+          async function enlisted(
+            store: S,
+            end: 'commit' | 'rollback',
+            body: (tx: unknown) => Promise<void>,
+          ): Promise<void> {
+            const tx = await host.begin(store);
+            try {
+              await body(tx);
+            } catch (err) {
+              try {
+                await host.rollback(store, tx);
+              } catch {
+                // The body's error is the finding; this one is a consequence of it.
+              }
+              throw err;
+            }
+            await (end === 'commit' ? host.commit(store, tx) : host.rollback(store, tx));
+          }
+
+          /**
+           * A committed record (`rec-…-base`, on the store's own transaction, so the backing is
+           * initialized before any host transaction opens), then, enlisted in one host
+           * transaction: a second record's genesis and subsequent append, and the base record's
+           * batch — every append carrying its entries, every one landing inside the transaction.
+           */
+          async function enlistedAppends(store: S, prefix: string, end: 'commit' | 'rollback') {
+            const base = storeGenesis(`${prefix}-base`, 'profile.p1', `subject:${prefix}-base`);
+            const opened = await store.appendTransition(
+              null,
+              base,
+              signed({ nonTerminal: true }, base),
+            );
+            assert.equal(opened.appended, true, 'fixture: the base record lands, committed');
+            const second = storeGenesis(`${prefix}-second`, 'profile.p1', `subject:${prefix}-2`);
+            const confirmed = storeNext(second, 'confirmed', { actor: APPROVER });
+            const batch = successBatch(base);
+            await enlisted(store, end, async (tx) => {
+              const g = await store.appendTransition(
+                null,
+                second,
+                signed({ nonTerminal: true }, second),
+                tx,
+              );
+              assert.equal(g.appended, true, 'fixture: the enlisted genesis lands');
+              const c = await store.appendTransition(
+                'open',
+                confirmed,
+                signed({ nonTerminal: false }, confirmed),
+                tx,
+              );
+              assert.equal(c.appended, true, 'fixture: the enlisted subsequent append lands');
+              const b = await store.appendBatch(
+                'open',
+                batch,
+                signed({ nonTerminal: false }, ...batch),
+                tx,
+              );
+              assert.equal(b.appended, true, 'fixture: the enlisted batch lands');
+            });
+            return { base, second, confirmed, batch };
+          }
+
+          test('enlisted in a host transaction that commits: the entries of a genesis, a subsequent append and a batch commit with their transitions', async () => {
+            const store = makeStore();
+            const sidecar = sidecarOf(store);
+            const { base, second, confirmed, batch } = await enlistedAppends(
+              store,
+              'rec-int-tx-commit',
+              'commit',
+            );
+            assert.deepEqual(await store.readChain(base.recordId), [base, ...batch]);
+            assert.deepEqual(await store.readChain(second.recordId), [second, confirmed]);
+            assert.deepEqual(
+              await listed(sidecar, base.recordId),
+              [base, ...batch].map((t) => entryFor(t)),
+              'the base record: one entry per transition, the enlisted batch included',
+            );
+            assert.deepEqual(
+              await listed(sidecar, second.recordId),
+              [second, confirmed].map((t) => entryFor(t)),
+              'the second record: both enlisted appends wrote their entries',
+            );
+          });
+
+          test('enlisted in a host transaction rolled back after the appends landed in it: no entry survives, nor any transition it signed', async () => {
+            const store = makeStore();
+            const sidecar = sidecarOf(store);
+            const { base, second } = await enlistedAppends(
+              store,
+              'rec-int-tx-rollback',
+              'rollback',
+            );
+            assert.deepEqual(await store.readChain(base.recordId), [base], 'the batch rolled back');
+            assert.deepEqual(await store.readChain(second.recordId), [], 'so did the genesis');
+            assert.equal(
+              await store.findNonTerminal('profile.p1', 'subject:rec-int-tx-rollback-2'),
+              null,
+            );
+            assert.deepEqual(
+              await listed(sidecar, base.recordId),
+              [entryFor(base)],
+              "only the committed genesis's entry: the batch's rolled back with it",
+            );
+            assert.deepEqual(
+              await sidecar.listByRecord(second.recordId),
+              [],
+              "the rolled-back record's entries rolled back with its transitions",
+            );
+          });
+
+          test('enlisted in a host transaction that commits after a refused meta.signatures: the refusal wrote nothing, so the commit lands nothing', async () => {
+            // The entry check runs before anything is written: a store that wrote the
+            // transition rows first and threw at the entries would leave them in the host's
+            // transaction, and a host that commits anyway would land them unsigned.
+            const store = makeStore();
+            const sidecar = sidecarOf(store);
+            const base = storeGenesis('rec-int-tx-refused', 'profile.p1', 'subject:int-tx-refused');
+            const opened = await store.appendTransition(
+              null,
+              base,
+              signed({ nonTerminal: true }, base),
+            );
+            assert.equal(opened.appended, true, 'fixture: the base record lands, committed');
+            const confirmed = storeNext(base, 'confirmed', { actor: APPROVER });
+            const batch = successBatch(base);
+            await enlisted(store, 'commit', async (tx) => {
+              await assert.rejects(
+                () =>
+                  store.appendTransition(
+                    'open',
+                    confirmed,
+                    {
+                      nonTerminal: false,
+                      signatures: [
+                        { ...entryFor(confirmed), keyRef: 42 } as unknown as SignatureEntry,
+                      ],
+                    },
+                    tx,
+                  ),
+                /meta\.signatures/,
+                'a subsequent append, a numeric keyRef',
+              );
+              await assert.rejects(
+                () =>
+                  store.appendBatch(
+                    'open',
+                    batch,
+                    signed({ nonTerminal: false }, batch[0] as Transition),
+                    tx,
+                  ),
+                /meta\.signatures/,
+                'a batch, one entry for three transitions',
+              );
+            });
+            assert.deepEqual(await store.readChain(base.recordId), [base], 'nothing landed');
+            assert.deepEqual(await listed(sidecar, base.recordId), [entryFor(base)]);
+            const landed = await store.appendBatch(
+              'open',
+              batch,
+              signed({ nonTerminal: false }, ...batch),
+            );
+            assert.equal(landed.appended, true, 'the record is where it was: the batch lands');
+          });
+        }
+      });
+    }
   });
 }

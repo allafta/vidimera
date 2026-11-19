@@ -1,13 +1,15 @@
 # API reference
 
-**Derived from source, 2026-08-21.** This page enumerates the public surface as
+**Derived from source, 2026-08-21; its store and signing sections re-derived 2026-11-20.** This
+page enumerates the public surface as
 `packages/record/src/index.ts` exports it against the current tree. The source and
 [`../concept/SPEC.md`](../concept/SPEC.md) are authoritative; if this page disagrees with
 either, this page is stale — file it as a bug. Two standing caveats: the pre-0.1 API
 review (deferral register row 6) completed 2026-08-19, ratifying the 52 names exported then
-(`docs/analysis/2026-08-19-phase-1-api-review.md`); the seven added since — the
+(`docs/analysis/2026-08-19-phase-1-api-review.md`); the ten added since — the
 adapter-author helpers below (`transitionDigest`, `GenesisPayload`, `isCompromiseCarveOut`,
-`isStateLeaving`, `stateOf`) and the `DeclineOptions`/`RedeemOptions` bags — landed under
+`isStateLeaving`, `stateOf`, `signatureEntriesToWrite`), the `DeclineOptions`/`RedeemOptions`
+bags, and the profile-binding helpers `profileDigest`/`projectProfile` — landed under
 the review's own rules rather than through it — the store contract's
 method signatures staying explicitly provisional pre-1.0 by the sealed set's own
 declaration; and the package builds to `dist/` behind a real `exports` map (`.` and
@@ -502,10 +504,13 @@ function profileDigest(profile: ConfirmProfile): Digest;
 ## Stores
 
 ```ts
-class MemoryStore implements Store {}        // reference semantics; nothing durable
+class MemoryStore implements Store {         // reference semantics; nothing durable
+  readonly signatures: SignatureStore;       // its own sidecar, a map beside its records
+}
 class SqliteStore implements Store {         // embedded node:sqlite backing
   constructor(location: string);             // a file path, or ':memory:'
   readonly database: DatabaseSync;           // the connection — the handle an enlisting tx passes
+  readonly signatures: SignatureStore;       // its own sidecar: a table on this connection
   close(): void;                             // closes it; not a Store method (the other backings
                                              // have nothing of their own to close)
 }
@@ -521,13 +526,55 @@ interface Store {                            // behaviors stable; signatures pro
   chainHead(recordId: string): Promise<Digest | null>;
   listDue(now: Date): Promise<string[]>;
   findNonTerminal(profileId: string, subjectRef: string): Promise<string | null>;
-}
+  readonly signatures?: SignatureStore;      // OPTIONAL: a sidecar persisted atomically with
+}                                            // this store's own appends (below)
+
+interface AppendMeta {                       // SPEC §12's per-append metadata, persisted verbatim
+  nonTerminal: boolean;
+  dueAt?: string;                            // presence sets the pending clock; absence clears it
+  signatures?: readonly SignatureEntry[];    // not one of §12's fields: the entries a store
+}                                            // exposing `signatures` writes with this append
 ```
 
 Both store classes are public but explicitly unstable pre-1.0 (their own doc comments say
 so). `AppendMeta`, `AppendResult`, and `BatchResult` are exported alongside `Store`. A new
 backing proves itself against the conformance suite at
 `packages/record/test/conformance/store-conformance.ts`.
+
+**`Store.signatures` — the integrated sidecar.** Optional, and not one of the eight methods
+SPEC §12 names: a `SignatureStore` the store persists atomically with its own appends. A store
+that exposes it and receives `meta.signatures` on `appendTransition` or `appendBatch` requires
+exactly one entry per appended transition, in order, each naming that transition's own
+`transitionDigest`, `recordId` and `seq`, or it throws a caller error before writing anything;
+writes the entries inside the append's atomic unit, after every compare-and-swap and constraint
+check has passed, upserting by `transitionDigest` as `put` does; writes none when the append
+does not apply (every conflict arm); and, with a host `tx`, writes them through that
+transaction, so they commit or roll back with it. Outside an append it is an ordinary
+`SignatureStore` over the same storage. It must be one stable object for the store's lifetime,
+because identity is what selects it: the signing decorator hands entries down as
+`meta.signatures` only when `config.signing.signatures` IS this object, decided once when the
+instance is built, and otherwise writes each entry itself with `put` before the append (separate
+mode) — so a store without `signatures` never receives the field. All three reference stores
+expose it — `MemoryStore` over a private map, `SqliteStore` over a `signatures` table on its own
+connection (created with the schema, so an existing file gains it on open), and
+`@vidimera/store-postgres`'s `PostgresStore` over a `signatures` table in its schema (created by
+the lazy DDL on first use) — and the conformance suite registers an integrated-sidecar block for
+every backing that exposes one. Each SQL store owns four tables, `staged`, `records`,
+`transitions` and `signatures`, in its database file (SQLite) or schema (Postgres), creating them
+with `IF NOT EXISTS` and never altering one: a pre-existing table of one of those names with
+another shape makes the store throw — on SQLite at open and on Postgres at every call when an
+index it creates names a missing column, otherwise at the first statement that needs one
+(`integrating.md`'s "Choosing a store" gives the cases). Two limits, stated with it: an existing
+deployment switching modes, in either direction, must stop every instance that writes to the
+store, copy the entries with `put` into the sidecar the new configuration will read, and only
+then start instances on the new configuration alone — an entry left in the other sidecar makes
+its record read unsigned and refuse `chain-compromise`, and two configurations run against one
+store at once (a rolling restart, say) each write entries the other cannot see, so the next
+verifying seam appends a terminal `chain-compromise` edge on a healthy record (the library
+migrates nothing); and a store wrapper must expose the inner store's `signatures` and forward
+`meta` intact, or it runs in separate mode — or, exposing `signatures` while dropping
+`meta.signatures`, lands its transitions unsigned, which the next seam refuses
+`chain-compromise`. `integrating.md`'s AL2 section states both modes.
 
 ### Adapter authors
 
@@ -546,7 +593,20 @@ function isCompromiseCarveOut(transition: Transition,       // C3's second carve
 interface GenesisPayload { profileId: string; subjectRef: string }  // the two genesis-payload
                                                             // fields C1 exclusivity reads
                                                             // (the payload itself carries more)
+function signatureEntriesToWrite(storeName: string,         // the integrated sidecar's
+  transitions: readonly Transition[],                       // entry check, for a store that
+  meta: AppendMeta): SignatureEntry[] | undefined;          // exposes `signatures`
 ```
+
+`signatureEntriesToWrite` is the one entry check all three reference backings run on an
+append's `meta.signatures`. It returns `undefined` when the field is absent. Otherwise it
+requires an array with exactly one entry per appended transition, in order, each an object
+naming that transition's own `transitionDigest`, `recordId` and `seq`, with a string `keyRef`
+and a string `signature`; anything else throws an `Error` whose message starts
+`<storeName>: meta.signatures`. On success it returns one fresh object per entry holding exactly
+the five `SignatureEntry` fields, each read from the caller's entry once — extra members are
+dropped. It touches no store state, so a backing calls it before any other check and writes
+what it returns.
 
 `@vidimera/store-postgres` (this workspace's server-SQL backing) is the reference consumer
 of this surface.
@@ -698,33 +758,57 @@ sidecar entry whose `keyRef` is not a string, or not a key you registered — in
 naming an inherited `Object.prototype` member such as `toString` — resolves no verifier and
 fails closed. The sidecar is storage, and storage is what this layer exists to distrust.
 
-**An implementer must tolerate orphans.** A conforming `SignatureStore` will hold entries
-whose `transitionDigest` names no transition in the record's chain. That is a normal state,
-not corruption: the library signs *before* it appends, so a lost compare-and-swap or a crash
-leaves the entry behind, and a seam that refuses against a record admitting no append
-target leaves one on every such call. Two further producers are ordinary operation, not
-failure: a `finalize`/`decline` that loses its batch to a concurrent append leaves one entry
-per batch element (the batch is signed before the store adjudicates it — the
-`record-contended` case), and an `open()` whose expire-then-retry re-stamps its genesis under a
-moving clock leaves the first attempt's entry. They are inert to verification — every reader
-correlates from the chain to the sidecar, never the reverse, so an orphan is never read for
-a verdict — and they are safe to prune whenever no chain transition references them. Inert
-is not harmless: an orphan over a transition that was attempted and never committed is a
-valid signature over it, so an insider who writes that transition back into the chain where
-it was signed for is not caught (SPEC §14's third condition); and the orphan of a head an
-insider deleted may be the only trace of it, so keep or archive what you prune.
-The library performs no pruning, but it tells you which entries are dead:
-`verifySignatures(recordId).orphans` names every sidecar digest with no chain counterpart,
-sorted, at no read the call was not already making. A backing that must not grow without
-bound reconciles by deleting what that names — when no seam call on the record is in flight,
-since an in-flight append's entry and an orphan carry the same `seq`. This is stated
-as an obligation, not enforced: nothing in the library reads your implementation.
+**An implementer must tolerate orphans — how many depends on the mode.** An orphan is an entry
+whose `transitionDigest` names no transition in the record's chain. Which mode an instance runs
+is decided once, at construction: **integrated** when `config.signing.signatures` is
+`config.store.signatures` (the store's own sidecar, `Store.signatures` above), **separate**
+otherwise.
+
+- *Integrated mode:* the store writes each entry inside the atomic unit of the append it signs,
+  only once that append's checks have passed, so no entry outlives an uncommitted append — a
+  lost compare-and-swap, a refusing seam against a record admitting no append target, a
+  `record-contended` batch, `open()`'s re-stamped retry and a rolled-back enlisted seam all
+  leave none. Orphans arise only from committed transitions an insider deleted or rewrote,
+  whose entries stay behind, and from entries written by something other than an append (a
+  planted entry, or a host's own `put`); the orphan of a deleted head may be the only trace of
+  it, so keep or archive what you prune.
+- *Separate mode:* a conforming `SignatureStore` will hold orphans as a normal state, not
+  corruption: the library writes each entry *before* it appends, so a lost compare-and-swap or
+  a crash leaves the entry behind, and a seam that refuses against a record admitting no append
+  target leaves one on every such call. Two further producers are ordinary operation, not
+  failure: a `finalize`/`decline` that loses its batch to a concurrent append leaves one entry
+  per batch element (the batch is signed before the store adjudicates it — the
+  `record-contended` case), and an `open()` whose expire-then-retry re-stamps its genesis under
+  a moving clock leaves the first attempt's entry. Inert is not harmless: an orphan over a
+  transition that was attempted and never committed is a valid signature over it, so an
+  insider who writes that transition back into the chain where it was signed for is not caught
+  (SPEC §14's third condition, which this mode does not meet); and the orphan of a head an
+  insider deleted may be the only trace of it, so keep or archive what you prune.
+
+In both modes orphans are inert to verification — every reader correlates from the chain to the
+sidecar, never the reverse, so an orphan is never read for a verdict — and they are safe to
+prune whenever no chain transition references them. The library performs no pruning, but it
+tells you which entries are dead: `verifySignatures(recordId).orphans` names every sidecar
+digest with no chain counterpart, sorted, at no read the call was not already making.
+`SignatureStore` has no delete — only the reference `MemorySignatureStore` carries one, outside
+the contract, and the three integrated sidecars expose none. In separate mode, a sidecar of your
+own that must not grow without bound reconciles by deleting what that names. In integrated mode,
+an orphan is evidence to keep — a committed transition deleted or rewritten, or a planted
+entry — unless your own `put` wrote it; removing one is the host's own act, a SQL `DELETE` by
+`transition_digest` against the store's `signatures` table (an implementation artifact, not an
+API), and `MemoryStore`'s map cannot be pruned. Reconcile only when no seam call on the record is
+in flight: in separate mode an in-flight append's entry and an orphan carry the same `seq`, and
+in either mode the call reads the chain before it lists the sidecar, so an append that commits
+between the two reads lists as an orphan. This is stated as an obligation, not enforced: nothing
+in the library reads your implementation.
 
 All of these names — plus `withSigning` (the store decorator) and the reference
 `MemorySignatureStore` — are exported from the entry point: the 2026-08-19 review moved
 the whole signing tier onto the root, beside the stores it mirrors. The handle `withSigning`
-returns exposes exactly the eight `Store` methods: a `SqliteStore`'s `close()` and `database`
-stay on the instance you constructed, so keep that reference for shutdown and enlistment.
+returns exposes exactly the eight `Store` methods — not `signatures`, which the instance reads
+from `config.signing` — and a `SqliteStore`'s `close()` and `database` stay on the instance you
+constructed, so keep that reference for shutdown and enlistment; on every reference store, take
+the integrated sidecar from that reference too.
 
 ## Probes — the `./probes` subpath
 

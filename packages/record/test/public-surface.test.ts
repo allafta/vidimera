@@ -47,6 +47,7 @@ import {
   MemoryStore,
   replay,
   SqliteStore,
+  signatureEntriesToWrite,
   stateOf,
   transitionDigest,
   verifyChain,
@@ -91,10 +92,12 @@ test('every ruled value export is reachable from the entry point', () => {
     create,
     digest,
     // the adapter-author surface: the transition encoding's digest and the C3/C4
-    // semantic arms a conforming Store backing must express (SPEC §12)
+    // semantic arms a conforming Store backing must express (SPEC §12), and the
+    // integrated sidecar's entry check every backing exposing `Store.signatures` runs
     isCompromiseCarveOut,
     isStateLeaving,
     replay,
+    signatureEntriesToWrite,
     stateOf,
     transitionDigest,
     verifyChain,

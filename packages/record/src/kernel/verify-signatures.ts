@@ -70,9 +70,12 @@ export interface SignatureReport {
    * lexicographically so the report is identical under any `listByRecord` order the contract
    * permits. It is computed inside the one pass that already lists the sidecar — zero
    * additional reads. A host discharges `SignatureStore`'s prune obligation by deleting what
-   * this names, when no seam call on the record is in flight (an in-flight append's entry and
-   * an orphan carry the same `seq`). Deferral-register row 22's open half is why this exists;
-   * naming orphans does not bound them.
+   * this names, when no seam call on the record is in flight (in separate mode an in-flight
+   * append's entry and an orphan carry the same `seq`; in either mode the chain is read before
+   * the sidecar is listed, so an append committing between the two reads lists here). Built for
+   * deferral-register row 22's orphan half, which stands in separate mode and retired on
+   * integrated mode (`signing/decorate.ts`'s header names both); naming orphans does not bound
+   * them.
    */
   orphans: Digest[];
   /**

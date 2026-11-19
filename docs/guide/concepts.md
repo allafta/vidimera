@@ -248,9 +248,11 @@ The other governed controls, one line each — the catalog with tiers and honest
   that acts on the records signs: the layer applies through the profile a record's genesis
   names, so an insider who rewrites a signing record's genesis onto a registered non-signing
   profile takes the record out of the layer. And no signature outlives an append that never
-  committed — a gap open today: the library signs before it appends, so a rolled-back
-  append, or one that lost its compare-and-swap, leaves a valid signature an insider can
-  splice back in. Even under all three, AL2 verifies only what exists: an insider who deletes
+  committed — met when the configured sidecar is the store's own on the three reference
+  stores, which then write each signature inside the atomic unit of the append it signs; open
+  for a separate sidecar, which the library writes to before it appends, so a rolled-back append,
+  or one that lost its compare-and-swap, leaves a valid signature an insider can splice back in.
+  Even under all three, AL2 verifies only what exists: an insider who deletes
   a record's most recent transitions leaves a chain whose every signature verifies.
 - **AL3 — anchored** (documented, deliberately inactive): chain heads in an external
   append-only log the operator does not solely control. Documented so the honesty gradient
