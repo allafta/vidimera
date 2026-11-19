@@ -162,13 +162,23 @@ export class MemoryStore implements Store {
    * `signatureEntries`, which `appendTransition`/`appendBatch` also write — in their
    * synchronous mutation section, with the transitions — whenever an append carries
    * `meta.signatures`. The same semantics as `signing/memory.ts`'s `MemorySignatureStore`,
-   * without its `delete`: `put` upserts a copy by digest, `listByRecord` returns copies in no
-   * promised order. One object for the store's lifetime — identity is what puts a signing
-   * instance configured with it into integrated mode.
+   * without its `delete`: `put` upserts a copy by digest — of the five entry fields only, as
+   * the SQL backings store it — and `listByRecord` returns copies in no promised order. One
+   * object for the store's lifetime — identity is what puts a signing instance configured with
+   * it into integrated mode.
    */
   readonly signatures: SignatureStore = {
     put: async (entry: SignatureEntry): Promise<void> => {
-      this.signatureEntries.set(entry.transitionDigest, { ...entry });
+      // Exactly the five fields, each read once into a fresh object — the shape an append
+      // stores and the SQL backings' columns hold — keyed by the digest the copy carries.
+      const copy: SignatureEntry = {
+        transitionDigest: entry.transitionDigest,
+        recordId: entry.recordId,
+        seq: entry.seq,
+        keyRef: entry.keyRef,
+        signature: entry.signature,
+      };
+      this.signatureEntries.set(copy.transitionDigest, copy);
     },
     listByRecord: async (recordId: string): Promise<SignatureEntry[]> => {
       const out: SignatureEntry[] = [];

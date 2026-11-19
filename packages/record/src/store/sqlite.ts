@@ -31,9 +31,12 @@
 // own transaction body — the store's own transaction, or the host's when enlisted — after the
 // transition rows and after every check has passed, so they commit or roll back with the
 // transitions they sign. A conflict returns from that body before the insert; the empty
-// transaction it then commits carries no entry. A database file created before the table
-// existed gains it on open: the schema is `IF NOT EXISTS` throughout. Entries already in a
-// separate sidecar are not copied in — the host does that, with `put`, before it switches.
+// transaction it then commits carries no entry. Enlisted, the body runs inside a savepoint
+// (`inEnlistedUnit`), so an append that throws part-way leaves none of its rows in the host's
+// transaction — SQLite rolls back only the failed statement. A database file created before
+// the table existed gains it on open: the schema is `IF NOT EXISTS` throughout. Entries
+// already in a separate sidecar are not copied in — the host does that, with `put`, before it
+// switches.
 //
 // WATCH ITEM: `node:sqlite` is experimental — its API may move under a Node upgrade; the
 // conformance suite is what catches it. The engines floor is >=22.16: the module lost its
@@ -228,13 +231,49 @@ export class SqliteStore implements Store {
 
   /** Enlisted (SPEC §12: "enlisted in that transaction and commits or rolls back with
    * it") — the body runs on the open transaction with NO BEGIN/COMMIT/ROLLBACK of our
-   * own; or, with no tx, inside our own transaction. */
+   * own, inside a savepoint (`inEnlistedUnit`); or, with no tx, inside our own transaction. */
   private inTransaction<T>(tx: DatabaseSync | undefined, body: () => T): T {
     if (tx !== undefined) {
       this.validateTx(tx);
-      return body();
+      return this.inEnlistedUnit(body);
     }
     return this.inOwnTransaction(body);
+  }
+
+  /**
+   * An enlisted body as one unit inside the host's transaction: `SAVEPOINT`, the body, then
+   * `RELEASE` on success; on a throw, `ROLLBACK TO` and `RELEASE` — undoing every row the body
+   * wrote while leaving the host's transaction open and usable — and the ORIGINAL error
+   * rethrown, never a cleanup failure (a failure severe enough to have ended the host's
+   * transaction already leaves no savepoint to roll back to).
+   *
+   * Why: an append's entries are written inside its atomic unit and, with a host tx, commit or
+   * roll back with it (`Store.signatures`). On SQLite a failed statement rolls back only itself
+   * and the transaction stays open, so without this an enlisted append that throws part-way —
+   * at its entry insert, after its transition rows, say — would leave those rows in the host's
+   * transaction, and a host that commits anyway would land them unsigned: the
+   * landed-but-unsigned transition the integrated sidecar exists to rule out. The no-tx path
+   * needs none of this: `inOwnTransaction` already rolls back whole.
+   *
+   * The savepoint name is fixed: an enlisted body never enlists another, and a host savepoint
+   * of the same name is shadowed, not touched — `ROLLBACK TO` and `RELEASE` act on the most
+   * recent savepoint of that name, which is this one.
+   */
+  private inEnlistedUnit<T>(body: () => T): T {
+    this.db.exec('SAVEPOINT vidimera_enlisted');
+    try {
+      const result = body();
+      this.db.exec('RELEASE vidimera_enlisted');
+      return result;
+    } catch (err) {
+      try {
+        this.db.exec('ROLLBACK TO vidimera_enlisted');
+        this.db.exec('RELEASE vidimera_enlisted');
+      } catch {
+        // Surface the body's error, never this one.
+      }
+      throw err;
+    }
   }
 
   private recordRow(recordId: string): RecordRow | undefined {

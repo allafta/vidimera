@@ -1505,6 +1505,31 @@ export function runStoreConformance<S extends Store>(
           assert.deepEqual(await sidecar.listByRecord('rec-int-unknown'), []);
         });
 
+        test("put stores exactly the five entry fields, each read once from the caller's entry: an extra member does not come back from listByRecord", async () => {
+          const store = makeStore();
+          const sidecar = sidecarOf(store);
+          const genesis = storeGenesis('rec-int-put-fields', 'profile.p1', 'subject:int-put');
+          const digest = transitionDigest(genesis);
+          let digestReads = 0;
+          const putEntry = {
+            ...entryFor(genesis),
+            extra: 'not an entry field',
+            // The digest is the key: a store that keyed by one read and stored another could
+            // file an entry under a digest it does not carry.
+            get transitionDigest(): string {
+              digestReads += 1;
+              return digest;
+            },
+          };
+          await sidecar.put(putEntry as unknown as SignatureEntry);
+          assert.equal(digestReads, 1, 'transitionDigest was read once');
+          assert.deepEqual(
+            await listed(sidecar, 'rec-int-put-fields'),
+            [entryFor(genesis)],
+            'the five fields, and nothing else',
+          );
+        });
+
         // --- enlisted in a host transaction: the entries commit and roll back with it ---
         //
         // Registered only for a backing that passes `hostTransactions`. The commit pin is the

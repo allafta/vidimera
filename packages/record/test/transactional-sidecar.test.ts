@@ -928,6 +928,114 @@ test("SqliteStore: atomicity on the store's own transaction — an entry insert 
   assert.deepEqual(await store.signatures.listByRecord('rec-tx-atomic-2'), [entry(other)]);
 });
 
+// The enlisted counterpart. On SQLite a failed statement rolls back only itself and the host's
+// transaction stays open, so an enlisted append that fails at its entry insert — after its
+// transition rows — must undo its own rows itself: a host that commits after the throw must land
+// nothing, and must still hold a transaction it can use and commit.
+for (const arm of ['genesis', 'subsequent append', 'batch'] as const) {
+  test(`SqliteStore, enlisted: a ${arm} whose entry insert fails leaves nothing in the host's transaction — which stays open and usable, and whose COMMIT lands nothing of the append`, async () => {
+    const store = new SqliteStore(':memory:');
+    const entry = (t: Transition): SignatureEntry => ({
+      transitionDigest: transitionDigest(t),
+      recordId: t.recordId,
+      seq: t.seq,
+      keyRef: 'key-1',
+      signature: `sig:${t.recordId}:${t.seq}`,
+    });
+    const base = storeGenesis('rec-tx-enlisted', 'profile.p1', 'subject:tx-enlisted');
+    assert.equal((await store.appendTransition(null, base, { nonTerminal: true })).appended, true);
+    store.database.exec(
+      'CREATE TRIGGER refuse_entry BEFORE INSERT ON signatures ' +
+        "BEGIN SELECT RAISE(ABORT, 'entry insert refused by the test trigger'); END",
+    );
+    const other = storeGenesis('rec-tx-enlisted-2', 'profile.p1', 'subject:tx-enlisted-2');
+    const confirmed = storeNext(base, 'confirmed', { actor: APPROVER });
+    const batch = successBatch(base);
+    const db = store.database;
+    const attempt = {
+      genesis: () =>
+        store.appendTransition(null, other, { nonTerminal: true, signatures: [entry(other)] }, db),
+      'subsequent append': () =>
+        store.appendTransition(
+          'open',
+          confirmed,
+          { nonTerminal: false, signatures: [entry(confirmed)] },
+          db,
+        ),
+      batch: () =>
+        store.appendBatch('open', batch, { nonTerminal: false, signatures: batch.map(entry) }, db),
+    }[arm];
+    const side = storeGenesis('rec-tx-enlisted-side', 'profile.p1', 'subject:tx-enlisted-side');
+
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      await assert.rejects(attempt, /refused by the test trigger/, `the enlisted ${arm}`);
+      // Read on the host's own connection, inside its transaction: nothing of the append is
+      // there to commit.
+      assert.deepEqual(await store.readChain('rec-tx-enlisted'), [base], 'no row of the append');
+      assert.deepEqual(await store.readChain('rec-tx-enlisted-2'), [], 'no genesis row either');
+      assert.equal(await store.findNonTerminal('profile.p1', 'subject:tx-enlisted-2'), null);
+      assert.equal(db.isTransaction, true, "the host's transaction is still open");
+      // ...and usable: an unsigned enlisted append (no entry, so the trigger stays quiet) lands.
+      const usable = await store.appendTransition(null, side, { nonTerminal: true }, db);
+      assert.equal(usable.appended, true, "the host's transaction takes a further write");
+      db.exec('COMMIT'); // the host commits regardless
+    } finally {
+      if (db.isTransaction) db.exec('ROLLBACK');
+    }
+
+    assert.deepEqual(await store.readChain('rec-tx-enlisted-side'), [side], 'the commit committed');
+    assert.deepEqual(await store.readChain('rec-tx-enlisted'), [base], 'and landed no append');
+    assert.deepEqual(await store.readChain('rec-tx-enlisted-2'), []);
+    assert.deepEqual(await store.signatures.listByRecord('rec-tx-enlisted'), []);
+    assert.deepEqual(await store.signatures.listByRecord('rec-tx-enlisted-2'), []);
+    const landed = await store.appendBatch('open', batch, { nonTerminal: false });
+    assert.equal(landed.appended, true, 'the control: the record was left `open`, where it was');
+  });
+}
+
+test("SqliteStore, enlisted: when the failure ends the host's transaction itself, the append's own error surfaces — not the savepoint cleanup's", async () => {
+  // RAISE(ROLLBACK) rolls back the whole transaction, savepoint included, so the cleanup's
+  // ROLLBACK TO has nothing to roll back to and throws; that must not mask the cause.
+  const store = new SqliteStore(':memory:');
+  const genesis = storeGenesis('rec-tx-ended', 'profile.p1', 'subject:tx-ended');
+  assert.equal((await store.appendTransition(null, genesis, { nonTerminal: true })).appended, true);
+  store.database.exec(
+    'CREATE TRIGGER end_host_tx BEFORE INSERT ON signatures ' +
+      "BEGIN SELECT RAISE(ROLLBACK, 'entry insert ended the host transaction'); END",
+  );
+  const confirmed = storeNext(genesis, 'confirmed', { actor: APPROVER });
+  const db = store.database;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    await assert.rejects(
+      () =>
+        store.appendTransition(
+          'open',
+          confirmed,
+          {
+            nonTerminal: false,
+            signatures: [
+              {
+                transitionDigest: transitionDigest(confirmed),
+                recordId: 'rec-tx-ended',
+                seq: 2,
+                keyRef: 'key-1',
+                signature: 'sig:ended:2',
+              },
+            ],
+          },
+          db,
+        ),
+      /entry insert ended the host transaction/,
+    );
+    assert.equal(db.isTransaction, false, 'fixture: the trigger ended the host transaction');
+  } finally {
+    if (db.isTransaction) db.exec('ROLLBACK');
+  }
+  assert.deepEqual(await store.readChain('rec-tx-ended'), [genesis], 'nothing landed');
+});
+
 test('SqliteStore: an entry whose keyRef or signature is not a string is refused before anything is written — enlisted, a host that commits after the throw lands nothing', async () => {
   // Unchecked, the insert stores a numeric keyRef as other text ('42.0') and throws on a null
   // signature only at the entry insert, after the transition rows — a host that then committed
