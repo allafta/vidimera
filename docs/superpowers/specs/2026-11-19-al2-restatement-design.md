@@ -293,11 +293,14 @@ exported `profileDigest`, not only copied from a donor record; the guide says co
 binds every instance acting on the records and condition (ii) every key whose verifier is
 registered, retired keys included; the guide's sidecar bullet says the splice route is open
 until the prune, a made splice is no longer an orphan, and an orphan may be the only trace of a
-deleted head, so keep what you prune; `concepts.md` drops "exactly when"; `api-reference.md`
-and `SECURITY.md` state the three conditions; the pin's title and its observation comment are
-exact. One Minor is left: ASSURANCE §6 and SPEC §14 attach the three conditions to the closure
-as a whole, while ASSURANCE §2 states two for the genesis windows — the underclaim direction;
-call 3's second commit touches those sentences and can align them.
+deleted head, so keep what you prune; `concepts.md` drops "exactly when"; `api-reference.md` and
+`SECURITY.md` state the three conditions; the pin's title and its observation comment are exact.
+One Minor is parked: ASSURANCE §6, SPEC §14, OPEN-QUESTIONS §1's opener and ARCHITECTURE §9
+attach the three conditions to the closure as a whole, genesis windows included, while ASSURANCE
+§2 and SPEC §10.1 and §10.3 give the genesis windows two — the underclaim direction. Aligning
+them is not a narrowing of condition (iii), so it is outside call 3.2's terms and would need its
+own grant; it is recorded, not pursued. (Corrected after the re-review, §12: this first said
+call 3's second commit could align it.)
 
 Found by this session while the review ran, and fixed in the same wave: `signing/decorate.ts`
 called an orphan entry "harmless" three times and `signing/store.ts` and the guide's
@@ -319,18 +322,29 @@ every sentence outside call 3 that states AL2's closure without its conditions �
 all ten, recorded here so the owner can revoke any of them. It is a separate sealed-set commit,
 not one of call 3's two. No maturity marker moves.
 
-Which conditions each site states: a site whose claim includes head edits (SPEC §5's three,
-ARCHITECTURE §3 and §9, OPEN-QUESTIONS §1's opener) cites §14's three conditions; a site about a
-genesis payload window (SPEC §10.1 and §10.3) states (i) and (ii), by §6's site-6 argument; the
-recompute threat alone (SCOPING-GUIDE §5) states (i) and (ii), because an orphan signature
-chains over the head it was signed against and cannot re-sign the transitions a recompute
-rebuilds; CONCEPT.md's bullet names all three.
+Which conditions each site states: SPEC §10.1 and §10.3, about a genesis payload window alone,
+state (i) and (ii), by §6's site-6 argument; every other site names all three. Condition (iii)
+reaches the recompute residual, not only head edits: deleting committed transitions goes
+undetected (the absence residual), so a signed branch that lost its compare-and-swap can replace
+the committed one with no key and no recompute (pinned). (Corrected after the re-review, §12:
+this paragraph first gave SCOPING-GUIDE §5 only (i) and (ii), arguing that an orphan cannot
+re-sign the transitions a recompute rebuilds — true, and beside the point, because truncation
+makes the orphan branch's fork point the head again; and it justified three conditions for
+OPEN-QUESTIONS §1 and ARCHITECTURE §9 by their head edits, which are genesis payload edits that
+(iii) does not reach. Three are right there because of the recompute residual.)
 
-**CONCEPT.md, called out as the repository requires.** Site 18 sits in CONCEPT.md §5, the
-honesty discipline, which CLAUDE.md says no edit may touch without being called out. This edit
-lengthens one parenthetical qualifier of an existing rule. The rule itself ("Never
-'non-repudiation'"), every principle and the discipline's other bullets are unchanged; it is not
-a fork of the concept. It makes the bullet's claim smaller, which is the discipline applied.
+**CONCEPT.md: a fork of the concept, called out as one.** Site 18 sits in CONCEPT.md §5, the
+honesty discipline, and CLAUDE.md's rule is that "a change that touches the principles or
+honesty discipline is a **fork of the concept**, not an edit — it must be called out as such,
+never slipped in." By that rule this commit is a fork, and it is called out as one here, in the
+status record and to the owner. What it changes: one parenthetical qualifier of the "Never
+'non-repudiation'" bullet names all three conditions instead of one. The bullet's rule, the four
+principles and the discipline's other bullets are unchanged, and the claim gets smaller. The
+owner's grant named CONCEPT.md in the list it covered; the first draft of §6 had called this
+bullet out of reach of any corrective grant, and the owner's words were "the six" for a list of
+seven. Whether to keep the fork is the owner's call, and it is put to the owner as one.
+(Corrected after the re-review, §12: this paragraph first said the edit "is not a fork", which
+misstated the rule.)
 
 **Site 9 — OPEN-QUESTIONS §1, the opening scope sentence.**
 
@@ -461,3 +475,43 @@ Proposed:
 > AL2 is insider-resistant (when the key
 >   is outside the insider boundary, every registered profile signs, and no signature
 >   outlives an uncommitted append — `SPEC.md` §14);
+
+## 12. Amended after the re-review
+
+The same reviewer re-read the fix wave and `3032ef2`: every earlier finding addressed, M-1's
+parking honest, `3032ef2` inside the inventory with no marker moved and no claim widened, the
+third pin sound, and all eighteen verbatim pairs in the status record matching the files. Two
+Important findings, both fixed:
+
+- **Site 17 stated two conditions where three bind.** A finalize batch that loses its
+  compare-and-swap is a fully signed branch; deleting committed transitions is undetected; so
+  the insider deletes back to the fork point and writes the losing branch in, with no key and no
+  recompute — the recorded decider changes and a buried redemption can be repeated. A fourth pin
+  measures it deterministically (`0f4f997`, a store wrapper that holds the first batch until
+  the second arrives). Site 17 is completed under the same grant, on the same unmerged branch,
+  in its own sealed commit (`df12561`), below; the §11 rationale is corrected.
+- **The record misstated the fork rule.** It said the CONCEPT.md edit "is not a fork"; the
+  rule says a change touching the honesty discipline is one. §11 now calls it a fork, as the
+  rule is written, and puts it to the owner.
+
+Minor, fixed: the §11 rationale for OPEN-QUESTIONS §1 and ARCHITECTURE §9 (three conditions
+because of the recompute residual, not their genesis head edits); M-1's parking names all four
+sentences and no longer says call 3.2 can align them (its terms reach only a narrowing of
+(iii)); the CHANGELOG and CLAUDE.md say the ten sentences stated the closure "without its
+conditions" (CONCEPT.md's already named one); the rehoming pin's comment says the signing-only
+instance refuses the same forgery, on another record, that the mixed instance seals.
+
+**Site 17b — SCOPING-GUIDE §5, the build-vs-buy picture (completed).**
+
+Current (as `3032ef2` left it):
+
+> The insider-recompute threat closes at **AL2 signing**,
+>   while every registered profile signs and the key sits outside the insider's boundary
+>   (`SPEC.md` §14).
+
+Proposed:
+
+> The insider-recompute threat closes at **AL2 signing**,
+>   under the three conditions `SPEC.md` §14 states — every registered profile signs, the key
+>   sits outside the insider's boundary, and no signature outlives an uncommitted append (the
+>   last not yet met).

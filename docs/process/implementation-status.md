@@ -114,7 +114,7 @@ any one exit.
   stand. See the dedicated section at the end of this document; the numbers immediately
   below already include it.
 - **Measured against the current tree** (re-measured at the AL2 restatement increment,
-  2026-11-19): `pnpm test` — 86 test files, 1164 tests, zero skips
+  2026-11-19): `pnpm test` — 86 test files, 1165 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
   `pnpm lint` (`biome check .`) — 159 files checked, zero errors or warnings;
@@ -6322,17 +6322,19 @@ packages), biome (`--error-on-warnings`, 158 files checked, no findings), both b
 and runs in CI. `CLAUDE.md`'s measured sentence moved to 85 files / 1161 tests. (At the docs
 commit, before the fix wave: 1152 tests in 85 files.)
 
-## Post-build-order increment — AL2 restatement (two sanctioned corrective edits)
+## Post-build-order increment — AL2 restatement (three sanctioned sealed-set commits)
 
 **The thirty-second post-build-order increment (branch `al2-restatement-2026-11-19`, off `main`
-at `a877fed`).** Two corrective edits to the sealed set, each its own commit and its own grant,
-no maturity marker moved, no scope changed, no behavior changed: call 3.1 of
-`docs/analysis/2026-11-17-sanction-calls.md` (the first of that call's two sealed-set commits),
-then the owner's grant of 2026-11-19 for the sentences outside call 3. The design is
-`docs/superpowers/specs/2026-11-19-al2-restatement-design.md` (§6 call 3.1's sites, §10 the
-review, §11 the owner's grant) and the plan `docs/superpowers/plans/2026-11-19-al2-restatement.md`.
-They join the lineage beside the profile-drift gate as sanctioned corrective edits with no marker
-move.
+at `a877fed`).** Three sealed-set commits under two grants, no maturity marker moved, no scope
+changed, no behavior changed: call 3.1 of `docs/analysis/2026-11-17-sanction-calls.md` (the
+first of that call's two sealed-set commits, corrective), then the owner's grant of 2026-11-19
+for the sentences outside call 3, in two commits — the second completes one sentence after the
+re-review. One site of the owner's grant is in CONCEPT.md's honesty discipline, which by the
+repository's rule makes that change a fork of the concept; it is called out as one below. The
+design is `docs/superpowers/specs/2026-11-19-al2-restatement-design.md` (§6 call 3.1's sites,
+§10 the review, §11 the owner's grant, §12 the re-review) and the plan
+`docs/superpowers/plans/2026-11-19-al2-restatement.md`. They join the lineage beside the
+profile-drift gate as sanctioned sealed-set commits with no marker move.
 
 **What it corrects.** The sealed set stated AL2's closure of the recompute residual and the
 head-edit windows without the conditions the build depends on. Three conditions hold it up:
@@ -6368,8 +6370,15 @@ on its own, which (i) refutes.
   a third pin: the absence residual.
 - `3032ef2` — **the owner's-grant sealed-set commit**, `docs/concept/` only (SPEC, ARCHITECTURE,
   OPEN-QUESTIONS, SCOPING-GUIDE, CONCEPT; 20 lines in, 11 out): sites 9–18 below.
-- The records commit after it: this section, the "Measured" line, `CHANGELOG.md`, `CLAUDE.md`,
+- `f1d854d` — this section's second draft, the "Measured" line, `CHANGELOG.md`, `CLAUDE.md`,
   and a line-break-only resync of the design's site texts with the files.
+- `0f4f997` — a fourth pin, after the re-review: the lost compare-and-swap half of condition
+  (iii), made deterministic by a store wrapper that holds the first batch until the second
+  arrives.
+- `df12561` — **the owner's grant, completed**, `docs/concept/` only (SCOPING-GUIDE; 3 lines
+  in, 2 out): site 17b below.
+- The records commit after it: the re-review's corrections to this section, the design's §11 and
+  §12, `CHANGELOG.md` and `CLAUDE.md`.
 
 **The sealed-history account: call 3.1's commit `5a8ab21`, verbatim.** Checked mechanically
 before the commit: every "after" text present and every "before" text absent, whitespace
@@ -6490,15 +6499,20 @@ conditioning the sentences found outside call 3 ("granted, condition the six too
 the owner read named seven; the whole-branch review then found SPEC §5's three of the same
 class. The grant is read as covering the inventory it was given as — every sentence outside call
 3's named ones that states AL2's closure without its conditions — so all ten are conditioned
-here, and the owner can revoke any of them. A site whose claim includes head edits cites §14's
-three conditions; SPEC §10.1 and §10.3 (genesis payload windows) and SCOPING-GUIDE §5 (the
-recompute threat) state the two that bind them. Two near-misses make no closure claim and stay:
+here, and the owner can revoke any of them. SPEC §10.1 and §10.3, about a genesis payload
+window alone, state conditions (i) and (ii); every other site names all three, because (iii)
+reaches the recompute residual too (below). Two near-misses make no closure claim and stay:
 OPEN-QUESTIONS §1's "Motivating context" and SPEC §0's "detached signing is the documented
-upgrade". **Called out, as the repository requires:** site 18 is in CONCEPT.md §5, the honesty
-discipline. It lengthens one parenthetical qualifier of the "Never 'non-repudiation'" rule to
-name all three conditions; the rule, the four principles and the discipline's other bullets are
-unchanged, so it is not a fork of the concept. Checked mechanically the same way, against the
-design's §11.
+upgrade". **A fork of the concept, called out as one:** site 18 is in CONCEPT.md §5, the
+honesty discipline, and CLAUDE.md's rule is that a change touching the principles or the honesty
+discipline "is a **fork of the concept**, not an edit — it must be called out as such". By that
+rule this commit is a fork. It lengthens one parenthetical qualifier of the "Never
+'non-repudiation'" bullet to name all three conditions; the bullet's rule, the four principles
+and the discipline's other bullets are unchanged, and the claim gets smaller. The owner's grant
+named CONCEPT.md, but whether to keep a fork is the owner's call, put to the owner as such. (The
+first draft of this record said "it is not a fork", which misstated the rule; so does
+`3032ef2`'s commit message, which cannot change.) Checked mechanically the same way, against
+the design's §11.
 
 9. **OPEN-QUESTIONS §1, the opening scope sentence** (`docs/concept/OPEN-QUESTIONS.md`).
 
@@ -6630,6 +6644,21 @@ design's §11.
    > is outside the insider boundary, every registered profile signs, and no signature
    > outlives an uncommitted append — `SPEC.md` §14);
 
+17b. **SCOPING-GUIDE §5, the build-vs-buy picture (completed)** (`docs/concept/SCOPING-GUIDE.md`), in `df12561`.
+
+   Before (as `3032ef2` left it):
+
+   > The insider-recompute threat closes at **AL2 signing**,
+   > while every registered profile signs and the key sits outside the insider's boundary
+   > (`SPEC.md` §14).
+
+   After:
+
+   > The insider-recompute threat closes at **AL2 signing**,
+   > under the three conditions `SPEC.md` §14 states — every registered profile signs, the key
+   > sits outside the insider's boundary, and no signature outlives an uncommitted append (the
+   > last not yet met).
+
 **Amended after the whole-branch review.** A fresh review on the most capable model read the
 branch against the code. It found sites 1–8 true of the code, no claim widened and the grant's
 scope kept, and confirmed by counter-probes that each pin passes for the reason it claims
@@ -6657,13 +6686,25 @@ whose verifier is registered, retired keys included; the sidecar bullet says the
 stays open until the prune, a made splice is no longer an orphan, and an orphan may be the only
 trace of a deleted head, so keep what you prune; `concepts.md` drops "exactly when";
 `api-reference.md` and `SECURITY.md` state the three conditions; the pin's title and observation
-comment are exact. One Minor is parked: ASSURANCE §6 and SPEC §14 attach the three conditions to
-the closure as a whole while ASSURANCE §2 gives the genesis windows two — the underclaim
-direction, and those sentences are call 3's, so its second commit can align them. Found by this
-session during the review and fixed in the same wave: `signing/decorate.ts` called an orphan
-"harmless" in three comments, and `signing/store.ts` and the guide's "An implementer must
-tolerate orphans" paragraph called orphans safe to prune without naming the splice route —
-comments and prose only, recorded as a plan ruling.
+comment are exact. One Minor is parked: ASSURANCE §6, SPEC §14, OPEN-QUESTIONS §1's opener and
+ARCHITECTURE §9 attach the three conditions to the closure as a whole, genesis windows included,
+while ASSURANCE §2 and SPEC §10.1 and §10.3 give the genesis windows two — the underclaim
+direction. Aligning them is not a narrowing of condition (iii), so it is outside call 3.2's
+terms and would need its own grant; it is recorded, not pursued. Found by this session during
+the review and fixed in the same wave: `signing/decorate.ts` called an orphan "harmless" in
+three comments, and `signing/store.ts` and the guide's "An implementer must tolerate orphans"
+paragraph called orphans safe to prune without naming the splice route — comments and prose
+only, recorded as a plan ruling.
+
+**The re-review.** The same reviewer re-read the fix wave and `3032ef2`: every earlier finding
+addressed and every verbatim pair matching. Two Important findings, both fixed. *Site 17 stated
+two conditions where three bind*: a finalize batch that loses its compare-and-swap is a signed
+branch, and since deleting committed transitions is undetected, the insider deletes back to the
+fork point and writes that branch in, with no key and no recompute — the decider changes and a
+buried redemption can be repeated; `0f4f997` pins it and `df12561` completes the sentence. *The
+record misstated the fork rule* for CONCEPT.md; corrected above. Minor, fixed: the conditions
+rationale for OPEN-QUESTIONS §1 and ARCHITECTURE §9, the parking note (above), "without its
+conditions" in the CHANGELOG and CLAUDE.md, and the rehoming pin's comment.
 
 **The absence residual, measured.** The review observed that deleting a committed `redeemed`
 head leaves every remaining signature verifying and lets the record be redeemed again. SPEC §13A
@@ -6675,13 +6716,13 @@ backup drops "recent transitions wholesale" — so no sealed sentence is needed.
 second restates condition (iii) when the transactional-sidecar increment (call 2) lands —
 narrowed to a host-supplied sidecar that cannot join the append's atomic unit, in the same
 sentences and nowhere else; if call 2 is abandoned the sanction is spent at `5a8ab21`. The
-owner's grant is spent at `3032ef2`.
+owner's grant is spent at `df12561`.
 
-**Inversions.** None. No pinned assertion changed; the suite gained one file.
+**Inversions.** None. No pinned assertion changed; the suite gained one file of four pins.
 
-**Gates, measured on the authoring machine after the fix wave.** `ci-assert-tests: ok — 1164
-tests in 86 files (91 suites): 1164 passed, 0 failed, 0 skipped, 0 todo`; typecheck (both
+**Gates, measured on the authoring machine after the re-review's fixes.** `ci-assert-tests: ok —
+1165 tests in 86 files (91 suites): 1165 passed, 0 failed, 0 skipped, 0 todo`; typecheck (both
 packages), biome (`--error-on-warnings`, 159 files checked, no findings), both builds,
 `contract-scan`, `api-reference-sync` and `docs-index-sync` all exit 0. `smoke` cannot run here
-and runs in CI. `CLAUDE.md`'s measured sentence moved to 86 files / 1164 tests. (At the first
-draft of this record, before the fix wave: 1163 tests.)
+and runs in CI. `CLAUDE.md`'s measured sentence moved to 86 files / 1165 tests. (At the first
+draft of this record, before the fix wave: 1163 tests; after it, 1164.)

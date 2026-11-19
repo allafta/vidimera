@@ -299,11 +299,13 @@ is the summary, and that file wins on conflict.
   which a key-less insider can splice back in. And AL2 on some profiles does not close the
   recompute route: a signing record's genesis rewritten onto a co-registered non-signing profile
   leaves the signature layer. `packages/record/test/al2-conditions.test.ts` pins both as
-  behavior; the guide states all three (`concepts.md`, `integrating.md`, `faq.md`,
-  `api-reference.md`) and `SECURITY.md` does too. A second corrective commit, under the owner's
-  own grant, conditions the ten sentences outside call 3 that stated the closure
-  unconditionally (SPEC §§5, 10.1 and 10.3, ARCHITECTURE, SCOPING-GUIDE, OPEN-QUESTIONS §1 and
-  CONCEPT.md's honesty-discipline bullet). A third pin measures what AL2 does not close, as SPEC
+  behavior, (iii) both for a rolled-back redemption and for a finalize batch that lost its
+  compare-and-swap; the guide states all three (`concepts.md`, `integrating.md`, `faq.md`,
+  `api-reference.md`) and `SECURITY.md` does too. Two further sealed-set commits, under the owner's
+  own grant, condition the ten sentences outside call 3 that stated the closure without its
+  conditions (SPEC §§5, 10.1 and 10.3, ARCHITECTURE, SCOPING-GUIDE, OPEN-QUESTIONS §1 and
+  CONCEPT.md's honesty-discipline bullet — by the repository's rule a fork of the concept,
+  called out as one). A third pin measures what AL2 does not close, as SPEC
   §13A already says: deleting a record's latest transitions leaves every remaining signature
   verifying, and a deleted `redeemed` head lets the record be redeemed again.
 
