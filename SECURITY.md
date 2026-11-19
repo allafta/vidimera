@@ -57,8 +57,11 @@ will be closed with a pointer here:
   documented upgrade for it.
 - **A recomputing insider.** An operator (or code with the operator's storage access) who
   rewrites and re-digests an entire chain defeats AL1 by construction. AL2 raises that bar
-  only when the signing key is held outside the insider boundary; AL3 (external anchoring)
-  is documented and deliberately inactive.
+  only under the three conditions `docs/concept/SPEC.md` §14 states — the signing key held
+  outside the insider boundary, every registered profile signing, and no signature outliving
+  an append that never committed, which this build does not yet meet — and it verifies only
+  what exists, so deleting a record's latest transitions is not detected; AL3 (external
+  anchoring) is documented and deliberately inactive.
 - **Fidelity, not validity.** A record faithfully binding a malicious or hallucinated
   draft is the library working as designed. Prevention of bad drafts lives upstream.
 - **Effects that bypass the seam.** The library refuses at the redemption seam; it does not

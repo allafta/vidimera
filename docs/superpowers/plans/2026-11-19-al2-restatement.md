@@ -31,8 +31,14 @@ review on the most capable model, one fix wave, a scoped re-review.
   `node scripts/ci-assert-tests.mjs .vitest-results.json` after
   `vitest run --reporter=json --outputFile=.vitest-results.json` (delete the json after).
 - **The sealed commit (Task 2) touches only `docs/concept/`** and only the eight sites; no
-  maturity token moves; CONCEPT.md is not touched.
-- **No source file under `packages/*/src` changes.** No existing assertion changes.
+  maturity token moves; CONCEPT.md is not touched. *Added by the owner's grant (2026-11-19):* a
+  second sealed commit, sites 9–18 of the design's §11, CONCEPT.md's site 18 included and called
+  out; again `docs/concept/` only and no marker moves.
+- **No source file under `packages/*/src` changes.** No existing assertion changes. *Ruling during
+  the fix wave:* comment-only corrections in `signing/decorate.ts` and `signing/store.ts` land,
+  because those comments called orphan signatures harmless, which the sealed text now contradicts;
+  no behavior changes. A truthful comment outranks the constraint, which was written to keep
+  behavior out of this increment.
 - **New markdown references nothing outside this repository.**
 
 ## Review Focus

@@ -561,8 +561,11 @@ place under its id leaves its unsigned records held by no profile this instance 
 and every operator seam refuses `unknown-profile` on them. While the old, unsigned version
 stays registered, AL2's closure does not cover the signing version's records: a
 storage-writing insider can rewrite one's genesis onto the unsigned twin, and the signature
-layer stops applying to it (the conditions below). Unregister the old version once none of
-its records needs another seam call.
+layer stops applying to it (the conditions below). That is a trade, not a step to skip:
+keeping the old version registered keeps its records workable and their verified
+`supersedes` recovery (see "Profile design" above), and keeps that route open; unregistering
+it closes the route, strands its open records and gives up verified recovery of its terminal
+ones.
 
 What you get, with its limits in the same breath:
 
@@ -574,12 +577,18 @@ What you get, with its limits in the same breath:
 - The library does **no crypto itself** — signer and verifier are your hooks, and the
   algorithm, key custody, and rotation (via `keyRef` naming) are yours. AL2 raises the bar
   against a rewriting insider under three conditions
-  ([`../concept/SPEC.md`](../concept/SPEC.md) §14): the key sits outside that insider's
-  boundary; every profile the instance registers declares `signing: true` — the layer
-  applies through the profile a record's genesis names, and a genesis rewritten onto a
-  registered non-signing profile, its digest copied from any genuine record under it, leaves
-  the layer; and no signature outlives an append that never committed, which this build does
-  not yet meet (the sidecar bullet below).
+  ([`../concept/SPEC.md`](../concept/SPEC.md) §14): every key whose verifier is registered,
+  retired keys included, sits outside that insider's boundary; every profile registered on
+  any instance that acts on these records declares `signing: true` — the layer applies
+  through the profile a record's genesis names, and a genesis rewritten onto a registered
+  non-signing profile (its digest is computable with the exported `profileDigest`, or
+  copied from any record under it) leaves the layer, while an instance registering only
+  signing profiles refuses that record `unknown-profile` rather than flagging it; and no
+  signature outlives an append that never committed, which this build does not yet meet (the
+  sidecar bullet below). Under all three, AL2 still verifies only what exists: an insider who
+  deletes a record's most recent transitions needs neither a key nor a recomputation, every
+  remaining signature verifies, and a deleted `redeemed` head lets the record be redeemed
+  again (SPEC §13A's absence residual, which AL2 does not close).
 - A `signing: true` profile on an instance without `config.signing` throws at
   construction — a loud error, never a silent downgrade to AL1.
   A profile can also lose `signing: true` — or gain it — in place, under the same id, and
@@ -644,8 +653,12 @@ What you get, with its limits in the same breath:
   the reverse — inert, not harmless: an entry over a transition that was attempted and never
   committed (a redemption your transaction rolled back, a compare-and-swap that lost) is a
   valid signature over that transition, and an insider who writes it back into the chain
-  where it was signed for is not caught. They are safe to prune whenever no chain transition
-  references them, and pruning one removes that route —
+  where it was signed for is not caught. That route is open from the signature until the
+  entry is pruned, and a splice already made is no longer an orphan, so pruning cannot undo
+  it. An orphan can also be evidence: when an insider deletes a committed head, its entry
+  becomes an orphan and may be the only trace that the head existed, so keep or archive what
+  you prune. They are safe to prune, for verification, whenever no chain transition
+  references them —
   the library does no pruning, so a durable backing that must stay bounded reconciles
   against the chain itself — and `operator.verifySignatures(recordId).orphans` names
   exactly the entries to remove, sorted, so the reconciliation is a delete of what it

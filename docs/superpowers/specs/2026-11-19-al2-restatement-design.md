@@ -13,7 +13,8 @@ says the recompute and head-edit residuals "close at AL2"; §14's AL2 bullet say
 the recompute residual and the genesis-head blind windows". CONTROLS' profile-binding row and
 OPEN-QUESTIONS §1's amended paragraph each offer AL2 key custody as a closure of the
 recompute route on its own. Three conditions hold the closure up, and the sealed set states
-only the second, and only in two places:
+only the second — explicitly in CONTROLS' AL2 row and CONCEPT.md's honesty discipline, and in
+substance in ASSURANCE §6's AL2 and AL3 rows and SPEC §14's closing paragraph:
 
 - **(i) Every profile the instance registers signs.** The signature layer's obligation keys
   on the profile the instance holds for a record, which is the genesis's own `profileId` and
@@ -162,9 +163,12 @@ Proposed:
 > Closes the recompute + head-edit residuals **when the key is outside the insider boundary, every registered profile signs, and no signature outlives an uncommitted append** (SPEC §14) — this build signs before it appends, so the last does not yet hold |
 
 **Site 6 — ASSURANCE §2, the sentence closing both blind windows.** Condition (iii) does not
-bind these two windows: each edits a genesis, and a genesis that never committed belongs to a
-record id that was never created, so it cannot stand in for an existing record's genesis.
-The sentence therefore states (i) and (ii).
+reach these two windows. Each is an edit of a genesis *payload* (`priorLegActors`,
+`policyDigest`). The one path that signs two different geneses for one record — `open()`'s
+expire-then-retry, which re-stamps the retry when the clock has moved — keeps the payload and
+varies only `at`, so no orphan genesis carries a different payload. The sentence therefore
+states (i) and (ii). (Corrected after the whole-branch review: this paragraph first argued that
+a never-committed genesis belongs to a record id never created. That is false — see §10.)
 
 Current:
 
@@ -208,26 +212,28 @@ Proposed:
 ladder entry names the levels only; DECISIONS mentions AL2 once, as what makes freshness
 meaningful. No edit.
 
-**Found, outside the grant, not landed.** Each states the closure without conditions and is
-left as it stands, because call 3 says "anything outside these sentences needs a new
-sanction":
+**Found outside call 3's grant.** Ten sentences state the closure without its conditions and
+sit outside the sentences call 3 names, so the first sealed commit left them (call 3: "anything
+outside these sentences needs a new sanction"):
 
-- OPEN-QUESTIONS §1's opening sentence ("closes the recompute residual and both genesis-head
-  blind windows"), the scope summary above the amended paragraph.
+- OPEN-QUESTIONS §1's opening scope sentence ("closes the recompute residual and both
+  genesis-head blind windows").
+- SPEC §5, three sentences: detached signing "makes recomputation and head-edits detectable
+  without trusting storage", "makes the compromise-refusal independently trustworthy", and
+  "makes an end-of-life attestation independently verifiable".
 - SPEC §10.1 ("Detached signing (AL2, §14) is the named upgrade that closes this") and §10.3
-  ("detached signing (AL2, §14) is the named closure") — both cite §14, which now carries the
-  conditions.
-- ARCHITECTURE §3 ("Detached signing (AL2) is the named closure for all of it") and its ladder
-  table's AL2 "Closes" cell.
+  ("detached signing (AL2, §14) is the named closure").
+- ARCHITECTURE §3 ("Detached signing (AL2) is the named closure for all of it") and §9's ladder
+  table, the AL2 "Closes" cell.
 - SCOPING-GUIDE §5's "The insider-recompute threat closes at **AL2 signing**."
-- CONCEPT.md's honesty-discipline bullet ("AL2 is insider-resistant (when the key is outside
-  the insider boundary)") — it states condition (ii) and is in the document whose principles
-  and honesty discipline a fork would touch; out of reach of any corrective grant.
+- CONCEPT.md §5's honesty-discipline bullet ("AL2 is insider-resistant (when the key is outside
+  the insider boundary)"), which states condition (ii) only.
 
-SPEC is the single normative document and every other one defers to it, so after this commit
-the normative statement is conditioned and these downstream or citing sentences understate
-nothing a reader of §14 misses; they remain unconditional on their own. Conditioning them
-needs a fresh sanction.
+The owner granted conditioning them on 2026-11-19; the second sealed commit does, §11. Two
+near-misses make no closure claim and stay: OPEN-QUESTIONS §1's "Motivating context" (it reports
+that the two windows "both name AL2 as their closure", which they still do) and SPEC §0's
+"detached signing is the documented upgrade". (The first draft of this list counted six and
+held seven, and missed SPEC §5's three; the whole-branch review found both, §10.)
 
 ## 7. The guide (same increment, after the sealed commit)
 
@@ -242,9 +248,10 @@ needs a fresh sanction.
 ## 8. Records
 
 - `docs/process/implementation-status.md`: a new section after "Verifier faults", with the
-  sealed-history account — the eight sites, before and after (by reference to §6 here), the
-  sites found outside the grant, and that call 3's sanction is half spent (the second commit
-  remains, for call 2's increment).
+  sealed-history account — every site of both sealed commits, before and after, verbatim, as
+  call 3 requires ("its exact sentences, before and after, in its design and in the status
+  record's sealed-history account"), and that call 3's sanction is half spent (its second
+  commit remains, for call 2's increment).
 - `CLAUDE.md`'s lineage paragraph: a second sanctioned corrective edit with no marker move,
   beside the profile-drift gate; the measured counts.
 - `CHANGELOG.md` `[Unreleased]`: a `Changed` entry (documentation; no behavior change).
@@ -257,3 +264,200 @@ The full suite, typecheck, lint (`--error-on-warnings`), build, contract scan, a
 sync and docs-index sync are clean; the sealed commit contains only `docs/concept/` changes;
 every Proposed text is present and every Current text absent; a whole-branch review on the
 most capable model has read the sealed diff against the code and the pins.
+
+## 10. Amended after the whole-branch review
+
+A fresh review on the most capable model read the branch against the code and found the sealed
+text of sites 1–8 true, no claim widened, and the grant's scope kept, with four Important
+findings outside the sealed text, each fixed:
+
+- **The site-6 rationale was false.** `open()` mints a record id once and, on an exclusivity
+  conflict with a due blocker, re-stamps its retry when the clock has moved; the decorator signs
+  the first attempt before its append loses, then signs the retry. So a record that IS created
+  carries a valid orphan genesis (`no-edge-containment.test.ts` already pins it), and a key-less
+  insider who swaps it in makes the record read as opened before its blocker expired. The sealed
+  sentence stands, because the two geneses share a payload and both §2 windows are payload
+  edits; the rationale is corrected in §6, and the `at`-only swap is an instance of condition
+  (iii), which SPEC §14 states.
+- **The outside-the-grant inventory missed SPEC §5's three sentences and miscounted** (it said
+  six and listed seven). Corrected in §6.
+- **The guide's new advice to unregister the old version left out its cost** — the old
+  version's open records strand and its terminal records lose verified `supersedes` recovery —
+  and contradicted the same page's "Profile design". The guide now states the trade.
+- **The status record paraphrased the sealed sentences** where call 3 asks for them verbatim.
+  It now carries every pair.
+
+Minor findings fixed in the same wave: §1 now says where condition (ii) was already stated in
+substance; the guide and the pin's comment say the rehoming digest is computable with the
+exported `profileDigest`, not only copied from a donor record; the guide says condition (i)
+binds every instance acting on the records and condition (ii) every key whose verifier is
+registered, retired keys included; the guide's sidecar bullet says the splice route is open
+until the prune, a made splice is no longer an orphan, and an orphan may be the only trace of a
+deleted head, so keep what you prune; `concepts.md` drops "exactly when"; `api-reference.md`
+and `SECURITY.md` state the three conditions; the pin's title and its observation comment are
+exact. One Minor is left: ASSURANCE §6 and SPEC §14 attach the three conditions to the closure
+as a whole, while ASSURANCE §2 states two for the genesis windows — the underclaim direction;
+call 3's second commit touches those sentences and can align them.
+
+Found by this session while the review ran, and fixed in the same wave: `signing/decorate.ts`
+called an orphan entry "harmless" three times and `signing/store.ts` and the guide's
+"An implementer must tolerate orphans" paragraph called orphans safe to prune without the
+splice route. Comment and prose only; no behavior changes.
+
+**The absence residual, pinned.** The review observed that deleting a committed `redeemed`
+head leaves every remaining signature verifying and lets the record be redeemed again. SPEC
+§13A already names this: AL2 "verifies only what exists — absence survives it", and a restored
+backup drops "recent transitions wholesale". No sealed sentence is needed. A third pin in
+`al2-conditions.test.ts` measures it, and the guide states it beside the conditions.
+
+## 11. The owner's grant: the ten sentences outside call 3
+
+On 2026-11-19 the owner granted conditioning the sentences §6 lists outside call 3 ("granted,
+condition the six too"). The list the owner read named seven; the review then found SPEC §5's
+three of the same class. This commit reads the grant as covering the inventory it was given as —
+every sentence outside call 3 that states AL2's closure without its conditions — and conditions
+all ten, recorded here so the owner can revoke any of them. It is a separate sealed-set commit,
+not one of call 3's two. No maturity marker moves.
+
+Which conditions each site states: a site whose claim includes head edits (SPEC §5's three,
+ARCHITECTURE §3 and §9, OPEN-QUESTIONS §1's opener) cites §14's three conditions; a site about a
+genesis payload window (SPEC §10.1 and §10.3) states (i) and (ii), by §6's site-6 argument; the
+recompute threat alone (SCOPING-GUIDE §5) states (i) and (ii), because an orphan signature
+chains over the head it was signed against and cannot re-sign the transitions a recompute
+rebuilds; CONCEPT.md's bullet names all three.
+
+**CONCEPT.md, called out as the repository requires.** Site 18 sits in CONCEPT.md §5, the
+honesty discipline, which CLAUDE.md says no edit may touch without being called out. This edit
+lengthens one parenthetical qualifier of an existing rule. The rule itself ("Never
+'non-repudiation'"), every principle and the discipline's other bullets are unchanged; it is not
+a fork of the concept. It makes the bullet's claim smaller, which is the discipline applied.
+
+**Site 9 — OPEN-QUESTIONS §1, the opening scope sentence.**
+
+Current:
+
+> consultations; closes the recompute residual and both genesis-head blind windows) but its
+> enablement design is deliberately reserved for a dedicated decision:
+
+Proposed:
+
+> consultations; closes the recompute residual and both genesis-head blind windows, under the
+> conditions SPEC §14 states) but its enablement design is deliberately reserved for a
+> dedicated decision:
+
+**Site 10 — SPEC §5, the AL1-bound paragraph.**
+
+Current:
+
+> detached signing
+> (§14) is the upgrade that makes recomputation and head-edits detectable without trusting
+> storage.
+
+Proposed:
+
+> detached signing
+> (§14) is the upgrade that makes recomputation and head-edits detectable without trusting
+> storage, under the three conditions §14 states.
+
+**Site 11 — SPEC §5, the compromise edge.**
+
+Current:
+
+> detached signing (§14) is
+> the upgrade that makes the compromise-refusal independently trustworthy.
+
+Proposed:
+
+> detached signing (§14) is
+> the upgrade that makes the compromise-refusal independently trustworthy, under the three
+> conditions §14 states.
+
+**Site 12 — SPEC §5, chain retirement.**
+
+Current:
+
+> detached signing (§14) is the upgrade that makes an
+> end-of-life attestation independently verifiable.
+
+Proposed:
+
+> detached signing (§14) is the upgrade that makes an
+> end-of-life attestation independently verifiable, under the three conditions §14 states.
+
+**Site 13 — SPEC §10.1, the SoD-evidence window.**
+
+Current:
+
+> Detached signing (AL2, §14) is the named
+> upgrade that closes this (a signed genesis fails verification when its payload is edited, head
+> or not).
+
+Proposed:
+
+> Detached signing (AL2, §14) is the named
+> upgrade that closes this (a signed genesis fails verification when its payload is edited, head
+> or not), while every registered profile signs and the key sits outside the insider's boundary
+> (§14's first two conditions).
+
+**Site 14 — SPEC §10.3, the policy-binding window.**
+
+Current:
+
+> This
+> is the policy-gate analog of §10.1's SoD-evidence window; detached signing (AL2, §14) is the
+> named closure.
+
+Proposed:
+
+> This
+> is the policy-gate analog of §10.1's SoD-evidence window; detached signing (AL2, §14) is the
+> named closure, under the same two of §14's conditions.
+
+**Site 15 — ARCHITECTURE §3, the AL1-bound paragraph.**
+
+Current:
+
+> Detached signing (AL2) is the named
+> closure for all of it.
+
+Proposed:
+
+> Detached signing (AL2) is the named
+> closure for all of it, under the three conditions `SPEC.md` §14 states — every registered
+> profile signs, the key sits outside the insider's boundary, and no signature outlives an
+> uncommitted append (the last not yet met).
+
+**Site 16 — ARCHITECTURE §9, the ladder's AL2 "Closes" cell.**
+
+Current:
+
+> the storage-writing-insider recompute residual **and** the head/sole-genesis edit windows (SoD evidence, policy binding); admits authority timestamps that make freshness gating meaningful
+
+Proposed:
+
+> the storage-writing-insider recompute residual **and** the head/sole-genesis edit windows (SoD evidence, policy binding), under `SPEC.md` §14's three conditions (the last, no signature outliving an uncommitted append, not yet met); admits authority timestamps that make freshness gating meaningful
+
+**Site 17 — SCOPING-GUIDE §5, the build-vs-buy picture.**
+
+Current:
+
+> The insider-recompute threat closes at **AL2 signing**.
+
+Proposed:
+
+> The insider-recompute threat closes at **AL2 signing**,
+>   while every registered profile signs and the key sits outside the insider's boundary
+>   (`SPEC.md` §14).
+
+**Site 18 — CONCEPT.md §5, the honesty discipline's "Never non-repudiation" bullet.**
+
+Current:
+
+> AL2 is insider-resistant (when the key
+>   is outside the insider boundary);
+
+Proposed:
+
+> AL2 is insider-resistant (when the key
+>   is outside the insider boundary, every registered profile signs, and no signature outlives an
+>   uncommitted append — `SPEC.md` §14);

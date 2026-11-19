@@ -1,5 +1,5 @@
 // @vidimera/record — test/al2-conditions.test.ts: two conditions AL2's closure holds under,
-// measured rather than asserted. SPEC §14 says AL2 closes the recompute residual and the
+// and one residual it does not close, measured rather than asserted. SPEC §14 says AL2 closes the recompute residual and the
 // head-edit windows because a rebuilt or head-edited chain fails signature verification
 // without trusting storage. That holds only while the signature layer APPLIES to the record
 // and only over transitions that actually committed. Both limits are pinned here as behavior,
@@ -8,11 +8,14 @@
 //   (i)   every profile the instance registers signs. The layer's obligation keys on the
 //         profile the instance holds for the record — the genesis's own `profileId` and
 //         `profileDigest` claims. A storage-writing insider who rewrites a signing record's
-//         genesis onto a co-registered non-signing profile (copying that profile's real
-//         digest from any genuine genesis) and relinks the chain takes the record out of the
-//         layer: an edit AL2 catches in place passes once rehomed. Registering only signing
-//         profiles closes the route — the rehomed record names a profile the instance does not
-//         hold, and the seam refuses.
+//         genesis onto a co-registered non-signing profile (its digest is computable from the
+//         profile with the exported `profileDigest`, or copied from any genesis under it) and
+//         relinks the chain takes the record out of the layer: an edit AL2 catches in place
+//         passes once rehomed. Registering only signing profiles closes the route — the
+//         rehomed record names a profile the instance does not hold, and the seam refuses
+//         `unknown-profile` (a refusal, not a `chain-compromise` edge). The condition binds
+//         every instance acting on the store: the pin's signing-only instance refuses the record
+//         that a mixed-registry instance over the same store seals.
 //   (iii) no signature outlives an uncommitted append. The signing decorator writes a
 //         transition's sidecar entry before it delegates the append, outside the append's
 //         transaction, so a rolled-back enlisted redemption leaves a valid signature over a
@@ -20,12 +23,21 @@
 //         digest, so a key-less insider who splices that transition back in is not caught:
 //         `verifySignatures` reports it signed and verified, the record replays as redeemed,
 //         and seal retires it. A lost compare-and-swap leaves the same kind of entry over the
-//         losing transition; the rollback is the shape pinned here. This pin describes the
-//         sign-before-append ordering; a change that writes entries inside the append's own
-//         atomic unit decides which backings it still describes.
+//         losing transition; the rollback is the shape pinned here. The pin reads the attempted
+//         row inside the host's own transaction, standing in for whatever the insider can see;
+//         the bytes are recoverable without that read too, since for this profile only `at`
+//         varies, and a search over `at` against the sidecar digest finds them. This pin
+//         describes the sign-before-append ordering; a change that writes entries inside the
+//         append's own atomic unit decides which backings it still describes.
 //
 // Condition (ii), the key sits outside the insider's boundary, needs no pin: a holder of the
-// key signs whatever chain it likes.
+// key signs whatever chain it likes. It binds every key whose verifier is registered, retired
+// keys included.
+//
+// The residual: AL2 verifies only what exists (SPEC §13A's absence residual). An insider who
+// deletes a record's most recent transitions needs no recomputation and no key; every remaining
+// signature verifies, and a deleted `redeemed` head lets the record be redeemed again. The
+// deleted head's sidecar entry becomes an orphan, which may be its only trace.
 
 import assert from 'node:assert/strict';
 import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';
@@ -211,7 +223,7 @@ test('condition (i): a signing record rehomed onto a co-registered non-signing p
   }
 });
 
-test('condition (iii): a signature over a rolled-back enlisted redemption outlives it, and the never-committed transition spliced back in passes every seam', async () => {
+test('condition (iii): a signature over a rolled-back enlisted redemption outlives it, and the never-committed transition spliced back in verifies and is sealed as genuine', async () => {
   const profile: ConfirmProfile = {
     ...effectSeamProfile({ id: 'test.al2c.redeem.v1' }),
     signing: true,
@@ -271,4 +283,38 @@ test('condition (iii): a signature over a rolled-back enlisted redemption outliv
   assert.equal(refused.status, 'refused');
   if (refused.status !== 'refused') return;
   assert.equal(refused.code, 'chain-compromise', 'an unsigned fabrication is caught');
+});
+
+test('the absence residual: a deleted redemption head leaves every remaining signature verifying, and the record redeems again', async () => {
+  const profile: ConfirmProfile = {
+    ...effectSeamProfile({ id: 'test.al2c.truncate.v1' }),
+    signing: true,
+  };
+  const { sqlite, handles } = rig([profile]);
+  const recordId = await confirmedRecord(handles, profile.id, 'subject:al2c-truncate');
+  const beforeRedeem = await sqlite.readChain(recordId);
+  assert.equal((await handles.operator.redeem(recordId, CONTENT)).status, 'ok');
+  const head = (await sqlite.readChain(recordId)).at(-1);
+  assert.ok(head !== undefined && head.kind === 'redeemed');
+
+  // The insider deletes the committed head and resets the index row. Nothing is recomputed and
+  // nothing is signed.
+  overwrite(sqlite, beforeRedeem, { state: 'confirmed', nonTerminal: 1 });
+  assert.equal(verifyChain(beforeRedeem, recordId).intact, true);
+
+  const report = await handles.operator.verifySignatures(recordId);
+  assert.ok(
+    report.transitions.every((t) => t.signed && t.verified),
+    'every remaining transition verifies',
+  );
+  assert.ok(
+    report.orphans.includes(transitionDigest(head)),
+    "the deleted head's entry is an orphan now — the only trace it existed",
+  );
+  assert.equal((await handles.operator.replay(recordId)).state, 'confirmed');
+  assert.equal(
+    (await handles.operator.redeem(recordId, CONTENT)).status,
+    'ok',
+    'the record is redeemed a second time',
+  );
 });

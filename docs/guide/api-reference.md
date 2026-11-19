@@ -276,8 +276,10 @@ Notes that save debugging time:
   breath: this detects a chain relocated under another record's id. It does not make
   whole-record absence visible, and an insider who rewrites every copied row's `recordId` and
   recomputes every link still produces a chain that verifies at AL1 — the recompute and
-  head-edit residuals SPEC §13A names are unchanged, and AL2 closes them only when the signing
-  key sits outside that insider's boundary.
+  head-edit residuals SPEC §13A names are unchanged, and AL2 closes them only under SPEC §14's
+  three conditions — the signing key outside that insider's boundary, every registered profile
+  signing, and no signature outliving an uncommitted append, which this build does not yet
+  meet.
 - SPEC §11.2 names one redemption verb; the three names here (`redeem`, `beginRedemption`,
   `completeRedemption`) are this build's own, ratified at the 2026-08-19 review.
 
@@ -706,7 +708,11 @@ per batch element (the batch is signed before the store adjudicates it — the
 `record-contended` case), and an `open()` whose expire-then-retry re-stamps its genesis under a
 moving clock leaves the first attempt's entry. They are inert to verification — every reader
 correlates from the chain to the sidecar, never the reverse, so an orphan is never read for
-a verdict — and they are safe to prune whenever no chain transition references them.
+a verdict — and they are safe to prune whenever no chain transition references them. Inert
+is not harmless: an orphan over a transition that was attempted and never committed is a
+valid signature over it, so an insider who writes that transition back into the chain where
+it was signed for is not caught (SPEC §14's third condition); and the orphan of a head an
+insider deleted may be the only trace of it, so keep or archive what you prune.
 The library performs no pruning, but it tells you which entries are dead:
 `verifySignatures(recordId).orphans` names every sidecar digest with no chain counterpart,
 sorted, at no read the call was not already making. A backing that must not grow without
