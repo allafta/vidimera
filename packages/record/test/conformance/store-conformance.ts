@@ -23,15 +23,35 @@ import { storeGenesis, storeNext } from '../helpers/chain.js';
 import { APPROVER, fiveElementBatch, openRecord, successBatch } from '../helpers/store-fixtures.js';
 
 /**
+ * A transactional backing's host transaction, for the pins that enlist an append in one (SPEC
+ * §12: an enlisted write "commits or rolls back with it"). `begin` opens a transaction `store`
+ * can enlist in and returns the handle an append takes as `tx`; `commit` and `rollback` end
+ * it, and each releases whatever `begin` acquired (a pooled client, say). The suite calls
+ * exactly one of them per `begin`, `rollback` also when the enlisted body throws. A backing
+ * that cannot enlist (the memory backing rejects every `tx`) passes none, and the pins it
+ * gates are not registered for it.
+ */
+export interface HostTransactions<S extends Store = Store> {
+  begin(store: S): Promise<unknown>;
+  commit(store: S, tx: unknown): Promise<void>;
+  rollback(store: S, tx: unknown): Promise<void>;
+}
+
+/**
  * Registers the conformance suite for one backing. `makeStore` must return a FRESH, empty
  * store per call — tests share nothing. Synchronous by design: every reference backing
  * constructs synchronously, and the suite is not public API — RULED now, not just stated
  * (docs/analysis/2026-08-20-conformance-export.md): not exported while the Store
  * signatures are provisional pre-1.0; a host verifying its own adapter vendors this file
  * (Apache-2.0 — and a vendored copy gone stale fails loudly against a moved interface,
- * never falsely passes); the 1.0 freeze re-asks the question.
+ * never falsely passes); the 1.0 freeze re-asks the question. `hostTransactions` is optional:
+ * a transactional backing passes it to register the enlisted pins (`HostTransactions` above).
  */
-export function runStoreConformance(label: string, makeStore: () => Store): void {
+export function runStoreConformance<S extends Store>(
+  label: string,
+  makeStore: () => S,
+  hostTransactions?: HostTransactions<S>,
+): void {
   describe(`Store conformance: ${label}`, () => {
     // === putStaged / getStaged ======================================================
 
@@ -1040,7 +1060,8 @@ export function runStoreConformance(label: string, makeStore: () => Store): void
     // without one registers nothing, rather than reporting skips or passing vacuously, and
     // every backing that carries a sidecar has a pin of its own that it exposes one, so this
     // block cannot drop out for it unnoticed. The signatures are opaque strings to a store —
-    // it never verifies them — so these pins use fixed placeholder values.
+    // it never verifies them — so these pins use fixed placeholder values. A backing that also
+    // passes `hostTransactions` registers the two enlisted pins at the end of the block.
     if (makeStore().signatures !== undefined) {
       describe('the integrated sidecar', () => {
         /** The sidecar of a store this block was registered for. */
@@ -1405,6 +1426,124 @@ export function runStoreConformance(label: string, makeStore: () => Store): void
           );
           assert.deepEqual(await sidecar.listByRecord('rec-int-unknown'), []);
         });
+
+        // --- enlisted in a host transaction: the entries commit and roll back with it ---
+        //
+        // Registered only for a backing that passes `hostTransactions`. The commit pin is the
+        // rollback pin's control: it shows the enlisted appends do write their entries, so an
+        // empty sidecar after the rollback is the rollback's work, not a write that never ran.
+        // Nothing is read inside the transaction: a backing's reads need not see it (the Store's
+        // reads take no `tx`), so both pins judge after the transaction has ended.
+        if (hostTransactions !== undefined) {
+          const host = hostTransactions;
+
+          /** Runs `body` enlisted in a host transaction on `store`, then ends it as `end` says. */
+          async function enlisted(
+            store: S,
+            end: 'commit' | 'rollback',
+            body: (tx: unknown) => Promise<void>,
+          ): Promise<void> {
+            const tx = await host.begin(store);
+            try {
+              await body(tx);
+            } catch (err) {
+              await host.rollback(store, tx);
+              throw err;
+            }
+            await (end === 'commit' ? host.commit(store, tx) : host.rollback(store, tx));
+          }
+
+          /**
+           * A committed record (`rec-…-base`, on the store's own transaction, so the backing is
+           * initialized before any host transaction opens), then, enlisted in one host
+           * transaction: a second record's genesis and subsequent append, and the base record's
+           * batch — every append carrying its entries, every one landing inside the transaction.
+           */
+          async function enlistedAppends(store: S, prefix: string, end: 'commit' | 'rollback') {
+            const base = storeGenesis(`${prefix}-base`, 'profile.p1', `subject:${prefix}-base`);
+            const opened = await store.appendTransition(
+              null,
+              base,
+              signed({ nonTerminal: true }, base),
+            );
+            assert.equal(opened.appended, true, 'fixture: the base record lands, committed');
+            const second = storeGenesis(`${prefix}-second`, 'profile.p1', `subject:${prefix}-2`);
+            const confirmed = storeNext(second, 'confirmed', { actor: APPROVER });
+            const batch = successBatch(base);
+            await enlisted(store, end, async (tx) => {
+              const g = await store.appendTransition(
+                null,
+                second,
+                signed({ nonTerminal: true }, second),
+                tx,
+              );
+              assert.equal(g.appended, true, 'fixture: the enlisted genesis lands');
+              const c = await store.appendTransition(
+                'open',
+                confirmed,
+                signed({ nonTerminal: false }, confirmed),
+                tx,
+              );
+              assert.equal(c.appended, true, 'fixture: the enlisted subsequent append lands');
+              const b = await store.appendBatch(
+                'open',
+                batch,
+                signed({ nonTerminal: false }, ...batch),
+                tx,
+              );
+              assert.equal(b.appended, true, 'fixture: the enlisted batch lands');
+            });
+            return { base, second, confirmed, batch };
+          }
+
+          test('enlisted in a host transaction that commits: the entries of a genesis, a subsequent append and a batch commit with their transitions', async () => {
+            const store = makeStore();
+            const sidecar = sidecarOf(store);
+            const { base, second, confirmed, batch } = await enlistedAppends(
+              store,
+              'rec-int-tx-commit',
+              'commit',
+            );
+            assert.deepEqual(await store.readChain(base.recordId), [base, ...batch]);
+            assert.deepEqual(await store.readChain(second.recordId), [second, confirmed]);
+            assert.deepEqual(
+              await listed(sidecar, base.recordId),
+              [base, ...batch].map((t) => entryFor(t)),
+              'the base record: one entry per transition, the enlisted batch included',
+            );
+            assert.deepEqual(
+              await listed(sidecar, second.recordId),
+              [second, confirmed].map((t) => entryFor(t)),
+              'the second record: both enlisted appends wrote their entries',
+            );
+          });
+
+          test('enlisted in a host transaction rolled back after the appends landed in it: no entry survives, nor any transition it signed', async () => {
+            const store = makeStore();
+            const sidecar = sidecarOf(store);
+            const { base, second } = await enlistedAppends(
+              store,
+              'rec-int-tx-rollback',
+              'rollback',
+            );
+            assert.deepEqual(await store.readChain(base.recordId), [base], 'the batch rolled back');
+            assert.deepEqual(await store.readChain(second.recordId), [], 'so did the genesis');
+            assert.equal(
+              await store.findNonTerminal('profile.p1', 'subject:rec-int-tx-rollback-2'),
+              null,
+            );
+            assert.deepEqual(
+              await listed(sidecar, base.recordId),
+              [entryFor(base)],
+              "only the committed genesis's entry: the batch's rolled back with it",
+            );
+            assert.deepEqual(
+              await sidecar.listByRecord(second.recordId),
+              [],
+              "the rolled-back record's entries rolled back with its transitions",
+            );
+          });
+        }
       });
     }
   });

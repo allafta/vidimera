@@ -1,5 +1,5 @@
 // @vidimera/record — transactional-sidecar.test.ts: the integrated sidecar end to end over
-// `MemoryStore`, and the rule that selects it.
+// `MemoryStore` and `SqliteStore`, and the rule that selects it.
 //
 // `withSigning` runs in one of two modes, decided once, when it is constructed
 // (`signing/decorate.ts`'s header). INTEGRATED, when the configured sidecar is the store's own
@@ -13,10 +13,15 @@
 //
 // Deferral-register row 22's measurement leads: the no-edge refusal path that leaves one orphan
 // per refusing call in separate mode (no-edge-containment.test.ts's BASELINE pins, which keep
-// measuring separate mode and are unchanged) leaves none in integrated mode.
+// measuring separate mode and are unchanged) leaves none in integrated mode. The SqliteStore
+// section at the end repeats it on the embedded backing, with what only a transactional backing
+// has: a host transaction that rolls an enlisted redemption back takes its entry with it.
 
 import assert from 'node:assert/strict';
 import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'vitest';
 
 import { transitionDigest } from '../src/chain/encoding.js';
@@ -28,12 +33,20 @@ import { withSigning } from '../src/signing/decorate.js';
 import { MemorySignatureStore } from '../src/signing/memory.js';
 import type { SignatureEntry, SignatureStore, Signer, Verifier } from '../src/signing/store.js';
 import { MemoryStore } from '../src/store/memory.js';
+import { SqliteStore } from '../src/store/sqlite.js';
 import type { AppendMeta, AppendResult, BatchResult, Store } from '../src/store/store.js';
 import type { Digest, RecordState, StagedDraft, Transition } from '../src/types.js';
 import { storeGenesis, storeNext } from './helpers/chain.js';
-import { captureProfile, facts, identity, makeConfig, openRecord } from './helpers/profiles.js';
+import {
+  captureProfile,
+  effectSeamProfile,
+  facts,
+  identity,
+  makeConfig,
+  openRecord,
+} from './helpers/profiles.js';
 import { breakOneSignature } from './helpers/signing.js';
-import { successBatch } from './helpers/store-fixtures.js';
+import { APPROVER, successBatch } from './helpers/store-fixtures.js';
 
 const CONTENT = { subject: 'week-1', total: 40 };
 const PROFILE_ID = 'test.txsidecar.v1';
@@ -69,18 +82,21 @@ function movableClock(startIso = '2026-11-19T00:00:00Z') {
 
 /**
  * A Store wrapper that records the `meta` of every append handed down to it, then delegates
- * intact — `meta` and `tx` untouched — to a `MemoryStore`. Whether it exposes a `signatures`
+ * intact — `meta` and `tx` untouched — to an inner store. Whether it exposes a `signatures`
  * of its own is the caller's choice, and that choice is the wrapper rule this file pins: a
  * wrapper that exposes the sidecar it is configured with and forwards `meta` intact keeps
  * integrated mode; one that exposes none runs in separate mode. The field is mutable so a pin
- * can expose it only after the decorator was built.
+ * can expose it only after the decorator was built. `beforeNextBatch` is a one-shot window: run
+ * (and cleared) before the next `appendBatch` is recorded and forwarded, it lets a second writer
+ * land between a seam's chain read and its batch.
  */
 class MetaRecordingStore implements Store {
   readonly appends: { transitions: readonly Transition[]; meta: AppendMeta }[] = [];
   signatures?: SignatureStore;
+  beforeNextBatch: (() => Promise<void>) | undefined;
 
   constructor(
-    readonly inner: MemoryStore,
+    readonly inner: Store,
     sidecar?: SignatureStore,
   ) {
     if (sidecar !== undefined) this.signatures = sidecar;
@@ -103,12 +119,17 @@ class MetaRecordingStore implements Store {
     this.appends.push({ transitions: [t], meta: m });
     return this.inner.appendTransition(e, t, m, tx);
   }
-  appendBatch(
+  async appendBatch(
     e: RecordState,
     transitions: readonly Transition[],
     m: AppendMeta,
     tx?: unknown,
   ): Promise<BatchResult> {
+    const before = this.beforeNextBatch;
+    if (before !== undefined) {
+      this.beforeNextBatch = undefined;
+      await before();
+    }
     this.appends.push({ transitions, meta: m });
     return this.inner.appendBatch(e, transitions, m, tx);
   }
@@ -536,4 +557,341 @@ test('integrated mode keeps the mint and its check before the append: a batch wh
     [transitionDigest(genesis)],
     'nothing written: only the genesis entry',
   );
+});
+
+// === record-contended: a batch that loses to a concurrent finding writes no entry ==========
+//
+// finalize() reads the chain, then appends its batch; a state-preserving finding that lands in
+// between keeps the record `open`, so the batch passes the entry compare-and-swap and loses on
+// seq — `record-contended`, never-appends. In separate mode its three entries are put before the
+// append and stay as orphans. Run on both backings, over a wrapper that exposes the inner store's
+// own sidecar and forwards `meta` intact, so the instance runs integrated — and the pin reads the
+// losing batch's `meta` to show it did: the entries were handed down, and the store dropped them.
+
+const FLOW_ID = 'test.txsidecar.flow.v1';
+const RACE_RAISER = { principal: 'checker:race', authority: 'mtls:checker' };
+
+/** A signing capture profile whose leg declares the findings flow, gating only on `variance`. */
+function flowSigningProfile(): ConfirmProfile {
+  const p = captureProfile({ id: FLOW_ID });
+  const legs = p.legs.map((leg) => ({
+    ...leg,
+    ackMode: 'any' as const,
+    requiredAcks: ['variance'],
+  }));
+  return { ...p, legs, signing: true };
+}
+
+for (const [backing, makeInner] of [
+  ['MemoryStore', () => new MemoryStore()],
+  ['SqliteStore', () => new SqliteStore(':memory:')],
+] as const) {
+  test(`${backing}, integrated — a finalize batch that loses to a concurrent finding refuses record-contended, and its entries, handed down with it, are never written`, async () => {
+    const inner = makeInner();
+    const wrapper = new MetaRecordingStore(inner, inner.signatures);
+    const rig = signingRig({
+      store: wrapper,
+      signatures: inner.signatures,
+      profiles: [flowSigningProfile()],
+    });
+    const recordId = await openRecord(rig.handles, CONTENT, FLOW_ID, 'subject:tx-contended');
+    wrapper.beforeNextBatch = async () => {
+      const raised = await rig.handles.operator.raiseFinding(
+        recordId,
+        { findingId: 'f-race', kind: 'note', findingDigest: `sha256:${'a'.repeat(64)}` },
+        RACE_RAISER,
+      );
+      assert.equal(raised.status, 'ok', 'fixture: the racing finding genuinely lands');
+    };
+
+    const out = await rig.handles.operator.finalize(recordId, identity(), CONTENT, facts());
+    assert.equal(out.status, 'refused', 'the batch lost its race');
+    if (out.status !== 'refused') return;
+    assert.equal(out.code, 'record-contended');
+    assert.equal(out.transitionRef, undefined, 'never-appends: no edge landed');
+    assert.deepEqual(
+      (await inner.readChain(recordId)).map((t) => t.kind),
+      ['opened', 'finding-raised'],
+      'only the racing finding is on the chain',
+    );
+
+    const lost = wrapper.appends.find((a) => a.transitions.length > 1);
+    assert.ok(lost !== undefined, 'fixture: the batch was handed down');
+    assert.equal(
+      lost.meta.signatures?.length,
+      lost.transitions.length,
+      'integrated: the losing batch carried one entry per element down to the store',
+    );
+    const written = await sidecarDigests(inner.signatures, recordId);
+    assert.deepEqual(
+      written,
+      await chainDigests(inner, recordId),
+      'the sidecar is exactly the chain',
+    );
+    for (const t of lost.transitions) {
+      assert.ok(!written.includes(transitionDigest(t)), `no entry for the losing ${t.kind}`);
+    }
+    const report = await rig.handles.operator.verifySignatures(recordId);
+    assert.deepEqual(report.orphans, [], 'zero orphans');
+
+    const again = await rig.handles.operator.finalize(recordId, identity(), CONTENT, facts());
+    assert.equal(again.status, 'ok', 'fixture: re-invoked, the seam confirms over the new head');
+    assert.deepEqual(
+      await sidecarDigests(inner.signatures, recordId),
+      await chainDigests(inner, recordId),
+      'the batch that lands writes its entries',
+    );
+  });
+}
+
+// === SqliteStore: the same integrated sidecar, on the embedded backing =====================
+
+const EFFECT_ID = 'test.txsidecar.effect.v1';
+const EFFECT_PROFILE: ConfirmProfile = { ...effectSeamProfile({ id: EFFECT_ID }), signing: true };
+
+/** Integrated mode over a bare `SqliteStore`: the configured sidecar IS the store's own table. */
+function sqliteIntegratedRig(clock?: () => Date) {
+  const store = new SqliteStore(':memory:');
+  const signatures = store.signatures;
+  return { ...signingRig({ store, signatures, clock }), store, signatures };
+}
+
+test('SqliteStore exposes its own sidecar — one stable object per store — so the conformance suite registers its integrated-sidecar block, and its enlisted pins, for this backing', () => {
+  const store = new SqliteStore(':memory:');
+  assert.ok(store.signatures !== undefined, 'the sidecar is exposed');
+  assert.equal(typeof store.signatures.put, 'function');
+  assert.equal(typeof store.signatures.listByRecord, 'function');
+  assert.equal(store.signatures, store.signatures, 'stable: identity is what selects the mode');
+  assert.notEqual(
+    new SqliteStore(':memory:').signatures,
+    store.signatures,
+    'each store has its own',
+  );
+});
+
+test('ROW 22, integrated, SqliteStore — six refusing finalize() calls against a sealed signing record leave the sidecar table equal to the chain: zero orphans', async () => {
+  const rig = sqliteIntegratedRig();
+  const recordId = await sealedNoEdgeRecord(
+    rig.handles,
+    rig.signatures,
+    rig.store,
+    'subject:tx-sqlite-sealed',
+  );
+  const chainLength = (await rig.store.readChain(recordId)).length;
+  assert.deepEqual(
+    await sidecarDigests(rig.signatures, recordId),
+    await chainDigests(rig.store, recordId),
+    'fixture: one entry per landed transition before the refusing calls',
+  );
+
+  const mintsBefore = rig.mints();
+  for (let call = 1; call <= 6; call += 1) {
+    const out = await rig.handles.operator.finalize(recordId, identity(), CONTENT, facts());
+    assertNoEdgeRefusal(out, `sealed corner, call ${call}`);
+    assert.equal((await rig.store.readChain(recordId)).length, chainLength, 'chain flat');
+    assert.equal(
+      (await rig.signatures.listByRecord(recordId)).length,
+      chainLength,
+      `the sidecar's length is the chain's (call ${call})`,
+    );
+    assert.equal(rig.mints() - mintsBefore, call, 'one mint per refusing call, unchanged');
+  }
+  assert.deepEqual(
+    await sidecarDigests(rig.signatures, recordId),
+    await chainDigests(rig.store, recordId),
+    'the sidecar is exactly the chain',
+  );
+  const report = await rig.handles.operator.verifySignatures(recordId);
+  assert.deepEqual(report.orphans, [], 'zero orphans');
+});
+
+test("SqliteStore, integrated — open()'s expire-then-retry under a moving clock leaves no orphan genesis", async () => {
+  const clock = movableClock();
+  const rig = sqliteIntegratedRig(clock.now);
+  const subjectRef = 'subject:tx-sqlite-retry';
+  const blocker = await openRecord(rig.handles, CONTENT, PROFILE_ID, subjectRef);
+  clock.advance(2 * 3600 * 1000); // past the capture profile's one-hour open window
+
+  const mintsBefore = rig.mints();
+  const second = await openRecord(rig.handles, CONTENT, PROFILE_ID, subjectRef);
+  assert.notEqual(second, blocker, 'a new record opened after the lapsed blocker expired');
+  assert.equal(replay(await rig.store.readChain(blocker)).state, 'expired', 'blocker expired');
+  assert.equal(rig.mints() - mintsBefore, 3, 'three mints: attempt, expiry, retry');
+
+  for (const [label, recordId] of [
+    ['the blocker', blocker],
+    ['the retried record', second],
+  ] as const) {
+    assert.deepEqual(
+      await sidecarDigests(rig.signatures, recordId),
+      await chainDigests(rig.store, recordId),
+      `${label}: the sidecar is exactly the chain`,
+    );
+    const report = await rig.handles.operator.verifySignatures(recordId);
+    assert.deepEqual(report.orphans, [], `${label}: no orphan`);
+    assert.ok(
+      report.transitions.every((t) => t.signed && t.verified),
+      `${label}: every landed transition is signed and verifies`,
+    );
+  }
+});
+
+test('SqliteStore, integrated — a redemption enlisted in a host transaction writes its entry inside that transaction, and the ROLLBACK takes the entry with the transition: no orphan, and the record still redeems, signed', async () => {
+  const store = new SqliteStore(':memory:');
+  const rig = signingRig({ store, signatures: store.signatures, profiles: [EFFECT_PROFILE] });
+  const recordId = await confirmedRecord(rig.handles, 'subject:tx-sqlite-rollback', EFFECT_ID);
+  const committed = await chainDigests(store, recordId);
+  assert.deepEqual(
+    await sidecarDigests(store.signatures, recordId),
+    committed,
+    'fixture: the confirmed record is fully signed',
+  );
+
+  store.database.exec('BEGIN IMMEDIATE');
+  try {
+    const redeemed = await rig.handles.operator.redeem(recordId, CONTENT, { tx: store.database });
+    assert.equal(
+      redeemed.status,
+      'ok',
+      'fixture: the enlisted redemption lands in the transaction',
+    );
+    const head = (await store.readChain(recordId)).at(-1);
+    assert.ok(
+      head !== undefined && head.kind === 'redeemed',
+      'fixture: the redemption is the head',
+    );
+    assert.ok(
+      (await sidecarDigests(store.signatures, recordId)).includes(transitionDigest(head)),
+      'inside the transaction, on its connection, the entry is written with the transition',
+    );
+  } finally {
+    store.database.exec('ROLLBACK');
+  }
+
+  assert.deepEqual(await chainDigests(store, recordId), committed, 'the redemption rolled back');
+  assert.deepEqual(
+    await sidecarDigests(store.signatures, recordId),
+    committed,
+    'and its entry with it',
+  );
+  const report = await rig.handles.operator.verifySignatures(recordId);
+  assert.deepEqual(report.orphans, [], 'zero orphans: no signature outlived the append');
+
+  const again = await rig.handles.operator.redeem(recordId, CONTENT);
+  assert.equal(again.status, 'ok', 'fixture: the record is still confirmed, and redeems');
+  assert.deepEqual(
+    await sidecarDigests(store.signatures, recordId),
+    await chainDigests(store, recordId),
+    'the redemption that commits is signed',
+  );
+});
+
+test('SqliteStore: a database file from before the sidecar gains its table on open — its chain intact and unsigned, and the next append carrying entries writes them', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'vidimera-txsidecar-'));
+  const opened: SqliteStore[] = [];
+  try {
+    const path = join(dir, 'store.db');
+    const sidecarTables = (store: SqliteStore): number =>
+      (
+        store.database
+          .prepare(
+            "SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = 'signatures'",
+          )
+          .get() as { n: number }
+      ).n;
+
+    // The file as an earlier build left it: a record on its chain, and no sidecar table.
+    const earlier = new SqliteStore(path);
+    opened.push(earlier);
+    const genesis = storeGenesis('rec-tx-legacy', 'profile.p1', 'subject:tx-legacy');
+    await earlier.appendTransition(null, genesis, { nonTerminal: true });
+    earlier.database.exec('DROP TABLE IF EXISTS signatures');
+    assert.equal(sidecarTables(earlier), 0, 'fixture: the file holds no sidecar table');
+    earlier.close();
+
+    const reopened = new SqliteStore(path);
+    opened.push(reopened);
+    assert.equal(sidecarTables(reopened), 1, 'opening the file created the table');
+    const indexes = reopened.database
+      .prepare("SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'signatures'")
+      .all() as { sql: string | null }[];
+    assert.ok(
+      indexes.some((r) => r.sql?.includes('record_id') === true),
+      'with its index on record_id',
+    );
+    assert.deepEqual(await reopened.readChain('rec-tx-legacy'), [genesis], 'the chain is intact');
+    assert.deepEqual(
+      await reopened.signatures.listByRecord('rec-tx-legacy'),
+      [],
+      'and unsigned: opening the file migrates nothing',
+    );
+
+    const confirmed = storeNext(genesis, 'confirmed', { actor: APPROVER });
+    const entry: SignatureEntry = {
+      transitionDigest: transitionDigest(confirmed),
+      recordId: 'rec-tx-legacy',
+      seq: 2,
+      keyRef: 'key-1',
+      signature: 'sig:legacy:2',
+    };
+    const res = await reopened.appendTransition('open', confirmed, {
+      nonTerminal: false,
+      signatures: [entry],
+    });
+    assert.equal(res.appended, true, 'fixture: the append lands');
+    assert.deepEqual(await reopened.signatures.listByRecord('rec-tx-legacy'), [entry]);
+  } finally {
+    for (const store of opened) if (store.database.isOpen) store.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('SqliteStore: an entry whose keyRef or signature is not a string is refused before anything is written — enlisted, a host that commits after the throw lands nothing', async () => {
+  // Unchecked, the insert stores a numeric keyRef as other text ('42.0') and throws on a null
+  // signature only at the entry insert, after the transition rows — a host that then committed
+  // its transaction would land the transition unsigned. The check runs with the others, first.
+  const store = new SqliteStore(':memory:');
+  const genesis = storeGenesis('rec-tx-strict', 'profile.p1', 'subject:tx-strict');
+  await store.appendTransition(null, genesis, { nonTerminal: true });
+  const confirmed = storeNext(genesis, 'confirmed', { actor: APPROVER });
+  const good: SignatureEntry = {
+    transitionDigest: transitionDigest(confirmed),
+    recordId: 'rec-tx-strict',
+    seq: 2,
+    keyRef: 'key-1',
+    signature: 'sig:strict:2',
+  };
+  const bad: [string, unknown][] = [
+    ['a numeric keyRef', { ...good, keyRef: 42 }],
+    ['a null signature', { ...good, signature: null }],
+  ];
+  for (const [label, entry] of bad) {
+    store.database.exec('BEGIN IMMEDIATE');
+    try {
+      await assert.rejects(
+        () =>
+          store.appendTransition(
+            'open',
+            confirmed,
+            { nonTerminal: false, signatures: [entry as SignatureEntry] },
+            store.database,
+          ),
+        /SqliteStore: meta\.signatures/,
+        label,
+      );
+    } finally {
+      store.database.exec('COMMIT'); // the host commits regardless
+    }
+    assert.deepEqual(
+      await store.readChain('rec-tx-strict'),
+      [genesis],
+      `${label}: nothing was written for the host's commit to land`,
+    );
+  }
+  assert.deepEqual(await store.signatures.listByRecord('rec-tx-strict'), []);
+  const landed = await store.appendTransition('open', confirmed, {
+    nonTerminal: false,
+    signatures: [good],
+  });
+  assert.equal(landed.appended, true, 'the same append, rightly signed, lands');
 });
