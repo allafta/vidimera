@@ -1310,8 +1310,11 @@ remains; nothing at the base level shows that a record ever existed. §10.1's ve
 prior-leg references give partial detection (a destroyed prior chain makes a not-yet-opened
 successor unopenable), and detached signing (AL2) verifies only what exists — absence
 survives it; the closures are AL3 anchoring (§14) or a host-side record index reconciled
-against the store. The first two residuals close at AL2; detached signing (AL2, §14) is the
-upgrade for those, stated with the absence caveat.
+against the store. The first two residuals close at AL2 under the three conditions §14
+states — every profile the instance registers signs, the key sits outside the insider's
+boundary, and no signature outlives an uncommitted append, which this build's
+sign-before-append order does not yet meet; detached signing (AL2, §14) is the upgrade for
+those, stated with the absence caveat and those conditions.
 
 **Threats this library addresses:**
 
@@ -1356,7 +1359,18 @@ honesty**.
   canonical transitions and consultations. An operator enables it when insiders — a database
   administrator who could recompute the chain — are outside the trust boundary; it closes the
   recompute residual and the genesis-head blind windows (§13A, §10.1, §10.3), because a
-  rebuilt or head-edited chain fails signature verification without trusting storage. Signing
+  rebuilt or head-edited chain fails signature verification without trusting storage — under
+  three conditions, each a limit of the closure. (i) **Every profile the instance registers
+  signs:** the layer applies to a record through the profile its genesis names, so a
+  storage-writing insider who rewrites a signing record's genesis onto a co-registered
+  non-signing profile, carrying that profile's genuine digest, takes the record out of the
+  layer — and version discipline (§9.1) leaves exactly such an unsigned twin registered while
+  signing is enabled for an existing flow. (ii) **The key sits outside the insider's
+  boundary:** a key holder signs whatever chain it writes. (iii) **No signature outlives an
+  uncommitted append:** this build signs a transition before it appends it, outside the
+  append's atomic unit, so an append that is rolled back or loses its compare-and-swap leaves
+  a valid signature over a transition that never committed, which a key-less insider can
+  splice in where it was signed for. Signing
   ships as an optional hook; key distribution and rotation are host-declared; enablement
   granularity and the missing-signature posture are decided on record
   (`OPEN-QUESTIONS.md` §1). AL1 stays the default.

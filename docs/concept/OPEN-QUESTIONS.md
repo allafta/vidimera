@@ -22,7 +22,9 @@ enablement design is deliberately reserved for a dedicated decision:
   differs from a record's genesis `profileDigest` (`signing` is a covered field) refuses
   `unknown-profile` at every seam that resolves the record (SPEC §4, §8); what remains is the
   recompute route, a rewritten genesis carrying a consistent digest, which only signing-only
-  registration or AL2 key custody closes.
+  registration with the AL2 key outside the insider's boundary closes — key custody alone
+  leaves a genesis rewritten onto a co-registered non-signing profile outside the signature
+  layer (SPEC §14's first condition).
 - **Missing-signature posture** — when verification encounters an unsigned transition in a
   signing-enabled scope: fail-closed refusal, degraded-trust reporting, or
   enablement-boundary-aware acceptance? **Decided (this build):** fail-closed into each
