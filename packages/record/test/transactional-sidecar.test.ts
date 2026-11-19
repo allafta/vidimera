@@ -15,7 +15,9 @@
 // per refusing call in separate mode (no-edge-containment.test.ts's BASELINE pins, which keep
 // measuring separate mode and are unchanged) leaves none in integrated mode. The SqliteStore
 // section at the end repeats it on the embedded backing, with what only a transactional backing
-// has: a host transaction that rolls an enlisted redemption back takes its entry with it.
+// has: a host transaction that rolls an enlisted redemption back takes its entry with it, and
+// the store's own transaction takes an append's transition rows with a failed entry insert.
+// PostgresStore's leg lives in its own package (store-postgres's transactional-sidecar.test.ts).
 
 import assert from 'node:assert/strict';
 import { sign as edSign, verify as edVerify, generateKeyPairSync } from 'node:crypto';
@@ -844,6 +846,86 @@ test('SqliteStore: a database file from before the sidecar gains its table on op
     for (const store of opened) if (store.database.isOpen) store.close();
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("SqliteStore: atomicity on the store's own transaction — an entry insert that fails takes the append's transition rows with it, for a genesis, a subsequent append and a batch", async () => {
+  // The conformance suite's enlisted pins show the entries ride a HOST transaction; this shows
+  // they ride the store's OWN. A trigger refuses every insert into the sidecar table, so each
+  // append that carries entries fails at its entry insert — after its transition rows — and the
+  // store's own ROLLBACK must take those rows with it. An insert moved after the store's COMMIT
+  // would still reject, but would leave the transition landed, unsigned.
+  const store = new SqliteStore(':memory:');
+  const entry = (t: Transition): SignatureEntry => ({
+    transitionDigest: transitionDigest(t),
+    recordId: t.recordId,
+    seq: t.seq,
+    keyRef: 'key-1',
+    signature: `sig:${t.recordId}:${t.seq}`,
+  });
+  const genesis = storeGenesis('rec-tx-atomic', 'profile.p1', 'subject:tx-atomic');
+  // An append carrying no entries inserts none, so the trigger never fires for this one.
+  assert.equal((await store.appendTransition(null, genesis, { nonTerminal: true })).appended, true);
+  store.database.exec(
+    'CREATE TRIGGER refuse_entry BEFORE INSERT ON signatures ' +
+      "BEGIN SELECT RAISE(ABORT, 'entry insert refused by the test trigger'); END",
+  );
+
+  const other = storeGenesis('rec-tx-atomic-2', 'profile.p1', 'subject:tx-atomic-2');
+  await assert.rejects(
+    () => store.appendTransition(null, other, { nonTerminal: true, signatures: [entry(other)] }),
+    /refused by the test trigger/,
+    'a genesis',
+  );
+  assert.deepEqual(await store.readChain('rec-tx-atomic-2'), [], 'no genesis landed');
+  assert.equal(
+    await store.findNonTerminal('profile.p1', 'subject:tx-atomic-2'),
+    null,
+    'nor its record row',
+  );
+
+  const confirmed = storeNext(genesis, 'confirmed', { actor: APPROVER });
+  await assert.rejects(
+    () =>
+      store.appendTransition('open', confirmed, {
+        nonTerminal: false,
+        signatures: [entry(confirmed)],
+      }),
+    /refused by the test trigger/,
+    'a subsequent append',
+  );
+  assert.deepEqual(
+    await store.readChain('rec-tx-atomic'),
+    [genesis],
+    'no subsequent append landed',
+  );
+  const batch = successBatch(genesis);
+  await assert.rejects(
+    () => store.appendBatch('open', batch, { nonTerminal: false, signatures: batch.map(entry) }),
+    /refused by the test trigger/,
+    'a batch',
+  );
+  assert.deepEqual(await store.readChain('rec-tx-atomic'), [genesis], 'no batch element landed');
+  assert.deepEqual(await store.signatures.listByRecord('rec-tx-atomic'), []);
+  assert.deepEqual(await store.signatures.listByRecord('rec-tx-atomic-2'), []);
+
+  // The control: without the trigger the same appends land, with their entries — the record
+  // was left `open` and live, exactly where it was.
+  store.database.exec('DROP TRIGGER refuse_entry');
+  const opened = await store.appendTransition(null, other, {
+    nonTerminal: true,
+    signatures: [entry(other)],
+  });
+  assert.equal(opened.appended, true, 'the genesis lands');
+  const landed = await store.appendBatch('open', batch, {
+    nonTerminal: false,
+    signatures: batch.map(entry),
+  });
+  assert.equal(landed.appended, true, 'the batch lands');
+  assert.deepEqual(
+    await sidecarDigests(store.signatures, 'rec-tx-atomic'),
+    batch.map((t) => transitionDigest(t)).sort(),
+  );
+  assert.deepEqual(await store.signatures.listByRecord('rec-tx-atomic-2'), [entry(other)]);
 });
 
 test('SqliteStore: an entry whose keyRef or signature is not a string is refused before anything is written — enlisted, a host that commits after the throw lands nothing', async () => {
