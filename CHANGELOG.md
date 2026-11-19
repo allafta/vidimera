@@ -195,8 +195,8 @@ is the summary, and that file wins on conflict.
   that drops `meta.signatures` lands transitions unsigned, which the next seam refuses; and if a
   seam throws inside a host transaction, roll it back (on Postgres the failed statement has
   already aborted it). Mode is selected by identity, once, at construction, and reported nowhere
-  but the configuration. The sealed set's own statement of condition (iii) still describes the
-  old order; its narrowing to a separate sidecar is the pending second commit call 3 reserves.
+  but the configuration. The sealed set's normative statement of condition (iii) was narrowed
+  to match on 2026-11-20 (the entry below).
 
 ### Changed
 
@@ -343,6 +343,15 @@ is the summary, and that file wins on conflict.
   called out as one). A third pin measures what AL2 does not close, as SPEC
   §13A already says: deleting a record's latest transitions leaves every remaining signature
   verifying, and a deleted `redeemed` head lets the record be redeemed again.
+
+- **The sealed set says where AL2's third condition holds** (2026-11-20, branch
+  `al2-followup-2026-11-20`; no marker moves, no behavior changes): SPEC §13A and §14, CONTROLS
+  and ASSURANCE no longer call condition (iii) — no signature outlives an uncommitted append —
+  unmet; it holds where the sidecar is the configured store's own and written inside the
+  append's atomic unit, as the reference stores do, and fails for any other sidecar. The second
+  and last commit call 3 of the 2026-11-17 sanction calls grants. Three sentences the owner's
+  2026-11-19 grant conditioned (ARCHITECTURE §3 and §9, SCOPING-GUIDE §5) still say the condition
+  is "not yet met": they understate, and wait for the owner's word.
 
 ### Fixed
 
