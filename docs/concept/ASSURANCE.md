@@ -45,7 +45,9 @@ The head-bound is not an abstract caveat; it bites at two specific, load-bearing
    defeats the drift gate.
 
 Both are honestly documented at AL1, and both are closed by the same upgrade: a signed
-genesis fails verification when its payload is edited, head or not.
+genesis fails verification when its payload is edited, head or not — while every profile
+the instance registers signs and the key sits outside the insider's boundary (`SPEC.md`
+§14).
 
 ## 3. Threats the model addresses
 
@@ -102,7 +104,7 @@ authority timestamps ride inside digested payloads.
 | Level | Status | Guarantee | Closes | Never claims |
 |---|---|---|---|---|
 | **AL1 — Chained** | the shipping default | tamper-evident against non-recomputing edits of non-head transitions; replayable from durable storage alone | drift, payload-identity, non-head deletion/reordering, double-decide, double-execute (per §3) | "cryptographic", insider resistance, non-repudiation |
-| **AL2 — Signed** | operator-enabled upgrade (proven, `SPEC.md` §14 — enablement decided, `OPEN-QUESTIONS.md` §1) | detached signatures over canonical transitions + consultations | the recompute residual; both §2 blind windows; admits authority timestamps (freshness becomes meaningful) | anything about key custody it doesn't control; detection of whole-record absence (§1); non-repudiation |
+| **AL2 — Signed** | operator-enabled upgrade (proven, `SPEC.md` §14 — enablement decided, `OPEN-QUESTIONS.md` §1) | detached signatures over canonical transitions + consultations | the recompute residual and both §2 blind windows, under `SPEC.md` §14's conditions — every registered profile signs, the key sits outside the insider's boundary, and no signature outlives an uncommitted append (this build's sign-before-append order does not yet meet the last); admits authority timestamps (freshness becomes meaningful) | anything about key custody it doesn't control; detection of whole-record absence (§1); non-repudiation |
 | **AL3 — Anchored** | documented upgrade only | chain heads anchored in an independent append-only log | key-holding insiders; long-horizon disputes | — |
 
 Two disciplines make the ladder honest:

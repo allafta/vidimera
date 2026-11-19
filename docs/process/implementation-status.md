@@ -113,11 +113,11 @@ any one exit.
   proved only that the step ran; this document's gate outputs were measured locally and
   stand. See the dedicated section at the end of this document; the numbers immediately
   below already include it.
-- **Measured against the current tree** (re-measured at the verifier-faults increment's fix
-  wave, 2026-11-17): `pnpm test` — 85 test files, 1161 tests, zero skips
+- **Measured against the current tree** (re-measured at the AL2 restatement increment,
+  2026-11-19): `pnpm test` — 86 test files, 1165 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
-  `pnpm lint` (`biome check .`) — 158 files checked, zero errors or warnings;
+  `pnpm lint` (`biome check .`) — 159 files checked, zero errors or warnings;
   `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 25 refusal codes, the twenty-fifth being
@@ -6321,3 +6321,408 @@ packages), biome (`--error-on-warnings`, 158 files checked, no findings), both b
 `contract-scan`, `api-reference-sync` and `docs-index-sync` all exit 0. `smoke` cannot run here
 and runs in CI. `CLAUDE.md`'s measured sentence moved to 85 files / 1161 tests. (At the docs
 commit, before the fix wave: 1152 tests in 85 files.)
+
+## Post-build-order increment — AL2 restatement (three sanctioned sealed-set commits)
+
+**The thirty-second post-build-order increment (branch `al2-restatement-2026-11-19`, off `main`
+at `a877fed`).** Three sealed-set commits under two grants, no maturity marker moved, no scope
+changed, no behavior changed: call 3.1 of `docs/analysis/2026-11-17-sanction-calls.md` (the
+first of that call's two sealed-set commits, corrective), then the owner's grant of 2026-11-19
+for the sentences outside call 3, in two commits — the second completes one sentence after the
+re-review. One site of the owner's grant is in CONCEPT.md's honesty discipline, which by the
+repository's rule makes that change a fork of the concept; it is called out as one below. The
+design is `docs/superpowers/specs/2026-11-19-al2-restatement-design.md` (§6 call 3.1's sites,
+§10 the review, §11 the owner's grant, §12 the re-review) and the plan
+`docs/superpowers/plans/2026-11-19-al2-restatement.md`. They join the lineage beside the
+profile-drift gate as sanctioned sealed-set commits with no marker move.
+
+**What it corrects.** The sealed set stated AL2's closure of the recompute residual and the
+head-edit windows without the conditions the build depends on. Three conditions hold it up:
+(i) every registered profile signs — the layer applies through the profile a record's genesis
+names, so a genesis rewritten onto a co-registered non-signing profile, carrying that profile's
+digest (computable with the exported `profileDigest`), leaves the layer, and version discipline
+leaves exactly such an unsigned twin registered while signing is enabled for an existing flow;
+(ii) the key sits outside the insider's boundary; (iii) no signature outlives an uncommitted
+append — the decorator writes a transition's sidecar entry before it delegates the append, so a
+rolled-back or lost append leaves a valid signature over a transition that never committed,
+which a key-less insider can splice in where it was signed for. Before this increment the sealed
+set stated (ii) only — explicitly in CONTROLS' AL2 row and CONCEPT.md's honesty discipline, in
+substance in ASSURANCE §6's AL2 and AL3 rows and SPEC §14's closing paragraph — and CONTROLS'
+profile-binding row and OPEN-QUESTIONS §1 offered AL2 key custody as closing the recompute route
+on its own, which (i) refutes.
+
+**What landed, per commit.**
+
+- `04b501b` — the design and the plan, with the INDEX row and counts.
+- `0b408d4` — `packages/record/test/al2-conditions.test.ts`, pins of present behavior over a
+  SQLite backing with the insider writing straight to the tables. Condition (i): a forged decider
+  on a relinked signing chain refuses `chain-compromise` at `seal`; the same forgery rehomed onto
+  a co-registered non-signing profile reads `signingDeclared: false` and `seal` retires it; an
+  instance registering only the signing profile refuses the rehomed record `unknown-profile` and
+  appends nothing. Condition (iii): an enlisted `redeem` the host rolls back leaves its signature
+  among `verifySignatures(...).orphans`; the never-committed `redeemed` transition spliced back
+  in verifies, replays `redeemed` and seals; the same transition fabricated onto another record is
+  unsigned and refuses `chain-compromise`.
+- `5a8ab21` — **call 3.1's sealed-set commit**, `docs/concept/` only (SPEC, CONTROLS, ASSURANCE,
+  OPEN-QUESTIONS; 27 lines in, 9 out): sites 1–8 below.
+- `b7e6480` — the guide and the first draft of this record.
+- `3eb1413` — the fix wave after the whole-branch review (below), the design's §10 and §11, and
+  a third pin: the absence residual.
+- `3032ef2` — **the owner's-grant sealed-set commit**, `docs/concept/` only (SPEC, ARCHITECTURE,
+  OPEN-QUESTIONS, SCOPING-GUIDE, CONCEPT; 20 lines in, 11 out): sites 9–18 below.
+- `f1d854d` — this section's second draft, the "Measured" line, `CHANGELOG.md`, `CLAUDE.md`,
+  and a line-break-only resync of the design's site texts with the files.
+- `0f4f997` — a fourth pin, after the re-review: the lost compare-and-swap half of condition
+  (iii), made deterministic by a store wrapper that holds the first batch until the second
+  arrives.
+- `df12561` — **the owner's grant, completed**, `docs/concept/` only (SCOPING-GUIDE; 3 lines
+  in, 2 out): site 17b below.
+- The records commit after it: the re-review's corrections to this section, the design's §11 and
+  §12, `CHANGELOG.md` and `CLAUDE.md`.
+
+**The sealed-history account: call 3.1's commit `5a8ab21`, verbatim.** Checked mechanically
+before the commit: every "after" text present and every "before" text absent, whitespace
+collapsed, and the design's §6 blockquotes equal to these.
+
+1. **SPEC §13A, the closing sentence on AL2** (`docs/concept/SPEC.md`).
+
+   Before:
+
+   > The first two residuals close at AL2; detached signing (AL2, §14) is the
+   > upgrade for those, stated with the absence caveat.
+
+   After:
+
+   > The first two residuals close at AL2 under the three conditions §14
+   > states — every profile the instance registers signs, the key sits outside the insider's
+   > boundary, and no signature outlives an uncommitted append, which this build's
+   > sign-before-append order does not yet meet; detached signing (AL2, §14) is the upgrade for
+   > those, stated with the absence caveat and those conditions.
+
+2. **SPEC §14, the AL2 bullet** (`docs/concept/SPEC.md`).
+
+   Before:
+
+   > it closes the
+   > recompute residual and the genesis-head blind windows (§13A, §10.1, §10.3), because a
+   > rebuilt or head-edited chain fails signature verification without trusting storage. Signing
+
+   After:
+
+   > it closes the
+   > recompute residual and the genesis-head blind windows (§13A, §10.1, §10.3), because a
+   > rebuilt or head-edited chain fails signature verification without trusting storage — under
+   > three conditions, each a limit of the closure. (i) **Every profile the instance registers
+   > signs:** the layer applies to a record through the profile its genesis names, so a
+   > storage-writing insider who rewrites a signing record's genesis onto a co-registered
+   > non-signing profile, carrying that profile's genuine digest, takes the record out of the
+   > layer — and version discipline (§9.1) leaves exactly such an unsigned twin registered while
+   > signing is enabled for an existing flow. (ii) **The key sits outside the insider's
+   > boundary:** a key holder signs whatever chain it writes. (iii) **No signature outlives an
+   > uncommitted append:** this build signs a transition before it appends it, outside the
+   > append's atomic unit, so an append that is rolled back or loses its compare-and-swap leaves
+   > a valid signature over a transition that never committed, which a key-less insider can
+   > splice in where it was signed for. Signing
+
+3. **CONTROLS §2, the Profile binding row** (`docs/concept/CONTROLS.md`).
+
+   Before:
+
+   > a rewritten genesis carrying a consistent digest (the recompute route) passes at AL1 — AL2 or signing-only registration closes it;
+
+   After:
+
+   > a rewritten genesis carrying a consistent digest (the recompute route) passes at AL1 — only signing-only registration under AL2, with the key outside the insider boundary, closes it: AL2 alone leaves a genesis rewritten onto a co-registered non-signing profile outside the signature layer (SPEC §14);
+
+4. **CONTROLS §3, the Effect-result notarization row** (`docs/concept/CONTROLS.md`).
+
+   Before:
+
+   > AL2 signing closes the window early |
+
+   After:
+
+   > AL2 signing closes the window early, under SPEC §14's conditions — a redemption the host rolls back leaves a valid signature over a `redeemed` transition that never committed (condition (iii)) |
+
+5. **CONTROLS §3, the AL2 detached signing row** (`docs/concept/CONTROLS.md`).
+
+   Before:
+
+   > Closes the recompute + head-edit residuals **when the key is outside the insider boundary** |
+
+   After:
+
+   > Closes the recompute + head-edit residuals **when the key is outside the insider boundary, every registered profile signs, and no signature outlives an uncommitted append** (SPEC §14) — this build signs before it appends, so the last does not yet hold |
+
+6. **ASSURANCE §2, the sentence closing both blind windows** (`docs/concept/ASSURANCE.md`).
+
+   Before:
+
+   > Both are honestly documented at AL1, and both are closed by the same upgrade: a signed
+   > genesis fails verification when its payload is edited, head or not.
+
+   After:
+
+   > Both are honestly documented at AL1, and both are closed by the same upgrade: a signed
+   > genesis fails verification when its payload is edited, head or not — while every profile
+   > the instance registers signs and the key sits outside the insider's boundary (`SPEC.md`
+   > §14).
+
+7. **ASSURANCE §6, the AL2 row's "Closes" cell** (`docs/concept/ASSURANCE.md`).
+
+   Before:
+
+   > the recompute residual; both §2 blind windows; admits authority timestamps (freshness becomes meaningful)
+
+   After:
+
+   > the recompute residual and both §2 blind windows, under `SPEC.md` §14's conditions — every registered profile signs, the key sits outside the insider's boundary, and no signature outlives an uncommitted append (this build's sign-before-append order does not yet meet the last); admits authority timestamps (freshness becomes meaningful)
+
+8. **OPEN-QUESTIONS §1, the amended Granularity paragraph** (`docs/concept/OPEN-QUESTIONS.md`).
+
+   Before:
+
+   > what remains is the
+   > recompute route, a rewritten genesis carrying a consistent digest, which only signing-only
+   > registration or AL2 key custody closes.
+
+   After:
+
+   > what remains is the
+   > recompute route, a rewritten genesis carrying a consistent digest, which only signing-only
+   > registration with the AL2 key outside the insider's boundary closes — key custody alone
+   > leaves a genesis rewritten onto a co-registered non-signing profile outside the signature
+   > layer (SPEC §14's first condition).
+
+**The sealed-history account: the owner's-grant commit `3032ef2`, verbatim.** The owner granted
+conditioning the sentences found outside call 3 ("granted, condition the six too"). The list
+the owner read named seven; the whole-branch review then found SPEC §5's three of the same
+class. The grant is read as covering the inventory it was given as — every sentence outside call
+3's named ones that states AL2's closure without its conditions — so all ten are conditioned
+here, and the owner can revoke any of them. SPEC §10.1 and §10.3, about a genesis payload
+window alone, state conditions (i) and (ii); every other site names all three, because (iii)
+reaches the recompute residual too (below). Two near-misses make no closure claim and stay:
+OPEN-QUESTIONS §1's "Motivating context" and SPEC §0's "detached signing is the documented
+upgrade". **A fork of the concept, called out as one:** site 18 is in CONCEPT.md §5, the
+honesty discipline, and CLAUDE.md's rule is that a change touching the principles or the honesty
+discipline "is a **fork of the concept**, not an edit — it must be called out as such". By that
+rule this commit is a fork. It lengthens one parenthetical qualifier of the "Never
+'non-repudiation'" bullet to name all three conditions; the bullet's rule, the four principles
+and the discipline's other bullets are unchanged, and the claim gets smaller. The owner's grant
+named CONCEPT.md, but whether to keep a fork is the owner's call, put to the owner as such. (The
+first draft of this record said "it is not a fork", which misstated the rule; so does
+`3032ef2`'s commit message, which cannot change.) Checked mechanically the same way, against
+the design's §11.
+
+9. **OPEN-QUESTIONS §1, the opening scope sentence** (`docs/concept/OPEN-QUESTIONS.md`).
+
+   Before:
+
+   > consultations; closes the recompute residual and both genesis-head blind windows) but its
+   > enablement design is deliberately reserved for a dedicated decision:
+
+   After:
+
+   > consultations; closes the recompute residual and both genesis-head blind windows, under the
+   > conditions SPEC §14 states) but its enablement design is deliberately reserved for a
+   > dedicated decision:
+
+10. **SPEC §5, the AL1-bound paragraph** (`docs/concept/SPEC.md`).
+
+   Before:
+
+   > detached signing
+   > (§14) is the upgrade that makes recomputation and head-edits detectable without trusting
+   > storage.
+
+   After:
+
+   > detached signing
+   > (§14) is the upgrade that makes recomputation and head-edits detectable without trusting
+   > storage, under the three conditions §14 states.
+
+11. **SPEC §5, the compromise edge** (`docs/concept/SPEC.md`).
+
+   Before:
+
+   > detached signing (§14) is
+   > the upgrade that makes the compromise-refusal independently trustworthy.
+
+   After:
+
+   > detached signing (§14) is
+   > the upgrade that makes the compromise-refusal independently trustworthy, under the three
+   > conditions §14 states.
+
+12. **SPEC §5, chain retirement** (`docs/concept/SPEC.md`).
+
+   Before:
+
+   > detached signing (§14) is the upgrade that makes an
+   > end-of-life attestation independently verifiable.
+
+   After:
+
+   > detached signing (§14) is the upgrade that makes an
+   > end-of-life attestation independently verifiable, under the three conditions §14 states.
+
+13. **SPEC §10.1, the SoD-evidence window** (`docs/concept/SPEC.md`).
+
+   Before:
+
+   > Detached signing (AL2, §14) is the named
+   > upgrade that closes this (a signed genesis fails verification when its payload is edited, head
+   > or not).
+
+   After:
+
+   > Detached signing (AL2, §14) is the named
+   > upgrade that closes this (a signed genesis fails verification when its payload is edited, head
+   > or not), while every registered profile signs and the key sits outside the insider's boundary
+   > (§14's first two conditions).
+
+14. **SPEC §10.3, the policy-binding window** (`docs/concept/SPEC.md`).
+
+   Before:
+
+   > This
+   > is the policy-gate analog of §10.1's SoD-evidence window; detached signing (AL2, §14) is the
+   > named closure.
+
+   After:
+
+   > This
+   > is the policy-gate analog of §10.1's SoD-evidence window; detached signing (AL2, §14) is the
+   > named closure, under the same two of §14's conditions.
+
+15. **ARCHITECTURE §3, the AL1-bound paragraph** (`docs/concept/ARCHITECTURE.md`).
+
+   Before:
+
+   > Detached signing (AL2) is the named
+   > closure for all of it.
+
+   After:
+
+   > Detached signing (AL2) is the named
+   > closure for all of it, under the three conditions `SPEC.md` §14 states — every registered
+   > profile signs, the key sits outside the insider's boundary, and no signature outlives an
+   > uncommitted append (the last not yet met).
+
+16. **ARCHITECTURE §9, the ladder's AL2 "Closes" cell** (`docs/concept/ARCHITECTURE.md`).
+
+   Before:
+
+   > the storage-writing-insider recompute residual **and** the head/sole-genesis edit windows (SoD evidence, policy binding); admits authority timestamps that make freshness gating meaningful
+
+   After:
+
+   > the storage-writing-insider recompute residual **and** the head/sole-genesis edit windows (SoD evidence, policy binding), under `SPEC.md` §14's three conditions (the last, no signature outliving an uncommitted append, not yet met); admits authority timestamps that make freshness gating meaningful
+
+17. **SCOPING-GUIDE §5, the build-vs-buy picture** (`docs/concept/SCOPING-GUIDE.md`).
+
+   Before:
+
+   > The insider-recompute threat closes at **AL2 signing**.
+
+   After:
+
+   > The insider-recompute threat closes at **AL2 signing**,
+   > while every registered profile signs and the key sits outside the insider's boundary
+   > (`SPEC.md` §14).
+
+18. **CONCEPT.md §5, the honesty discipline's "Never non-repudiation" bullet** (`docs/concept/CONCEPT.md`).
+
+   Before:
+
+   > AL2 is insider-resistant (when the key
+   > is outside the insider boundary);
+
+   After:
+
+   > AL2 is insider-resistant (when the key
+   > is outside the insider boundary, every registered profile signs, and no signature
+   > outlives an uncommitted append — `SPEC.md` §14);
+
+17b. **SCOPING-GUIDE §5, the build-vs-buy picture (completed)** (`docs/concept/SCOPING-GUIDE.md`), in `df12561`.
+
+   Before (as `3032ef2` left it):
+
+   > The insider-recompute threat closes at **AL2 signing**,
+   > while every registered profile signs and the key sits outside the insider's boundary
+   > (`SPEC.md` §14).
+
+   After:
+
+   > The insider-recompute threat closes at **AL2 signing**,
+   > under the three conditions `SPEC.md` §14 states — every registered profile signs, the key
+   > sits outside the insider's boundary, and no signature outlives an uncommitted append (the
+   > last not yet met).
+
+**Amended after the whole-branch review.** A fresh review on the most capable model read the
+branch against the code. It found sites 1–8 true of the code, no claim widened and the grant's
+scope kept, and confirmed by counter-probes that each pin passes for the reason it claims
+(rehoming onto a *signing* twin is caught; deleting the orphan signature makes the splice
+refused). It found four Important problems outside the sealed text, each fixed in `3eb1413`:
+
+- *The site-6 rationale was false.* The first draft said a never-committed genesis belongs to a
+  record id never created. But `open()` mints the id once and, on an exclusivity conflict with a
+  due blocker, re-stamps its retry when the clock has moved, and the decorator signs both
+  attempts: a created record carries a valid orphan genesis (`no-edge-containment.test.ts` pins
+  it), and a key-less insider who swaps it in makes the record read as opened before its blocker
+  expired. Site 6 still holds — the two geneses share a payload and both §2 windows are payload
+  edits — and the `at`-only swap is an instance of condition (iii).
+- *The outside-the-grant inventory missed SPEC §5's three sentences* and said six where it listed
+  seven.
+- *The guide's advice to unregister the old profile version omitted its cost*: its open records
+  strand and its terminal records lose verified `supersedes` recovery. The guide states the trade.
+- *This record paraphrased the sealed sentences* where call 3 asks for them verbatim; it now
+  carries all eighteen pairs above.
+
+Minor findings fixed in the same wave: where condition (ii) was already stated (above); the
+rehoming digest is computable with `profileDigest`, not only copied from a donor record; the
+guide says condition (i) binds every instance acting on the records and condition (ii) every key
+whose verifier is registered, retired keys included; the sidecar bullet says the splice route
+stays open until the prune, a made splice is no longer an orphan, and an orphan may be the only
+trace of a deleted head, so keep what you prune; `concepts.md` drops "exactly when";
+`api-reference.md` and `SECURITY.md` state the three conditions; the pin's title and observation
+comment are exact. One Minor is parked: ASSURANCE §6, SPEC §14, OPEN-QUESTIONS §1's opener and
+ARCHITECTURE §9 attach the three conditions to the closure as a whole, genesis windows included,
+while ASSURANCE §2 and SPEC §10.1 and §10.3 give the genesis windows two — the underclaim
+direction. Aligning them is not a narrowing of condition (iii), so it is outside call 3.2's
+terms and would need its own grant; it is recorded, not pursued. Found by this session during
+the review and fixed in the same wave: `signing/decorate.ts` called an orphan "harmless" in
+three comments, and `signing/store.ts` and the guide's "An implementer must tolerate orphans"
+paragraph called orphans safe to prune without naming the splice route — comments and prose
+only, recorded as a plan ruling.
+
+**The re-review.** The same reviewer re-read the fix wave and `3032ef2`: every earlier finding
+addressed and every verbatim pair matching. Two Important findings, both fixed. *Site 17 stated
+two conditions where three bind*: a finalize batch that loses its compare-and-swap is a signed
+branch, and since deleting committed transitions is undetected, the insider deletes back to the
+fork point and writes that branch in, with no key and no recompute — the decider changes and a
+buried redemption can be repeated; `0f4f997` pins it and `df12561` completes the sentence. *The
+record misstated the fork rule* for CONCEPT.md; corrected above. Minor, fixed: the conditions
+rationale for OPEN-QUESTIONS §1 and ARCHITECTURE §9, the parking note (above), "without its
+conditions" in the CHANGELOG and CLAUDE.md, and the rehoming pin's comment.
+
+**The absence residual, measured.** The review observed that deleting a committed `redeemed`
+head leaves every remaining signature verifying and lets the record be redeemed again. SPEC §13A
+already names this — AL2 "verifies only what exists — absence survives it", and a restored
+backup drops "recent transitions wholesale" — so no sealed sentence is needed. A third pin in
+`al2-conditions.test.ts` measures it, and the guide states it beside the conditions.
+
+**The sanctions.** Call 3 allowed at most two sealed-set commits; `5a8ab21` is the first. The
+second restates condition (iii) when the transactional-sidecar increment (call 2) lands —
+narrowed to a host-supplied sidecar that cannot join the append's atomic unit, in the same
+sentences and nowhere else; if call 2 is abandoned the sanction is spent at `5a8ab21`. The
+owner's grant is spent at `df12561`.
+
+**Inversions.** None. No pinned assertion changed; the suite gained one file of four pins.
+
+**Gates, measured on the authoring machine after the re-review's fixes.** `ci-assert-tests: ok —
+1165 tests in 86 files (91 suites): 1165 passed, 0 failed, 0 skipped, 0 todo`; typecheck (both
+packages), biome (`--error-on-warnings`, 159 files checked, no findings), both builds,
+`contract-scan`, `api-reference-sync` and `docs-index-sync` all exit 0. `smoke` cannot run here
+and runs in CI. `CLAUDE.md`'s measured sentence moved to 86 files / 1165 tests. (At the first
+draft of this record, before the fix wave: 1163 tests; after it, 1164.)

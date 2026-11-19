@@ -3,7 +3,10 @@
 // signing — every append path (the seams, finalize's batch, the en-passant clock
 // edges, the reverify drift edge, sealed) signs by construction, and the seams never
 // know. SIGN BEFORE APPEND: a crash or lost CAS after the sidecar write leaves an
-// ORPHAN entry — harmless, verification is chain-driven — while the reverse order
+// ORPHAN entry — inert to verification, which is chain-driven, but not harmless: it is a
+// valid signature over a transition that never committed, which a storage-writing insider
+// can splice back in where it was signed for (SPEC §14's third condition, which this order
+// does not meet) — while the reverse order
 // could leave a LANDED transition unsigned on a signing record, which the AL2
 // enforcement increment's fail-closed posture DOES condemn (that increment has now
 // landed: `kernel/verify-signatures.ts`'s `signatureLayerHolds` treats a missing entry
@@ -24,7 +27,7 @@
 // leaves the sidecar as it found it.
 // The sidecar write is deliberately NOT part of any host transaction an enlisted
 // seam passes through (`tx` delegates untouched): an aborted effect's orphan
-// signature is the same harmless class.
+// signature is the same class — inert to verification, and spliceable.
 //
 // DELEGATION SHAPE, decided rather than assumed: both shipped Store backings
 // (`store/memory.ts`'s `MemoryStore`, `store/sqlite.ts`'s `SqliteStore`) are CLASSES
@@ -143,8 +146,8 @@ export function withSigning(
         // fault). Its genesis says nothing about whether THIS record signs, so the decision
         // must not be cached under this id — a cached answer would outlive the fault and bind
         // the wrong profile to the record.
-        // Sign: an extra sidecar entry is a harmless orphan, an unsigned landed edge on a
-        // signing record is condemned. Never throw here: the append is the very
+        // Sign: an extra sidecar entry is an orphan (inert to verification), an unsigned
+        // landed edge on a signing record is condemned. Never throw here: the append is the very
         // chain-compromise edge that reports the fault.
         return true;
       }

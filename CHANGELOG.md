@@ -287,6 +287,27 @@ is the summary, and that file wins on conflict.
   `verifySignatures`'s recorded throw class ("only on the caller-error/unknown-record class
   every other read takes") widens with the other reads' — the fourteenth self-authored
   inversion, argued at its pin in `packages/record/test/chain-binding-seams.test.ts`.
+- **AL2's guarantee is stated with its three conditions** (2026-11-19, branch
+  `al2-restatement-2026-11-19`; a corrective sealed-set edit under call 3 of
+  `docs/analysis/2026-11-17-sanction-calls.md`, the first of its two granted commits — no
+  maturity marker moves, no behavior changes): SPEC §13A and §14, CONTROLS, ASSURANCE and
+  OPEN-QUESTIONS §1 now say the recompute and head-edit closures hold only while every profile
+  the instance registers signs, the key sits outside the insider's boundary, and no signature
+  outlives an uncommitted append. The last does not hold today: the library signs a transition
+  before it appends it, so a redemption the host's transaction rolls back, or an append that
+  loses its compare-and-swap, leaves a valid signature over a transition that never committed,
+  which a key-less insider can splice back in. And AL2 on some profiles does not close the
+  recompute route: a signing record's genesis rewritten onto a co-registered non-signing profile
+  leaves the signature layer. `packages/record/test/al2-conditions.test.ts` pins both as
+  behavior, (iii) both for a rolled-back redemption and for a finalize batch that lost its
+  compare-and-swap; the guide states all three (`concepts.md`, `integrating.md`, `faq.md`,
+  `api-reference.md`) and `SECURITY.md` does too. Two further sealed-set commits, under the owner's
+  own grant, condition the ten sentences outside call 3 that stated the closure without its
+  conditions (SPEC §§5, 10.1 and 10.3, ARCHITECTURE, SCOPING-GUIDE, OPEN-QUESTIONS §1 and
+  CONCEPT.md's honesty-discipline bullet — by the repository's rule a fork of the concept,
+  called out as one). A third pin measures what AL2 does not close, as SPEC
+  §13A already says: deleting a record's latest transitions leaves every remaining signature
+  verifying, and a deleted `redeemed` head lets the record be redeemed again.
 
 ### Fixed
 

@@ -18,8 +18,10 @@ independence of the human whose decision it captures.
 
 No — and the documentation never uses that word for any level of it. The gradient, stated
 honestly: the base layer (AL1) is tamper-*evident* against non-recomputing edits; AL2
-(detached signing, built) is insider-resistant exactly when the signing key is held outside
-the insider's boundary; AL3 (external anchoring) is documented and deliberately inactive.
+(detached signing, built) is insider-resistant when the signing key is held outside the
+insider's boundary and every registered profile signs, with one gap open today (a signature
+over a transition that never committed); AL3 (external anchoring) is documented and
+deliberately inactive.
 None of them binds a human in the way "non-repudiation" implies to a lawyer.
 
 ## Can it stop a malicious operator?
@@ -28,7 +30,13 @@ Mostly no, and it says so. The operator holds the storage; an operator who rewri
 and recomputes every digest defeats AL1 by construction — AL1's claim is that *casual and
 non-recomputing* tampering of non-head transitions is evident on replay (the current chain
 head is the named blind spot), which already covers most accident and most laziness. AL2 raises the bar to "compromise the signing key too," which is real if the
-key custodian is separate from the storage admin. If your threat model says even key
+key custodian is separate from the storage admin and every registered profile signs —
+otherwise the insider moves a signing record's genesis onto a non-signing profile and the
+signatures stop being checked. And AL2 verifies only what exists: deleting a record's latest
+transitions leaves every remaining signature verifying. One gap is open today: the library signs before it
+appends, so a signature over a transition that never committed (a rolled-back redemption,
+say) survives, and the insider can splice that transition back in
+([`integrating.md`](integrating.md), AL2). If your threat model says even key
 custody is in doubt, that is AL3's territory, and AL3 is inactive. Read
 [`../concept/ASSURANCE.md`](../concept/ASSURANCE.md) before relying on any of this — it
 names the blind windows explicitly.

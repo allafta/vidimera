@@ -32,7 +32,11 @@ export interface SignatureEntry {
  * the entry behind, and a seam that refuses against a record admitting no append target
  * leaves one on every call. They are safe to prune whenever no chain transition
  * references them — verification is chain-driven, so an entry with no chain counterpart
- * is never read for a verdict. The library performs no pruning, and this surface is never
+ * is never read for a verdict. Inert is not harmless: an orphan over a transition that was
+ * attempted and never committed is a valid signature over it, so a storage-writing insider
+ * who writes that transition back into the chain where it was signed for is not caught
+ * (SPEC §14's third condition); and the orphan of a head an insider deleted may be the only
+ * trace of it, so a host that prunes may want to keep what it removes. The library performs no pruning, and this surface is never
  * told which entries are dead — the operator's `verifySignatures(recordId).orphans` names
  * them (every sidecar digest with no chain counterpart, sorted; reporting only), and the
  * host acts on that. A backing that must not grow without bound therefore reconciles

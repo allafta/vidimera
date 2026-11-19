@@ -97,7 +97,10 @@ picture cuts both ways:
 - **The spec is the cheapest win.** The threat catalog and control checklist are
   implementable from the text; that is a feature, not a leak.
 - At **AL1** the tamper-evidence is non-recomputing-only — a competent team gets most of it
-  by replaying its own chain. The insider-recompute threat closes at **AL2 signing**.
+  by replaying its own chain. The insider-recompute threat closes at **AL2 signing**,
+  under the three conditions `SPEC.md` §14 states — every registered profile signs, the key
+  sits outside the insider's boundary, and no signature outlives an uncommitted append (the
+  last not yet met).
 - **Adopt clearly wins when:** the host needs **multi-party SoD** (restart-surviving
   four-eyes evidence, verify-by-replay references, and the retry-is-not-self-approval
   false-positive are subtle); **effect-binding redemption** (at-most-once under crashes and
