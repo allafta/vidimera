@@ -10,8 +10,9 @@ building the affected area.
 ## 1. AL2 detached signing — the enablement design
 
 The signing hook is scoped (operator-enabled; signatures over canonical transitions and
-consultations; closes the recompute residual and both genesis-head blind windows) but its
-enablement design is deliberately reserved for a dedicated decision:
+consultations; closes the recompute residual and both genesis-head blind windows, under the
+conditions SPEC §14 states) but its enablement design is deliberately reserved for a
+dedicated decision:
 
 - **Granularity** — enabled per deployment, per profile, or per record? What happens at a
   boundary (a profile flipping signing on with unsigned history behind it)? **Decided (this

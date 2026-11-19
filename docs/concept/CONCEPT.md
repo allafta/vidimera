@@ -113,7 +113,9 @@ These guards bind every document, README, and API name in any inheriting project
   never that judgment was *sound or independent*. Separation of duties evidences distinct
   principals, not independent judgment — two colluding humans satisfy it.
 - **Never "non-repudiation."** AL1 is tamper-*evident*; AL2 is insider-resistant (when the key
-  is outside the insider boundary); AL3 is anchored. None of them is called non-repudiation.
+  is outside the insider boundary, every registered profile signs, and no signature
+  outlives an uncommitted append — `SPEC.md` §14); AL3 is anchored. None of them is called
+  non-repudiation.
 - **Redemption is refusable-at-the-seam, not standalone prevention.** Given an idempotent
   executor, orphaned/duplicate/premature/mismatched effects are refusable at the seam; the
   library never executes effects and does not observe effects that bypass the seam.

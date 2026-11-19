@@ -435,7 +435,7 @@ transition never having existed in that form. Separately, an adversary with unre
 storage-write access can delete a transition and recompute every subsequent hash, and replay
 then verifies clean. Both are the base-level (AL1) limit, stated plainly; detached signing
 (§14) is the upgrade that makes recomputation and head-edits detectable without trusting
-storage.
+storage, under the three conditions §14 states.
 
 **Mandatory pre-seam chain-verify.** Every operator-side mutating seam verifies the chain
 before acting — the acted-on record's own chain. The one en-passant append to a **different**
@@ -451,7 +451,8 @@ edge at the current head via the ordinary sequencing rules — no separate `verd
 consultation, the failed verification folding into that one edge. This edge is **AL1-honest**:
 because it chains cleanly onto the tampered head it is only as trustworthy as the chain it
 extends, and `verifyChain` still reports only the original break — detached signing (§14) is
-the upgrade that makes the compromise-refusal independently trustworthy. The edge is admitted
+the upgrade that makes the compromise-refusal independently trustworthy, under the three
+conditions §14 states. The edge is admitted
 where the current state allows a state-leaving append — `open → refused` and
 `redeeming → refused` directly (both are non-terminal states), and `confirmed → refused`
 through §12's compromise carve-out where that `confirmed` is terminal (§2), directly
@@ -470,7 +471,7 @@ outside the library (§13). A sealed record reports its per-record status as `re
 seal edge is chain-final — no further transition of any kind extends a sealed chain (§12's
 C4). This is AL1-honest like every other append: the seal attests a clean replay at seal time,
 only as trustworthy as the chain it caps; detached signing (§14) is the upgrade that makes an
-end-of-life attestation independently verifiable.
+end-of-life attestation independently verifiable, under the three conditions §14 states.
 
 ## 6. Identity **[PROVEN]**
 
@@ -797,7 +798,8 @@ window the head-bound of §0/§5 applies: a storage-writing insider could alter 
 prior-leg actors before the deciding confirm without replay catching it — and the SoD gate
 reads that evidence at exactly that moment of use. Detached signing (AL2, §14) is the named
 upgrade that closes this (a signed genesis fails verification when its payload is edited, head
-or not).
+or not), while every registered profile signs and the key sits outside the insider's boundary
+(§14's first two conditions).
 
 A leg declaring `sod.notActorOf` refuses `sod-violation` when the finalizing principal is the
 recorded actor of any named prior leg; the lookup keys the record's own recorded references by
@@ -939,7 +941,7 @@ record the bound `policyDigest` and `profileDigest` both live in the sole-genesi
 payload, inside the §0/§5 head-bound blind window — a storage-writing insider who edits that
 genesis to match the drifted live policy and profile consistently defeats both gates. This
 is the policy-gate analog of §10.1's SoD-evidence window; detached signing (AL2, §14) is the
-named closure.
+named closure, under the same two of §14's conditions.
 
 **Recovery is disposal + re-open, not retry.** `policy-drift` mirrors `content-drift` — a
 bound-vs-reality mismatch with no in-place recovery, because the `policyDigest` is immutable
