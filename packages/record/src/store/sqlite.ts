@@ -230,8 +230,10 @@ export class SqliteStore implements Store {
   }
 
   /** Enlisted (SPEC §12: "enlisted in that transaction and commits or rolls back with
-   * it") — the body runs on the open transaction with NO BEGIN/COMMIT/ROLLBACK of our
-   * own, inside a savepoint (`inEnlistedUnit`); or, with no tx, inside our own transaction. */
+   * it") — the body runs on the open transaction inside a savepoint (`inEnlistedUnit`), and
+   * nothing here ends the host's transaction: no BEGIN, COMMIT or ROLLBACK of our own, only the
+   * savepoint's `ROLLBACK TO`, which undoes the body's own rows on a throw; or, with no tx,
+   * inside our own transaction. */
   private inTransaction<T>(tx: DatabaseSync | undefined, body: () => T): T {
     if (tx !== undefined) {
       this.validateTx(tx);

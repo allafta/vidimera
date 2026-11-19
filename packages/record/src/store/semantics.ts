@@ -5,7 +5,8 @@
 // `findNonTerminal` on C1's own predicate. Behavior is byte-identically what memory.ts
 // carried; the conformance suite over MemoryStore is the regression gate on the
 // extraction. The integrated sidecar's entry check (`signatureEntriesToWrite`) joined it
-// on the same argument, once each of the three backings carried its own copy.
+// on the same argument, once `MemoryStore` and `SqliteStore` each carried a copy of their
+// own. `PostgresStore` never had one: its sidecar landed after the extraction, on this check.
 
 import { transitionDigest } from '../chain/encoding.js';
 import { REGISTRY, type RefusalCode } from '../refusal-codes.js';
@@ -137,10 +138,11 @@ export function isCompromiseCarveOut(
  * Returns `undefined` when the append carries no `meta.signatures`. Otherwise the field must
  * be an array with exactly one entry per appended transition, in order; each entry must be an
  * object naming that transition's own `transitionDigest`, `recordId` and `seq`, with a string
- * `keyRef` and a string `signature`. Unchecked, a SQL backing would store a non-string as
- * other text (SQLite stores 42 as '42.0') or refuse it (a null, say) only at the entry insert,
- * after the transition rows were written — rows a host that commits after the throw could land
- * unsigned — so the strings are checked here with the rest, for every backing alike.
+ * `keyRef` and a string `signature`. Unchecked, a non-string would be mis-stored silently —
+ * SQLite stores 42 as the text '42.0' — or, a null say, refused only at the entry insert, after
+ * the transition rows: a late failure the append's unit still undoes (SQLite's savepoint or its
+ * own transaction; on Postgres, the aborted transaction), but a different one on each backing.
+ * So the strings are checked here with the rest, for every backing alike, before any write.
  *
  * Anything else throws an `Error` whose message starts `<storeName>: meta.signatures`. On
  * success it returns, per entry, a FRESH object holding exactly the five `SignatureEntry`

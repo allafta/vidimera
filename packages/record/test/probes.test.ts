@@ -280,6 +280,33 @@ function makeFullDriver(): ProbeDriver {
   };
 }
 
+/**
+ * `makeFullDriver` over an INTEGRATED signing configuration: the configured sidecar is the
+ * store's own (`signatures: store.signatures`, the very object), so the signing decorator hands
+ * each entry down on its append and the store writes it inside the append's atomic unit, where
+ * `makeFullDriver`'s separate `MemorySignatureStore` is written before the append. Every other
+ * profile and hook is the same, so the two drivers must reach the same outcome on every probe.
+ */
+function makeIntegratedFullDriver(): ProbeDriver {
+  return {
+    ...sharedDriverMethods(),
+    makeConfig(): Config {
+      const store = new MemoryStore();
+      return {
+        profiles: fullProfiles(),
+        store,
+        canonicalizers: { [CANONICALIZER_REF]: identityCanonicalizer() },
+        signing: {
+          signer,
+          verifiers: { 'probe-key-1': verifier },
+          signatures: store.signatures,
+        },
+      };
+    },
+    // No restartPersistence, as in makeFullDriver.
+  };
+}
+
 /** Cleanup closures minted by `makeSqliteRestartDriver` below, one per `makeConfig()`
  * call — run after every test so this file leaves nothing on disk. Each closure closes
  * whatever connection is CURRENTLY open (read at cleanup time, not capture time — a
@@ -681,6 +708,29 @@ test('the full-featured (in-memory) driver: every registered probe passes EXCEPT
   }
   assert.equal(report.expiredWaivers.length, 0);
   assert.equal(report.unusedWaivers.length, 0);
+});
+
+test("the full-featured driver over an integrated sidecar (`signatures: store.signatures`): every probe reaches the separate-sidecar driver's outcome — all pass but state-survives-restart, not-driven", async () => {
+  const separate = await runProbes(makeFullDriver());
+  const integrated = await runProbes(makeIntegratedFullDriver());
+  assert.equal(integrated.results.length, ALL_PROBES.length);
+  for (const probe of ALL_PROBES) {
+    const result = integrated.results.find((r) => r.id === probe.id);
+    assert.ok(result !== undefined, `probe '${probe.id}' produced no result`);
+    const expected = probe.id === 'state-survives-restart' ? 'not-driven' : 'pass';
+    assert.equal(
+      result.status,
+      expected,
+      `probe '${probe.id}' expected ${expected}, observed ${JSON.stringify(result)}`,
+    );
+    assert.equal(
+      result.status,
+      separate.results.find((r) => r.id === probe.id)?.status,
+      `probe '${probe.id}': the same outcome as over the separate sidecar`,
+    );
+  }
+  assert.equal(integrated.expiredWaivers.length, 0);
+  assert.equal(integrated.unusedWaivers.length, 0);
 });
 
 test('a SQLite-backed restart driver: state-survives-restart passes against REAL close-and-reopen persistence', {

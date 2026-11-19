@@ -1,7 +1,8 @@
 // @vidimera/record — sqlite-store.test.ts: the embedded backing's OWN pins — everything
 // here is deliberately backing-specific (the conformance suite carries the contract):
 // file-backed durability, tx enlistment (SPEC §12: "enlisted in that transaction and
-// commits or rolls back with it" — enlisted, never wrapped), the foreign-handle and
+// commits or rolls back with it" — enlisted, never wrapped in a transaction of its own; the
+// enlisted body runs in a savepoint inside the host's), the foreign-handle and
 // no-open-transaction throws, and the JSON-drop payload-consistency pin that is this
 // backing's counterpart to MemoryStore's DataCloneError posture.
 

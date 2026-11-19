@@ -313,6 +313,7 @@ test("PostgresStore, integrated — a redemption enlisted in a host client's tra
   );
 
   const client = await sharedPool().connect();
+  let rollbackFailure: Error | undefined;
   try {
     await client.query('BEGIN');
     const redeemed = await rig.handles.operator.redeem(recordId, CONTENT, { tx: client });
@@ -333,9 +334,19 @@ test("PostgresStore, integrated — a redemption enlisted in a host client's tra
       'inside the transaction, on its client, the entry is written with the transition',
     );
   } finally {
-    await client.query('ROLLBACK');
-    client.release();
+    // The client is released in a finally of its own, so a ROLLBACK that throws cannot leak it
+    // from the shared pool; one whose ROLLBACK failed is released WITH that error, so pg discards
+    // it rather than handing a possibly open transaction to the next borrower, and the failure
+    // is rethrown once the client is back.
+    try {
+      await client.query('ROLLBACK');
+    } catch (err) {
+      rollbackFailure = err instanceof Error ? err : new Error(String(err));
+    } finally {
+      client.release(rollbackFailure);
+    }
   }
+  if (rollbackFailure !== undefined) throw rollbackFailure;
 
   assert.deepEqual(await chainDigests(store, recordId), committed, 'the redemption rolled back');
   assert.deepEqual(
@@ -512,6 +523,12 @@ test("PostgresStore, enlisted: an entry insert that fails leaves the host's tran
       () => store.appendBatch('open', batch, signed({ nonTerminal: false }, ...batch), client),
       /refused by the test trigger/,
       'an enlisted batch',
+    );
+    // The abort itself: the host's transaction now refuses every statement until it ends.
+    await assert.rejects(
+      () => client.query('SELECT 1'),
+      /current transaction is aborted/,
+      "the failed entry insert left the host's transaction aborted",
     );
     await client.query('COMMIT'); // the host commits regardless
   } catch (err) {

@@ -523,6 +523,103 @@ test('MemoryStore: a mismatched meta.signatures throws before any other check, a
   assert.equal(landed.appended, true, 'the record is still `open`: the right batch lands');
 });
 
+test('a meta.signatures that is not an array is refused by the shared entry check before anything is written — an array-like of the right length included — on MemoryStore and SqliteStore', async () => {
+  // `signatureEntriesToWrite`'s first branch. A count check alone would take `{ length: 1, 0:
+  // entry }` for one transition and write the entry; the refusal must name the shape instead.
+  const backings: [string, () => Store & { readonly signatures: SignatureStore }][] = [
+    ['MemoryStore', () => new MemoryStore()],
+    ['SqliteStore', () => new SqliteStore(':memory:')],
+  ];
+  const entry = (t: Transition): SignatureEntry => ({
+    transitionDigest: transitionDigest(t),
+    recordId: t.recordId,
+    seq: t.seq,
+    keyRef: 'key-1',
+    signature: `sig:${t.seq}`,
+  });
+  const notAnArray = (transitions: readonly Transition[]): [string, unknown][] => [
+    [
+      'an array-like of the right length',
+      Object.assign({ length: transitions.length }, transitions.map(entry)),
+    ],
+    ['a bare entry', entry(transitions[0] as Transition)],
+    ['null', null],
+    ['a string of the right length', 'x'.repeat(transitions.length)],
+  ];
+  const refusal = (name: string) =>
+    new RegExp(
+      `^Error: ${name}: meta\\.signatures must carry exactly one entry per appended transition, ` +
+        'in order — it carries no array',
+    );
+
+  for (const [name, make] of backings) {
+    const store = make();
+    const genesis = storeGenesis('rec-tx-nonarray', 'profile.p1', 'subject:tx-nonarray');
+    for (const [label, carried] of notAnArray([genesis])) {
+      await assert.rejects(
+        () =>
+          store.appendTransition(null, genesis, {
+            nonTerminal: true,
+            signatures: carried as readonly SignatureEntry[],
+          }),
+        refusal(name),
+        `${name}, a genesis: ${label}`,
+      );
+    }
+    assert.deepEqual(await store.readChain('rec-tx-nonarray'), [], `${name}: no genesis landed`);
+    assert.equal(
+      await store.findNonTerminal('profile.p1', 'subject:tx-nonarray'),
+      null,
+      `${name}: nor its record`,
+    );
+    assert.deepEqual(
+      await store.signatures.listByRecord('rec-tx-nonarray'),
+      [],
+      `${name}: no entry`,
+    );
+
+    const opened = await store.appendTransition(null, genesis, {
+      nonTerminal: true,
+      signatures: [entry(genesis)],
+    });
+    assert.equal(opened.appended, true, `${name}: fixture — the genesis lands, rightly signed`);
+    const confirmed = storeNext(genesis, 'confirmed', { actor: APPROVER });
+    const batch = successBatch(genesis);
+    for (const [label, carried] of notAnArray([confirmed])) {
+      await assert.rejects(
+        () =>
+          store.appendTransition('open', confirmed, {
+            nonTerminal: false,
+            signatures: carried as readonly SignatureEntry[],
+          }),
+        refusal(name),
+        `${name}, a subsequent append: ${label}`,
+      );
+    }
+    for (const [label, carried] of notAnArray(batch)) {
+      await assert.rejects(
+        () =>
+          store.appendBatch('open', batch, {
+            nonTerminal: false,
+            signatures: carried as readonly SignatureEntry[],
+          }),
+        refusal(name),
+        `${name}, a batch: ${label}`,
+      );
+    }
+    assert.deepEqual(
+      await store.readChain('rec-tx-nonarray'),
+      [genesis],
+      `${name}: chain unchanged`,
+    );
+    assert.deepEqual(
+      (await store.signatures.listByRecord('rec-tx-nonarray')).map((e) => e.seq),
+      [1],
+      `${name}: only the genesis entry`,
+    );
+  }
+});
+
 test('integrated mode keeps the mint and its check before the append: a batch whose second element fails the mint check throws, with nothing appended and nothing written', async () => {
   const store = new MemoryStore();
   const { publicKey, privateKey } = generateKeyPairSync('ed25519');
@@ -705,6 +802,55 @@ test('ROW 22, integrated, SqliteStore — six refusing finalize() calls against 
   );
   const report = await rig.handles.operator.verifySignatures(recordId);
   assert.deepEqual(report.orphans, [], 'zero orphans');
+});
+
+test('ROW 22, separate, SqliteStore — the same six refusing finalize() calls with a separate sidecar grow it by one orphan per call, from 5 to 11, and hand the store no entry', async () => {
+  // The baseline the integrated pin above is measured against, on the same backing: separate
+  // mode (a `MemorySignatureStore`, not the store's own) writes each entry before it delegates
+  // the append, so every refusing call leaves the entry it wrote for an append that never landed.
+  const store = new SqliteStore(':memory:');
+  const signatures = new MemorySignatureStore();
+  const rig = signingRig({ store, signatures });
+  const recordId = await sealedNoEdgeRecord(
+    rig.handles,
+    signatures,
+    store,
+    'subject:tx-sqlite-separate',
+  );
+  assert.deepEqual(
+    (await store.readChain(recordId)).map((t) => t.kind),
+    ['opened', 'consultation-recorded', 'consultation-recorded', 'confirmed', 'sealed'],
+    'fixture: a sealed record of five transitions',
+  );
+  const chain = await chainDigests(store, recordId);
+  assert.deepEqual(
+    await sidecarDigests(signatures, recordId),
+    chain,
+    'fixture: one entry per landed transition before the refusing calls — 5',
+  );
+
+  const mintsBefore = rig.mints();
+  for (let call = 1; call <= 6; call += 1) {
+    const out = await rig.handles.operator.finalize(recordId, identity(), CONTENT, facts());
+    assertNoEdgeRefusal(out, `sealed corner, call ${call}`);
+    assert.equal((await store.readChain(recordId)).length, chain.length, 'chain flat');
+    assert.equal(
+      (await signatures.listByRecord(recordId)).length,
+      chain.length + call,
+      `the sidecar grows by exactly one per refusing call (call ${call})`,
+    );
+    assert.equal(rig.mints() - mintsBefore, call, 'one mint per refusing call');
+  }
+  assert.equal((await signatures.listByRecord(recordId)).length, 11, 'from 5 to 11');
+  const orphans = (await sidecarDigests(signatures, recordId)).filter((d) => !chain.includes(d));
+  assert.equal(orphans.length, 6, 'six orphans, one per refusing call');
+  const report = await rig.handles.operator.verifySignatures(recordId);
+  assert.deepEqual(report.orphans, orphans, 'verifySignatures names exactly those six');
+  assert.deepEqual(
+    await store.signatures.listByRecord(recordId),
+    [],
+    "separate mode: the store's own sidecar table was never handed an entry",
+  );
 });
 
 test("SqliteStore, integrated — open()'s expire-then-retry under a moving clock leaves no orphan genesis", async () => {
@@ -1037,9 +1183,10 @@ test("SqliteStore, enlisted: when the failure ends the host's transaction itself
 });
 
 test('SqliteStore: an entry whose keyRef or signature is not a string is refused before anything is written — enlisted, a host that commits after the throw lands nothing', async () => {
-  // Unchecked, the insert stores a numeric keyRef as other text ('42.0') and throws on a null
-  // signature only at the entry insert, after the transition rows — a host that then committed
-  // its transaction would land the transition unsigned. The check runs with the others, first.
+  // Unchecked, the insert would silently store a numeric keyRef as other text ('42.0'), and would
+  // throw on a null signature only at the entry insert, after the transition rows — a late
+  // failure the enlisted savepoint undoes, but a different one from Postgres's. The check runs
+  // with the others, first, so neither reaches the table.
   const store = new SqliteStore(':memory:');
   const genesis = storeGenesis('rec-tx-strict', 'profile.p1', 'subject:tx-strict');
   await store.appendTransition(null, genesis, { nonTerminal: true });
