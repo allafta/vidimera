@@ -167,7 +167,9 @@ is the summary, and that file wins on conflict.
   sealed-set edit, no marker move). `MemoryStore`, `SqliteStore` and `PostgresStore` each expose
   their own detached-signature sidecar as `signatures` (a map; a `signatures` table on the same
   connection; a `signatures` table in the same schema, which existing SQLite files and Postgres
-  schemas gain on open or first use). Configure `signing.signatures: store.signatures` and the
+  schemas gain on open or first use — a table already named `signatures` there with another
+  shape is left as it is and makes the store throw, so the guide's store list names the four
+  tables each SQL store owns). Configure `signing.signatures: store.signatures` and the
   instance runs INTEGRATED: each signature is still minted and checked before the append, then
   rides it as `AppendMeta.signatures`, and the store writes it inside the append's own atomic
   unit, after every check, only when the append applies — through the host's transaction when a
@@ -182,15 +184,19 @@ is the summary, and that file wins on conflict.
   `SqliteStore` now runs every enlisted write in a savepoint, so an enlisted append that throws
   leaves none of its rows in the host's transaction. The limits, in the same breath: any other
   sidecar runs SEPARATE mode — the old write-first order, unchanged, with its orphans and its
-  spliceable signatures, so condition (iii) stays open there; an existing deployment switching to
-  the store's own sidecar must copy its entries across with `put` first, or those records read
-  unsigned and refuse `chain-compromise` (nothing is migrated); a store wrapper must expose the
-  inner store's `signatures` and forward `meta` intact, or it runs separate — and one that drops
-  `meta.signatures` lands transitions unsigned, which the next seam refuses; and if a seam throws
-  inside a host transaction, roll it back (on Postgres the failed statement has already aborted
-  it). Mode is selected by identity, once, at construction, and reported nowhere but the
-  configuration. The sealed set's own statement of condition (iii) still describes the old order;
-  its narrowing to a separate sidecar is the pending second commit call 3 reserves.
+  spliceable signatures, so condition (iii) stays open there; an existing deployment switching
+  modes, in either direction, must stop every instance that writes to the store, copy the entries
+  with `put` into the sidecar the new configuration will read, and only then start the new
+  configuration alone — otherwise records whose entries stay behind read unsigned and refuse
+  `chain-compromise`, and two configurations run against one store at once (a rolling restart)
+  each write entries the other cannot see, so the next verifying seam appends a terminal
+  `chain-compromise` edge on a healthy record (nothing is migrated); a store wrapper must
+  expose the inner store's `signatures` and forward `meta` intact, or it runs separate — and one
+  that drops `meta.signatures` lands transitions unsigned, which the next seam refuses; and if a
+  seam throws inside a host transaction, roll it back (on Postgres the failed statement has
+  already aborted it). Mode is selected by identity, once, at construction, and reported nowhere
+  but the configuration. The sealed set's own statement of condition (iii) still describes the
+  old order; its narrowing to a separate sidecar is the pending second commit call 3 reserves.
 
 ### Changed
 

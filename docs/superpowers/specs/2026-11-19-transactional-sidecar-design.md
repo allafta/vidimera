@@ -162,3 +162,71 @@ rollback case.
 Every gate clean on all three backings (the store-postgres suite runs against its embedded
 Postgres); row 22's measurements recorded; a whole-branch review on the most capable model; then
 the call 3.2 sealed follow-up as its own change.
+
+## 8. Amended after the whole-branch review
+
+A fresh whole-branch review on the most capable model approved the branch with fixes: no
+Critical finding, one Important and ten Minor. It found the code meets every ruling above — on all
+three backings and every path an entry is written inside the append's unit, no conflict arm
+writes one, a malformed `meta.signatures` is refused before anything is written, and the mode is
+chosen by identity alone — and that what blocked a clean merge was documentation. The controller
+ruled on each finding; §§1–7 stand as written except where these amend them.
+
+**8.1 Switching, in both directions, with every writer stopped (amends 5.4).** 5.4's switching
+step is safe only if no instance on the old configuration writes to the store between the copy
+and the switch, or after it. A rolling restart breaks that: instances on the two configurations
+each write entries the other cannot see, and the next seam that verifies such a record appends a
+terminal `chain-compromise` edge on a record nobody tampered with. The reverse switch — integrated
+back to separate, to move signatures onto storage of their own — has the same consequence and was
+not stated. Ruling: everywhere the step appears (the guide, the api-reference, the CHANGELOG,
+`next-phases.md`, the status record), it is stated for both directions: stop every instance that
+writes to the store, copy the entries with `put` into the sidecar the new configuration will read,
+then start only the new configuration.
+
+**8.2 The table names stay, and are documented (amends 5.3).** The review found that a
+pre-existing table named `signatures` reaches into existing databases (SQLite enlistment is
+same-connection by design, so a host's own tables live in the store's file). Ruling: keep the
+unprefixed name, consistent with `staged`, `records` and `transitions`; the guide's store list
+names the four tables each SQL store owns, in its database file (SQLite) or schema (Postgres),
+and what a same-named table of another shape does. Measured on scratch databases for both
+backings before it was written: the store throws on SQLite at open, and on Postgres at every
+call, when an index it creates names a column that table lacks (`records`, or a `signatures`
+without `record_id`); otherwise at the first statement needing a missing column (a `signatures`
+with `record_id` but not the other columns refuses the first append carrying entries, which
+applies nothing). An existing index named `records_c1_exclusivity` or `signatures_by_record` is
+kept as found and the store's own is silently not created; the guide states that too. 5.3's "An
+existing SQLite or Postgres database gains the table on first use" holds only where no table of
+that name exists.
+
+**8.3 Pruning assumes no delete (amends the guide's reading of 5.4).** `SignatureStore` has no
+`delete`; only `MemorySignatureStore` carries one, outside the contract, and the three integrated
+sidecars expose none. The guide and the api-reference now say so: in separate mode a host
+reconciles its own sidecar against the chain; in integrated mode an orphan is evidence — a
+committed transition deleted or rewritten, or a planted entry — to keep, unless the host's own
+`put` wrote it, and removing one is the host's own SQL delete by `transition_digest` against the
+store's `signatures` table.
+
+**8.4 Wording and stale comments.** The status record's §12 row and `SqliteStore`'s
+`inTransaction` comment describe the savepoint the enlisted body runs in, which ends nothing of the
+host's (the review confirmed it is not an inversion: the host's boundary is untouched); the entry
+check's rationale for its string checks is silent mis-storage (SQLite stores `42` as the text
+`'42.0'`) and a late, backing-specific failure — no longer a host commit landing rows unsigned,
+which the SQLite savepoint and the Postgres abort both rule out; `store/semantics.ts` no longer
+says three backings carried a copy of the check (`PostgresStore` never did); the api-reference is
+re-dated; two over-long guide lines are rewrapped.
+
+**8.5 Pins added.** Each behavior already held, so each pin was shown to discriminate by a
+temporary mutation, reverted: separate mode on `SqliteStore` (six refusing calls grow a separate
+sidecar from 5 to 11, six orphans, the store's own table untouched — the figure the guide cites,
+re-measured on all three backings and unchanged); a non-array `meta.signatures` refused before
+anything is written, on `MemoryStore` and `SqliteStore`; `signatureEntriesToWrite` named in the
+public-surface pin; the store-postgres enlisted pin asserting the abort itself; the store-postgres
+rollback pin releasing its client even when `ROLLBACK` throws; and the probe tier run over an
+integrated configuration, reaching the separate configuration's outcome on every probe.
+
+**8.6 Deferred, with its reason.** `PostgresStore` writes an append's entries one statement per
+round trip while it holds the record-row lock, so a many-element batch lengthens the hold; one
+multi-row upsert would shorten it. Deferred by ruling: the lock order is unchanged — entry rows
+are inserted only by the holder of the record-row lock, or of the genesis advisory lock after its
+records insert — so no new wait cycle is possible, and the cost is latency under many-element
+batches on a hot record.

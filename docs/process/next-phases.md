@@ -139,13 +139,19 @@ flip from a hand-maintained enumeration into a grep recipe;
   refusing `finalize()` calls against a sealed signing record whose genesis entry was broken
   leave chain 5 and sidecar 5 after every call, one mint per call, zero orphans; the same rig
   with a separate `MemorySignatureStore` still goes 6, 7, 8, 9, 10, 11 — six orphans. Pinned on
-  each backing: that measurement, `open()`'s retry and a `record-contended` lost batch leaving no
-  orphan, and an enlisted redemption rolled back leaving none (SQLite and Postgres). The third
-  horn was not taken: both divergence pins stand unchanged. **What stays open, stated:** SEPARATE
-  mode — any sidecar that is not the store's own — keeps the write-first order and every
-  consequence, one orphan per refusing call included; an existing deployment switching to the
-  store's own sidecar must copy its entries across with `put` first (the library does not
-  migrate); and a store wrapper must expose the inner store's `signatures` and forward `meta`
+  each backing: the integrated measurement, `open()`'s retry and a `record-contended` lost batch
+  leaving no orphan, and an enlisted redemption rolled back leaving none (SQLite and Postgres);
+  the separate series is pinned on `MemoryStore` (`no-edge-containment.test.ts`'s baselines)
+  and, since the fix wave after the whole-branch review, on `SqliteStore`, and was re-measured on
+  all three backings then, unchanged. The third horn was not taken: both divergence pins stand
+  unchanged. **What stays open, stated:** SEPARATE mode — any sidecar that is not the store's
+  own — keeps the write-first order and every consequence, one orphan per refusing call
+  included; an existing deployment switching modes, in either direction, must stop every instance
+  that writes to the store, copy the entries with `put` into the sidecar the new configuration
+  will read, and only then start the new configuration alone — two configurations run against one
+  store at once (a rolling restart) each write entries the other cannot see, and the next
+  verifying seam appends a terminal `chain-compromise` edge on a healthy record (the library does
+  not migrate); and a store wrapper must expose the inner store's `signatures` and forward `meta`
   intact, or it runs separate. The row is retired; `docs/process/implementation-status.md`'s
   section of that name carries the account. The sealed-set restatement of condition (iii) that
   call 3.2 reserves for this increment is pending, as its own change.

@@ -1,6 +1,6 @@
 # API reference
 
-**Derived from source, 2026-08-21.** This page enumerates the public surface as
+**Derived from source, 2026-11-20.** This page enumerates the public surface as
 `packages/record/src/index.ts` exports it against the current tree. The source and
 [`../concept/SPEC.md`](../concept/SPEC.md) are authoritative; if this page disagrees with
 either, this page is stale — file it as a bug. Two standing caveats: the pre-0.1 API
@@ -558,12 +558,22 @@ expose it — `MemoryStore` over a private map, `SqliteStore` over a `signatures
 connection (created with the schema, so an existing file gains it on open), and
 `@vidimera/store-postgres`'s `PostgresStore` over a `signatures` table in its schema (created by
 the lazy DDL on first use) — and the conformance suite registers an integrated-sidecar block for
-every backing that exposes one. Two limits, stated with it: an existing deployment switching from
-a separate sidecar must copy its entries across with `put` first, or the records they sign read
-unsigned and refuse `chain-compromise` (the library migrates nothing); and a store wrapper must
-expose the inner store's `signatures` and forward `meta` intact, or it runs in separate mode —
-or, exposing `signatures` while dropping `meta.signatures`, lands its transitions unsigned, which
-the next seam refuses `chain-compromise`. `integrating.md`'s AL2 section states both modes.
+every backing that exposes one. Each SQL store owns four tables, `staged`, `records`,
+`transitions` and `signatures`, in its database file (SQLite) or schema (Postgres), creating them
+with `IF NOT EXISTS` and never altering one: a pre-existing table of one of those names with
+another shape makes the store throw — on SQLite at open and on Postgres at every call when an
+index it creates names a missing column, otherwise at the first statement that needs one
+(`integrating.md`'s "Choosing a store" gives the cases). Two limits, stated with it: an existing
+deployment switching modes, in either direction, must stop every instance that writes to the
+store, copy the entries with `put` into the sidecar the new configuration will read, and only
+then start instances on the new configuration alone — an entry left in the other sidecar makes
+its record read unsigned and refuse `chain-compromise`, and two configurations run against one
+store at once (a rolling restart, say) each write entries the other cannot see, so the next
+verifying seam appends a terminal `chain-compromise` edge on a healthy record (the library
+migrates nothing); and a store wrapper must expose the inner store's `signatures` and forward
+`meta` intact, or it runs in separate mode — or, exposing `signatures` while dropping
+`meta.signatures`, lands its transitions unsigned, which the next seam refuses
+`chain-compromise`. `integrating.md`'s AL2 section states both modes.
 
 ### Adapter authors
 
@@ -778,12 +788,18 @@ In both modes orphans are inert to verification — every reader correlates from
 sidecar, never the reverse, so an orphan is never read for a verdict — and they are safe to
 prune whenever no chain transition references them. The library performs no pruning, but it
 tells you which entries are dead: `verifySignatures(recordId).orphans` names every sidecar
-digest with no chain counterpart, sorted, at no read the call was not already making. A backing
-that must not grow without bound reconciles by deleting what that names — when no seam call on
-the record is in flight: in separate mode an in-flight append's entry and an orphan carry the
-same `seq`, and in either mode the call reads the chain before it lists the sidecar, so an
-append that commits between the two reads lists as an orphan. This is stated as an obligation,
-not enforced: nothing in the library reads your implementation.
+digest with no chain counterpart, sorted, at no read the call was not already making.
+`SignatureStore` has no delete — only the reference `MemorySignatureStore` carries one, outside
+the contract, and the three integrated sidecars expose none. In separate mode, a sidecar of your
+own that must not grow without bound reconciles by deleting what that names. In integrated mode,
+an orphan is evidence to keep — a committed transition deleted or rewritten, or a planted
+entry — unless your own `put` wrote it; removing one is the host's own act, a SQL `DELETE` by
+`transition_digest` against the store's `signatures` table (an implementation artifact, not an
+API), and `MemoryStore`'s map cannot be pruned. Reconcile only when no seam call on the record is
+in flight: in separate mode an in-flight append's entry and an orphan carry the same `seq`, and
+in either mode the call reads the chain before it lists the sidecar, so an append that commits
+between the two reads lists as an orphan. This is stated as an obligation, not enforced: nothing
+in the library reads your implementation.
 
 All of these names — plus `withSigning` (the store decorator) and the reference
 `MemorySignatureStore` — are exported from the entry point: the 2026-08-19 review moved
