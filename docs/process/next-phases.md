@@ -471,6 +471,23 @@ unreachable for chains it wrote), and one clock read per kernel operation in `fi
 reads today; the decision rung and the stamp can straddle a deadline by a millisecond), which
 belongs with the ladder extraction the 2026-08-30 catalogue's item 38 already names.
 
+Three items the transactional-sidecar reviews (2026-11-19/20) found, none introduced by that
+increment and none a sanction question, are recorded here so they are not lost:
+
+- **A failed `SqliteStore` open leaves its connection open.** When the schema statements throw
+  (for instance against a pre-existing table of one of the store's names with another shape),
+  the `DatabaseSync` the constructor opened is never closed, which on Windows keeps the file
+  locked for the life of the process.
+- **A same-named index silently replaces a backing's own.** Each SQL store creates its indexes
+  with `IF NOT EXISTS`, so an existing index named `records_c1_exclusivity` (or
+  `signatures_by_record`) on another table makes the store skip its own. For
+  `records_c1_exclusivity` that loses the durable backstop for C1 exclusivity under concurrency
+  without a word; a check at open that the index exists on the store's own table would make it
+  loud. The guide states the table-name collision; this index case is the quieter one.
+- **`PostgresStore` writes an append's signature entries one round trip at a time** while it holds
+  the record-row lock. Lock order is unchanged, so no new deadlock risk; a single multi-row
+  insert would shorten the time the lock is held for a many-element batch.
+
 ### OQ §2 — decided in code; the recording gap closed 2026-08-19; the corner itself
 superseded 2026-09-03
 

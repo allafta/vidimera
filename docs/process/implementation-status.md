@@ -7125,3 +7125,18 @@ keeps.
 (no code moved) and was measured at `main` `75ed531`: `ci-assert-tests: ok — 1240 tests in 88 files
 (96 suites): 1240 passed, 0 failed, 0 skipped, 0 todo`; biome (`--error-on-warnings`, 161 files),
 `contract-scan`, `api-reference-sync` and `docs-index-sync` exit 0 on this branch.
+
+## Post-build-order note — the Windows exit-hook test budget (test-only)
+
+**2026-11-20, branch `exit-hook-budget-2026-11-20`.** The three tests in
+`packages/store-postgres/test/global-setup-exit-hooks.test.ts` that spawn a Node child process
+loading `embedded-postgres` get a 30s budget (`SUBPROCESS_TIMEOUT_MS`) in place of vitest's 5s
+default. Across ten Windows CI runs between 2026-11-17 and 2026-11-20 the file took 0.6s to 6.0s,
+and on 2026-11-19 one of these tests took 5.2s and failed on the default alone while every other
+leg passed (PR #25's first run; its rerun passed). Thirty seconds is five times the slowest file
+observed; a pass is still decided by the child's exit status and stderr. Same class as the
+2026-11-19 SQLite probe budget note above. Test-only: no source file, assertion, byte or marker
+moves. The same change records, in `docs/process/next-phases.md`, three items the
+transactional-sidecar reviews found and nobody owned yet: a failed `SqliteStore` open that
+leaves its connection open, a same-named index that silently replaces a backing's own (C1's
+backstop among them), and `PostgresStore`'s per-entry round trips under the record-row lock.
