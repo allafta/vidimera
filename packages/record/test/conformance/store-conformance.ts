@@ -1385,6 +1385,84 @@ export function runStoreConformance<S extends Store>(
           assert.equal(landed.appended, true, 'the record is where it was: the batch still lands');
         });
 
+        test('an entry whose keyRef or signature is not a string throws a caller error and applies nothing', async () => {
+          // A SQL backing stores a number as other text and refuses a null only at the entry
+          // insert, after the transition rows; every backing therefore checks both fields with
+          // the rest, before anything is written.
+          const store = makeStore();
+          const sidecar = sidecarOf(store);
+          const genesis = storeGenesis('rec-int-strings', 'profile.p1', 'subject:int-strings');
+          const right = entryFor(genesis);
+          const badGenesis: [string, unknown][] = [
+            ['a numeric keyRef', { ...right, keyRef: 42 }],
+            ['a null keyRef', { ...right, keyRef: null }],
+            ['a missing signature', { ...right, signature: undefined }],
+            ['an object signature', { ...right, signature: { value: 'sig' } }],
+          ];
+          for (const [label, entry] of badGenesis) {
+            await assert.rejects(
+              () =>
+                store.appendTransition(null, genesis, {
+                  nonTerminal: true,
+                  signatures: [entry as SignatureEntry],
+                }),
+              /meta\.signatures/,
+              `genesis, ${label}`,
+            );
+          }
+          assert.deepEqual(await store.readChain('rec-int-strings'), [], 'no genesis landed');
+          assert.equal(await store.findNonTerminal('profile.p1', 'subject:int-strings'), null);
+          assert.deepEqual(await sidecar.listByRecord('rec-int-strings'), []);
+          const opened = await store.appendTransition(null, genesis, {
+            nonTerminal: true,
+            signatures: [right],
+          });
+          assert.equal(opened.appended, true, 'the same genesis, rightly signed, lands');
+
+          const batch = successBatch(genesis);
+          const entries: unknown[] = batch.map((t) => entryFor(t));
+          entries[1] = { ...entryFor(batch[1] as Transition), signature: 7 };
+          await assert.rejects(
+            () =>
+              store.appendBatch('open', batch, {
+                nonTerminal: false,
+                signatures: entries as SignatureEntry[],
+              }),
+            /meta\.signatures/,
+            "batch, the second element's numeric signature",
+          );
+          assert.deepEqual(await store.readChain('rec-int-strings'), [genesis], 'nothing applied');
+          assert.deepEqual(await listed(sidecar, 'rec-int-strings'), [right]);
+        });
+
+        test("an appended entry is stored as its five fields, each read once from the caller's entry: an extra member is not stored, and what was checked is what is stored", async () => {
+          const store = makeStore();
+          const sidecar = sidecarOf(store);
+          const genesis = storeGenesis('rec-int-fields', 'profile.p1', 'subject:int-fields');
+          let keyRefReads = 0;
+          const carried = {
+            ...entryFor(genesis),
+            extra: 'not an entry field',
+            // A string on the first read, a number on any later one: a store that checked one
+            // read and stored another would store the number.
+            get keyRef(): unknown {
+              keyRefReads += 1;
+              return keyRefReads === 1 ? 'key-1' : 42;
+            },
+          };
+          const opened = await store.appendTransition(null, genesis, {
+            nonTerminal: true,
+            signatures: [carried as unknown as SignatureEntry],
+          });
+          assert.equal(opened.appended, true, 'fixture: the genesis lands');
+          assert.equal(keyRefReads, 1, 'keyRef was read once');
+          assert.deepEqual(
+            await listed(sidecar, 'rec-int-fields'),
+            [entryFor(genesis)],
+            'the five fields, as first read, and nothing else',
+          );
+        });
+
         test('put is a standalone upsert by transitionDigest, an append upserts the same way, and every entry is a copy', async () => {
           const store = makeStore();
           const sidecar = sidecarOf(store);
@@ -1437,7 +1515,12 @@ export function runStoreConformance<S extends Store>(
         if (hostTransactions !== undefined) {
           const host = hostTransactions;
 
-          /** Runs `body` enlisted in a host transaction on `store`, then ends it as `end` says. */
+          /**
+           * Runs `body` enlisted in a host transaction on `store`, then ends it as `end` says.
+           * When `body` throws, the transaction is rolled back and the body's error is what
+           * surfaces: a rollback that also throws is swallowed, so it cannot mask the failure
+           * that caused it.
+           */
           async function enlisted(
             store: S,
             end: 'commit' | 'rollback',
@@ -1447,7 +1530,11 @@ export function runStoreConformance<S extends Store>(
             try {
               await body(tx);
             } catch (err) {
-              await host.rollback(store, tx);
+              try {
+                await host.rollback(store, tx);
+              } catch {
+                // The body's error is the finding; this one is a consequence of it.
+              }
               throw err;
             }
             await (end === 'commit' ? host.commit(store, tx) : host.rollback(store, tx));
@@ -1542,6 +1629,60 @@ export function runStoreConformance<S extends Store>(
               [],
               "the rolled-back record's entries rolled back with its transitions",
             );
+          });
+
+          test('enlisted in a host transaction that commits after a refused meta.signatures: the refusal wrote nothing, so the commit lands nothing', async () => {
+            // The entry check runs before anything is written: a store that wrote the
+            // transition rows first and threw at the entries would leave them in the host's
+            // transaction, and a host that commits anyway would land them unsigned.
+            const store = makeStore();
+            const sidecar = sidecarOf(store);
+            const base = storeGenesis('rec-int-tx-refused', 'profile.p1', 'subject:int-tx-refused');
+            const opened = await store.appendTransition(
+              null,
+              base,
+              signed({ nonTerminal: true }, base),
+            );
+            assert.equal(opened.appended, true, 'fixture: the base record lands, committed');
+            const confirmed = storeNext(base, 'confirmed', { actor: APPROVER });
+            const batch = successBatch(base);
+            await enlisted(store, 'commit', async (tx) => {
+              await assert.rejects(
+                () =>
+                  store.appendTransition(
+                    'open',
+                    confirmed,
+                    {
+                      nonTerminal: false,
+                      signatures: [
+                        { ...entryFor(confirmed), keyRef: 42 } as unknown as SignatureEntry,
+                      ],
+                    },
+                    tx,
+                  ),
+                /meta\.signatures/,
+                'a subsequent append, a numeric keyRef',
+              );
+              await assert.rejects(
+                () =>
+                  store.appendBatch(
+                    'open',
+                    batch,
+                    signed({ nonTerminal: false }, batch[0] as Transition),
+                    tx,
+                  ),
+                /meta\.signatures/,
+                'a batch, one entry for three transitions',
+              );
+            });
+            assert.deepEqual(await store.readChain(base.recordId), [base], 'nothing landed');
+            assert.deepEqual(await listed(sidecar, base.recordId), [entryFor(base)]);
+            const landed = await store.appendBatch(
+              'open',
+              batch,
+              signed({ nonTerminal: false }, ...batch),
+            );
+            assert.equal(landed.appended, true, 'the record is where it was: the batch lands');
           });
         }
       });

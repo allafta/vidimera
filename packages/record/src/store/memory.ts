@@ -26,7 +26,13 @@
 import { transitionDigest } from '../chain/encoding.js';
 import type { SignatureEntry, SignatureStore } from '../signing/store.js';
 import type { Digest, RecordState, Transition } from '../types.js';
-import { type GenesisPayload, isCompromiseCarveOut, isStateLeaving, stateOf } from './semantics.js';
+import {
+  type GenesisPayload,
+  isCompromiseCarveOut,
+  isStateLeaving,
+  signatureEntriesToWrite,
+  stateOf,
+} from './semantics.js';
 import type { AppendMeta, AppendResult, BatchResult, StagedDraft, Store } from './store.js';
 
 /**
@@ -130,43 +136,6 @@ function cloneSameDigest(transition: Transition, digest: Digest): Transition {
 }
 
 /**
- * The integrated sidecar's entry check (`Store.signatures`). When an append carries
- * `meta.signatures`, it must hold exactly one entry per appended transition, in order, each
- * naming that transition's own `transitionDigest`, `recordId` and `seq`; anything else is a
- * caller error, thrown here. Returns COPIES of the entries for the append to write — a caller
- * mutating its own entry objects afterwards cannot reach what was stored — or `undefined` when
- * the append carries none. Pure, like `cloneSameDigest`: it touches no store state, and both
- * append methods call it before any other check, so a throw leaves nothing behind and wins
- * over every conflict the append would otherwise have reported.
- */
-function entriesToWrite(
-  transitions: readonly Transition[],
-  meta: AppendMeta,
-): SignatureEntry[] | undefined {
-  const carried = meta.signatures;
-  if (carried === undefined) return undefined;
-  if (!Array.isArray(carried) || carried.length !== transitions.length) {
-    const count = Array.isArray(carried) ? `${carried.length} entries` : 'no array';
-    throw new Error(
-      `MemoryStore: meta.signatures must carry exactly one entry per appended transition, in order — it carries ${count} for ${transitions.length} transition(s); nothing was applied`,
-    );
-  }
-  return transitions.map((t, i) => {
-    const entry: SignatureEntry | undefined = carried[i];
-    if (
-      entry?.transitionDigest !== transitionDigest(t) ||
-      entry.recordId !== t.recordId ||
-      entry.seq !== t.seq
-    ) {
-      throw new Error(
-        `MemoryStore: meta.signatures[${i}] does not name appended transition ${i} (record '${t.recordId}', seq ${t.seq}) — each entry must carry its own transition's transitionDigest, recordId and seq; nothing was applied`,
-      );
-    }
-    return { ...entry };
-  });
-}
-
-/**
  * The provisional in-memory `Store` (DECISIONS.md #24: "reference semantics, never
  * durable evidence"). Re-exported from the
  * library's public index as the seam adopters should wire
@@ -252,7 +221,11 @@ export class MemoryStore implements Store {
     tx?: unknown,
   ): Promise<AppendResult> {
     MemoryStore.rejectTx(tx);
-    const entries = entriesToWrite([transition], meta);
+    // The integrated sidecar's entry check (`store/semantics.ts`), before any other check: it
+    // is pure, so a throw leaves nothing behind and wins over every conflict the append would
+    // otherwise have reported. It returns fresh objects holding the five entry fields, so a
+    // caller mutating its own entry objects afterwards cannot reach what is stored.
+    const entries = signatureEntriesToWrite('MemoryStore', [transition], meta);
     const existing = this.records.get(transition.recordId);
 
     if (expectedCurrentState === null) {
@@ -443,7 +416,8 @@ export class MemoryStore implements Store {
    * mutation, so the "nothing applied" guarantee is structural rather than a rollback: the
    * first `chain.push` happens only after the last element has been checked and cloned. The
    * integrated sidecar follows the same shape: the entries in `meta.signatures` are checked
-   * before anything else (`entriesToWrite`) and written after the last push (`writeEntries`).
+   * before anything else (`signatureEntriesToWrite`) and written after the last push
+   * (`writeEntries`).
    *
    * The terminality INPUT is `existing.nonTerminal` read once at entry, while the state the
    * checks run against EVOLVES element by element (SPEC §12: a record "cannot become
@@ -457,7 +431,7 @@ export class MemoryStore implements Store {
     tx?: unknown,
   ): Promise<BatchResult> {
     MemoryStore.rejectTx(tx);
-    const entries = entriesToWrite(transitions, meta);
+    const entries = signatureEntriesToWrite('MemoryStore', transitions, meta);
     const first = transitions[0];
     if (first === undefined) {
       throw new Error(

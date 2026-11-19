@@ -19,7 +19,9 @@ export { canonicalize, digest } from './canonical.js';
 // re-derive without becoming the drift hazard the store seam exists to prevent: the
 // private transition encoding's digest, and the C3/C4 semantic arms. A deliberate,
 // grouped post-review amendment to the phase-1 surface, argued in the phase-4
-// store-postgres spec under docs/superpowers/specs/ (dated 2026-08-19).
+// store-postgres spec under docs/superpowers/specs/ (dated 2026-08-19). The integrated
+// sidecar's entry check (`signatureEntriesToWrite`, store/semantics.ts) joined it later,
+// on the same drift argument: three backings, one rule.
 export { transitionDigest } from './chain/encoding.js';
 export type { ChainVerifyReport } from './chain/replay.js';
 // --- the pure audit functions (SPEC §5) — exposed on the operator handle by recordId,
@@ -79,7 +81,12 @@ export type {
 // and the `Store` interface's (same marking).
 export { MemoryStore } from './store/memory.js';
 export type { GenesisPayload } from './store/semantics.js';
-export { isCompromiseCarveOut, isStateLeaving, stateOf } from './store/semantics.js';
+export {
+  isCompromiseCarveOut,
+  isStateLeaving,
+  signatureEntriesToWrite,
+  stateOf,
+} from './store/semantics.js';
 // --- provisional embedded-SQL Store implementation ---
 // Same rationale as `MemoryStore` above — the seam an adopter wires rather than
 // hand-rolling. PUBLIC BUT EXPLICITLY UNSTABLE PRE-1.0 — see `SqliteStore`'s own doc

@@ -546,7 +546,20 @@ function isCompromiseCarveOut(transition: Transition,       // C3's second carve
 interface GenesisPayload { profileId: string; subjectRef: string }  // the two genesis-payload
                                                             // fields C1 exclusivity reads
                                                             // (the payload itself carries more)
+function signatureEntriesToWrite(storeName: string,         // the integrated sidecar's
+  transitions: readonly Transition[],                       // entry check, for a store that
+  meta: AppendMeta): SignatureEntry[] | undefined;          // exposes `signatures`
 ```
+
+`signatureEntriesToWrite` is the one entry check all three reference backings run on an
+append's `meta.signatures`. It returns `undefined` when the field is absent. Otherwise it
+requires an array with exactly one entry per appended transition, in order, each an object
+naming that transition's own `transitionDigest`, `recordId` and `seq`, with a string `keyRef`
+and a string `signature`; anything else throws an `Error` whose message starts
+`<storeName>: meta.signatures`. On success it returns one fresh object per entry holding exactly
+the five `SignatureEntry` fields, each read from the caller's entry once — extra members are
+dropped. It touches no store state, so a backing calls it before any other check and writes
+what it returns.
 
 `@vidimera/store-postgres` (this workspace's server-SQL backing) is the reference consumer
 of this surface.

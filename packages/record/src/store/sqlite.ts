@@ -44,7 +44,13 @@ import { DatabaseSync, type StatementSync } from 'node:sqlite';
 import { transitionDigest } from '../chain/encoding.js';
 import type { SignatureEntry, SignatureStore } from '../signing/store.js';
 import type { Digest, RecordState, StagedDraft, Transition } from '../types.js';
-import { type GenesisPayload, isCompromiseCarveOut, isStateLeaving, stateOf } from './semantics.js';
+import {
+  type GenesisPayload,
+  isCompromiseCarveOut,
+  isStateLeaving,
+  signatureEntriesToWrite,
+  stateOf,
+} from './semantics.js';
 import type { AppendMeta, AppendResult, BatchResult, Store } from './store.js';
 
 interface RecordRow {
@@ -93,61 +99,6 @@ interface SignatureRow {
   seq: number;
   key_ref: string;
   signature: string;
-}
-
-/**
- * The integrated sidecar's entry check, the same rule `store/memory.ts` applies: when an append
- * carries `meta.signatures`, it must hold exactly one entry per appended transition, in order,
- * each naming that transition's own `transitionDigest`, `recordId` and `seq`. This backing also
- * requires `keyRef` and `signature` to be strings: unchecked, the insert would store a number as
- * different text (42 as '42.0'), and would throw on null, a boolean or an object only at the
- * entry insert, after the transition rows were written — which a host that commits after the
- * throw would land unsigned. Anything else is a caller error, thrown here. Returns each entry's five fields, read once into a fresh object — what was
- * checked is what is inserted — or `undefined` when the append carries none. Pure: both append
- * methods call it before any other check, so a throw writes nothing and wins over every conflict
- * the append would otherwise have reported.
- */
-function entriesToWrite(
-  transitions: readonly Transition[],
-  meta: AppendMeta,
-): SignatureEntry[] | undefined {
-  const carried = meta.signatures;
-  if (carried === undefined) return undefined;
-  if (!Array.isArray(carried) || carried.length !== transitions.length) {
-    const count = Array.isArray(carried) ? `${carried.length} entries` : 'no array';
-    throw new Error(
-      `SqliteStore: meta.signatures must carry exactly one entry per appended transition, in order — it carries ${count} for ${transitions.length} transition(s); nothing was applied`,
-    );
-  }
-  return transitions.map((t, i) => {
-    const raw: unknown = carried[i];
-    const entry =
-      typeof raw === 'object' && raw !== null
-        ? {
-            transitionDigest: (raw as SignatureEntry).transitionDigest,
-            recordId: (raw as SignatureEntry).recordId,
-            seq: (raw as SignatureEntry).seq,
-            keyRef: (raw as SignatureEntry).keyRef,
-            signature: (raw as SignatureEntry).signature,
-          }
-        : undefined;
-    if (
-      entry === undefined ||
-      entry.transitionDigest !== transitionDigest(t) ||
-      entry.recordId !== t.recordId ||
-      entry.seq !== t.seq
-    ) {
-      throw new Error(
-        `SqliteStore: meta.signatures[${i}] does not name appended transition ${i} (record '${t.recordId}', seq ${t.seq}) — each entry must carry its own transition's transitionDigest, recordId and seq; nothing was applied`,
-      );
-    }
-    if (typeof entry.keyRef !== 'string' || typeof entry.signature !== 'string') {
-      throw new Error(
-        `SqliteStore: meta.signatures[${i}] carries a non-string keyRef or signature; nothing was applied`,
-      );
-    }
-    return entry;
-  });
 }
 
 /**
@@ -362,8 +313,10 @@ export class SqliteStore implements Store {
     tx?: DatabaseSync,
   ): Promise<AppendResult> {
     return this.inTransaction(tx, () => {
-      // The entry check first, ahead of every conflict check, as in `store/memory.ts`.
-      const entries = entriesToWrite([transition], meta);
+      // The integrated sidecar's entry check (`store/semantics.ts`) first, ahead of every
+      // conflict check, as in `store/memory.ts`: pure, so a throw writes nothing. Its fresh
+      // five-field objects are what `writeEntries` inserts — what was checked is what is stored.
+      const entries = signatureEntriesToWrite('SqliteStore', [transition], meta);
       if (expectedCurrentState === null) {
         return this.appendGenesis(transition, meta, entries);
       }
@@ -461,7 +414,7 @@ export class SqliteStore implements Store {
     }
     // The entry check next, ahead of the empty-batch check and every conflict, in
     // `store/memory.ts`'s order; pure, so it needs no transaction.
-    const entries = entriesToWrite(transitions, meta);
+    const entries = signatureEntriesToWrite('SqliteStore', transitions, meta);
     const first = transitions[0];
     if (first === undefined) {
       throw new Error(
