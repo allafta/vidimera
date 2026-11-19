@@ -451,6 +451,13 @@ commit message on `code-review-fixes`; for the fourth, in
   own outcome, appending nothing — would widen that class's producer list, touch §14's AL2
   bullet, and reopen OPEN-QUESTIONS §1's key-custody tail. Real, and the 2026-09-05 review's
   one High-rated finding that survived triage; not decided here.
+- **Three sealed sentences that still call AL2's third condition unmet — awaiting the owner's
+  word (raised 2026-11-20).** ARCHITECTURE §3, ARCHITECTURE §9's ladder cell and SCOPING-GUIDE §5,
+  conditioned under the owner's 2026-11-19 grant, say no signature outliving an uncommitted
+  append is "not yet met". Since the transactional sidecar it holds where the sidecar is the
+  configured store's own (SPEC §14, restated by the AL2 restatement follow-up), so the three
+  understate and now differ from the normative text. The owner's grant is recorded as spent;
+  editing them needs the owner's explicit word.
 
 (A fourth, a never-appends contention refusal code, was decided the same day: `record-contended`,
 minted under its own sanction — `docs/superpowers/specs/2026-09-02-record-contended-design.md`.)
