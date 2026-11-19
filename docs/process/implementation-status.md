@@ -6916,7 +6916,8 @@ commit for this increment's landing: "condition (iii) narrows to the host-suppli
 cannot join the append's unit, in the same sentences, and nowhere else". It lands after this
 increment, as its own change, and spends call 3's sanction; until it does, the sealed set still says this build's
 sign-before-append order does not meet condition (iii), which is now true of separate mode only.
-The guide, `SECURITY.md` and this record already state the narrower truth.
+The guide, `SECURITY.md` and this record already state the narrower truth. (Landed 2026-11-20:
+the AL2 restatement follow-up, the section after this one.)
 
 **Gates, measured on the authoring machine at the records commit.** `ci-assert-tests: ok — 1237
 tests in 88 files (96 suites): 1237 passed, 0 failed, 0 skipped, 0 todo` (the known
@@ -7001,3 +7002,141 @@ machine at the fix wave.** `ci-assert-tests: ok — 1240 tests in 88 files (96 s
 register row 24); typecheck (both packages), biome (`--error-on-warnings`, 161 files checked, no
 findings), both builds, `contract-scan`, `api-reference-sync` and `docs-index-sync` all exit 0.
 `smoke` cannot run here. `CLAUDE.md`'s measured sentence moved to 88 files / 1240 tests.
+
+## Post-build-order increment — AL2 restatement, follow-up (two sealed-set commits)
+
+**The thirty-fourth post-build-order increment (branch `al2-restatement-followup-2026-11-20`,
+off `main` at `75ed531`).** Documentation only: no code, no maturity marker, no scope change.
+The design is `docs/superpowers/specs/2026-11-20-al2-restatement-followup-design.md` and the plan
+`docs/superpowers/plans/2026-11-20-al2-restatement-followup.md`.
+
+**What it corrects.** Since the transactional sidecar, SPEC §14's condition (iii) — no signature
+outlives an uncommitted append — holds where the sidecar is written inside the append's atomic
+unit (each reference store's own, configured as `signatures: store.signatures`) and fails for a
+sidecar kept apart from the store, which is still written before the append. Eight sealed
+sentences said it was not met at all.
+
+**What landed, per commit.**
+
+- `c94a948` — the design and the plan, with the INDEX row and counts.
+- `43d6d38` — **call 3.2's sealed-set commit**, `docs/concept/` only (SPEC, CONTROLS, ASSURANCE):
+  A1–A5 below, the five call-3.1 sentences that mention condition (iii). Call 3's sanction is
+  spent. The wording is "a sidecar kept apart from the store" rather than call 3.2's
+  "host-supplied sidecar": the library's own `MemorySignatureStore`, configured beside a store,
+  is written before the append too, so the narrower phrase would have overclaimed.
+- `2393a5e` — **the owner's-grant commit**, `docs/concept/` only (ARCHITECTURE, SCOPING-GUIDE):
+  B1–B3 below, three sentences the owner's 2026-11-19 grant conditioned, which said the third
+  condition was "not yet met". Kept under that grant and the owner's same-day instruction to
+  continue with all permissions granted; called out here so the owner can revoke it.
+- The records commit after it: this section, `CHANGELOG.md`, `CLAUDE.md`'s lineage paragraph,
+  and the two records that called this follow-up pending.
+
+**The sealed-history account, verbatim.** Checked mechanically at each commit: every "after" text
+present and every "before" text absent, whitespace collapsed, and the design's §3 equal to these.
+Marker token counts in every touched file are unchanged.
+
+A1. **SPEC §13A, the closing sentence on AL2 (call 3.1 site 1)** (`docs/concept/SPEC.md`).
+
+   Before:
+
+   > boundary, and no signature outlives an uncommitted append, which this build's
+   > sign-before-append order does not yet meet; detached signing (AL2, §14) is the upgrade for
+   > those, stated with the absence caveat and those conditions.
+
+   After:
+
+   > boundary, and no signature outlives an uncommitted append, which this build meets only where
+   > the sidecar is written inside the append's atomic unit (§14); detached signing (AL2, §14) is
+   > the upgrade for those, stated with the absence caveat and those conditions.
+
+A2. **SPEC §14, the AL2 bullet's condition (iii) (call 3.1 site 2)** (`docs/concept/SPEC.md`).
+
+   Before:
+
+   > uncommitted append:** this build signs a transition before it appends it, outside the
+   > append's atomic unit, so an append that is rolled back or loses its compare-and-swap leaves
+   > a valid signature over a transition that never committed, which a key-less insider can
+   > splice in where it was signed for. Signing
+
+   After:
+
+   > uncommitted append:** where the sidecar is the store's own, this build writes a signature
+   > inside the atomic unit of the append it signs, after its compare-and-swap and only if the
+   > append applies; a sidecar kept apart from the store cannot join that unit and is written
+   > before the append, outside it, so there an append that is rolled back or loses its
+   > compare-and-swap leaves a valid signature over a transition that never committed, which a
+   > key-less insider can splice in where it was signed for. Signing
+
+A3. **CONTROLS §3, the Effect-result notarization row (call 3.1 site 4)** (`docs/concept/CONTROLS.md`).
+
+   Before:
+
+   > AL2 signing closes the window early, under SPEC §14's conditions — a redemption the host rolls back leaves a valid signature over a `redeemed` transition that never committed (condition (iii)) |
+
+   After:
+
+   > AL2 signing closes the window early, under SPEC §14's conditions — with a sidecar kept apart from the store, a redemption the host rolls back leaves a valid signature over a `redeemed` transition that never committed (condition (iii)) |
+
+A4. **CONTROLS §3, the AL2 detached signing row (call 3.1 site 5)** (`docs/concept/CONTROLS.md`).
+
+   Before:
+
+   > (SPEC §14) — this build signs before it appends, so the last does not yet hold |
+
+   After:
+
+   > (SPEC §14) — the last holds where the sidecar is written inside the append's atomic unit, not for a sidecar kept apart from the store |
+
+A5. **ASSURANCE §6, the AL2 row's "Closes" cell (call 3.1 site 7)** (`docs/concept/ASSURANCE.md`).
+
+   Before:
+
+   > (this build's sign-before-append order does not yet meet the last)
+
+   After:
+
+   > (the last met where the sidecar is written inside the append's atomic unit, not for a sidecar kept apart from the store)
+
+B1. **ARCHITECTURE §3, the AL1-bound paragraph (site 15)** (`docs/concept/ARCHITECTURE.md`).
+
+   Before:
+
+   > uncommitted append (the last not yet met).
+
+   After:
+
+   > uncommitted append (the last met only where the sidecar is written inside the append's
+   > atomic unit).
+
+B2. **ARCHITECTURE §9, the ladder's AL2 "Closes" cell (site 16)** (`docs/concept/ARCHITECTURE.md`).
+
+   Before:
+
+   > (the last, no signature outliving an uncommitted append, not yet met)
+
+   After:
+
+   > (the last, no signature outliving an uncommitted append, met only where the sidecar is written inside the append's atomic unit)
+
+B3. **SCOPING-GUIDE §5, the build-vs-buy picture (site 17b)** (`docs/concept/SCOPING-GUIDE.md`).
+
+   Before:
+
+   > sits outside the insider's boundary, and no signature outlives an uncommitted append (the
+   > last not yet met).
+
+   After:
+
+   > sits outside the insider's boundary, and no signature outlives an uncommitted append (the
+   > last met only where the sidecar is written inside the append's atomic unit).
+
+**No new pins.** Integrated mode's half is pinned in `packages/record/test/transactional-sidecar.test.ts`,
+`al2-conditions.test.ts` and the store-postgres suite; separate mode's by the existing condition
+(iii) pins.
+
+**Inversions.** None.
+
+**Gates, measured on the authoring machine at the records commit.** `ci-assert-tests: ok — 1240
+tests in 88 files (96 suites): 1240 passed, 0 failed, 0 skipped, 0 todo` (unchanged — no code moved);
+biome (`--error-on-warnings`, 161 files), `contract-scan`, `api-reference-sync` and `docs-index-sync`
+all exit 0.

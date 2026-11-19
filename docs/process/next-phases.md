@@ -154,7 +154,8 @@ flip from a hand-maintained enumeration into a grep recipe;
   not migrate); and a store wrapper must expose the inner store's `signatures` and forward `meta`
   intact, or it runs separate. The row is retired; `docs/process/implementation-status.md`'s
   section of that name carries the account. The sealed-set restatement of condition (iii) that
-  call 3.2 reserves for this increment is pending, as its own change.
+  call 3.2 reserved for this increment landed on 2026-11-20, as its own change (the AL2
+  restatement follow-up).
 
 ### Decline's rung-(1) coverage gap — register row 20, retired 2026-08-23
 

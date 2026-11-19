@@ -264,12 +264,14 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   at the AL2 restatement (2026-11-19), none moving a marker: one, corrective, states AL2's
   closure with its three conditions in SPEC §13A and §14, CONTROLS, ASSURANCE and OPEN-QUESTIONS
   §1, under call 3 of `docs/analysis/2026-11-17-sanction-calls.md` (at most two sealed-set
-  commits; the second, narrowing condition (iii) to a separate sidecar, is reserved for the
-  transactional-sidecar increment and is pending after it); two more, under the
+  commits; the second, narrowing condition (iii) to a sidecar kept apart from the store,
+  landed after the transactional-sidecar increment on 2026-11-20 and spent the sanction); two
+  more, under the
   owner's own grant that day, condition the ten sentences outside call 3 that stated the closure
   without its conditions — SPEC §§5, 10.1, 10.3, ARCHITECTURE, SCOPING-GUIDE, OPEN-QUESTIONS and
   CONCEPT.md's honesty-discipline bullet, which by this file's own rule makes that change a fork
-  of the concept, called out as one. A new
+  of the concept, called out as one — and a third under that grant (2026-11-20) kept three of
+  those sentences' condition (iii) accurate once the transactional sidecar met it. A new
   `docs/concept/` edit needs a FRESH sanction through `SCOPING-GUIDE.md` §§1–2's own
   tier-test and promotion-rule machinery, never assumed from a past one.
   `docs/process/implementation-status.md` is the substitute exit record for every step
