@@ -108,7 +108,8 @@ any one exit.
   the module, in vitest's main process. Fixed at the source (a guarded dynamic import that
   removes exactly the listener the import added, two pins), guarded independently (the
   JSON-report gate — `pnpm test:ci` then `scripts/ci-assert-tests.mjs` — in CI and the release
-  workflow), and the four SQLite restart-driver probes get a 20s budget. No `packages/*/src/`
+  workflow), and the four SQLite restart-driver probes get a 20s budget (raised to 60s on
+  2026-11-19 — the note at the end of this document). No `packages/*/src/`
   file, recorded byte, digest, or maturity marker moved. Every earlier CI green on a test leg
   proved only that the step ran; this document's gate outputs were measured locally and
   stand. See the dedicated section at the end of this document; the numbers immediately
@@ -6726,3 +6727,18 @@ packages), biome (`--error-on-warnings`, 159 files checked, no findings), both b
 `contract-scan`, `api-reference-sync` and `docs-index-sync` all exit 0. `smoke` cannot run here
 and runs in CI. `CLAUDE.md`'s measured sentence moved to 86 files / 1165 tests. (At the first
 draft of this record, before the fix wave: 1163 tests; after it, 1164.)
+
+## Post-build-order note — the Windows SQLite probe budget (test-only)
+
+**2026-11-19, branch `windows-probe-budget-2026-11-19`.** `packages/record/test/probes.test.ts`'s
+`SQLITE_RESTART_TIMEOUT_MS`, the per-test budget of the four tests that drive the probe set over a
+file-backed SQLite store with a real close-and-reopen, moves from 20s to 60s. The 20s budget was
+set at the CI test-gate repair when the slowest of them took 3.5–5s on the Windows runner. It has
+since grown and varies widely there: across thirteen Windows CI runs between 2026-11-17 and
+2026-11-19 the full-probe restart test took 3.4s to 25.6s, and the 25.6s run failed on the budget
+alone (PR #23's first run; every other leg passed, and the branch's next run passed on all
+legs). The latest runs sit at
+12–15s; the same test takes 1.2s on a local Windows machine, so the spread is the runner's disk,
+not the code. Sixty seconds is about twice the worst observed. A pass is still decided by the probe
+verdicts, never by the clock; the budget only stops a slow runner from failing a correct run. No
+source file, recorded byte, digest or maturity marker moves, and no assertion changes.

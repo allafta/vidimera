@@ -307,8 +307,12 @@ afterEach(() => {
  * Windows CI runner that IO takes 3.5-5s against vitest's 5s default — run 33703094044 timed
  * one out at exactly 5000ms while the other three legs finished in under a second. The budget
  * is generous on purpose: a pass here is decided by the probe verdicts, never by the clock.
+ * Raised from 20s to 60s on 2026-11-19, measured: across thirteen Windows CI runs between
+ * 2026-11-17 and 2026-11-19 the full-probe restart test took 3.4s to 25.6s (the 25.6s run timed
+ * out at the 20s budget; the latest runs sit at 12-15s), against 1.2s on a local Windows machine.
+ * Sixty seconds is about twice the worst observed.
  */
-const SQLITE_RESTART_TIMEOUT_MS = 20_000;
+const SQLITE_RESTART_TIMEOUT_MS = 60_000;
 
 function makeSqliteRestartDriver(): ProbeDriver {
   let active: { path: string; sqlite: SqliteStore; swap: (next: Store) => void } | undefined;
