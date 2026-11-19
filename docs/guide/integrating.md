@@ -558,7 +558,11 @@ const { agent, operator } = create({
 Enabling AL2 on a profile that already has records is a profile edit, not a switch: give
 the signing version a new id and keep the old one registered, because editing the profile in
 place under its id leaves its unsigned records held by no profile this instance registers
-and every operator seam refuses `unknown-profile` on them.
+and every operator seam refuses `unknown-profile` on them. While the old, unsigned version
+stays registered, AL2's closure does not cover the signing version's records: a
+storage-writing insider can rewrite one's genesis onto the unsigned twin, and the signature
+layer stops applying to it (the conditions below). Unregister the old version once none of
+its records needs another seam call.
 
 What you get, with its limits in the same breath:
 
@@ -569,7 +573,13 @@ What you get, with its limits in the same breath:
   `verifyChain` audit read checks linkage and record identity only).
 - The library does **no crypto itself** — signer and verifier are your hooks, and the
   algorithm, key custody, and rotation (via `keyRef` naming) are yours. AL2 raises the bar
-  against a rewriting insider exactly when the key sits outside that insider's boundary.
+  against a rewriting insider under three conditions
+  ([`../concept/SPEC.md`](../concept/SPEC.md) §14): the key sits outside that insider's
+  boundary; every profile the instance registers declares `signing: true` — the layer
+  applies through the profile a record's genesis names, and a genesis rewritten onto a
+  registered non-signing profile, its digest copied from any genuine record under it, leaves
+  the layer; and no signature outlives an append that never committed, which this build does
+  not yet meet (the sidecar bullet below).
 - A `signing: true` profile on an instance without `config.signing` throws at
   construction — a loud error, never a silent downgrade to AL1.
   A profile can also lose `signing: true` — or gain it — in place, under the same id, and
@@ -631,7 +641,11 @@ What you get, with its limits in the same breath:
   signs before it appends, so a lost compare-and-swap or a crash leaves an entry behind, and
   a seam that refuses against a record admitting no append target leaves one on every such
   call. They are inert to verification, because correlation runs chain-to-sidecar and never
-  the reverse, and they are safe to prune whenever no chain transition references them —
+  the reverse — inert, not harmless: an entry over a transition that was attempted and never
+  committed (a redemption your transaction rolled back, a compare-and-swap that lost) is a
+  valid signature over that transition, and an insider who writes it back into the chain
+  where it was signed for is not caught. They are safe to prune whenever no chain transition
+  references them, and pruning one removes that route —
   the library does no pruning, so a durable backing that must stay bounded reconciles
   against the chain itself — and `operator.verifySignatures(recordId).orphans` names
   exactly the entries to remove, sorted, so the reconciliation is a delete of what it

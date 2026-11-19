@@ -243,7 +243,13 @@ The other governed controls, one line each — the catalog with tiers and honest
   layer's own report.)
   Raises the bar against a rewriting insider exactly when the signing key is held outside
   that insider's boundary — key custody is the host's problem, and the guarantee is only
-  as good as it.
+  as good as it. Two more conditions hold it up
+  ([`../concept/SPEC.md`](../concept/SPEC.md) §14). Every profile the instance registers
+  must sign: the layer applies through the profile a record's genesis names, so an insider
+  who rewrites a signing record's genesis onto a registered non-signing profile takes the
+  record out of the layer. And no signature may outlive an append that never committed — a
+  gap open today: the library signs before it appends, so a rolled-back append, or one that
+  lost its compare-and-swap, leaves a valid signature an insider can splice back in.
 - **AL3 — anchored** (documented, deliberately inactive): chain heads in an external
   append-only log the operator does not solely control. Documented so the honesty gradient
   is complete.

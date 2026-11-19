@@ -287,6 +287,21 @@ is the summary, and that file wins on conflict.
   `verifySignatures`'s recorded throw class ("only on the caller-error/unknown-record class
   every other read takes") widens with the other reads' — the fourteenth self-authored
   inversion, argued at its pin in `packages/record/test/chain-binding-seams.test.ts`.
+- **AL2's guarantee is stated with its three conditions** (2026-11-19, branch
+  `al2-restatement-2026-11-19`; a corrective sealed-set edit under call 3 of
+  `docs/analysis/2026-11-17-sanction-calls.md`, the first of its two granted commits — no
+  maturity marker moves, no behavior changes): SPEC §13A and §14, CONTROLS, ASSURANCE and
+  OPEN-QUESTIONS §1 now say the recompute and head-edit closures hold only while every profile
+  the instance registers signs, the key sits outside the insider's boundary, and no signature
+  outlives an uncommitted append. The last does not hold today: the library signs a transition
+  before it appends it, so a redemption the host's transaction rolls back, or an append that
+  loses its compare-and-swap, leaves a valid signature over a transition that never committed,
+  which a key-less insider can splice back in. And AL2 on some profiles does not close the
+  recompute route: a signing record's genesis rewritten onto a co-registered non-signing profile
+  leaves the signature layer. `packages/record/test/al2-conditions.test.ts` pins both as
+  behavior; the guide states all three (`concepts.md`, `integrating.md`, `faq.md`). Six
+  sentences outside the grant still state the closure unconditionally (listed in
+  `docs/superpowers/specs/2026-11-19-al2-restatement-design.md` §6).
 
 ### Fixed
 

@@ -113,11 +113,11 @@ any one exit.
   proved only that the step ran; this document's gate outputs were measured locally and
   stand. See the dedicated section at the end of this document; the numbers immediately
   below already include it.
-- **Measured against the current tree** (re-measured at the verifier-faults increment's fix
-  wave, 2026-11-17): `pnpm test` — 85 test files, 1161 tests, zero skips
+- **Measured against the current tree** (re-measured at the AL2 restatement increment,
+  2026-11-19): `pnpm test` — 86 test files, 1163 tests, zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
-  `pnpm lint` (`biome check .`) — 158 files checked, zero errors or warnings;
+  `pnpm lint` (`biome check .`) — 159 files checked, zero errors or warnings;
   `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 25 refusal codes, the twenty-fifth being
@@ -6321,3 +6321,84 @@ packages), biome (`--error-on-warnings`, 158 files checked, no findings), both b
 `contract-scan`, `api-reference-sync` and `docs-index-sync` all exit 0. `smoke` cannot run here
 and runs in CI. `CLAUDE.md`'s measured sentence moved to 85 files / 1161 tests. (At the docs
 commit, before the fix wave: 1152 tests in 85 files.)
+
+## Post-build-order increment — AL2 restatement, first commit (a sanctioned corrective edit)
+
+**The thirty-second post-build-order increment (branch `al2-restatement-2026-11-19`, off `main`
+at `a877fed`).** A corrective edit to the sealed set, the first of the two sealed-set commits
+call 3 of `docs/analysis/2026-11-17-sanction-calls.md` grants; no maturity marker moves, no scope
+changes, no behavior changes, no file under `packages/*/src` changes. The design is
+`docs/superpowers/specs/2026-11-19-al2-restatement-design.md`, whose §6 records every site's
+current and proposed text, and the plan `docs/superpowers/plans/2026-11-19-al2-restatement.md`.
+It joins the lineage beside the profile-drift gate as a sanctioned corrective edit with no marker
+move.
+
+**What it corrects.** The sealed set stated AL2's closure of the recompute residual and the
+head-edit windows without the conditions the build depends on. SPEC §13A said both "close at
+AL2"; §14's AL2 bullet said AL2 "closes the recompute residual and the genesis-head blind
+windows"; CONTROLS' profile-binding row offered "AL2 or signing-only registration" as closing the
+recompute route, and OPEN-QUESTIONS §1's amended paragraph "signing-only registration or AL2 key
+custody". Three conditions hold the closure up: (i) every profile the instance registers signs —
+the layer applies through the profile a record's genesis names, so a genesis rewritten onto a
+co-registered non-signing profile, with that profile's genuine digest, leaves the layer, and
+version discipline leaves exactly such an unsigned twin registered while signing is enabled for
+an existing flow; (ii) the key sits outside the insider's boundary; (iii) no signature outlives an
+uncommitted append — the decorator writes a transition's sidecar entry before it delegates the
+append, so a rolled-back or lost append leaves a valid signature over a transition that never
+committed, which a key-less insider can splice in where it was signed for. Only (ii) was stated,
+and only in CONTROLS' AL2 row and CONCEPT.md's honesty discipline.
+
+**What landed, per commit.**
+
+- `04b501b` — the design and the plan, with the INDEX row and counts.
+- `0b408d4` — `packages/record/test/al2-conditions.test.ts`, two pins of present behavior over a
+  SQLite backing, the insider writing straight to the tables. Condition (i): a forged decider on a
+  relinked signing chain refuses `chain-compromise` at `seal`; the same forgery rehomed onto a
+  co-registered non-signing profile reads `signingDeclared: false` and `seal` retires the record;
+  an instance registering only the signing profile refuses the rehomed record `unknown-profile`
+  and appends nothing. Condition (iii): an enlisted `redeem` the host rolls back leaves its
+  signature among `verifySignatures(...).orphans`; the never-committed `redeemed` transition
+  spliced back in verifies, replays `redeemed` and seals; the same transition fabricated onto
+  another record is unsigned and refuses `chain-compromise`. Both pass on the tree as it stood:
+  the sealed text that states the conditions rests on them.
+- `5a8ab21` — **the sealed-set commit**, `docs/concept/` only (SPEC.md, CONTROLS.md,
+  ASSURANCE.md, OPEN-QUESTIONS.md; 27 lines in, 9 out). The design's §6 sites 1–8, checked
+  mechanically before the commit (every proposed text present whitespace-collapsed, every current
+  text absent) and against the design's own blockquotes (all sixteen texts match): SPEC §13A's
+  closing sentence (the first two residuals close under §14's three conditions; the third not yet
+  met); SPEC §14's AL2 bullet (the three conditions stated, each with its limit); CONTROLS §2's
+  Profile binding row (only signing-only registration under AL2, with the key outside, closes the
+  recompute route); CONTROLS §3's Effect-result notarization row (the early closure under §14's
+  conditions, naming the rolled-back redemption) and AL2 row (all three conditions, the last not
+  yet holding); ASSURANCE §2's blind-window sentence (conditions (i) and (ii) — the design argues
+  why (iii) does not bind a genesis edit: a genesis that never committed belongs to a record id
+  that was never created) and §6's AL2 "Closes" cell; OPEN-QUESTIONS §1's amended paragraph (key
+  custody alone does not close the recompute route). GLOSSARY and DECISIONS were checked and
+  repeat no unconditional closure. CONCEPT.md is untouched.
+- The docs commit after it: the guide (`concepts.md`'s AL2 bullet, `integrating.md`'s enabling
+  paragraph, conditions bullet and sidecar bullet — orphan entries are inert to verification but
+  spliceable, and pruning one removes that route — and both AL2 answers in `faq.md`), this
+  section, the "Measured" line above, `CHANGELOG.md` and `CLAUDE.md`.
+
+**Found outside the grant, and left.** Six sentences also state the closure without its
+conditions, and call 3 says anything outside its named sentences needs a new sanction:
+OPEN-QUESTIONS §1's opening scope sentence; SPEC §10.1's and §10.3's closure sentences (both cite
+§14, which now carries the conditions); ARCHITECTURE §3's "Detached signing (AL2) is the named
+closure for all of it" and its ladder table's AL2 cell; SCOPING-GUIDE §5's "The insider-recompute
+threat closes at **AL2 signing**"; and CONCEPT.md's honesty-discipline bullet, which states
+condition (ii) only and sits where an edit would be a fork. SPEC is normative and the others
+defer to it, so the conditioned statement governs; the six stay unconditional on their own until
+a fresh sanction conditions them.
+
+**The sanction, half spent.** Call 3 allowed at most two sealed-set commits. This is the first.
+The second restates condition (iii) when the transactional-sidecar increment (call 2) lands —
+narrowed to a host-supplied sidecar that cannot join the append's atomic unit, in the same
+sentences and nowhere else. If call 2 is abandoned, the sanction is spent here.
+
+**Inversions.** None. No pinned assertion changed; the suite gained one file.
+
+**Gates, measured on the authoring machine.** `ci-assert-tests: ok — 1163 tests in 86 files (91
+suites): 1163 passed, 0 failed, 0 skipped, 0 todo`; typecheck (both packages), biome
+(`--error-on-warnings`, 159 files checked, no findings), both builds, `contract-scan`,
+`api-reference-sync` and `docs-index-sync` all exit 0. `smoke` cannot run here and runs in CI.
+`CLAUDE.md`'s measured sentence moved to 86 files / 1163 tests.
