@@ -1314,9 +1314,10 @@ successor unopenable), and detached signing (AL2) verifies only what exists — 
 survives it; the closures are AL3 anchoring (§14) or a host-side record index reconciled
 against the store. The first two residuals close at AL2 under the three conditions §14
 states — every profile the instance registers signs, the key sits outside the insider's
-boundary, and no signature outlives an uncommitted append, which this build's
-sign-before-append order does not yet meet; detached signing (AL2, §14) is the upgrade for
-those, stated with the absence caveat and those conditions.
+boundary, and no signature outlives an uncommitted append, which this build meets only where
+the sidecar is the configured store's own and written inside the append's atomic unit (§14);
+detached signing (AL2, §14) is the upgrade for those, stated with the absence caveat and those
+conditions.
 
 **Threats this library addresses:**
 
@@ -1369,10 +1370,12 @@ honesty**.
   layer — and version discipline (§9.1) leaves exactly such an unsigned twin registered while
   signing is enabled for an existing flow. (ii) **The key sits outside the insider's
   boundary:** a key holder signs whatever chain it writes. (iii) **No signature outlives an
-  uncommitted append:** this build signs a transition before it appends it, outside the
-  append's atomic unit, so an append that is rolled back or loses its compare-and-swap leaves
-  a valid signature over a transition that never committed, which a key-less insider can
-  splice in where it was signed for. Signing
+  uncommitted append:** it holds where the sidecar is the configured store's own and that
+  store writes each entry inside the atomic unit of the append it signs, after its
+  compare-and-swap and only if the append applies, as the reference stores do; with any other
+  sidecar this build writes the entry before the append, outside it, so an append that is
+  rolled back or loses its compare-and-swap leaves a valid signature over a transition that
+  never committed, which a key-less insider can splice in where it was signed for. Signing
   ships as an optional hook; key distribution and rotation are host-declared; enablement
   granularity and the missing-signature posture are decided on record
   (`OPEN-QUESTIONS.md` §1). AL1 stays the default.
