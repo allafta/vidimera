@@ -7,7 +7,7 @@ construct today will throw, each for a reason stated below.
 ## 1. What this closes
 
 `create()` validates each profile the host passes, digests it, and then keeps the host's own
-object. Every seam reads that object live, through ordinary property access. Five gaps follow
+object. Every seam reads that object live, through ordinary property access. Three gaps follow
 from that:
 
 - **Validation is not total.** It checks presence and length, not type or shape:
@@ -61,13 +61,17 @@ throws a named `invalid profile` error that says what was found:
 - an accessor;
 - a non-enumerable property;
 - a `Set` or `Map`;
-- a sparse array.
+- a sparse array;
+- a `Proxy`, refused wherever it sits.
 
 Symbol-keyed properties are ignored, as the digest and the kernel ignore them. The precedent is
 `create()`'s own `config.signing.verifiers` rule (a plain object, its prototype
-`Object.prototype` or `null`). The snapshot reads each property's descriptor once, so even an
-object whose reads would disagree from one read to the next yields one consistent copy, and
-everything downstream reads only that copy.
+`Object.prototype` or `null`). The snapshot reads each property's descriptor once, and
+everything downstream reads only that copy. A `Proxy` is refused (`types.isProxy` from
+`node:util`, checked before any other question is asked of the object, so no trap runs): its
+reads can disagree from one read to the next, so no copy of it could be known to equal what the
+digest projection reads, and the invariant below then has no exception. The limit: `isProxy` is
+a Node API, and so is the library (it already imports `node:crypto`).
 
 **The schema.** The snapshot knows SPEC §9.1's field table, nested:
 
@@ -107,9 +111,9 @@ cannot loop: it meets an unknown key or a non-primitive element first.
 **The digest invariant.** For every profile `create()` accepts, `profileDigest(profile)`
 computed on the host's object at that moment equals the digest the instance binds. That holds
 because the snapshot keeps exactly the own enumerable data the projection reads: functions
-and `undefined` drop in both, and accessors and non-plain objects are refused before either
-runs. So the exported offline helpers and the instance never disagree about a registrable
-profile.
+and `undefined` drop in both, and accessors, Proxies and non-plain objects are refused before
+either runs. So the exported offline helpers and the instance never disagree about a
+registrable profile, for a profile as the host passes it to `create()`.
 
 **The projection keeps an own `__proto__` key.** `dataOnly` builds objects with `out[key] = …`, which for an
 own key named `__proto__` sets the prototype instead of copying the key. It now builds them with
@@ -195,7 +199,7 @@ construct and fail at the first `stage()`.
   New messages use the file's `invalid profile '<id>': …` register.
 - **Not in scope, stated.**
   - **Prototype pollution** (an in-process write to `Object.prototype`) is outside the threat
-    model, as the analysis recorded. The snapshot's objects keep `Object.prototype`.
+    model, by this increment's own ruling. The snapshot's objects keep `Object.prototype`.
   - **`config.signing`'s inner fields** (`signer`, `verifiers`, `signatures`) are still read
     where used. The block is read once at the top level only.
   - **Options bags other than `open()`'s** and canonicalizer output remain the host's to keep

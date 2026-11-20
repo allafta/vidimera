@@ -44,21 +44,25 @@ Validation also covers what the types already rule out for a
 JavaScript caller — an unrecognized `captureMode` or `ackMode`, an `expiry` or `sod` of the
 wrong shape, an empty profile or leg id, a `terminalRefusals` member that could never take
 effect — each with the same `invalid profile` message, never a raw `TypeError` (the
-review-hardening pass, 2026-09-05). Each profile is read once into a frozen plain-data copy,
-and the instance keeps only the copy: a profile must be plain data (object literals, arrays,
-primitives — a class instance, accessor, `Object.create` object, `Set`, `Map` or sparse array
-throws, naming what it found); an unknown data-valued key throws (an unknown function-valued key, a host code
-reference, is ignored; a function in a profile field, or a redemption field placed outside
-`redeem`, throws); an explicit `undefined` is an absent field and `null` is refused; each of
-`expiry.ttl`, `redeem.confirmToRedeem`, `redeem.redeemBound` and every `freshness` value is a
-positive integer of at most 3,155,760,000 seconds (100 years), the unbounded spelling being to
-omit the field (`'none'` for expiry); a `terminalRefusals` member must be producible by the
-leg (`sod-violation` needs `sod` or `proposer`, `policy-drift` a `policySource`,
-`ineligible` `eligibility`, `consultation-failed` `requiredConsultations`,
-`consultation-stale` `freshness`, `ack-missing`/`ack-stale` `ackMode` with `requiredAcks`); and
-a canonicalizer registry entry must be a function. Mutating your profile object after
-`create()` changes nothing the instance enforces or digests, and `profileDigest(profile)` on a
-profile `create()` accepted equals the digest the instance binds. Returns the two frozen capability-split handles. Profiles are
+review-hardening pass, 2026-09-05). Each profile is read once into a frozen plain-data
+copy, and the instance keeps only the copy: a profile must be plain data (object literals,
+arrays, primitives — a class instance, accessor, non-enumerable property, `Object.create`
+object, `Set`, `Map`, sparse array or `Proxy` throws, naming what it found); an unknown
+data-valued key throws (an unknown function-valued key, a host code reference, is ignored; a
+function in a profile field, or a redemption field placed outside `redeem`, throws); an
+explicit `undefined` is an absent field (a redemption field outside `redeem` still throws)
+and `null` is refused; each of `expiry.ttl`, `redeem.confirmToRedeem`, `redeem.redeemBound` and
+every `freshness` value is a positive integer of at most 3,155,760,000 seconds (100 years),
+the unbounded spelling being to omit the field (`'none'` for expiry); a `terminalRefusals`
+member must be producible by the leg (`sod-violation` needs `sod` or `proposer`,
+`policy-drift` a `policySource`, `ineligible` `eligibility`, `consultation-failed`
+`requiredConsultations`, `consultation-stale` `freshness`, `ack-missing`/`ack-stale`
+`ackMode` with `requiredAcks`); and a canonicalizer registry entry must be a function. Mutating
+your profile object after `create()` changes nothing the instance enforces or digests, and
+`profileDigest(profile)` on a profile as you passed it to `create()` equals the digest the
+instance binds. A record opened under a profile this build refuses cannot be served after an
+upgrade (see the integration guide's profile design). Returns the two frozen
+capability-split handles. Profiles are
 never persisted. (`createWithClock` exists in source as an internal test seam and is
 deliberately not exported — that absence is a decision of record, not an omission.)
 

@@ -117,7 +117,7 @@ any one exit.
   stand. See the dedicated section at the end of this document; the numbers immediately
   below already include it.
 - **Measured against the current tree** (re-measured at the profile snapshot increment,
-  2026-11-20): `pnpm test` — 91 test files, 1350 tests,
+  2026-11-20): `pnpm test` — 91 test files, 1353 tests,
   zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
@@ -7487,29 +7487,33 @@ gate refuses an in-place edit.
 
 **What landed, per commit.**
 
-- `9ee3014` — the design and the plan, with the INDEX row.
-- `dcdf6cc` — `packages/record/src/profile-snapshot.ts` (internal, no export): `snapshotProfile`
+- `95aca11` — the design and the plan, with the INDEX row.
+- `5fa59de` — `packages/record/src/profile-snapshot.ts` (internal, no export): `snapshotProfile`
   reads each profile once, by own property descriptor, into a fresh deeply frozen plain-data copy
   over SPEC §9.1's field table, nested and bounded; `create()` reads its `config` once and keeps
   only the copy, with `profileDigest(snapshot)`; `config.profiles` must be an array,
   `config.canonicalizers` a non-null object; `ResolvedProfile`'s comment rewritten;
   `dataOnly` builds with `Object.fromEntries`.
-- `715f7fb` — fix round on that commit: the frozenness pin the design required, a mutation pin
+- `83bf6ca` — fix round on that commit: the frozenness pin the design required, a mutation pin
   that asserts the refusal code and a separate ttl pin, the canonicalizers-bag pin, and one
   descriptor read per property.
-- `97006f5` — the construction rules in `validateProfile` (`config.ts`): type and shape of
+- `9ed07ad` — the construction rules in `validateProfile` (`config.ts`): type and shape of
   `subject`, `redeem`, `reverify`, `policySource`, the leg labels and lists and `freshness`; the
   100-year cap on the four bound families; `terminalRefusals` members producible by the leg (a
   producer table verified row by row against `kernel/finalize.ts` and `kernel/decline.ts`);
   `resolveCanonicalizer` refuses a non-function entry. A throwaway sweep of every known path
   against fourteen primitives found a `Symbol` in `sod.notActorOf` and a `BigInt` in
   `captureMode`/`expiry`/`ackMode` leaking raw errors; both fixed and pinned.
-- `6ae46c3` — fix round on that commit: the `validateProfile` doc comment's rung order, producer-rule pins
-  that single out the rule and two subtle eligibility and consultation cases, wording (a
-  "declares X as a number" register), one findings-flow predicate, and BigInt bounds shown as
-  `10n`.
-- The records commit after it: this section, `CHANGELOG.md`, the guide's passages
+- `8f37673` — fix round on that commit: the `validateProfile` doc comment's rung order,
+  producer-rule pins that single out the rule and two subtle eligibility and consultation
+  cases, wording (a "declares X as a number" register), one findings-flow predicate, and BigInt
+  bounds shown as `10n`.
+- `337f5aa` — the records commit: this section, `CHANGELOG.md`, the guide's passages
   (`integrating.md`, `concepts.md`, `api-reference.md`) and `CLAUDE.md`'s counts.
+- `977839f` — the ID-removal fix round: external finding identifiers taken out of the branch
+  and the function-valued-key wording qualified.
+- Two commits after the whole-branch review (see "Amended after the whole-branch review"):
+  the Proxy refusal with its pins and the message fixes, then the records.
 
 **Rulings.**
 
@@ -7533,18 +7537,20 @@ gate refuses an in-place edit.
   a longer bound is the unbounded idiom, spelled by omitting the field (`'none'` for expiry).
   Freshness stamps nothing but takes the same rule, so "the ttl convention" stays one convention.
 
-**Pins.** `packages/record/test/profile-snapshot.test.ts` (new, 41 tests): post-create mutation of
+**Pins.** `packages/record/test/profile-snapshot.test.ts` (new, 44 tests): post-create mutation of
 every mutable part leaves every seam deciding as before and the bound digest unchanged; the
 snapshot is a distinct, deeply frozen copy of every node; getter-class, `Object.create`,
 accessor, non-enumerable, sparse and `Set` shapes throw naming the shape; unknown keys on each
 object level, functions accepted and refused by slot, explicit `undefined` accepted;
 `config` read once; the digest invariant over eleven of the repository's own profile shapes;
-`projectProfile` keeps an own `__proto__`. `packages/record/test/construction-validation.test.ts`
+`projectProfile` keeps an own `__proto__`; a Proxy as the profile, a leg, a list, a record
+or a nested object throws; `null` is read as null in the older tails; a wrong-slot error says
+what the slot expects. `packages/record/test/construction-validation.test.ts`
 (27 tests added to the existing 50): per-field type rules and `null` of every optional field, the
 cap and one past it for each bound family, the seven feature-conditional `terminalRefusals`
 members each with and without the feature, a non-function canonicalizer, `BigInt` bound display.
 Against `0bfe7e2`'s source the snapshot file fails 23 of its first 38 tests and the construction
-additions 20 of the first 23. The suite went from 1282 tests in 90 files to 1350 in 91.
+additions 20 of the first 23. The suite went from 1282 tests in 90 files to 1353 in 91.
 
 **Amended after review.** The first review (opus, approved, 0 Critical or Important, 8 Minor): the
 snapshot's frozenness was unpinned though the design required it; the mutation pin under-asserted;
@@ -7559,19 +7565,49 @@ and what to do instead; a non-string or empty `sod.notActorOf` entry now meets "
 missing or empty leg id in sod.notActorOf" instead of "not a strictly-earlier leg". Message heads
 that tests pin are unchanged.
 
+**Amended after the whole-branch review.** The final whole-branch review found three
+Important and seven Minor items (the commit-message rewording, the design's attribution and
+the upgrade consequence being the Important ones); all are fixed in the commits after the
+ID-removal round. The commit messages of two earlier commits had named an external analysis
+by its finding identifiers, which this repository does not cite; they were reworded locally,
+so every branch SHA above is the post-rewording one (the old-to-new SHA map is not kept here, only the new SHAs). The design's
+"as the analysis recorded" is now this increment's own ruling on prototype pollution. The
+upgrade consequence is stated (above, in the limits, and in the changelog and the integration
+guide). The changelog no longer overclaims what an over-cap bound used to do: only a bound past
+the `Date` range (about 8.64e12 seconds) threw, and a 200-year `ttl` used to construct and
+work. A Proxy is now refused anywhere in a profile (`types.isProxy`, checked before any other
+question is asked of an object node), so the digest invariant has no exception; the pin was
+written first and failed (RED: a Proxy profile, leg, list, record and nested object all
+constructed), then passed. The "message texts changed" list now includes the wrong-slot cases
+(`legs: {}`, `expiry: []`, `sod: []`, `allowedAuthorities: {}`, `subject: []`), and a
+wrong-slot error says what the slot expects, adding the plain-data tail only for a non-plain
+shape, with no nested parentheses; the unknown-key message cites the type's fields (SPEC §9.1,
+§9.2, §14) and says to keep host metadata beside the profile; `null` is read as null in three
+older tails (`allowedAuthorities`, `sod`/`notActorOf`, `legs`); the guides carve the
+redemption field out of the "explicit `undefined` is absent" rule and name a non-enumerable
+property in the plain-data list; and cosmetic wrapping and the design's "Three gaps" count.
+Pins added: three tests (the Proxy refusal, null as null, the wrong-slot text). No existing
+assertion changed.
+
 **What is not covered, stated.** An in-process write to `Object.prototype` (the snapshot's objects
 keep `Object.prototype`) is outside the threat model. `config.signing`'s inner fields
 (`signer`, `verifiers`, `signatures`) are still read where used; the block is read once at the top
 level only. Options bags other than `open()`'s (`finalize`, `decline`, the redemption seams) and
-canonicalizer output remain the host's to keep plain; the guide says so.
+canonicalizer output remain the host's to keep plain; the guide says so. The Proxy refusal uses
+`types.isProxy` from `node:util`, a Node API, as the library already is. The upgrade consequence:
+a record opened under a profile this build now refuses (one carrying a `description`, a
+`terminalRefusals` member its leg cannot produce, a bound over the cap) cannot be served after
+upgrading, because the old shape cannot be registered and any corrected shape digests
+differently, so every seam refuses it with `unknown-profile`; drive such records to a terminal
+state first, or keep running the old build until they are.
 
 **Inversions.** None. `git diff 0bfe7e2..HEAD -- packages/record/test` shows the new file and
 additions to `construction-validation.test.ts`; its one removed line widens an import list
 (`import type { ConfirmProfile, LegSpec }` gains names), and no assertion changed.
 `byte-stability.test.ts`, `probes.ts` and `helpers/profiles.ts` are untouched.
 
-**Gates, measured on the authoring machine at the records commit.** `ci-assert-tests: ok — 1350
-tests in 91 files (99 suites): 1350 passed, 0 failed, 0 skipped, 0 todo`; biome
-(`--error-on-warnings`, 166 files), `contract-scan`, `api-reference-sync` and `docs-index-sync`
-exit 0; `tsc -p packages/record --noEmit` was clean at each code commit; `smoke` cannot run here
-and runs in CI.
+**Gates, measured on the authoring machine at the records commit after the whole-branch
+review.** `ci-assert-tests: ok — 1353 tests in 91 files (99 suites): 1353 passed, 0 failed, 0
+skipped, 0 todo`; biome (`--error-on-warnings`, 166 files), `contract-scan`,
+`api-reference-sync` and `docs-index-sync` exit 0; `tsc -p packages/record --noEmit` exit 0;
+`smoke` cannot run here and runs in CI.
