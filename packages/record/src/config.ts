@@ -141,12 +141,24 @@ export const RESERVED_CONSULTATION_KINDS: ReadonlySet<string> = new Set(['facts'
  */
 const REDEMPTION_KEYS = ['confirmToRedeem', 'redeemBound', 'reverify', 'result'] as const;
 
+/** Whether `key` names one of the redemption fields (`profile-snapshot.ts` reuses this to
+ * recognize a misplaced one while it copies a profile). */
+export function isRedemptionKey(key: string): boolean {
+  return (REDEMPTION_KEYS as readonly string[]).includes(key);
+}
+
+/**
+ * The stray-redemption-key message. `head` is the `invalid profile '<id>'` prefix, so the
+ * snapshot (which may not yet have a usable id) and `validateProfile` share one text.
+ */
+export function strayRedemptionKeyMessage(head: string, key: string, where: string): string {
+  return `${head}: redemption key '${key}' must live inside a 'redeem' block, not as a ${where} key`;
+}
+
 function assertNoStrayRedemptionKeys(profileId: string, where: string, obj: object): void {
   for (const key of REDEMPTION_KEYS) {
     if (Object.hasOwn(obj, key)) {
-      throw new Error(
-        `invalid profile '${profileId}': redemption key '${key}' must live inside a 'redeem' block, not as a ${where} key`,
-      );
+      throw new Error(strayRedemptionKeyMessage(`invalid profile '${profileId}'`, key, where));
     }
   }
 }

@@ -59,6 +59,7 @@ import { stage as stageKernel } from './kernel/stage.js';
 import { verifySignatures as verifySignaturesKernel } from './kernel/verify-signatures.js';
 import { makeOperatorSurface, type OperatorSurface } from './operator-surface.js';
 import { profileDigest } from './profile-digest.js';
+import { snapshotProfile } from './profile-snapshot.js';
 import { withSigning } from './signing/decorate.js';
 import type { SigningConfig } from './signing/store.js';
 import type { Store } from './store/store.js';
@@ -67,19 +68,22 @@ import type { Digest } from './types.js';
 /**
  * A validated profile paired with its resolved canonicalizer and precomputed effect-seam
  * flag — the per-profile bundle the KERNEL behaviors look up by profileId.
+ *
+ * `profile` is the frozen plain-data SNAPSHOT `profile-snapshot.ts` made at `create()`, never
+ * the host's own object: validation, the digest and every seam read this copy, so a host that
+ * mutates its object afterwards changes nothing the instance enforces or binds.
  */
 export interface ResolvedProfile {
   profile: ConfirmProfile;
   canonicalizer: Canonicalizer;
   effectSeam: boolean;
   /**
-   * `profileDigest(profile)`, computed once here: the digest `open()` binds into every genesis
-   * and the digest `kernel/held-profile.ts` compares a record's binding against at every seam.
-   * It is a `create()`-time SNAPSHOT of the profile as registered; a host that mutates a
-   * registered profile object in place afterwards is outside the contract, and both the seams
-   * and `kernel/verify-signatures.ts`'s report read this same cached snapshot, never a
-   * recompute — so a host that mutates in place gets a stale digest everywhere consistently,
-   * rather than the report and the seams disagreeing with each other.
+   * `profileDigest(profile)` of the snapshot, computed once here: the digest `open()` binds
+   * into every genesis and the digest `kernel/held-profile.ts` compares a record's binding
+   * against at every seam. Because the snapshot keeps exactly the own enumerable data the
+   * projection reads, it equals `profileDigest(hostObject)` for the profile as the host
+   * passed it, so the offline helper and the instance never disagree about a registrable
+   * profile. `kernel/verify-signatures.ts`'s report reads this same cached value.
    */
   profileDigest: Digest;
 }
@@ -312,14 +316,38 @@ export function createWithClock(
 ): Surfaces {
   const profiles = new Map<string, ResolvedProfile>();
 
-  if (config.signing !== undefined) validateSigningShape(config.signing);
-  for (const profile of config.profiles) {
+  // The config is read ONCE: each field below is read into a local and everything after uses
+  // the local, so a getter, a Proxy or a host mutating mid-construction cannot make two reads
+  // disagree. The profile list is iterated by index over that one read.
+  if (typeof config !== 'object' || config === null) {
+    throw new Error('create: config must be an object');
+  }
+  const profileList: unknown = config.profiles;
+  const baseStore = config.store;
+  const canonicalizers: unknown = config.canonicalizers;
+  const signing = config.signing;
+  if (!Array.isArray(profileList)) {
+    throw new Error(
+      `create: config.profiles must be an array of profiles (found ${profileList === null ? 'null' : typeof profileList})`,
+    );
+  }
+  if (typeof canonicalizers !== 'object' || canonicalizers === null) {
+    throw new Error(
+      'create: config.canonicalizers must be an object keyed by canonicalizerRef ' +
+        `(found ${canonicalizers === null ? 'null' : typeof canonicalizers})`,
+    );
+  }
+  if (signing !== undefined) validateSigningShape(signing);
+  for (let position = 0; position < profileList.length; position += 1) {
+    // One frozen plain-data copy per profile, validated and digested here; the host's own
+    // object is never retained, so nothing it does afterwards reaches a seam.
+    const profile = snapshotProfile(profileList[position], position);
     validateProfile(profile);
     if (profiles.has(profile.id)) {
       throw new Error(`create: duplicate profile id '${profile.id}'`);
     }
     const canonicalizer = resolveCanonicalizer(
-      config.canonicalizers,
+      canonicalizers as Record<string, Canonicalizer>,
       profile.subject.canonicalizerRef,
     );
     profiles.set(profile.id, {
@@ -334,7 +362,7 @@ export function createWithClock(
     // instance: `config.signing` present with no declaring profile) is legal and
     // checked nowhere — the same unused-canonicalizer-registry-entry class already
     // tolerated above.
-    if (profile.signing === true && config.signing === undefined) {
+    if (profile.signing === true && signing === undefined) {
       throw new Error(
         `create: profile '${profile.id}' declares signing but the instance supplies no ` +
           'config.signing (signer, verifiers, signatures) — SPEC §14: signing is an ' +
@@ -353,9 +381,7 @@ export function createWithClock(
   const isSigningProfile = (profileId: string): boolean =>
     profiles.get(profileId)?.profile.signing === true;
   const store =
-    config.signing === undefined
-      ? config.store
-      : withSigning(config.signing, config.store, isSigningProfile);
+    signing === undefined ? baseStore : withSigning(signing, baseStore, isSigningProfile);
 
   const kernel = makeKernel({
     store,
@@ -363,7 +389,7 @@ export function createWithClock(
     now,
     mintId,
     tokenSource,
-    signing: config.signing,
+    signing,
   });
   return {
     agent: makeAgentSurface(kernel),

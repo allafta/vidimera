@@ -34,12 +34,14 @@ function dataOnly(value: unknown): unknown {
     return value.filter((el) => typeof el !== 'function').map(dataOnly);
   }
   if (value !== null && typeof value === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [key, member] of Object.entries(value)) {
-      if (typeof member === 'function') continue;
-      out[key] = dataOnly(member);
-    }
-    return out;
+    // `Object.fromEntries`, not `out[key] = …`: an assignment to an own key named `__proto__`
+    // sets the prototype and drops the key, so a profile carrying one digested as if it did
+    // not. `fromEntries` creates an own property.
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, member]) => typeof member !== 'function')
+        .map(([key, member]) => [key, dataOnly(member)]),
+    );
   }
   return value;
 }
