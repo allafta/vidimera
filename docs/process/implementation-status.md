@@ -7504,7 +7504,7 @@ gate refuses an in-place edit.
   `resolveCanonicalizer` refuses a non-function entry. A throwaway sweep of every known path
   against fourteen primitives found a `Symbol` in `sod.notActorOf` and a `BigInt` in
   `captureMode`/`expiry`/`ackMode` leaking raw errors; both fixed and pinned.
-- `6ae46c3` — fix round on that commit: the `validateProfile` doc comment's rung order, F087 pins
+- `6ae46c3` — fix round on that commit: the `validateProfile` doc comment's rung order, producer-rule pins
   that single out the rule and two subtle eligibility and consultation cases, wording (a
   "declares X as a number" register), one findings-flow predicate, and BigInt bounds shown as
   `10n`.
@@ -7551,7 +7551,7 @@ snapshot's frozenness was unpinned though the design required it; the mutation p
 a test title overclaimed; the canonicalizers check was unpinned; a loop re-read `length`; an id
 descriptor was read twice; an `objects` slot was decorative. All fixed. The second (opus,
 approved, 6 Minor): two message texts changed without a record (below, and in the CHANGELOG), a
-`validateProfile` comment out of order, F087 negative pins that did not single out the rule, a
+`validateProfile` comment out of order, producer-rule negative pins that did not single out the rule, a
 test comment crediting the wrong layer, an awkward message wording, stale cap comments, a
 duplicated findings-flow predicate and a BigInt bound shown as `10`. All fixed. Each fix round
 was re-reviewed clean. The two changed message texts: every bound message's tail now names the cap

@@ -107,11 +107,11 @@ keeps an own `__proto__` key.
   primitives, plain objects or arrays.
 
 - [ ] **Step 1: Write the failing pins.** Design §4's construction list, one `it` per rule.
-  For the F087 table, before writing each pin, confirm the producer in
+  For the feature-conditional terminalRefusals table, before writing each pin, confirm the producer in
   `kernel/finalize.ts`/`kernel/decline.ts`/`kernel/findings.ts`, and report any row the code
   contradicts.
 - [ ] **Step 2: Run them;** each fails on Task 1's head.
-- [ ] **Step 3: Implement the rules** (design §2's "Type, shape and bound rules" and F084).
+- [ ] **Step 3: Implement the rules** (design §2's "Type, shape and bound rules" and the canonicalizer-function rule).
   The cap is one constant.
 - [ ] **Step 4: Run the whole suite.** No existing assertion changes. If an existing test
   profile now throws (a bound over the cap, or an inert member), stop and report it.

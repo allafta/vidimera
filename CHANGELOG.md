@@ -369,7 +369,8 @@ is the summary, and that file wins on conflict.
   class instance, including a TypeScript class that `implements ConfirmProfile`, an
   `Object.create` object, an accessor, a non-enumerable property, a `Set` or `Map`, a sparse
   array, an object from another realm); a key the library does not know whose value is data (a
-  `description`, a misspelled `sigining`; a function-valued unknown key is still ignored); a
+  `description`, a misspelled `sigining`; an unknown function-valued key, a host code reference, is still ignored, while a function in a
+profile field or a redemption field placed outside `redeem` throws); a
   `null` where an optional field is declared (omit the field); a non-string `proposer`,
   `eligibility` or `policySource`, a non-boolean `reverify`, a non-object `redeem` or
   `subject` or leg; an `expiry.ttl`, `redeem.confirmToRedeem`, `redeem.redeemBound` or

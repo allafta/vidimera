@@ -84,7 +84,8 @@ anything it cannot honor — a bad shape, an unresolvable canonicalizer referenc
 cannot enforce fails at startup, never by silently degrading at decision time. The rules are
 stricter than a type check: a profile is plain data (object literals or parsed JSON — a class
 instance, accessor, `Object.create` object, `Set` or `Map` is refused); an unknown data-valued
-key throws (a function-valued one is ignored); an explicit `undefined` is an absent field and
+key throws (an unknown function-valued one, a host code reference, is ignored; a function in a
+profile field, or a redemption field placed outside `redeem`, throws); an explicit `undefined` is an absent field and
 `null` is refused; each time bound is at most 3,155,760,000 seconds (100 years); a
 `terminalRefusals` member the leg cannot produce throws; and a canonicalizer must be a function.
 `create()` keeps a frozen copy of each profile, so mutating your object afterwards changes

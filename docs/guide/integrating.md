@@ -133,8 +133,10 @@ make that copy unambiguous, a profile is **plain data**: object literals, arrays
 `Set` or `Map`, or a sparse array throws at construction, naming what it found; a TypeScript
 class that `implements ConfirmProfile` is among them, so pass a literal. A key the library
 does not know throws too, because it is either a typo (`sigining`) or metadata that would enter
-the digest while governing nothing: keep your metadata beside the profile. (A function-valued
-key is a host code reference, which the digest excludes, and is ignored.) An explicit
+the digest while governing nothing: keep your metadata beside the profile. (An unknown
+function-valued key is a host code reference, which the digest excludes, and is ignored; a
+function in a profile field, or a redemption field such as `confirmToRedeem` placed outside
+`redeem`, throws.) An explicit
 `undefined` is an absent field; `null` is not, and throws. Each time bound
 (`expiry.ttl`, `redeem.confirmToRedeem`, `redeem.redeemBound`, each `freshness` value) is a
 positive integer of at most 3,155,760,000 seconds (100 years); for no bound, omit the field
@@ -197,8 +199,9 @@ a fresh `{ principal, authority, proofRef? }` literal built from exactly those v
 `toJSON` view, and never changed by mutating your object after the call. Profiles are
 snapshotted too, once, at `create()` (see Profile design), and `open()` reads its options bag
 once. The limit: those are the only host values snapshotted this way. The options you pass to
-`finalize`, `decline` and the redemption seams, and what your canonicalizers return, are
-still read where they are used, so keep those plain data.
+`finalize`, `decline` and the redemption seams, what your canonicalizers return, and the inner
+fields of `config.signing` (`signer`, `verifiers`, `signatures`) are still read where they are
+used, so keep the values you pass plain data and do not change the signing fields after create().
 
 ## Handling outcomes
 

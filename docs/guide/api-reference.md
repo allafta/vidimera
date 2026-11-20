@@ -47,8 +47,9 @@ effect — each with the same `invalid profile` message, never a raw `TypeError`
 review-hardening pass, 2026-09-05). Each profile is read once into a frozen plain-data copy,
 and the instance keeps only the copy: a profile must be plain data (object literals, arrays,
 primitives — a class instance, accessor, `Object.create` object, `Set`, `Map` or sparse array
-throws, naming what it found); an unknown data-valued key throws (a function-valued key is
-ignored); an explicit `undefined` is an absent field and `null` is refused; each of
+throws, naming what it found); an unknown data-valued key throws (an unknown function-valued key, a host code
+reference, is ignored; a function in a profile field, or a redemption field placed outside
+`redeem`, throws); an explicit `undefined` is an absent field and `null` is refused; each of
 `expiry.ttl`, `redeem.confirmToRedeem`, `redeem.redeemBound` and every `freshness` value is a
 positive integer of at most 3,155,760,000 seconds (100 years), the unbounded spelling being to
 omit the field (`'none'` for expiry); a `terminalRefusals` member must be producible by the
