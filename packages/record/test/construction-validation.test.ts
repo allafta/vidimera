@@ -924,8 +924,10 @@ test('F021: a non-string terminalRefusals member is refused before the registry 
   for (const member of [7, null, true, ['sod-violation'], { code: 'sod-violation' }]) {
     assertNamed(oneLegWith({ terminalRefusals: [member] }), NAMED('terminalRefusals'));
   }
-  // The coercion this closes: `Object.hasOwn(REGISTRY, ['content-drift'])` coerces to a key.
-  assertNamed(oneLegWith({ terminalRefusals: [['content-drift']] }), NAMED('terminalRefusals'));
+  // An array or object member never reaches that guard: the snapshot's list slots take
+  // primitives only, so it refuses them first (and the profile-snapshot pins own that). Only the
+  // primitives above exercise the string check, which is what stops `Object.hasOwn(REGISTRY,
+  // ['content-drift'])` coercing an array to a key were one ever to arrive.
 });
 
 test('F022: a non-object redeem is a construction error — null, false, 0, none and []', () => {
@@ -934,7 +936,7 @@ test('F022: a non-object redeem is a construction error — null, false, 0, none
   }
   // `null` is a declared non-object, not an absent field (and the message names which).
   assertNamed(withTop({ redeem: null }), /found null/);
-  assertNamed(withTop({ redeem: 'none' }), /found string/);
+  assertNamed(withTop({ redeem: 'none' }), /found a string/);
 });
 
 test('F023: every list field must be an array — a string, number or null meets a named message', () => {
@@ -1052,10 +1054,17 @@ test('F020: a freshness value at the cap constructs, one past it throws and stat
 
 // --- F087: a terminalRefusals member whose producer the leg or profile does not declare --
 
+/** The F087 rule's own wording: not the registry, compromise or never-appends messages. */
+function producerRe(code: string, needs: string): RegExp {
+  return new RegExp(
+    `lists '${code}' in terminalRefusals, but nothing this leg declares can produce '${code}': only ${needs} does`,
+  );
+}
+
 test('F087: sod-violation needs the leg to declare sod or proposer', () => {
   assertNamed(
     twoLegWith({ terminalRefusals: ['sod-violation'] }),
-    /sod-violation.*terminalRefusals/s,
+    producerRe('sod-violation', 'a leg declaring sod or proposer'),
   );
   const bySod = twoLegWith({
     sod: { notActorOf: ['maker-decide'] },
@@ -1069,7 +1078,7 @@ test('F087: sod-violation needs the leg to declare sod or proposer', () => {
 test('F087: policy-drift needs the profile to declare policySource', () => {
   assertNamed(
     oneLegWith({ terminalRefusals: ['policy-drift'] }),
-    /policy-drift.*terminalRefusals/s,
+    producerRe('policy-drift', 'a profile declaring policySource'),
   );
   const declared = oneLegWith(
     { terminalRefusals: ['policy-drift'] },
@@ -1079,16 +1088,34 @@ test('F087: policy-drift needs the profile to declare policySource', () => {
 });
 
 test('F087: ineligible needs the leg to declare eligibility', () => {
-  assertNamed(oneLegWith({ terminalRefusals: ['ineligible'] }), /ineligible.*terminalRefusals/s);
+  const re = producerRe('ineligible', 'a leg declaring eligibility');
+  assertNamed(oneLegWith({ terminalRefusals: ['ineligible'] }), re);
   const declared = oneLegWith({ eligibility: 'hr.check', terminalRefusals: ['ineligible'] });
   assert.doesNotThrow(() => create(makeConfig([declared])));
+  // Listing 'eligibility' in requiredConsultations is an ordinary kind, not the declaration:
+  // its verdict-fail is `consultation-failed`, so `ineligible` still has no producer.
+  assertNamed(
+    oneLegWith({ requiredConsultations: ['eligibility'], terminalRefusals: ['ineligible'] }),
+    re,
+  );
 });
 
 test('F087: consultation-failed needs the leg to declare requiredConsultations', () => {
   assertNamed(
     oneLegWith({ terminalRefusals: ['consultation-failed'] }),
-    /consultation-failed.*terminalRefusals/s,
+    producerRe('consultation-failed', 'a leg declaring requiredConsultations'),
   );
+  // Declaring eligibility alone is not enough: its verdict-fail refuses `ineligible`.
+  assertNamed(
+    oneLegWith({ eligibility: 'hr.check', terminalRefusals: ['consultation-failed'] }),
+    producerRe('consultation-failed', 'a leg declaring requiredConsultations'),
+  );
+  // 'eligibility' listed as an ordinary required kind does produce `consultation-failed`.
+  const asKind = oneLegWith({
+    requiredConsultations: ['eligibility'],
+    terminalRefusals: ['consultation-failed'],
+  });
+  assert.doesNotThrow(() => create(makeConfig([asKind])));
   const declared = oneLegWith({
     requiredConsultations: ['risk-check'],
     terminalRefusals: ['consultation-failed'],
@@ -1099,7 +1126,7 @@ test('F087: consultation-failed needs the leg to declare requiredConsultations',
 test('F087: consultation-stale needs the leg to declare freshness', () => {
   assertNamed(
     oneLegWith({ requiredConsultations: ['risk-check'], terminalRefusals: ['consultation-stale'] }),
-    /consultation-stale.*terminalRefusals/s,
+    producerRe('consultation-stale', 'a leg declaring freshness'),
   );
   const declared = oneLegWith(
     {
@@ -1116,7 +1143,7 @@ test('F087: ack-missing and ack-stale need the leg to declare the findings flow'
   for (const code of ['ack-missing', 'ack-stale'] as const) {
     assertNamed(
       oneLegWith({ terminalRefusals: [code] }),
-      new RegExp(`${code}.*terminalRefusals`, 's'),
+      producerRe(code, 'a leg declaring the findings flow \\(ackMode and requiredAcks\\)'),
     );
     const declared = oneLegWith({ ackMode: 'any', requiredAcks: ['k'], terminalRefusals: [code] });
     assert.doesNotThrow(() => create(makeConfig([declared])));
@@ -1151,4 +1178,31 @@ test('F088: a BigInt or Symbol in a primitive slot is described without throwing
     assertNamed(twoLegWith({ sod: { notActorOf: [value] } }), NAMED('notActorOf'));
   }
   assertNamed(twoLegWith({ sod: { notActorOf: [7] } }), NAMED('notActorOf'));
+});
+
+test('F020: a BigInt bound is shown unambiguously, not as the number it resembles', () => {
+  assertNamed(captureProfile({ ttl: 10n as never }), /expiry\.ttl is 10n/);
+  assertNamed(withTop({ redeem: { redeemBound: 10n } }), /redeem\.redeemBound is 10n/);
+});
+
+test('F020: each bound message names its own spelling of no bound', () => {
+  assertNamed(captureProfile({ ttl: 0 }), /use 'none' for no expiry/);
+  assertNamed(withTop({ redeem: { confirmToRedeem: 0 } }), /omit the field for no bound/);
+  assertNamed(withTop({ redeem: { redeemBound: 0 } }), /omit the field for no bound/);
+  assertNamed(
+    oneLegWith(
+      { requiredConsultations: ['risk-check'], freshness: { 'risk-check': 0 } },
+      { signing: true },
+    ),
+    /leave a kind that needs no bound out of the record/,
+    { signing: stubSigningConfig() },
+  );
+});
+
+test('F021: a wrong-typed declared label reads "declares <field> as <type>" on a leg', () => {
+  assertNamed(twoLegWith({ proposer: 7 }), /leg 'checker-decide' declares proposer as a number/);
+  assertNamed(oneLegWith({ eligibility: true }), /declares eligibility as a boolean/);
+  assertNamed(withTop({ policySource: 7 }), /policySource is a number/);
+  assertNamed(withTop({ legs: [null] }), /the leg at position 0 is null, not an object/);
+  assertNamed(withTop({ legs: ['x'] }), /the leg at position 0 is a string, not an object/);
 });

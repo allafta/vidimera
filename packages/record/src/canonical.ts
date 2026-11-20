@@ -148,11 +148,13 @@ export function resolveCanonicalizer(
   }
   // A registry entry that is not a function (a `null`, a string, an object) would construct
   // and then fail at the first `stage()`, deep inside the kernel; construction is loud, so it
-  // is refused here, with the same head as a missing entry.
+  // is refused here, with the same head as a missing entry. The type description below
+  // repeats `config.ts`'s `found()` on purpose: this module is the lower layer (config.ts
+  // takes its `Canonicalizer` type from here), so it does not import back up.
   if (typeof c !== 'function') {
     throw new Error(
       `resolveCanonicalizer: unresolved canonicalizerRef '${ref}' — the registry entry is not a function ` +
-        `(found ${c === null ? 'null' : Array.isArray(c) ? 'an array' : typeof c}); a canonicalizer is a function (SPEC §3)`,
+        `(found ${c === null ? 'null' : Array.isArray(c) ? 'an array' : `a ${typeof c}`}); a canonicalizer is a function (SPEC §3)`,
     );
   }
   return c;

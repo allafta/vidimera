@@ -174,26 +174,30 @@ function assertNoStrayRedemptionKeys(profileId: string, where: string, obj: obje
  */
 const MAX_BOUND_SECONDS = 3_155_760_000;
 
-/** The tail every bound message ends with: the convention and the cap that completes it. */
-const BOUND_RULE = `a positive integer of seconds (the ttl convention), at most ${MAX_BOUND_SECONDS} (100 Julian years) — omit the field for no bound`;
+/** What every bound message says a bound is: the convention and the cap that completes it. Each
+ * site appends its own spelling of "no bound" (expiry cannot be omitted; the others can). */
+const BOUND_RULE = `a positive integer of seconds (the ttl convention), at most ${MAX_BOUND_SECONDS} (100 Julian years)`;
 
 function isValidBound(value: unknown): boolean {
   return Number.isInteger(value) && (value as number) > 0 && (value as number) <= MAX_BOUND_SECONDS;
 }
 
-/** What a wrong value IS, for a message: `typeof` calls both `null` and an array 'object'. */
+/** What a wrong value IS, for a message, with its article (`typeof` calls both `null` and an
+ * array 'object'): "null", "an array", "a string", "a number". */
 function found(value: unknown): string {
   if (value === null) return 'null';
   if (Array.isArray(value)) return 'an array';
-  return typeof value;
+  const type = typeof value;
+  return `${type === 'object' ? 'an' : 'a'} ${type}`;
 }
 
 /** A primitive as a message shows it: JSON for the JSON-able ones (the text the messages
- * already carried), and a plain rendering for the two `JSON.stringify` cannot take (a BigInt
- * throws, a Symbol yields `undefined`), so describing a value never itself throws. */
+ * already carried), and a plain rendering for the ones `JSON.stringify` cannot take (a BigInt
+ * throws, a Symbol yields `undefined`, a NaN or Infinity yields `null`), so describing a value never itself throws. */
 function show(value: unknown): string {
   if (typeof value === 'bigint') return `${value}n`;
   if (typeof value === 'symbol') return String(value);
+  if (typeof value === 'number') return String(value);
   return JSON.stringify(value) ?? 'undefined';
 }
 
@@ -205,13 +209,17 @@ function show(value: unknown): string {
  */
 function assertOptionalString(
   profileId: string,
-  where: string,
   name: string,
   value: unknown,
+  legId?: string,
 ): void {
   if (value === undefined || typeof value === 'string') return;
+  const subject =
+    legId === undefined
+      ? `${name} is ${found(value)}`
+      : `leg '${legId}' declares ${name} as ${found(value)}`;
   throw new Error(
-    `invalid profile '${profileId}': ${where}${name} is ${found(value)} — ` +
+    `invalid profile '${profileId}': ${subject} — ` +
       (value === null
         ? 'omit the field to declare nothing; null is a declared non-string, not an absent field'
         : 'a declared label is a string'),
@@ -279,50 +287,55 @@ function validateAllowedAuthorities(profile: ConfirmProfile, leg: LegSpec): void
  * configuration is a construction error). `leg-expired` and `availability` are absent on
  * purpose — SPEC §8 names them legal-but-inert — and every other member is unconditional.
  */
-const PRODUCER_OF: Partial<
-  Record<RefusalCode, { needs: string; declared: (p: ConfirmProfile, leg: LegSpec) => boolean }>
-> = {
+interface Producer {
+  /** The declaration, as the message names it ("only <needs> does"). */
+  needs: string;
+  declared: (p: ConfirmProfile, leg: LegSpec) => boolean;
+}
+
+/** The findings flow is declared as the pair (SPEC §10.2), and both codes come from it. */
+const FINDINGS_FLOW: Producer = {
+  needs: 'a leg declaring the findings flow (ackMode and requiredAcks)',
+  declared: (_p, leg) => leg.ackMode !== undefined && leg.requiredAcks !== undefined,
+};
+
+const PRODUCER_OF: Partial<Record<RefusalCode, Producer>> = {
   'sod-violation': {
-    needs: 'the leg to declare sod or proposer',
+    needs: 'a leg declaring sod or proposer',
     declared: (_p, leg) => leg.sod !== undefined || leg.proposer !== undefined,
   },
   'policy-drift': {
-    needs: 'the profile to declare policySource',
+    needs: 'a profile declaring policySource',
     declared: (p) => p.policySource !== undefined,
   },
   ineligible: {
-    needs: 'the leg to declare eligibility',
+    needs: 'a leg declaring eligibility',
     declared: (_p, leg) => leg.eligibility !== undefined,
   },
   'consultation-failed': {
-    needs: 'the leg to declare requiredConsultations',
+    needs: 'a leg declaring requiredConsultations',
     declared: (_p, leg) => leg.requiredConsultations !== undefined,
   },
   'consultation-stale': {
-    needs: 'the leg to declare freshness',
+    needs: 'a leg declaring freshness',
     declared: (_p, leg) => leg.freshness !== undefined,
   },
-  'ack-missing': {
-    needs: 'the leg to declare the findings flow (ackMode and requiredAcks)',
-    declared: (_p, leg) => leg.ackMode !== undefined && leg.requiredAcks !== undefined,
-  },
-  'ack-stale': {
-    needs: 'the leg to declare the findings flow (ackMode and requiredAcks)',
-    declared: (_p, leg) => leg.ackMode !== undefined && leg.requiredAcks !== undefined,
-  },
+  'ack-missing': FINDINGS_FLOW,
+  'ack-stale': FINDINGS_FLOW,
 };
 
 /**
- * The type and shape rules every leg field meets BEFORE any other leg rule reads it. The
+ * The type and shape rules for the leg fields the rules after it read as arrays or strings,
+ * run first in each leg's turn of the leg loop (the `legs`-element and leg-id checks, which must
+ * precede any read of a leg, run in the earlier id loop). The
  * snapshot passes a primitive (including `null`) through in any slot, so each declared field
  * is judged here: the lists are arrays (`allowedAuthorities` and `sod.notActorOf` keep their
  * own messages, below), `proposer`/`eligibility` are strings, and `freshness` is a record. A
  * `null` is a declared non-value, never an absent one, so it is named instead of read through.
  */
 function validateLegShapes(profile: ConfirmProfile, leg: LegSpec): void {
-  const where = `leg '${leg.id}' declares `;
-  assertOptionalString(profile.id, where, 'proposer', leg.proposer);
-  assertOptionalString(profile.id, where, 'eligibility', leg.eligibility);
+  assertOptionalString(profile.id, 'proposer', leg.proposer, leg.id);
+  assertOptionalString(profile.id, 'eligibility', leg.eligibility, leg.id);
   assertOptionalArray(profile.id, leg.id, 'requiredConsultations', leg.requiredConsultations);
   assertOptionalArray(profile.id, leg.id, 'requiredAcks', leg.requiredAcks);
   const freshness: unknown = leg.freshness;
@@ -394,7 +407,7 @@ function validateLeg(profile: ConfirmProfile, leg: LegSpec): void {
     if (producer !== undefined && !producer.declared(profile, leg)) {
       throw new Error(
         `invalid profile '${profileId}': leg '${leg.id}' lists '${code}' in terminalRefusals, ` +
-          `but nothing produces that code without ${producer.needs} (SPEC §8) — the member ` +
+          `but nothing this leg declares can produce '${code}': only ${producer.needs} does — the member ` +
           'could never take effect (SPEC §9.1: inert feature configuration is a construction error)',
       );
     }
@@ -472,7 +485,8 @@ function validateResultDeclaration(profile: ConfirmProfile): void {
  * only tamper-evident under the signature layer). Keys must be bounded-able: each a
  * required kind of the same leg (or the implicit 'eligibility' where declared) — the
  * subset rule also excludes the reserved kinds by construction, since they can never
- * be required. Values are positive integer seconds (the ttl convention).
+ * be required. Values are positive integer seconds (the ttl convention), at most
+ * `MAX_BOUND_SECONDS` (100 Julian years).
  */
 function validateFreshness(profile: ConfirmProfile, leg: LegSpec): void {
   if (leg.freshness === undefined) return;
@@ -500,8 +514,8 @@ function validateFreshness(profile: ConfirmProfile, leg: LegSpec): void {
     }
     if (!isValidBound(seconds)) {
       throw new Error(
-        `invalid profile '${profile.id}': leg '${leg.id}' bounds '${kind}' at ${String(seconds)} — ` +
-          `a freshness bound is ${BOUND_RULE}`,
+        `invalid profile '${profile.id}': leg '${leg.id}' bounds '${kind}' at ${show(seconds)} — ` +
+          `a freshness bound is ${BOUND_RULE}; leave a kind that needs no bound out of the record`,
       );
     }
   }
@@ -524,8 +538,9 @@ function validateFreshness(profile: ConfirmProfile, leg: LegSpec): void {
  * no-numeric-rules symmetry at the AL2 freshness increment, so mirroring `expiry.ttl`'s
  * own laxity stopped being this build's only posture on a numeric bound, leaving the
  * three fields here as the sole remaining unvalidated class — row 18's own trigger. The
- * message register and rule class are `validateFreshness`'s own, unchanged: a positive
- * integer of seconds (the ttl convention), WHERE DECLARED.
+ * message register and rule class are `validateFreshness`'s own: a positive integer of
+ * seconds (the ttl convention), WHERE DECLARED, and at most `MAX_BOUND_SECONDS` (100 Julian
+ * years) — the cap lands on all four numeric bounds together.
  */
 function validateBounds(profile: ConfirmProfile): void {
   if (profile.expiry !== 'none') {
@@ -541,23 +556,23 @@ function validateBounds(profile: ConfirmProfile): void {
     const { ttl } = profile.expiry;
     if (!isValidBound(ttl)) {
       throw new Error(
-        `invalid profile '${profile.id}': expiry.ttl is ${String(ttl)} — ` +
-          `a bound is ${BOUND_RULE} ('none' for expiry)`,
+        `invalid profile '${profile.id}': expiry.ttl is ${show(ttl)} — ` +
+          `a bound is ${BOUND_RULE}; use 'none' for no expiry`,
       );
     }
   }
   const confirmToRedeem = profile.redeem?.confirmToRedeem;
   if (confirmToRedeem !== undefined && !isValidBound(confirmToRedeem)) {
     throw new Error(
-      `invalid profile '${profile.id}': redeem.confirmToRedeem is ${String(confirmToRedeem)} — ` +
-        `a bound is ${BOUND_RULE}`,
+      `invalid profile '${profile.id}': redeem.confirmToRedeem is ${show(confirmToRedeem)} — ` +
+        `a bound is ${BOUND_RULE}; omit the field for no bound`,
     );
   }
   const redeemBound = profile.redeem?.redeemBound;
   if (redeemBound !== undefined && !isValidBound(redeemBound)) {
     throw new Error(
-      `invalid profile '${profile.id}': redeem.redeemBound is ${String(redeemBound)} — ` +
-        `a bound is ${BOUND_RULE}`,
+      `invalid profile '${profile.id}': redeem.redeemBound is ${show(redeemBound)} — ` +
+        `a bound is ${BOUND_RULE}; omit the field for no bound`,
     );
   }
 }
@@ -765,13 +780,16 @@ function validateFindingsFlow(profile: ConfirmProfile, leg: LegSpec): void {
 
 /**
  * Fail-CLOSED structural validation of a single profile. Order:
- *  0. structural: the profile's own object-shaped fields, read before anything destructures
- *     them — `subject` an object with a `canonicalizerRef` string, `redeem` an object when
- *     declared with `reverify` a boolean, `policySource` a string (the snapshot hands any
- *     primitive through, so these meet a named message here, not a raw TypeError);
+ *  0. structural, ahead of the numbered rungs: the profile id is a non-empty string, `legs`
+ *     is an array;
  *  1. structural: at least one leg (internal legId derivation must be well-defined);
- *  2. structural: every leg an object, then unique leg ids (SPEC §10.1 keys recorded
- *     evidence by legId);
+ *  1a. structural: `captureMode` is one of the two named modes, then the profile's own
+ *     object-shaped fields, read before anything destructures them — `subject` an object with
+ *     a `canonicalizerRef` string, `redeem` an object when declared with `reverify` a
+ *     boolean, `policySource` a string (the snapshot hands any primitive through, so these
+ *     meet a named message here, not a raw TypeError);
+ *  2. structural: every leg an object, then a non-empty leg id, then unique leg ids (SPEC
+ *     §10.1 keys recorded evidence by legId);
  *  3. structural: `captureMode:'live'` construction rules (`validateLiveCapture`, SPEC
  *     §9.2, live as of the live-capture increment) — checked at this same position,
  *     still ahead of the reverify guard below (rung 8), whose own condition now reads
@@ -936,7 +954,7 @@ export function validateProfile(profile: ConfirmProfile): void {
   if (typeof ref !== 'string') {
     throw new Error(
       `invalid profile '${profile.id}': subject must be an object with a canonicalizerRef string ` +
-        `(found ${typeof subject === 'object' && subject !== null ? `a canonicalizerRef of ${found(ref)}` : found(subject)}) — SPEC §3 resolves the canonicalizer by that reference`,
+        `(found ${typeof subject === 'object' && subject !== null ? `a canonicalizerRef that is ${found(ref)}` : found(subject)}) — SPEC §3 resolves the canonicalizer by that reference`,
     );
   }
   const redeem: unknown = profile.redeem;
@@ -957,13 +975,13 @@ export function validateProfile(profile: ConfirmProfile): void {
       );
     }
   }
-  assertOptionalString(profile.id, '', 'policySource', profile.policySource);
+  assertOptionalString(profile.id, 'policySource', profile.policySource);
   const seenLegIds = new Map<string, number>();
   for (const [index, leg] of profile.legs.entries()) {
     const legValue: unknown = leg;
     if (typeof legValue !== 'object' || legValue === null) {
       throw new Error(
-        `invalid profile '${profile.id}': the leg at position ${index} is ${found(legValue)} — ` +
+        `invalid profile '${profile.id}': the leg at position ${index} is ${found(legValue)}, not an object — ` +
           'legs is an array of leg declaration objects (SPEC §9.1)',
       );
     }
