@@ -60,7 +60,7 @@ Admission runs before the clock.
 4. **A re-read that changes an outcome on a path with no lost CAS.**
 5. **The admission move changes the outcome of a correct call.**
 
-### Task A: Tampering never crashes verification; the edge lands
+### Task 1: Tampering never crashes verification; the edge lands
 
 **Files:** `chain/replay.ts` (`verifyChain`); `kernel/finalize.ts` (`appendChainCompromise`, the
 rung-(4.5) message); `signing/decorate.ts` (the cold-cache genesis read); comments in `jcs.ts` and
@@ -72,7 +72,7 @@ store-postgres test file for the Postgres legs.
 - [ ] **Implement.**
 - [ ] **Run the whole suite and the gates,** then commit.
 
-### Task B: Faults throw; lost races re-read
+### Task 2: Faults throw; lost races re-read
 
 **Files:** `kernel/redeem.ts` (the residual, the prologue's admission); `kernel/seal.ts`;
 `kernel/expiry.ts` (the new helper); the state rungs in `kernel/finalize.ts`, `kernel/decline.ts`
@@ -88,6 +88,6 @@ non-declaring profile in a new test.
 - [ ] **Implement,** arguing the eighteenth and nineteenth inversions at their sites.
 - [ ] **Run the whole suite and the gates,** then commit.
 
-### Task C: Docs and records
+### Task 3: Docs and records
 
 - [ ] Design §5. Run the gates, then commit.
