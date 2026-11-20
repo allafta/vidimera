@@ -37,6 +37,8 @@
 // (2) State/expiry gate (intact chain, before any append): a due-open record → en-passant
 //     `resolveDueClock` CAS-append `expired` → `leg-expired`; already-`expired` → `leg-expired`;
 //     `state !== 'open'` (confirmed/refused) → `record-not-open` (no append, no transitionRef).
+//     A lost resolution CAS answers what re-invoking would (`lostResolutionRefusal`,
+//     kernel/expiry.ts — the faults-and-races increment).
 // (3) Identity — both branches → `identity-authority-refused`: the arg missing/malformed (the
 //     library reads identity ONLY from the explicit arg — a payload-carried id is never
 //     trusted), or `identity.authority` not in the leg's `allowedAuthorities`.
@@ -127,7 +129,7 @@ import type {
   Transition,
 } from '../types.js';
 import { validateConsultations, validatePolicyInput } from './consultations.js';
-import { deadlineIso, resolveDueClock } from './expiry.js';
+import { deadlineIso, lostResolutionRefusal, resolveDueClock } from './expiry.js';
 import { findingCoverage } from './findings.js';
 import { heldProfile } from './held-profile.js';
 import { identitySnapshot } from './identity.js';
@@ -292,19 +294,28 @@ export async function finalize(
     // The clock rung (third step-3 increment; §4's lazy rule at this seam too): an
     // elapsed confirmed window resolves to `expired` → `leg-expired` (§8's "expired or
     // due-expired record"); an elapsed redeeming window resolves to `redemption-failed`
-    // → `record-not-open` (a non-open, non-expired record). Not due, or the CAS lost to
-    // a racing writer: the plain state verdict below — the record is not open either way.
+    // → `record-not-open` (a non-open, non-expired record). Not due: the plain state
+    // verdict — the record is not open.
     const due = await resolveDueClock(store, recordId, chain, resolved, now());
-    if (due.due && due.result.appended) {
-      return refused(due.window === 'confirmed' ? 'leg-expired' : 'record-not-open');
+    if (due.due) {
+      if (due.result.appended) {
+        return refused(due.window === 'confirmed' ? 'leg-expired' : 'record-not-open');
+      }
+      // Lost the CAS to a racing writer. THE NINETEENTH SELF-AUTHORED STANCE INVERSION (the
+      // faults-and-races increment): this arm refused `record-not-open` whatever won, and this
+      // comment called that "a deliberate divergence from the redemption family's
+      // loser-agrees-with-reinvocation discipline", tolerated because the race is rare and
+      // "the plain state verdict returned here is still true of the record". It is not: when
+      // the winner resolved the confirmed window to `expired`, `record-not-open` is false of
+      // the record — SPEC §8 defines it for "a non-open, non-expired record" and sends "an
+      // expired record at those seams" to `leg-expired` — and re-invoking says `leg-expired`.
+      // A loser that answers differently from re-invocation is exactly what that discipline
+      // exists to prevent, and rarity does not make a false code true. So the lost CAS now
+      // re-reads once and answers what re-invoking would (`lostResolutionRefusal`,
+      // kernel/expiry.ts, shared with decline and the findings seams); a `'seq'` here, which
+      // no honest writer produces against `confirmed`, throws as the storage fault it is.
+      return lostResolutionRefusal('finalize', store, recordId, due.window, due.result);
     }
-    // Lost the CAS to a racing writer: this refuses `record-not-open` even when the
-    // winner resolved a `confirmed` window to `expired` (re-invocation would say
-    // `leg-expired` there instead) — a deliberate divergence from the redemption
-    // family's loser-agrees-with-reinvocation discipline, tolerated because the race is
-    // rare (a concurrent resolver on a multi-connection backing) and harmless: the plain
-    // state verdict returned here is still true of the record regardless of which window
-    // raced, and re-invocation reports the fresh state.
     return refused('record-not-open');
   }
   if (record.state !== 'open') {
@@ -320,9 +331,18 @@ export async function finalize(
   // state === 'open': en-passant expiry (resolveDueClock performs the CAS append if due).
   const ex = await resolveDueClock(store, recordId, chain, resolved, now());
   if (ex.due) {
-    // Due — the `expired` transition was appended (the en-passant expiry edge; if the CAS
-    // raced, the record is past its deadline regardless). `leg-expired` carries no
-    // transitionRef — the expired edge is an expiry transition, not a `refused` edge.
+    // Due — the `expired` transition was appended (the en-passant expiry edge). `leg-expired`
+    // carries no transitionRef — the expired edge is an expiry transition, not a `refused`
+    // edge. A lost CAS used to answer `leg-expired` too, on the ground that the record is past
+    // its deadline regardless; but a racer that confirmed, declined or refused it first left a
+    // decided record, which re-invoking reports as `record-not-open`. The faults-and-races
+    // increment re-reads instead (`lostResolutionRefusal`, kernel/expiry.ts) — the same
+    // nineteenth inversion argued on the confirmed arm above, at the same rung and for the same
+    // reason: a racer that expired it, or a `'seq'` loss to a state-preserving finding, still
+    // answers `leg-expired`.
+    if (!ex.result.appended) {
+      return lostResolutionRefusal('finalize', store, recordId, ex.window, ex.result);
+    }
     return refused('leg-expired');
   }
 

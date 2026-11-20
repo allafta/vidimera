@@ -5,8 +5,10 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
 import type { ConfirmProfile } from '../src/config.js';
-import { create } from '../src/create.js';
+import { create, createWithClock } from '../src/create.js';
 import { MemoryStore } from '../src/store/memory.js';
+import { SqliteStore } from '../src/store/sqlite.js';
+import type { Store } from '../src/store/store.js';
 import {
   captureProfile,
   DEFAULT_SUBJECT_REF,
@@ -166,15 +168,13 @@ test('the redeemed payload key set: base keys plus exactly resultDigest, both sh
 
 // Gate-order VERIFICATION (per the controller resolution): read in `kernel/redeem.ts`.
 //   - `redeem()` calls `validateRedeemOptions('redeem', opts)` (the intake shape check)
-//     BEFORE `prologue()` ever runs (redeem.ts lines 338-342) — a malformed `opts.result`
-//     throws at intake depth, before profile resolution or the admission gate exist to
-//     run at all.
-//   - The admission gate (`opts?.result !== undefined && resolved.profile.redeem?.result
-//     !== true` -> throw, redeem.ts lines 350-355) sits AFTER `prologue()` returns its
-//     `gated` branch. `prologue()`'s own rung (3), `if (!resolved.effectSeam || !finalLeg)
-//     return { refusal: refused('unredeemable-state') }` (redeem.ts lines 235-237), fires
-//     INSIDE prologue and is returned via `if ('refusal' in pro) return pro.refusal;`
-//     (line 343) — strictly before the admission gate at line 350 is ever reached.
+//     BEFORE `prologue()` ever runs — a malformed `opts.result` throws at intake depth,
+//     before profile resolution or the admission gate exist to run at all.
+//   - The admission gate (a supplied result on a profile whose `redeem.result` is not
+//     `true` -> throw) sits INSIDE `prologue()`, after its rung (3) — `if
+//     (!resolved.effectSeam || !finalLeg) return { refusal: refused('unredeemable-state') }`
+//     — and before its clock rung (moved there by the faults-and-races increment; it used
+//     to sit after `prologue()` returned, so a due record resolved its clock first).
 //   CONFIRMED: for a pure-capture profile (no `redeem` block -> `resolved.effectSeam ===
 //   false`), a `redeem()` call carrying a well-formed `opts.result` never reaches the
 //   admission throw — it refuses `unredeemable-state` from the seam gate first. The pin
@@ -205,13 +205,13 @@ test('gate order: the intake throw beats the admission throw; both sit behind th
   }
 });
 
-// Two further gate-order pins: `kernel/redeem.ts`'s own admission-gate comment ("chain-
-// compromise, unknown-profile and the effect-seam/final-leg gate all outrank it, matching
-// finalize's own presence-contract depth") names two more codes that must outrank the
-// admission throw, beyond the seam gate the pin above already covers. Both are
-// `prologue()`-internal refusals (redeem.ts's rungs (1) and (2)), returned via
-// `if ('refusal' in pro) return pro.refusal;` — strictly before the admission gate at line
-// ~350 is ever reached, exactly like the seam-gate pin above.
+// Two further gate-order pins: `kernel/redeem.ts`'s own admission-gate comment names two
+// more codes that must outrank the admission throw, beyond the seam gate the pin above
+// already covers: chain-compromise and unknown-profile. Both are `prologue()`'s rungs (1)
+// and (2), which run before its admission gate, exactly like the seam-gate pin above. The
+// first pin below runs on a result-DECLARING profile, where the admission throw could never
+// fire whatever the order; its twin on a non-declaring profile, after the two, is the one
+// that can fail.
 
 test('gate order: a tampered chain on a result-declaring profile refuses chain-compromise before the admission throw can fire', async () => {
   // The established tampered-chain shape (redeem.test.ts's own (1)->(3)/(1)->(5) pins):
@@ -254,6 +254,120 @@ test('gate order: an unresolvable profile refuses unknown-profile before the adm
   assert.equal(outcome.status, 'refused');
   if (outcome.status !== 'refused') return;
   assert.equal(outcome.code, 'unknown-profile');
+});
+
+test('gate order: a tampered chain on a NON-declaring profile refuses chain-compromise before the admission throw can fire', async () => {
+  // The twin of the result-declaring pin above, on the profile where the admission throw is
+  // live: a stray result here would throw if admission ran before chain-verify.
+  const inner = new MemoryStore();
+  const profile = effectSeamProfile();
+  const handles0 = create(makeConfig([profile], { store: inner }));
+  const recordId = await openRecord(handles0, CONTENT, profile.id, DEFAULT_SUBJECT_REF);
+  const done = await handles0.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(done.status, 'ok', 'fixture: the record must confirm');
+
+  const tampering = new TamperingStore(inner, recordId, tamperNonLast);
+  const handles = create(makeConfig([profile], { store: tampering }));
+  const outcome = await handles.operator.redeem(recordId, CONTENT, {
+    result: { digest: RESULT },
+  });
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'chain-compromise');
+});
+
+// --- admission before the clock -----------------------------------------------------------------
+// A stray result on a non-declaring profile is a caller error that throws and records nothing
+// (SPEC §8, §11.2), whether or not the record is due: the admission gate sits before the clock
+// rung, so a due record keeps its pending window for the next correct call to resolve.
+
+const T0 = Date.UTC(2026, 0, 1, 0, 0, 0);
+const CONFIRM_MS = (effectSeamProfile().redeem?.confirmToRedeem ?? 0) * 1000;
+const REDEEM_MS = (effectSeamProfile().redeem?.redeemBound ?? 0) * 1000;
+const STRAY = { result: { digest: RESULT } };
+
+/** A non-declaring effect-seam record under a controllable clock: confirmed, or redeeming. */
+async function underClock(store: Store, clock: { t: number }, redeeming: boolean) {
+  const handles = createWithClock(
+    makeConfig([effectSeamProfile()], { store }),
+    () => new Date(clock.t),
+  );
+  const recordId = await openRecord(handles, CONTENT, 'test.effect.v1', DEFAULT_SUBJECT_REF);
+  const done = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(done.status, 'ok', 'fixture: the record must confirm');
+  let token = '';
+  if (redeeming) {
+    const begun = await handles.operator.beginRedemption(recordId, CONTENT);
+    if (begun.status !== 'ok') throw new Error('fixture: beginRedemption must succeed');
+    token = begun.value.token;
+  }
+  clock.t += (redeeming ? REDEEM_MS : CONFIRM_MS) + 10_000;
+  return { handles, recordId, token };
+}
+
+test('admission before the clock: a stray result on a DUE-confirmed record of a non-declaring profile throws and appends nothing; the correct call then resolves the window', async () => {
+  const clock = { t: T0 };
+  const store = new MemoryStore();
+  const { handles, recordId } = await underClock(store, clock, false);
+  const before = await store.readChain(recordId);
+  await assert.rejects(() => handles.operator.redeem(recordId, CONTENT, STRAY), /does not declare/);
+  assert.deepEqual(await store.readChain(recordId), before, 'no expired edge, nothing at all');
+  assert.equal(before.at(-1)?.kind, 'confirmed');
+
+  const correct = await handles.operator.redeem(recordId, CONTENT);
+  assert.equal(correct.status === 'refused' && correct.code, 'unredeemable-state');
+  assert.equal((await store.readChain(recordId)).at(-1)?.kind, 'expired');
+});
+
+test('admission before the clock: a stray result on a DUE-redeeming record of a non-declaring profile throws at completeRedemption and appends nothing', async () => {
+  const clock = { t: T0 };
+  const store = new MemoryStore();
+  const { handles, recordId, token } = await underClock(store, clock, true);
+  const before = await store.readChain(recordId);
+  await assert.rejects(
+    () => handles.operator.completeRedemption(recordId, token, CONTENT, STRAY),
+    /does not declare/,
+  );
+  assert.deepEqual(await store.readChain(recordId), before, 'no redemption-failed edge');
+  assert.equal(before.at(-1)?.kind, 'redeeming');
+
+  const correct = await handles.operator.completeRedemption(recordId, token, CONTENT);
+  assert.equal(correct.status === 'refused' && correct.code, 'redemption-timeout');
+});
+
+test('admission before the clock, enlisted on SqliteStore: a stray result on a due record throws, appends nothing, and leaves the host transaction open and usable', async () => {
+  for (const redeeming of [false, true]) {
+    const sqlite = new SqliteStore(':memory:');
+    try {
+      const clock = { t: T0 };
+      const { handles, recordId, token } = await underClock(sqlite, clock, redeeming);
+      const before = await sqlite.readChain(recordId);
+      const opts = { tx: sqlite.database, ...STRAY };
+      sqlite.database.exec('BEGIN IMMEDIATE');
+      let thrown: unknown;
+      try {
+        if (redeeming) await handles.operator.completeRedemption(recordId, token, CONTENT, opts);
+        else await handles.operator.redeem(recordId, CONTENT, opts);
+      } catch (e) {
+        thrown = e;
+      }
+      assert.equal(sqlite.database.isTransaction, true, "the host's transaction is still open");
+      sqlite.database.exec(
+        'CREATE TABLE host_effect (n INTEGER); INSERT INTO host_effect VALUES (1)',
+      );
+      assert.deepEqual(
+        { ...(sqlite.database.prepare('SELECT COUNT(*) AS n FROM host_effect').get() ?? {}) },
+        { n: 1 },
+        "the host's transaction is still usable",
+      );
+      sqlite.database.exec('ROLLBACK');
+      assert.ok(thrown instanceof Error, 'the stray result throws');
+      assert.match(thrown.message, /does not declare/);
+      assert.deepEqual(await sqlite.readChain(recordId), before, 'nothing appended');
+    } finally {
+      sqlite.close();
+    }
+  }
 });
 
 test('construction: a stray result key outside the redeem block throws', async () => {

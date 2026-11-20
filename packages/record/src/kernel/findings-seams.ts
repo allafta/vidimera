@@ -39,7 +39,7 @@ import type {
   IdentityAssertion,
   Transition,
 } from '../types.js';
-import { expiryDeadlineMs, resolveDueClock } from './expiry.js';
+import { expiryDeadlineMs, lostResolutionRefusal, resolveDueClock } from './expiry.js';
 import { appendChainCompromise, appendSeqConflict } from './finalize.js';
 import { heldProfile } from './held-profile.js';
 import { assertDigestForm, assertIdArg, assertWellFormedString, intakeIdentity } from './intake.js';
@@ -225,17 +225,35 @@ async function loadOpenDeclaringRecord(
   if (record.state === 'confirmed' || record.state === 'redeeming') {
     // The clock rung, adapted from finalize's own rung (2): an elapsed confirmed window
     // resolves to `expired` -> `leg-expired`; an elapsed redeeming window resolves to
-    // `redemption-failed` -> `record-not-open` (a non-open, non-expired record). Not
-    // due, or the CAS lost to a racing writer: `record-not-open` either way — true of
-    // the record's state regardless (the same divergence from the redemption family's
-    // loser-agrees-with-reinvocation discipline finalize.ts's own rung (2) comment
-    // records, tolerated for the same reason: the race is rare and the verdict stays
-    // true of the record; re-invocation reports the fresh state).
+    // `redemption-failed` -> `record-not-open` (a non-open, non-expired record). Not due:
+    // `record-not-open`. A lost resolution CAS answers what re-invoking would
+    // (`lostResolutionRefusal`, kernel/expiry.ts). This comment used to call the lost CAS's
+    // fixed `record-not-open` "the same divergence" finalize's rung (2) recorded, "the
+    // verdict stays true of the record" — finalize.ts argues there why that verdict is false
+    // when a racer expired the record, and why the stance is inverted (the nineteenth
+    // self-authored stance inversion, the faults-and-races increment).
+    //
+    // THE READING ON A DUE-CONFIRMED RECORD, named because SPEC §10.2's own sentence reads
+    // otherwise: it says "any other non-open state refuses" `record-not-open` (never-append),
+    // which taken alone would leave a due-confirmed record unresolved here. This seam follows
+    // SPEC §4 and §8 instead. SPEC §4 appends a clock edge "lazily at the next operator-side
+    // mutating seam that observes the bound has passed" and does not list the findings seams
+    // among its named exceptions; SPEC §8's `leg-expired` row names "the findings seams,
+    // §10.2" for "an `expired` or due-expired record". So a due-confirmed record gets its
+    // `expired` edge here and the seam refuses `leg-expired`; before the bound it refuses
+    // `record-not-open` with no append. A code/spec difference recorded rather than
+    // reconciled: the §10.2 sentence is sealed wording. Pinned in faults-and-races.test.ts.
     const due = await resolveDueClock(store, recordId, chain, resolved, now());
-    if (due.due && due.result.appended) {
+    if (due.due) {
+      if (due.result.appended) {
+        return {
+          ok: false,
+          out: refused(due.window === 'confirmed' ? 'leg-expired' : 'record-not-open'),
+        };
+      }
       return {
         ok: false,
-        out: refused(due.window === 'confirmed' ? 'leg-expired' : 'record-not-open'),
+        out: await lostResolutionRefusal(seam, store, recordId, due.window, due.result),
       };
     }
     return { ok: false, out: refused('record-not-open') };
@@ -245,6 +263,12 @@ async function loadOpenDeclaringRecord(
   }
   const ex = await resolveDueClock(store, recordId, chain, resolved, now());
   if (ex.due) {
+    if (!ex.result.appended) {
+      return {
+        ok: false,
+        out: await lostResolutionRefusal(seam, store, recordId, ex.window, ex.result),
+      };
+    }
     return { ok: false, out: refused('leg-expired') };
   }
   return { ok: true, chain, record, resolved, leg };

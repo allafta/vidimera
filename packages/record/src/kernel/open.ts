@@ -10,7 +10,9 @@
 //      `profileDigest` over the data-only projection), CAS-append with
 //      `expectedCurrentState:null`;
 //   4. on `conflict:'exclusivity'` (a non-terminal record already holds (profile, subject)),
-//      run the gated expire-then-retry via the `blockingRecordId` locator (SPEC §12).
+//      run the gated expire-then-retry via the `blockingRecordId` locator (SPEC §12); a
+//      blocker that is already terminal when read (a racer freed the pair) takes the same
+//      single retry with no expiry.
 //
 // Missing-stagedRef choice (the SPEC names NO RefusalCode for it): open() is operator-only,
 // and a `stagedRef` that resolves to no draft is a CALLER error — the host must have
@@ -290,17 +292,64 @@ export async function open(
   };
   const genesisMeta = genesisMetaFor(openedTransition.at);
 
+  // A genesis conflict other than exclusivity — a `state-mismatch` (the freshly-minted
+  // recordId already exists — a UUID collision, cryptographically negligible) or a `seq`
+  // conflict on a seq we set to 1 — is a should-never-happen invariant violation, not a
+  // domain refusal, on the first attempt and on the retry alike.
+  const unexpectedConflict = (conflict: string): Error =>
+    new Error(
+      `open: unexpected genesis append conflict '${conflict}' for freshly-minted recordId '${recordId}'`,
+    );
+
+  // THE SINGLE RETRY, one local for both paths that take it (the faults-and-races increment):
+  // the genesis RE-STAMPED from `at` — the retried record opens at that reading, and its open
+  // window follows it. When the clock has not moved the bytes are identical, so the SAME
+  // object and meta are reused (one mint under signing — `signing/decorate.ts` keys its mint
+  // memo by object identity). Its conflicts map as the first attempt's do: exclusivity — the
+  // retry's own C1 names a live blocker — is `record-exists`, never a loop; anything else
+  // throws. `expiredBlocker` names the blocker THIS call expired en passant, when it did: that
+  // edge stands whatever the retry does, so a retry that fails cannot be "a storage fault where
+  // nothing was recorded" — it throws an error naming the blocker, with the store's (or the
+  // signer's) error as `cause`. When this call appended nothing, the failure propagates as it
+  // came, the fault it is.
+  const retryOnce = async (
+    at: Date,
+    expiredBlocker?: string,
+  ): Promise<Outcome<{ recordId: string }>> => {
+    const retryAt = at.toISOString();
+    const reuse = retryAt === openedTransition.at;
+    const retryTransition: Transition = reuse
+      ? openedTransition
+      : { ...openedTransition, at: retryAt };
+    let failure: unknown;
+    try {
+      const retry = await store.appendTransition(
+        null,
+        retryTransition,
+        reuse ? genesisMeta : genesisMetaFor(retryAt),
+      );
+      if (retry.appended) return ok({ recordId });
+      if (retry.conflict === 'exclusivity') return refused('record-exists');
+      failure = unexpectedConflict(retry.conflict);
+    } catch (err) {
+      failure = err;
+    }
+    if (expiredBlocker === undefined) throw failure;
+    throw new Error(
+      `open: the retried genesis failed after this call expired blocker '${expiredBlocker}' ` +
+        'en passant — that edge stands (its window had elapsed; SPEC §4 appends a clock edge at ' +
+        'the seam that observes the bound has passed), no record was opened, and re-invoking ' +
+        "open() retries against the released pair; the failure rides as this error's cause",
+      { cause: failure },
+    );
+  };
+
   const first = await store.appendTransition(null, openedTransition, genesisMeta);
   if (first.appended) {
     return ok({ recordId });
   }
   if (first.conflict !== 'exclusivity') {
-    // A genesis `state-mismatch` (the freshly-minted recordId already exists — a UUID
-    // collision, cryptographically negligible) or a `seq` conflict on a seq we set to 1:
-    // a should-never-happen invariant violation, not a domain refusal.
-    throw new Error(
-      `open: unexpected genesis append conflict '${first.conflict}' for freshly-minted recordId '${recordId}'`,
-    );
+    throw unexpectedConflict(first.conflict);
   }
 
   // --- C1 exclusivity: gated expire-then-retry (SPEC §12's C1) --------------------------
@@ -318,8 +367,13 @@ export async function open(
     return refused('record-exists');
   }
   if (blocker.state !== 'open' && blocker.state !== 'confirmed') {
-    // Defensive: a terminal blocker cannot hold C1; a coherent store never names one.
-    return refused('record-exists');
+    // Terminal under every profile. The store named it a blocker, so a racer decided it
+    // between this call's genesis attempt and the read: the pair is free. This arm used to
+    // refuse `record-exists` ("a coherent store never names one"), which re-invoking would
+    // contradict. It takes the single retry instead, stamped from a fresh reading — the first
+    // stamp predates the racer's edge — and answers `record-exists` only when the retry's own
+    // C1 names a live blocker (the faults-and-races increment). This call appended nothing.
+    return retryOnce(now());
   }
   // The profile-drift gate: this instance may expire the blocker en passant only if it HOLDS
   // the blocker's profile — the blocker's genesis binding must be the digest this instance's
@@ -330,6 +384,24 @@ export async function open(
   // above). Recovery is the version discipline: a new profile id is a new pair.
   if (blocker.profileDigest !== resolved.profileDigest) {
     return refused('record-exists');
+  }
+  // A `confirmed` blocker is terminal unless it awaits redemption — a final leg on an
+  // effect-seam profile (SPEC §2's derivation, `nonterminal.ts`). Held, its profile is this
+  // instance's, so the derivation can be read here: a terminal `confirmed` (a capture leg, or
+  // a non-final one) means a racer confirmed the blocker after the store named it, the same
+  // freed pair as the arm above, and takes the same single retry.
+  if (
+    blocker.state === 'confirmed' &&
+    !nonTerminal(
+      'confirmed',
+      isFinalLeg(
+        profile.legs.findIndex((leg) => leg.id === blocker.legId),
+        profile.legs.length,
+      ),
+      effectSeam,
+    )
+  ) {
+    return retryOnce(now());
   }
   // An `open` blocker rides the open window; a `confirmed` effect-seam blocker rides the
   // confirmToRedeem window (third step-3 increment — the un-stranding §9.1 promises:
@@ -354,30 +426,16 @@ export async function open(
   if (!ex.result.appended) {
     // A race flipped the blocker away from its resolveDueClock-observed state between our
     // read and the expire CAS (`conflict:'state-mismatch'`/`'seq'`) -> record-exists, and
-    // NEVER re-loop.
+    // NEVER re-loop. (Left as it is: taking the single retry here too would invert an
+    // inherited pinned assertion, which waits for the owner's explicit word.)
     return refused('record-exists');
   }
 
-  // The blocker is expired (now terminal); retry the genesis open EXACTLY ONCE — RE-STAMPED
-  // from the reading that stamped the expiry edge: the retried record opens at the instant
-  // the blocker expired, never before it, and its open window follows the same reading. When
-  // the clock has not moved the bytes are identical, so the SAME object and meta are reused
-  // (one mint under signing — `signing/decorate.ts` keys its mint memo by object identity).
-  const retryAt = resolveNow.toISOString();
-  const reuse = retryAt === openedTransition.at;
-  const retryTransition: Transition = reuse
-    ? openedTransition
-    : { ...openedTransition, at: retryAt };
-  const retry = await store.appendTransition(
-    null,
-    retryTransition,
-    reuse ? genesisMeta : genesisMetaFor(retryAt),
-  );
-  if (retry.appended) {
-    return ok({ recordId });
-  }
-  // A second exclusivity (or any) conflict on the single retry -> record-exists, no loop.
-  return refused('record-exists');
+  // The blocker is expired (now terminal) by THIS call's edge; retry the genesis open EXACTLY
+  // ONCE — RE-STAMPED from the reading that stamped the expiry edge: the retried record opens
+  // at the instant the blocker expired, never before it. A retry that fails names the blocker
+  // whose edge stands (`retryOnce`, above).
+  return retryOnce(resolveNow, first.blockingRecordId);
 }
 
 /** A staged draft's four bound fields, as `checkedDraft` read and checked them. */

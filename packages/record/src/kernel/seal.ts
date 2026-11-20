@@ -9,7 +9,8 @@
 //   (2) resolve profile  -> unknown-profile (derived-terminality needs the leg and the profile)
 //   (3) already sealed?  -> unsealable-state
 //   (4) derived-terminal?-> unsealable-state
-//   (5) append `sealed`  -> a non-append is a racing/duplicate seal -> unsealable-state
+//   (5) append `sealed`  -> a state-mismatch is a racing/duplicate seal -> unsealable-state;
+//                           a `'seq'` conflict has no honest producer and THROWS
 //
 // (1) IS FIRST and outranks everything, including an already-sealed record — SPEC §5:
 // "Verification is first: a record whose chain fails verification refuses `chain-compromise`
@@ -22,7 +23,8 @@
 // oversight — SPEC §4:
 // "`seal()` never appends a clock edge en passant — a record whose bound has elapsed refuses
 // `unsealable-state`, and the operator sweeps first, then seals." In this build that also
-// falls out of gate (4): a due-but-open record is non-terminal.
+// falls out of gate (4): a due-but-open record is non-terminal. (The one thing this seam takes
+// from `kernel/expiry.ts` is its append-conflict fault, never the resolver.)
 
 import { transitionDigest } from '../chain/encoding.js';
 import { replay, verifyChain } from '../chain/replay.js';
@@ -32,10 +34,23 @@ import type { Outcome } from '../outcome.js';
 import { ok, refused } from '../outcome.js';
 import type { AppendMeta } from '../store/store.js';
 import type { Digest, Transition } from '../types.js';
+import { appendConflictFault } from './expiry.js';
 import { appendChainCompromise } from './finalize.js';
 import { heldProfile } from './held-profile.js';
 import { assertIdArg } from './intake.js';
 import { signatureLayerHolds } from './verify-signatures.js';
+
+/**
+ * Why `'seq'` has no honest producer on the seal append. Its CAS target is the record's own
+ * derived-terminal state, and every append such a record still admits either leaves that state
+ * (the compromise edge out of a capture-terminal `confirmed`) or is another seal, which C4
+ * rejects. Every conforming backing checks the state and C4 before the seq.
+ */
+const SEAL_SEQ_WHY =
+  "the seal's compare-and-swap target is the record's own derived-terminal state, and every " +
+  'append such a record still admits either leaves that state or is another seal, which C4 ' +
+  'rejects; every conforming backing checks both before the seq, so a concurrent writer ' +
+  "reaches this call as 'state-mismatch', never 'seq'";
 
 export async function seal(
   ctx: KernelContext,
@@ -118,6 +133,13 @@ export async function seal(
 
   const res = await store.appendTransition(record.state, sealedTransition, meta);
   if (!res.appended) {
+    if (res.conflict !== 'state-mismatch') {
+      // A `'seq'` conflict has no honest producer here (the faults-and-races increment): it
+      // used to map to `unsealable-state` too, which states something of the record — not
+      // derived-terminal, or already sealed — that a store fault cannot establish. It throws
+      // the storage fault instead; nothing was appended.
+      throw appendConflictFault('seal', res.conflict, SEAL_SEQ_WHY);
+    }
     // A racing or duplicate seal: C4 (or the state CAS) rejected it through the
     // terminal-state-mismatch path, and §12 maps that residual here.
     return refused('unsealable-state');

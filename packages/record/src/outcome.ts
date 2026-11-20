@@ -1,9 +1,13 @@
 // @vidimera/record — Outcome<T> (result-first; DECISIONS.md #10 "Result-first outcomes;
 // refusals returned, never thrown"). Domain refusals are RETURNED VALUES: constructors
 // never throw for a domain refusal. Exceptions are reserved for caller/config errors and
-// storage faults where nothing was recorded — the loud-throw half of #10 (see #11 and
-// SPEC §8's "Caller errors are not refusals."; e.g. config.ts's construction guards and
-// open.ts's missing-stagedRef throw).
+// storage faults where the failing write recorded nothing — one call can append a clock edge
+// en passant before it, and that edge stands: `open()` expires a due blocker, then its
+// retried genesis fails, and the error it throws names that blocker. This build's narrowing of
+// #10's "storage faults where nothing was recorded", recorded rather than reconciled since
+// #10's wording is sealed — the loud-throw half of #10 (see #11 and SPEC §8's "Caller errors
+// are not refusals."; e.g. config.ts's construction guards and open.ts's missing-stagedRef
+// throw).
 
 import { REGISTRY, type RefusalCode } from './refusal-codes.js';
 import type { Digest } from './types.js';
