@@ -196,7 +196,19 @@ export function withSigning(
         // trust: sign, never throw, never cache.
         return true;
       }
-      if ((genesis as Transition).recordId !== transition.recordId) {
+      const first = genesis as Transition;
+      if (first.seq !== 1 || first.kind !== 'opened') {
+        // The first row read is NOT a genesis — the genesis was deleted (or rewritten), so the
+        // read starts at a later row: an object with an object payload under this record's id,
+        // which the checks around this one would otherwise accept, reading its payload's
+        // absent `profileId` as "does not sign" and CACHING that, so the compromise edge for the
+        // break landed unsigned on a signing record. An honest chain always begins with the
+        // `opened` row at seq 1, so this arm never fires on the honest path. Any other first row
+        // says nothing about whether this record signs: the same arm as the garbled genesis
+        // above — sign, never throw, never cache.
+        return true;
+      }
+      if (first.recordId !== transition.recordId) {
         // The store answered this record's read with ANOTHER record's chain (SPEC §5: the audit
         // functions run "over the chain the store returns for that record", and §4's genesis
         // rule binds a chain's first link to its own id; a foreign answer is §8's storage

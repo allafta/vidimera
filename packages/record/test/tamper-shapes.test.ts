@@ -17,7 +17,9 @@
 //     walk it always was (one attempt per state target), and on a gapped one it tries the
 //     second seq only after a `'seq'` conflict;
 //   - the signing decorator's cold genesis read: a `null` genesis, or a genesis whose payload is
-//     `null`, signs the compromise edge instead of throwing;
+//     `null`, signs the compromise edge instead of throwing, and a deleted genesis (the first
+//     row read is then not a genesis) signs it instead of landing it unsigned; and, under
+//     signing, the head guard refuses a digestless head with no mint and no sidecar entry;
 //   - rung (4.5) in `finalize`: a storage edit of a sole-genesis head that adds a `policyDigest`
 //     reaches it at AL1 and throws a storage fault that says so; at AL2 the same edit refuses
 //     `chain-compromise`.
@@ -665,14 +667,16 @@ test("the walk on a GAPPED chain tries head.seq + 1 then chain.length + 1 per st
 // ============================================================================================
 
 /** Two signing instances over one SqliteStore and one separate sidecar, sharing one key. The
- * second instance's signs-or-not memo is cold for every record the first one built. */
+ * second instance's signs-or-not memo is cold for every record the first one built. `mints()`
+ * counts signer calls across every instance. */
 function signingRig(profile: ConfirmProfile) {
   const { publicKey, privateKey } = generateKeyPairSync('ed25519');
   const sqlite = new SqliteStore(':memory:');
-  const signer: Signer = async (bytes) => ({
-    keyRef: 'key-1',
-    signature: edSign(null, bytes, privateKey).toString('base64'),
-  });
+  let mints = 0;
+  const signer: Signer = async (bytes) => {
+    mints += 1;
+    return { keyRef: 'key-1', signature: edSign(null, bytes, privateKey).toString('base64') };
+  };
   const verifier: Verifier = async (bytes, signature) =>
     edVerify(null, bytes, publicKey, Buffer.from(signature, 'base64'));
   const signatures = new MemorySignatureStore();
@@ -681,7 +685,7 @@ function signingRig(profile: ConfirmProfile) {
       ...makeConfig([profile], { store }),
       signing: { signer, verifiers: { 'key-1': verifier }, signatures },
     });
-  return { sqlite, signatures, instance };
+  return { sqlite, signatures, instance, mints: () => mints };
 }
 
 const SIGNING_PLAIN: ConfirmProfile = { ...plainProfile(), signing: true };
@@ -714,6 +718,52 @@ test('AL2 cold genesis read: a genesis whose payload is null — the compromise 
     (await signatures.listByRecord(recordId)).some((e) => e.transitionDigest === ref),
     'the edge is signed',
   );
+});
+
+test('AL2 cold genesis read: the genesis deleted — the first row read is not a genesis, so the landed compromise edge is signed, never unsigned', async () => {
+  const { sqlite, signatures, instance, mints } = signingRig(SIGNING_PLAIN);
+  const recordId = await confirmedRecord(instance(), 'subject:al2-c');
+  const maxSeq = rawRows(sqlite, recordId).length;
+  deleteRow(sqlite, recordId, 1);
+
+  // A fresh instance: its signs-or-not memo is cold, so the decorator reads the chain, whose
+  // first row is now the seq-2 row — an object, with an object payload, under this record's id.
+  const cold = instance();
+  const before = mints();
+  const ref = assertEdge(await cold.operator.seal(recordId));
+  assertEdgeIsHead(await sqlite.readChain(recordId), maxSeq + 1, ref);
+  assert.ok(mints() > before, 'the signer was called for the edge');
+  assert.ok(
+    (await signatures.listByRecord(recordId)).some((e) => e.transitionDigest === ref),
+    'the edge has its sidecar entry',
+  );
+  const report = await cold.operator.verifySignatures(recordId);
+  const edge = report.transitions.find((t) => t.transitionDigest === ref);
+  assert.ok(edge !== undefined, 'verifySignatures reports the edge');
+  assert.equal(edge.signed, true, 'the edge is signed');
+  assert.equal(edge.verified, true, 'and its signature verifies');
+});
+
+test("AL2 head guard: a signing record's head prevHash set to md5:00 — seal refuses with no edge, and nothing is minted or written to the sidecar", async () => {
+  const { sqlite, signatures, instance, mints } = signingRig(SIGNING_PLAIN);
+  const warm = instance();
+  const recordId = await confirmedRecord(warm, 'subject:al2-d');
+  const headSeq = rawRows(sqlite, recordId).length;
+  editRow(sqlite, recordId, headSeq, (t) => ({ ...t, prevHash: 'md5:00' }));
+  const rowsBefore = rawRows(sqlite, recordId);
+  const entriesBefore = await signatures.listByRecord(recordId);
+  const before = mints();
+
+  // Separate mode writes each attempt's entry before the attempt; the guard decides before any.
+  assertNoEdge(await warm.operator.seal(recordId));
+  assertNoEdge(await instance().operator.seal(recordId));
+  assert.equal(mints(), before, 'no signer call: the guard refuses before any attempt');
+  assert.deepEqual(
+    await signatures.listByRecord(recordId),
+    entriesBefore,
+    'no sidecar entry: not even an orphan',
+  );
+  assert.deepEqual(rawRows(sqlite, recordId), rowsBefore, 'nothing was appended');
 });
 
 // ============================================================================================
