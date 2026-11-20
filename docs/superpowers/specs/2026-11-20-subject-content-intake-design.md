@@ -67,11 +67,12 @@ redemption seams. They now call one helper in `canonical.ts`, which does three t
 
 1. **Calls the canonicalizer.**
 2. **Refuses a thenable.** If the output is an object or function with a callable `then`, the
-   helper first attaches a rejection handler, so a later rejection is observed and cannot
-   terminate the process. It then throws `canonicalizer for '<ref>' returned a thenable — a
+   helper, when the output is a native promise, first attaches a rejection handler, so a later
+   rejection is observed and cannot terminate the process; any other thenable is refused without
+   its `then` being called, so a lazy one is never run. It then throws `canonicalizer for '<ref>' returned a thenable — a
    canonicalizer is synchronous`.
-3. **Serializes strictly and digests.** It serializes the output in `serializeJcs`'s strict
-   mode, then digests the bytes. Strict mode is an internal option. Every string it writes
+3. **Serializes and digests.** It serializes the output in `serializeJcs`'s strict mode where
+   the caller asks for it (only `stage()` does; see the amendment in §3), then digests the bytes. Strict mode is an internal option. Every string it writes
    (any key, any value, and any string a `toJSON` returns) must be well-formed, or it throws.
    The public `canonicalize` and the transition encoding stay in the default mode.
 
@@ -88,8 +89,10 @@ the constructor. It covers:
 - class instances, including those holding only `#private` state;
 - boxed primitives, which used to serialize as `{"0":"a"}` and now throw.
 
-`toJSON` stays honored, so a `Date` is still its ISO string. Data read back from a store is
-always plain, so no persisted chain is affected. One caller-data path changes visibly: a
+`toJSON` stays honored, so a `Date` is still its ISO string. The three reference backings
+return plain data, so no persisted chain read through them is affected; a custom `Store` must
+keep that contract (return plain data, never class instances), or `verifyChain` would throw on
+its payloads. One caller-data path changes visibly: a
 `facts.figures` entry holding a `Map` used to digest as `{}` and now refuses
 `consultation-missing`, the documented answer for non-canonicalizable figures.
 
@@ -112,22 +115,49 @@ U+FFFD.
   - **The remaining gap, stated:** other strings that enter transitions (identities,
     consultation kinds, finding fields, labels) are operator inputs. They still reach the
     chain unchecked until the operator-intake increment.
-- **Non-plain objects throw everywhere in `serializeJcs`.** Unlike lone surrogates, a store
-  never returns one, so the general rule costs the read path nothing. It is the library's own
+- **Non-plain objects throw everywhere in `serializeJcs`.** Unlike lone surrogates, the
+  three reference backings never return one, so the general rule costs the read path nothing; a
+  custom `Store` that materialized payloads as class instances would now make `verifyChain`
+  throw, so returning plain data is the contract a custom `Store` must keep. It is the library's own
   rule: every input with no JCS representation throws.
-- **The thenable handler is attached to the top-level output only.** A Promise nested deeper
-  is refused by `serializeJcs`, but its rejection stays the host's. Observing it would mean
+- **The thenable handler is attached to a native top-level promise only.** A non-native
+  thenable is refused without calling its `then`, and a Promise nested deeper is refused by
+  `serializeJcs`; in both cases a rejection of its own stays the host's. Observing it would mean
   walking host objects and calling `then` on them.
 - **A `null` `legId` at `stage()` still means the first leg,** as `??` reads it. JSON tool
   calls send `null` for an omitted field, and that reading is the friendly one. A non-string
   `legId` or `profileId` already fails closed with `unknown-leg` or `unknown-profile`.
 - **Upgrade consequences, stated, not migrated:**
-  - A record whose content was bound through a void canonicalizer (async, or a `Map`) cannot
-    re-bind under this build. Its seams throw a configuration fault until the canonicalizer is
-    fixed, and a fixed canonicalizer digests differently, which refuses `content-drift`.
+  - A record whose content was bound through a void canonicalizer (async, a `Map`, a `Set`, a
+    `#private`-only class: output that serialized as `{}`) cannot re-bind under this build. Its
+    seams throw a configuration fault until the canonicalizer is fixed, and a fixed canonicalizer
+    digests differently, which refuses `content-drift`. Drive these to a terminal state first.
+  - A record bound through a non-plain output that carried content (a class instance with public
+    fields, a boxed primitive, a typed array) re-binds exactly if the canonicalizer returns a
+    plain object with the same own enumerable fields (`{ ...instance }`, or the numbered-key
+    object); those records need not be driven to a terminal state.
+  - A record bound by an older build from content holding a lone surrogate re-binds as before at
+    the five re-bind seams (see the amendment below). New content holding one throws at
+    `stage()`; a host that wants such agent-sourced content accepted makes the strings
+    well-formed in its canonicalizer (`String.prototype.toWellFormed()`, Node 20 or later).
   - A staged draft or open record whose subject breaks the new rule throws at `open()` (the
     draft), or binds as before (an open record, whose `subjectRef` is never re-checked).
   - Drive such records to a terminal state before upgrading.
+- **Amended after the whole-branch review: strict at stage, default at re-bind and read.** The
+  strict well-formed serialization is applied at `stage()` only. `bindContent` keeps the thenable
+  refusal and the plain-object rule at all six sites, but takes an explicit `wellFormed` option,
+  true only at `stage()`; `finalize`, `decline`, `redeem`, `beginRedemption` and
+  `completeRedemption` re-bind in the default (escaping) mode. Why: `stage()` guarantees that
+  every new binding is well-formed, and the escape is injective, so a re-bind only compares. A
+  record bound by an older build from content holding a lone surrogate therefore re-binds exactly
+  as before, instead of being stranded while it holds its C1 slot; and an ill-formed value
+  introduced between `stage()` and a later seam is recorded as `content-drift` (finalize and
+  decline refuse it; the redemption seams map the correspondence mismatch per their own rule,
+  `effect-mismatch`, or `content-drift` on a `reverify` profile) instead of an unrecorded
+  throw. The limit: the escape is the default serializer's, so two different ill-formed strings
+  never collide, but a host that changes content to an ill-formed form after staging sees drift,
+  not an error. A serializer throw is also wrapped to name the canonicalizer and keeps the
+  original as `cause`.
 - **Not in this increment:**
   - **A staged-draft prune.** It would be a new Store method on SPEC §12's staged-draft
     surface, a sealed edit, so it is recorded as needing the owner's sanction.
@@ -153,7 +183,10 @@ Red first against `38ed58e` where the old behaviour differs.
   - the same at `finalize`, `decline` and each redemption seam, appending nothing;
   - canonicalizer output holding a `Map`, a `Set`, a `#private` class or a boxed primitive
     throws at `stage()`;
-  - output holding a lone surrogate, in a key or a value, throws.
+  - output holding a lone surrogate, in a key or a value, throws at `stage()`; at the five
+    re-bind seams the same content refuses (`content-drift` at finalize and decline,
+    `effect-mismatch` at the redemption seams on a profile without `reverify`), and a record
+    staged by an older build over such content finalizes `ok`.
 - **Serializer** (`jcs.test.ts`, additions):
   - `serializeJcs` refuses `Map`, `Set`, a Promise, a class instance and `new String('a')`;
   - it accepts a null-prototype object and a `Date` (via `toJSON`);

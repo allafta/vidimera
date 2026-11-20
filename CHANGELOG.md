@@ -420,7 +420,7 @@ is the summary, and that file wins on conflict.
   model.
   No existing assertion changed.
 
-- **`stage()` checks `subjectRef`, and content binding is strict** (2026-11-20, branch
+- **`stage()` checks `subjectRef`, and content binding is strict at stage** (2026-11-20, branch
   `subject-content-intake-2026-11-20`; no sealed-set edit, no marker, no new export): the
   agent's one free-form input and the content-binding path took whatever arrived. `stage()`
   now requires `subjectRef` to be a string, non-empty, well-formed UTF-16, free of U+0000 and
@@ -431,28 +431,44 @@ is the summary, and that file wins on conflict.
   draft that breaks it throws (an open record's subject is never re-checked). A host whose
   natural key can exceed the cap digests it into one string. The six sites that bind content
   (`stage`, `finalize`, `decline` and the three redemption seams) now share one helper that
-  refuses a thenable, serializes strictly and digests. `serializeJcs` and the exported
+  refuses a thenable, serializes and digests; only `stage()` serializes in the strict
+  well-formed mode, and the five re-bind seams use the default (escaping) mode. `serializeJcs` and the exported
   `canonicalize` now throw on any object with no JSON form: a `Map`, a `Set`, a Promise, a class
   instance (`#private`-only state included) or a boxed primitive (`new String('a')` used to
-  serialize as `{"0":"a"}`), naming the constructor; a plain object, a null-prototype object and
+  serialize as `{"0":"a"}`), naming the constructor ("an instance of 'Name'"); a plain object, a null-prototype object and
   an array serialize as before and `toJSON` is still honored, so a `Date` is its ISO string.
   Visible to a host: a `facts.figures` entry holding a `Map` used to digest as `{}` and now
   refuses `consultation-missing`, the documented answer for non-canonicalizable figures. A
   canonicalizer's output that holds an ill-formed string (a lone surrogate in a key, a value or
-  a `toJSON` result) now throws at the binding, and `digest(string)` throws a `TypeError` on an
+  a `toJSON` result) now throws at `stage()`'s binding (and at the other seams is ordinary content drift, below), and `digest(string)` throws a `TypeError` on an
   ill-formed string instead of collapsing each lone surrogate to U+FFFD; the bytes of a
   well-formed string are unchanged. The limits, stated: the default serializer, which reads
-  persisted data, still escapes a lone surrogate, so a chain recorded with one still verifies
-  and replays — strictness is at intake, not at read, and `verifyChain` reports a break, never
-  throws, on a tampered genesis id with one; other strings that enter transitions (identities,
+  persisted data and serves every re-bind seam, still escapes a lone surrogate, so a chain
+  recorded with one still verifies and replays, and a record bound by an older build from such
+  content re-binds as before — strictness is at `stage()`, not at re-bind or read — while an
+  ill-formed value arriving after staging is recorded as `content-drift` (the redemption seams
+  on a profile without `reverify` refuse `effect-mismatch`, as for any content mismatch);
+  `verifyChain` reports a break, never throws, on a tampered genesis id with one; the three
+  reference backings return plain data, and a custom `Store` must too, or `verifyChain` would
+  throw on a class-instance payload; other strings that enter transitions (identities,
   consultation kinds, finding fields, labels) are operator inputs and are still not checked for
-  well-formedness; the rejection handler on a refused thenable covers the top-level output
-  only; a `null` `legId` at `stage()` still means the first leg. Upgrading: a record whose
-  content was bound through a void canonicalizer (an `async` one, or one returning a `Map`)
-  cannot re-bind under this build — its seams throw a configuration fault until the
-  canonicalizer is fixed, and a fixed one digests differently, which refuses `content-drift` —
-  and a staged draft whose subject breaks the rule throws at `open()`; drive such records to a
-  terminal state before upgrading. No existing assertion changed.
+  well-formedness; the rejection handler is attached to a native top-level promise only (any other thenable is
+  refused without its `then` being called, so a lazy one never runs; an eager non-native thenable's
+  own rejection stays the host's); a `null` `legId` at `stage()` still means the first leg. Upgrading, by what the
+  canonicalizer returned: (i) void output (an `async` canonicalizer's Promise, a `Map`, a `Set`,
+  a `#private`-only class, all serialized as `{}`) cannot re-bind under this build — its seams
+  throw a configuration fault until the canonicalizer is fixed, and a fixed one digests
+  differently, which refuses `content-drift`; drive those records to a terminal state first;
+  (ii) non-plain output that carried content (a class instance with public fields, a boxed
+  primitive, a typed array) re-binds exactly once the canonicalizer returns a plain object with the
+  same own enumerable fields (`{ ...instance }`, or the numbered-key object), so those records
+  need not be driven to a terminal state; (iii) content holding a lone surrogate re-binds as
+  before at the re-bind seams, and at `stage()` new such content throws — a host that wants it
+  accepted makes agent-sourced strings well-formed in its canonicalizer
+  (`String.prototype.toWellFormed()`, Node 20 or later); a staged draft whose subject breaks the
+  rule throws at `open()`. A subject error now says what was received and, for the cap, to digest a
+  longer natural key into one; subjects compare exactly (no normalization or case folding). No
+  existing assertion changed.
 
 ### Fixed
 

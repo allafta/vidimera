@@ -140,7 +140,7 @@ staged draft. `subjectRef` must be a string that is non-empty, well-formed UTF-1
 U+0000 and at most 1,024 bytes in UTF-8; anything else **throws** `stage: subjectRef …` before
 the profile is resolved and writes no draft (a caller error, not a refusal — there is no code
 for it). A canonicalizer that returns a thenable, or output holding a non-plain object or an
-ill-formed string, makes `stage` throw as a configuration fault, with no draft written. `legId` omitted means the profile's first leg; a named leg absent from the
+ill-formed string, makes `stage` throw (the other content seams refuse the first two the same way and treat an ill-formed string as ordinary drift) as a configuration fault, with no draft written. `legId` omitted means the profile's first leg; a named leg absent from the
 profile refuses `unknown-leg`. The three reads are pure. `getRecord` answers `null` for an
 unknown `recordId` and **throws** when the store hands back a chain whose rows carry another
 record's id — foreign persisted data, a storage fault rather than a domain outcome (SPEC §8;
@@ -238,6 +238,10 @@ Notes that save debugging time:
   reference the host holds; it never authenticates who staged the draft — a whole new,
   self-consistent draft lives under its own reference, and is bound only if the host
   opens or proposes that one.
+- `open` also re-checks the `subjectRef` rule (the one `stage` applies) on the opened draft and
+  on a `proposed` one, after that re-derivation check, and throws `open: subjectRef …` (appending
+  nothing) when a persisted draft breaks it — such a draft predates the rule or was written by
+  something other than `stage`. An open record's own subject is never re-checked.
 - `open` reads each option it uses once, on entry — each `priorRecordRefs` entry's
   `recordId` and `chainHead` included — and checks and binds only those values: for options
   of the declared types, a host that changes its options object, or an accessor on it,
@@ -545,12 +549,12 @@ function profileDigest(profile: ConfirmProfile): Digest;
 
 `canonicalize` serializes with RFC 8785 and **throws** on a value with no JSON form: a `Map`,
 a `Set`, a Promise, a class instance (one holding only `#private` state included) or a boxed
-primitive anywhere in the structure, naming the constructor. A plain object, an object with a
+primitive anywhere in the structure, naming the constructor. A plain object (one from another realm included), an object with a
 `null` prototype and an array serialize; `toJSON` is honored, so a `Date` is its ISO string.
-Its default mode still **escapes** a lone surrogate (as a "backslash-u" escape, which RFC 8785 would refuse)
-rather than throwing, so a chain persisted with one still verifies; the
-library's own content binding (a canonicalizer's output) refuses an ill-formed string instead,
-and `canonicalize` has no option to ask for that. A canonicalizer must be synchronous: a
+It **escapes** a lone surrogate (as a "backslash-u" escape, which RFC 8785 would refuse)
+rather than throwing, so a chain persisted with one still verifies; only `stage`'s content
+binding (a canonicalizer's output) refuses an ill-formed string instead, and `canonicalize` has
+no mode to ask for that. A canonicalizer must be synchronous: a
 returned thenable is a configuration fault at the seam that binds it. `digest` hashes a
 `Uint8Array` as given; a `string` input is hashed as UTF-8 and must be well-formed UTF-16, or
 `digest` throws a `TypeError` (it used to collapse each lone surrogate to U+FFFD, so two

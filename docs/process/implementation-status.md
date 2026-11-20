@@ -117,7 +117,7 @@ any one exit.
   stand. See the dedicated section at the end of this document; the numbers immediately
   below already include it.
 - **Measured against the current tree** (re-measured at the subject and content intake
-  increment, 2026-11-20): `pnpm test` — 93 test files, 1423 tests,
+  increment, 2026-11-20): `pnpm test` — 93 test files, 1434 tests,
   zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
@@ -7589,6 +7589,59 @@ property in the plain-data list; and cosmetic wrapping and the design's "Three g
 Pins added: three tests (the Proxy refusal, null as null, the wrong-slot text). No existing
 assertion changed.
 
+**Amended after the whole-branch review.** One fix round, ruled by the controller.
+
+- **Strict well-formed serialization only at `stage()`.** `bindContent(canonicalizer, ref, content,
+  { wellFormed })` now takes the mode explicitly: true at `stage()`, false at `finalize`,
+  `decline`, `redeem`, `beginRedemption` and `completeRedemption`. The thenable refusal and the
+  plain-object rule stay at all six sites. Why: `stage()` guarantees every new binding is
+  well-formed and the escape is injective, so a re-bind only compares; a record bound by an older
+  build from content holding a lone surrogate re-binds as before (it would otherwise have been
+  stranded, holding its C1 slot), and an ill-formed value introduced after staging is
+  `content-drift` at `finalize` and `decline`, and at the redemption seams the correspondence
+  mismatch their own rule maps (`effect-mismatch`, `content-drift` on a `reverify` profile),
+  rather than an unrecorded throw. Pins: five new seam pins (the outcomes above), a planted
+  old-build draft whose digest went through the escaping serializer finalizes `ok`, and `stage()`'s
+  lone-surrogate pin stays a throw. No existing pin expected a throw at a re-bind seam, so no
+  branch-added pin changed for it; the design's §2 and §3 carry the amendment.
+- **Upgrade consequences corrected everywhere they are listed** (guide, CHANGELOG, this section, the
+  design's §3): the earlier text said non-plain outputs "used to serialize as `{}` or numbered
+  keys and bind a digest that ignored the content". That was wrong: a class instance with public
+  fields serialized its own enumerable fields, and a boxed string or typed array serialized numbered
+  keys, both carrying content. Now distinguished: void output (refuses `content-drift` once fixed;
+  drive to terminal first), non-plain output that carried content (a plain object with the same
+  own enumerable fields reproduces the old digest, no terminal drive), and a lone surrogate (re-binds
+  as before; new content throws at `stage()`, `toWellFormed()` to accept).
+- **Minors.** `open`'s notes in the api reference list the subject re-check; the concepts
+  subject rule names U+0000; `canonicalize` is described without implying modes, and its accepted
+  list includes other-realm plain objects; the claim that a store never returns a non-plain object
+  is narrowed to the three reference backings, with plain data as the contract a custom `Store`
+  must keep (`jcs.ts`, this section, the design); a serializer throw is wrapped as
+  `canonicalizer for '<ref>' returned output that cannot be serialized — …` with `cause`; the
+  rejection handler is attached only to a native promise, and any other thenable is refused without
+  calling its `then` (pinned); a `facts.figures` `Map` entry refusing `consultation-missing` is
+  pinned; subject messages say what was received and, for the cap, to digest a longer natural key
+  into one; the serializer names a refused object as "an instance of 'Name'" (it said "an
+  Uint8Array"); the subject-guide paragraph states that subjects compare exactly, with no Unicode
+  normalization or case folding. Deferred minors done: the proposed-draft test that planted the bad
+  subject on both drafts is deleted (the next test covers it), the non-string subject cases now
+  observe the store (a counting spy on `putStaged`), and `subject-ref.ts`'s import sits above the
+  cap's doc comment.
+- **Message changes.** Subject: `must be a string` is now `must be a string (received a number)`
+  (also an object, an array, null, undefined), and `must be at most 1024 bytes in UTF-8` gains
+  ` — digest a longer natural key into one`. Serializer: `a Map`, `a Holder`, `an Uint8Array` is now
+  `an instance of 'Map'`, `an instance of 'Holder'`, `an instance of 'Uint8Array'` (the generic
+  `a non-plain object` is unchanged). New wrapper for any serializer throw inside `bindContent`.
+- **Branch-added pins changed:** the two thenable pins (a plain thenable that rejects later, and a
+  hostile `then`) became one pin that a non-native thenable's `then` is never called, plus one that a
+  native promise's rejection is observed through `bindContent`; `bindContent` calls gained the mode
+  argument; the seam fixture gained a content parameter; the subject pins' rule texts follow the
+  messages. Still additions only against `38ed58e`.
+- **Measured after the amendment.** `ci-assert-tests: ok — 1434 tests in 93 files (101 suites): 1434
+  passed, 0 failed, 0 skipped, 0 todo`; `tsc -p packages/record --noEmit` and `tsc -p
+  packages/store-postgres --noEmit` exit 0; biome (`--error-on-warnings`, 170 files),
+  `contract-scan`, `api-reference-sync` and `docs-index-sync` exit 0.
+
 **What is not covered, stated.** An in-process write to `Object.prototype` (the snapshot's objects
 keep `Object.prototype`) is outside the threat model. `config.signing`'s inner fields
 (`signer`, `verifiers`, `signatures`) are still read where used; the block is read once at the top
@@ -7652,8 +7705,9 @@ backing), and the guide's canonicalizer rules ("JSON-safe", "Total").
   and opens).
 - `1f65d8a` — `bindContent` in `canonical.ts`, called by the six binding sites (`stage`,
   `finalize`, `decline`, `redeem`, `beginRedemption`, `completeRedemption`): it calls the
-  canonicalizer, refuses a thenable after attaching a rejection handler, then serializes in the
-  serializer's internal strict mode and digests. `serializeJcs` refuses non-plain objects in both
+  canonicalizer, refuses a thenable (attaching a rejection handler first when it is a native
+  promise), then serializes and digests; as first landed it serialized strictly at every site (the
+  whole-branch review amended that to `stage()` alone, below). `serializeJcs` refuses non-plain objects in both
   modes, naming the constructor; `digest(string)` throws a `TypeError` on an ill-formed string. In
   `completeRedemption` an ill-formed presented token still refuses `effect-mismatch`, as before.
 - `c926255` — the fix round after the second review: `genesisPrevHash` hashes bytes (see the
@@ -7665,7 +7719,8 @@ backing), and the guide's canonicalizer rules ("JSON-safe", "Total").
 
 **Rulings.**
 
-- **Strict at intake, not at read.** `serializeJcs`'s default mode keeps escaping lone surrogates, so
+- **Strict at stage, default at re-bind and read** (as amended below; first written "strict at
+  intake, not at read"). `serializeJcs`'s default mode keeps escaping lone surrogates, so
   `canonicalize` on persisted data behaves as before. Had it thrown, a record that legitimately
   carries a lone surrogate (an agent subject staged before this build) would become a chain that
   cannot be verified, every verifying seam on it would throw or refuse `chain-compromise` on an
@@ -7676,11 +7731,13 @@ backing), and the guide's canonicalizer rules ("JSON-safe", "Total").
   lone surrogate. It now hashes the UTF-8 bytes, byte-identical for every id, pinned both ways
   (red against the old line). Audited: no other `digest(string)` caller sits on a read path; the
   token mint is the write path, and the presented-token comparison is guarded.
-- **Non-plain objects throw everywhere in `serializeJcs`.** A store never returns one, so the
-  rule costs the read path nothing; a plain object is one whose prototype is `Object.prototype`,
+- **Non-plain objects throw everywhere in `serializeJcs`.** The three reference backings never
+  return one, so the rule costs the read path nothing (a custom `Store` must keep returning plain
+  data, or `verifyChain` would throw on a class-instance payload); a plain object is one whose prototype is `Object.prototype`,
   `null` or another realm's `Object.prototype`. `toJSON` stays honored.
-- **The thenable handler covers the top-level output only.** A Promise nested deeper is refused by
-  the serializer but its rejection stays the host's; observing it would mean walking host objects
+- **The thenable handler covers a native top-level promise only.** A non-native thenable is refused
+  without its `then` being called; a Promise nested deeper is refused by the serializer; in both,
+  a rejection of its own stays the host's; observing it would mean walking host objects
   and calling `then` on them. A hostile `then` that throws on adoption is swallowed and the
   output is still refused.
 - **A `null` `legId` at `stage()` still means the first leg,** as `??` reads it; a non-string
@@ -7689,31 +7746,39 @@ backing), and the guide's canonicalizer rules ("JSON-safe", "Total").
   inside what every reference backing indexes. A host with a longer natural key digests it.
 - **A caller error, not a refusal.** `stage: subjectRef …` throws, as `open()`'s unknown
   `stagedRef` does; a refusal code would be a sealed SPEC §8 edit.
-- **The upgrade consequences are stated, not migrated:** a record bound through a void
-  canonicalizer cannot re-bind (its seams throw a configuration fault; a fixed canonicalizer
-  digests differently and refuses `content-drift`), and a staged draft whose subject breaks the
-  rule throws at `open()`; an open record's subject is never re-checked. Drive such records to a
-  terminal state first.
+- **The upgrade consequences are stated, not migrated:** (i) a record bound through void output
+  (an async canonicalizer, a `Map`, a `Set`, a `#private`-only class: all `{}`) cannot re-bind (its
+  seams throw a configuration fault; a fixed canonicalizer digests differently and refuses
+  `content-drift`), so drive those to a terminal state first; (ii) a record bound through non-plain
+  output that carried content (a class instance with public fields, a boxed primitive, a typed
+  array) re-binds exactly once the canonicalizer returns a plain object with the same own
+  enumerable fields (`{ ...instance }`, or the numbered-key object), no terminal drive needed;
+  (iii) content holding a lone surrogate re-binds as before at the re-bind seams, and new such
+  content throws at `stage()` (hosts wanting it accepted use `toWellFormed()` in the canonicalizer,
+  Node 20 or later); and a staged draft whose subject breaks the rule throws at `open()`, while an
+  open record's subject is never re-checked.
 
-**Pins (70 tests, 1353 to 1423, 91 files to 93).** `packages/record/test/subject-intake.test.ts`
-(new, 40): each bad subject (`42`, `{}`, an object with `toJSON`, `''`, a lone surrogate, U+0000,
+**Pins (81 tests, 1353 to 1434, 91 files to 93, after the amendment below).** `packages/record/test/subject-intake.test.ts`
+(new, 42): each bad subject (`42`, `{}`, an object with `toJSON`, `''`, a lone surrogate, U+0000,
 1,025 bytes) throws at `stage()` and writes no draft; exactly 1,024 bytes, multi-byte included,
 stages and opens; `42` and `"42"` cannot yield two live records; `open()` throws on a planted
 draft, the opened and the `proposed`; each on `MemoryStore` and `SqliteStore`.
-`packages/record/test/content-intake.test.ts` (new, 19): an async canonicalizer throws at
+`packages/record/test/content-intake.test.ts` (new, 27): an async canonicalizer throws at
 `stage()` and writes no draft, its rejection is observed (no `unhandledRejection`), plain and
 function thenables, a thenable whose `then` throws, `Map`, `Set`, `#private` class, boxed
 primitive, a lone surrogate in a key, value or `toJSON` result, a nested Promise; the same
 refusal at `finalize`, `decline` and each redemption seam with the chain unchanged. `jcs.test.ts`
-(6 added): the non-plain refusal in both modes, null-prototype, other-realm (`vm`) and `Date`
+(7 added): the non-plain refusal in both modes, null-prototype, other-realm (`vm`) and `Date`
 accepted, the default mode still escaping a lone surrogate, strict mode refusing key, value and
 `toJSON` strings, `digest` refusing an ill-formed string but hashing bytes. `chain-verify.test.ts`
 (2): a tampered genesis id with a lone surrogate, and `verifyChain` given one, report a break at
 seq 1. `redeem-token.test.ts` (1): an ill-formed token refuses `effect-mismatch`.
 `packages/store-postgres/test/postgres-store.test.ts` (2). Against `38ed58e`'s source the intake
-pins fail (36 of the 40 subject pins; the content and serializer pins; the Postgres NUL pin with
-the driver's own error); with the rejection handler line removed, every seam's observation pin
-fails.
+pins fail (36 of the 40 first-landed subject pins; the content pins; the stage-side serializer pins
+and the strict-mode and `digest` pins; the Postgres NUL pin with the driver's own error). The jcs
+pins that are regression guards, passing at `38ed58e` by design: null-prototype, other-realm and
+`Date` accepted, and the default mode still escaping a lone surrogate. The `facts.figures` `Map` pin is red at `38ed58e` too (the base digested `{}`). With the rejection handler line removed, every seam's
+observation pin fails.
 
 **Amended after review.** The first review (sonnet, approved, 0 Critical or Important): two
 Minor, deferred, both test-only (a pin whose title overclaims, and non-string subject cases that
@@ -7723,8 +7788,7 @@ SPEC §3 for synchrony, which it does not say; a stale `jcs.ts` header and an ar
 citations in two files; a synthetic prototype standing in for another realm; the leaf module;
 and the `stage.ts` header. All fixed and re-reviewed clean. Left, recorded: `probes.ts` computes
 content digests through the default (lenient) path (it is not a binding site and the kernel
-refuses first), and `subject-ref.ts`'s cap doc comment sits above an import rather than the
-constant.
+refuses first).
 
 **What is not covered, stated.** A staged-draft prune: it would be a new `Store` method on SPEC
 §12's staged-draft surface (`putStaged`/`getStaged`), a sealed edit, so it waits on the owner's
@@ -7741,7 +7805,8 @@ its rejection left to the host. A draft persisted before this build is checked o
 is additions only (two new files and additions to four existing ones); no line is removed and no
 assertion changed. `byte-stability.test.ts` and the byte-regression suites are untouched.
 
-**Gates, measured on the authoring machine at the records commit.** `ci-assert-tests: ok — 1423
-tests in 93 files (101 suites): 1423 passed, 0 failed, 0 skipped, 0 todo`; biome
+**Gates, measured on the authoring machine at the final records commit.** `ci-assert-tests: ok —
+1434 tests in 93 files (101 suites): 1434 passed, 0 failed, 0 skipped, 0 todo`; `tsc -p
+packages/record --noEmit` and `tsc -p packages/store-postgres --noEmit` exit 0; biome
 (`--error-on-warnings`, 170 files), `contract-scan`, `api-reference-sync` and `docs-index-sync`
 exit 0; `smoke` cannot run here and runs in CI.
