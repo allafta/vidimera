@@ -470,6 +470,49 @@ is the summary, and that file wins on conflict.
   longer natural key into one; subjects compare exactly (no normalization or case folding). No
   existing assertion changed.
 
+- **The operator seams check the shape of their arguments** (2026-11-20, branch
+  `operator-intake-2026-11-20`; no sealed-set edit, no marker, no new export): the operator
+  seams trusted what the host passed. Each check below is a caller error that throws a named
+  message with the seam's head, before any chain is read, any lock taken or anything appended,
+  the same on every backing; no refusal code is minted. (1) A host digest field must be
+  `<algorithm>:<lowercase-hex>` with even-length hex (SPEC §7): a consultation's
+  `payloadDigest`, finalize's `policy.digest`, `findingDigest` at `raiseFinding` and
+  `acknowledge`, `result.digest`, `open`'s `policyDigest` (which is also type-checked now; a
+  number, an array or `true` was bound as given), and the `chainHead` in each `supersedes` and
+  `priorRecordRefs` entry, which used to fail only at verification. The algorithm name is not
+  checked against a list, so a host whose evidence uses another algorithm is admitted; a
+  form-valid string is still the host's claim. (2) `observedAt` must name a real instant: month
+  1 to 12, a day that exists in the month (Gregorian leap years), hour at most 23, minute at
+  most 59, offset at most 23:59. (3) Every `recordId` or `stagedRef` argument must be a string
+  at `open`, `finalize`, `decline`, `raiseFinding`, `acknowledge`, the three redemption seams,
+  `seal`, `review` and `verifySignatures`, and on `getRecord`, `readChain`, `chainHead`,
+  `replay` and `verifyChain`; an empty or unknown string keeps its answer. (4) `open`,
+  `finalize`, `decline` and the redemption seams throw on a `null` or array options bag
+  (`<seam>: options must be an object when supplied`); `undefined` is absent. (5)
+  `RedeemOptions.tx`, when present and not `undefined`, must be an object or a function. (6) A
+  malformed `priorRecordRefs` (not an array, an entry that is not a plain
+  `{ recordId, chainHead }`, an unknown key, an empty field) throws at `open` as `supersedes`
+  already did; a well-formed reference that fails verification still refuses
+  `prior-leg-unverified`. (7) Every operator string a seam records must be well-formed UTF-16
+  (the identity, `facts.checker`, each consultation's and marker's fields, `policy`'s
+  `authority`, the finding and acknowledgement fields, the `recordId` in `supersedes` and
+  `priorRecordRefs`), and the value recorded is the value checked, each read once (the
+  redemption options bag's `tx` and `result.digest` too). The limits,
+  stated: a non-enlistable `tx` object still passes intake, still counts as enlisted on a
+  refusal path and still throws at the store on the success path, because only the store can
+  judge it; the string rule is the write path only, so `identitySnapshot` and replay never
+  re-judge a persisted string; `facts.figures` is digested, not recorded, and is read where it
+  is used. Upgrading: host code passing a non-form digest, a `null` options bag, `tx: null`, an
+  ill-formed string or a malformed `priorRecordRefs` now throws; records already bound with such
+  values keep them, since nothing re-reads a host digest for its form. An open record bound under
+  a `policyDigest` that is not in digest form can no longer be confirmed: re-presenting the
+  bound value at `finalize` throws, and any form-valid value is `policy-drift`, terminal on the
+  leg when the profile lists it; drive such records to a terminal state before upgrading. A
+  finding raised with a non-form digest can be raised again with a form-valid one. Three input
+  constants in two existing test files (`policy-drift.test.ts`, `staged-integrity.test.ts`), each
+  feeding several tests, were placeholder digests that were not hex and were made form-valid; no
+  assertion changed.
+
 ### Fixed
 
 - **The verifier registry could be satisfied with no key** (2026-09-03, branch
@@ -928,6 +971,26 @@ is the summary, and that file wins on conflict.
   next increment's (digest-field formats, `observedAt` calendar validity, a `null` options bag,
   `RedeemOptions.tx`, the shape of `priorRecordRefs`, id-argument types and well-formedness
   of operator strings).
+
+- **Raw driver errors, a `tx: null` that hid evidence, impossible dates and ill-formed strings**
+  (2026-11-20, branch `operator-intake-2026-11-20`): a non-string id given to a seam or read was
+  an empty answer on `MemoryStore` for every type, and on `SqliteStore` an empty answer for a
+  number, `{}` or `null`, a raw `node:sqlite` `TypeError` for a boolean, `undefined` or a symbol,
+  and a raw `Unknown named parameter` error for a non-empty object or array; it now throws a
+  named error on both. `tx: null` counted as enlisted and suppressed the compromise,
+  clock and drift evidence edges an un-enlisted refusal appends, then threw at the store on
+  success; it now throws at intake. `observedAt` accepted `2026-02-30T00:00:00Z`, which
+  `Date.parse` moves to 2 March, so the freshness gate judged an instant the recorded string
+  did not name; it now throws. The storage-fault message for a single append said "the batch is
+  all-or-nothing" when there was no batch; it now says "append", and the batch message keeps
+  "batch". An ill-formed UTF-16 operator string reached a transition as a non-RFC 8785 escape,
+  so a compliant second implementation could not reproduce that transition's digest; it now
+  throws before anything is appended, and the recorded value is the value checked rather than a
+  second read of the caller's object; the redemption options bag (`tx`, `result.digest`) and a
+  consultation's `kind` are read once as well. The limits, stated: a non-enlistable `tx` object
+  still passes intake, is never caught on a refusal path (where it counts as enlisted and
+  suppresses the evidence edge) and is only caught at the store on success; strings already
+  recorded, and a persisted identity read back, are not re-judged.
 
 ### Known not-done
 

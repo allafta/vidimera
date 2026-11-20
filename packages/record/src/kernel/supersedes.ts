@@ -32,6 +32,7 @@ import type { KernelContext } from '../create.js';
 import { isFinalLeg, nonTerminal } from '../nonterminal.js';
 import type { SupersedesRef } from '../types.js';
 import { heldProfile } from './held-profile.js';
+import { assertDigestForm, assertWellFormedString } from './intake.js';
 import { signatureLayerHolds } from './verify-signatures.js';
 
 export type SupersedesCheck = { ok: true; verified: SupersedesRef } | { ok: false };
@@ -56,10 +57,12 @@ export function validateSupersedesShape(value: unknown): SupersedesRef {
   if (typeof recordId !== 'string' || recordId.length === 0) {
     throw new Error('open: supersedes has a missing or empty recordId — a caller error (SPEC §2)');
   }
+  assertWellFormedString('open', 'supersedes.recordId', recordId);
   const chainHead = record.chainHead;
   if (typeof chainHead !== 'string' || chainHead.length === 0) {
     throw new Error('open: supersedes has a missing or empty chainHead — a caller error (SPEC §2)');
   }
+  assertDigestForm('open: supersedes chainHead', chainHead);
   return { recordId, chainHead };
 }
 

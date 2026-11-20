@@ -19,8 +19,10 @@ import type { Outcome } from '../outcome.js';
 import { ok } from '../outcome.js';
 import type { ReviewView } from '../types.js';
 import { findingCoverage } from './findings.js';
+import { assertIdArg } from './intake.js';
 
 export async function review(ctx: KernelContext, recordId: string): Promise<Outcome<ReviewView>> {
+  assertIdArg('review', 'recordId', recordId);
   const chain = await ctx.store.readChain(recordId);
   assertChainFor(chain, recordId, 'review');
   // replay() THROWS on an empty chain (nonexistent record) — see the module header.

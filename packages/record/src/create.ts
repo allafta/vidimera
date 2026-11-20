@@ -47,6 +47,7 @@ import {
   acknowledge as acknowledgeKernel,
   raiseFinding as raiseFindingKernel,
 } from './kernel/findings-seams.js';
+import { assertIdArg } from './kernel/intake.js';
 import { open as openKernel } from './kernel/open.js';
 import {
   beginRedemption as beginRedemptionKernel,
@@ -213,25 +214,36 @@ function makeKernel(ctx: KernelContext): Kernel {
 
     // --- reads: REAL (`getRecord` identity-checks the chain; the raw reads delegate directly) ---
     getRecord: async (recordId) => {
+      assertIdArg('getRecord', 'recordId', recordId);
       const chain = await store.readChain(recordId);
       if (chain.length === 0) return null;
       assertChainFor(chain, recordId, 'getRecord');
       return replayCore(chain);
     },
-    readChain: (recordId) => store.readChain(recordId),
-    chainHead: (recordId) => store.chainHead(recordId),
+    readChain: async (recordId) => {
+      assertIdArg('readChain', 'recordId', recordId);
+      return store.readChain(recordId);
+    },
+    chainHead: async (recordId) => {
+      assertIdArg('chainHead', 'recordId', recordId);
+      return store.chainHead(recordId);
+    },
     listDue: () => store.listDue(ctx.now()),
 
     // --- audit wrappers: REAL (readChain + the pure chain/replay.ts core; `replay`
     // identity-checks the chain, `verifyChain` reports a foreign one as a break) ---
     replay: async (recordId) => {
+      assertIdArg('replay', 'recordId', recordId);
       const chain = await store.readChain(recordId);
       assertChainFor(chain, recordId, 'replay');
       return replayCore(chain);
     },
     // Bound to `recordId` (SPEC §5: "running over the chain the store returns for that
     // record"): another record's rows read back under this key report a break at seq 1.
-    verifyChain: async (recordId) => verifyChainCore(await store.readChain(recordId), recordId),
+    verifyChain: async (recordId) => {
+      assertIdArg('verifyChain', 'recordId', recordId);
+      return verifyChainCore(await store.readChain(recordId), recordId);
+    },
 
     // --- verifySignatures(): kernel/verify-signatures.ts — SPEC §14's AL2 mint
     // increment's one audit surface, a pure chain-driven read wired the same way every

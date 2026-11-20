@@ -38,6 +38,7 @@ import { encodeTransition, transitionDigest } from '../chain/encoding.js';
 import type { KernelContext } from '../create.js';
 import type { Digest, Transition } from '../types.js';
 import { heldProfile } from './held-profile.js';
+import { assertIdArg } from './intake.js';
 
 export interface SignatureReport {
   recordId: string;
@@ -351,6 +352,7 @@ export async function verifySignatures(
   ctx: KernelContext,
   recordId: string,
 ): Promise<SignatureReport> {
+  assertIdArg('verifySignatures', 'recordId', recordId);
   const chain = await ctx.store.readChain(recordId);
   if (chain.length === 0) {
     throw new Error(

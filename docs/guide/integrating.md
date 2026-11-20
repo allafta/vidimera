@@ -152,9 +152,9 @@ subjects, and the equivalence policy is yours to apply before you call `stage`. 
 draft it resolves and on a `proposed` draft, and throws when a persisted draft breaks it. Such
 a draft was persisted before this rule or written by something other than `stage()`.
 
-The limits, stated. The rule governs the subject only: other strings that reach the chain
-through operator-side calls (identities, consultation kinds, finding fields, labels) are not
-yet checked for well-formedness, and are the host's to keep clean. And an open record's
+The limits, stated. The rule governs the subject only; the operator-side strings that reach
+the chain (identities, consultation kinds, finding fields) have their own check at each
+seam, described under "What the operator seams check" below. And an open record's
 `subjectRef` is never re-checked: only drafts are.
 
 **Upgrading.** What changes for records already open depends on what their canonicalizer
@@ -276,10 +276,59 @@ a fresh `{ principal, authority, proofRef? }` literal built from exactly those v
 `Object.create`, or a prototype `toJSON` is recorded as the values it validated: never as its
 `toJSON` view, and never changed by mutating your object after the call. Profiles are
 snapshotted too, once, at `create()` (see Profile design), and `open()` reads its options bag
-once. The limit: those are the only host values snapshotted this way. The options you pass to
-`finalize`, `decline` and the redemption seams, what your canonicalizers return, and the inner
-fields of `config.signing` (`signer`, `verifiers`, `signatures`) are still read where they are
-used, so keep the values you pass plain data and do not change the signing fields after create().
+once. The strings a seam records from your options are read once too, and the value recorded
+is the value checked (below). The limit: beyond those, the options you pass to `finalize`,
+`decline` and the redemption seams (`facts.figures`, which is digested rather than recorded,
+included), what your canonicalizers return, and the inner fields of `config.signing`
+(`signer`, `verifiers`, `signatures`) are still read where they are used, so keep the values
+you pass plain data and do not change the signing fields after create().
+
+### What the operator seams check
+
+Every operator seam checks the shape of its arguments before it reads a chain, takes a lock or
+appends anything, and throws a named message with the seam's head (`finalize: …`) on a
+malformed call. These are caller errors, the same on every backing, with no refusal code. The
+full list is in the API reference's operator notes; the ones a host trips over:
+
+- **Digests have a form.** Every digest you supply (a consultation's `payloadDigest`,
+  `policy.digest`, a finding's `findingDigest`, `result.digest`, `open`'s `policyDigest`, and
+  the `chainHead` in `supersedes` and `priorRecordRefs`) must be
+  `<algorithm>:<lowercase-hex>` with even-length hex. Any algorithm name is accepted, because you
+  digest your own evidence and the library never re-verifies it; `'sha256:abc'` (odd length) and
+  an uppercase digest throw. The limit: a form-valid string is still your claim, and nothing
+  checks that it digests anything. `open`'s `policyDigest` is type-checked as well: a number, an array or `true` used to
+  be bound as given, and it must now be a string of this form.
+- **`observedAt` names a real instant.** RFC 3339 with an offset is still required, and now
+  the date-time must exist: `2026-02-30T00:00:00Z` and an hour of 24 throw, where the old check
+  let a parse move the date to 2 March and judged freshness on an instant the record did not
+  name.
+- **Ids are strings.** A non-string `recordId` or `stagedRef` throws at every seam and read, on
+  `MemoryStore` and `SqliteStore` alike. An empty or unknown string keeps its old answer.
+- **An options bag is an object or absent.** `null` and an array throw; `undefined` is absent.
+- **`tx` is an object or a function when present.** `tx: null` used to count as enlisted and
+  suppress the evidence edges a refusal appends; it throws now. The limit: a non-enlistable
+  object still passes this check, still counts as enlisted on a refusal path, and throws at the
+  store on the success path, because only the store can judge it.
+- **`priorRecordRefs` has a shape.** A malformed one (not an array, an entry that is not a
+  plain `{ recordId, chainHead }`, an unknown key, an empty field) throws, as `supersedes`
+  does; a well-formed reference that fails verification still refuses `prior-leg-unverified`.
+- **Operator strings are well-formed UTF-16.** The identity, `facts.checker`, each consultation's
+  fields, `policy`'s `authority`, and the finding and acknowledgement fields throw on a lone
+  surrogate. The limit: this is the write path only; a persisted identity read back, or a
+  replay, is never re-judged.
+
+**Upgrading.** Host code that passes a digest not in this form, a `null` options bag,
+`tx: null`, an ill-formed string or a malformed `priorRecordRefs` now throws where it used to
+record or behave oddly; nothing is migrated. A record already bound with such a value keeps it,
+because nothing re-reads a host digest for its form. The one case that needs care is an open
+record bound under a `policyDigest` that is not in digest form: it can no longer be confirmed.
+`finalize` compares the live `policy.digest` to the bound one, so re-presenting the bound
+value now throws at `finalize`'s intake (it is not in digest form), and any form-valid value is
+`policy-drift`, which is terminal on the leg when the profile lists it in `terminalRefusals`.
+Drive such records to a terminal state before upgrading; after upgrading, `decline`, which
+takes no policy input, still closes such a record when the profile declares it. A finding raised with a non-form
+digest stays as recorded; an acknowledgement presenting that digest now throws too, so raise
+the finding again with a form-valid digest and acknowledge that.
 
 ## Handling outcomes
 

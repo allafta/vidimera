@@ -131,6 +131,7 @@ import { deadlineIso, resolveDueClock } from './expiry.js';
 import { findingCoverage } from './findings.js';
 import { heldProfile } from './held-profile.js';
 import { identitySnapshot } from './identity.js';
+import { assertIdArg, assertOptionsBag, intakeFactsChecker, intakeIdentity } from './intake.js';
 import { signatureLayerHolds } from './verify-signatures.js';
 
 /**
@@ -175,6 +176,8 @@ export async function finalize(
   facts: Facts,
   opts?: FinalizeOptions,
 ): Promise<Outcome<{ recordId: string; state: 'confirmed'; transitionRef: Digest }>> {
+  assertIdArg('finalize', 'recordId', recordId);
+  assertOptionsBag('finalize', opts);
   const { store, profiles, now } = ctx;
 
   // --- intake (SPEC §9: consultation shape "throws at argument intake, before anything
@@ -189,6 +192,11 @@ export async function finalize(
   }
   const supplied = validateConsultations(opts?.consultations, 'finalize');
   validatePolicyInput(opts?.policy);
+  // The acting identity and the facts checker are recorded: an ill-formed string in either is a
+  // caller error here, before the chain loads. Any OTHER invalidity keeps its path below
+  // (identity-authority-refused; the facts gate). The snapshot is read once and rung (3) uses it.
+  const intakeActor = intakeIdentity('finalize', 'identity', identity);
+  const intakeChecker = intakeFactsChecker('finalize', facts);
 
   // --- load the chain ------------------------------------------------------------------
   const chain = await store.readChain(recordId);
@@ -321,7 +329,7 @@ export async function finalize(
   // --- (3) identity — both branches → identity-authority-refused -----------------------
   // Validated ONCE into a fresh literal (`identitySnapshot`); the allowlist check, rung (3.5)
   // and the recorded `actor` all read that literal, never the caller's object again.
-  const actor = identitySnapshot(identity);
+  const actor = intakeActor;
   if (actor === null || !leg.allowedAuthorities.includes(actor.authority)) {
     return refuseMaybeAppend(
       store,
@@ -403,7 +411,7 @@ export async function finalize(
   // isValidFacts guards CANONICALIZABILITY too: a present-but-non-canonicalizable figures
   // payload (BigInt/circular) is refused here rather than throwing mid-batch at the digest
   // step below; on ok, the carried `canonical` feeds the facts digest (no double-canonicalize).
-  const factsCheck = isValidFacts(facts);
+  const factsCheck = isValidFacts(facts, intakeChecker);
   if (!factsCheck.ok) {
     return refuseMaybeAppend(
       store,
@@ -776,7 +784,7 @@ async function seqConflict(
   const message =
     `${seam}: ${index === undefined ? `${site} ('seq')` : site}. A Store honouring the ` +
     `compare-and-swap contract cannot report this: ${why}. This is a storage fault. The ` +
-    'batch is all-or-nothing: nothing was appended and the record is unchanged.';
+    `${index === undefined ? 'append' : 'batch'} is all-or-nothing: nothing was appended and the record is unchanged.`;
   const fault =
     reReadFailure === undefined ? new Error(message) : new Error(message, { cause: reReadFailure });
   return { contended: false, fault };
@@ -1063,18 +1071,22 @@ export function sodViolated(
  * at the call site) rather than letting the throw escape mid-batch at the facts-digest step. On
  * ok the carried `canonical` bytes are digested directly at the call site, so
  * `canonicalize(figures)` runs exactly once. The ok arm also carries `checker`, the
- * `identitySnapshot` literal of `facts.checker` — the value the facts consultation records,
- * so the call site never reads `facts.checker` a second time.
+ * `identitySnapshot` literal of `facts.checker` — the value the facts consultation records.
+ * Both callers take that snapshot ONCE at argument intake (`intakeFactsChecker`, which also
+ * judges its strings) and pass it in as `checkerSnapshot`: the gate neither re-reads
+ * `facts.checker` after the awaits between intake and here nor re-judges it, so what was
+ * validated is what is recorded. `null` (any invalid checker) is still not-ok here.
  *
  * EXPORTED for kernel/decline.ts, the second caller (the recorded-human-decline increment).
  */
 export function isValidFacts(
   facts: Facts,
+  checkerSnapshot: IdentityAssertion | null,
 ): { ok: true; canonical: Uint8Array; checker: IdentityAssertion } | { ok: false } {
   const f = facts as unknown as { figures?: unknown; checker?: unknown } | null | undefined;
   if (f == null || typeof f !== 'object') return { ok: false };
   if (f.figures === undefined) return { ok: false };
-  const checker = identitySnapshot(f.checker as IdentityAssertion);
+  const checker = checkerSnapshot;
   if (checker === null) return { ok: false };
   let canonical: Uint8Array;
   try {
