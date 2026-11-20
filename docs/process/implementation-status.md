@@ -6918,8 +6918,9 @@ cannot join the append's unit, in the same sentences, and nowhere else". It land
 increment, as its own change, and spends call 3's sanction; until it does, the sealed set still says this build's
 sign-before-append order does not meet condition (iii), which is now true of separate mode only.
 The guide, `SECURITY.md` and this record already state the narrower truth. (It landed on
-2026-11-20 for call 3.1's five sentences — the AL2 restatement follow-up section; three sentences
-the owner's grant conditioned still say "not yet met", pending the owner's word.)
+2026-11-20 for call 3.1's five sentences — the AL2 restatement follow-up section; the three
+sentences the owner's grant conditioned followed the same day under the owner's word, `df7a32e` —
+the AL2 grant sentences section.)
 
 **Gates, measured on the authoring machine at the records commit.** `ci-assert-tests: ok — 1237
 tests in 88 files (96 suites): 1237 passed, 0 failed, 0 skipped, 0 todo` (the known
@@ -7034,9 +7035,10 @@ sidecar behind a wrapper that hides it. A first draft (PR #26, closed unmerged) 
 kept apart from the store"; an independent review showed the wrapper case reads under that as
 met, which would have overclaimed. The same review found that the draft's second commit, three
 sentences under the owner's 2026-11-19 grant, leaned on a general instruction while this record
-calls that grant spent; those sentences (ARCHITECTURE §3 and §9, SCOPING-GUIDE §5) still say the
-third condition is "not yet met" — an understatement, since SPEC §14 is normative — and wait for
-the owner's explicit word. §14's sentence says "as the reference stores do" because the store's
+calls that grant spent; those sentences (ARCHITECTURE §3 and §9, SCOPING-GUIDE §5) still said the
+third condition is "not yet met" — an understatement, since SPEC §14 is normative — and waited for
+the owner's explicit word. (Updated 2026-11-20: the owner granted it the same day; `df7a32e` —
+the AL2 grant sentences section.) §14's sentence says "as the reference stores do" because the store's
 in-unit contract lives in `packages/record/src/store/store.ts`, not in SPEC §12.
 
 **The sealed-history account, verbatim.** Checked mechanically at the commit: every "after" text
@@ -7360,3 +7362,98 @@ on its own, and `create.ts`'s comment stale; all fixed as above.
 suites): 1282 passed, 0 failed, 0 skipped, 0 todo`; typecheck, biome (`--error-on-warnings`, 164
 files), `contract-scan`, `api-reference-sync` and `docs-index-sync` exit 0; `smoke` cannot run
 here and runs in CI.
+
+## Post-build-order increment — AL2 grant sentences (the owner's word of 2026-11-20)
+
+**The thirty-seventh post-build-order increment (branch `al2-grant-sentences-2026-11-20`, off
+`main` at `5e5f8b1`).** Documentation only: one sealed-set commit, no code, no maturity marker,
+no scope change. The design is `docs/superpowers/specs/2026-11-20-al2-grant-sentences-design.md`
+and the plan `docs/superpowers/plans/2026-11-20-al2-grant-sentences.md`.
+
+**The sanction.** Asked whether three sealed sentences that still called AL2's third condition
+"not yet met" could be brought into line with SPEC §14, the repository owner answered, on
+2026-11-20: "granted, update the three sentences too." A fresh, explicit word, for these three
+sentences only; it is spent at `df7a32e`. Through SCOPING-GUIDE §§1–2's machinery, as the
+2026-11-17 sanction calls applied it: AL2 is `[PROVEN]` and GOVERNED by the tier test, nothing is
+promoted, demoted or re-tiered, and the purpose-trace runs to the governed-host bar. CONCEPT.md is
+not touched.
+
+**What it corrects.** ARCHITECTURE §3, ARCHITECTURE §9's AL2 ladder cell and SCOPING-GUIDE §5,
+conditioned under the owner's 2026-11-19 grant, said condition (iii) — no signature outlives an
+uncommitted append — was "not yet met". Since the transactional sidecar it holds where the
+sidecar is the configured store's own and that store writes each entry inside the append's atomic
+unit, as the reference stores do (SPEC §14, restated at `e387502`). The three now say so in the
+wording ASSURANCE §6's AL2 row already carries, reviewed at the follow-up: "met only where the
+sidecar is the configured store's own and written inside the append's atomic unit, not for any
+other sidecar". The class is named by identity with the configured store, as the code decides it,
+so a wrapper that hides a store's own sidecar reads as not met.
+
+**What landed, per commit.**
+
+- `d869a57` — the design and the plan, with the INDEX row and counts (56 specs, 59 plans).
+- `df7a32e` — **the sealed-set commit under the owner's word**, `docs/concept/` only
+  (ARCHITECTURE, SCOPING-GUIDE; 5 lines in, 3 out): G1–G3 below.
+- The records commit after it: this section, the records that called the three sentences
+  pending (`docs/process/next-phases.md`, two parentheticals above), `CHANGELOG.md` and
+  `CLAUDE.md`'s lineage paragraph.
+
+**The sealed-history account, verbatim.** Checked mechanically at the commit: each "before" text
+present exactly once beforehand and absent after, each "after" text present exactly once, no
+"not yet met" left in either file, the design's §4 equal to these, and no maturity token in
+either file or in the diff.
+
+G1. **ARCHITECTURE §3, the AL1 bound's closing sentence** (`docs/concept/ARCHITECTURE.md`).
+
+   Before:
+
+   > closure for all of it, under the three conditions `SPEC.md` §14 states — every registered
+   > profile signs, the key sits outside the insider's boundary, and no signature outlives an
+   > uncommitted append (the last not yet met).
+
+   After:
+
+   > closure for all of it, under the three conditions `SPEC.md` §14 states — every registered
+   > profile signs, the key sits outside the insider's boundary, and no signature outlives an
+   > uncommitted append (the last met only where the sidecar is the configured store's own and
+   > written inside the append's atomic unit, not for any other sidecar).
+
+G2. **ARCHITECTURE §9, the AL2 row's closes cell** (`docs/concept/ARCHITECTURE.md`).
+
+   Before:
+
+   > under `SPEC.md` §14's three conditions (the last, no signature outliving an uncommitted append, not yet met);
+
+   After:
+
+   > under `SPEC.md` §14's three conditions (the last, no signature outliving an uncommitted append, met only where the sidecar is the configured store's own and written inside the append's atomic unit, not for any other sidecar);
+
+G3. **SCOPING-GUIDE §5, the AL1 bullet** (`docs/concept/SCOPING-GUIDE.md`).
+
+   Before:
+
+   >   under the three conditions `SPEC.md` §14 states — every registered profile signs, the key
+   >   sits outside the insider's boundary, and no signature outlives an uncommitted append (the
+   >   last not yet met).
+
+   After:
+
+   >   under the three conditions `SPEC.md` §14 states — every registered profile signs, the key
+   >   sits outside the insider's boundary, and no signature outlives an uncommitted append (the
+   >   last met only where the sidecar is the configured store's own and written inside the
+   >   append's atomic unit, not for any other sidecar).
+
+**Where the sentences understate,** as A4 and A5 of the follow-up do: a `SqliteStore`'s own
+sidecar behind a wrapper that hides it, appending inside a host transaction, loses the rollback
+half of the residual (a host rollback removes the entry) while a lost compare-and-swap still
+leaves an orphan. The sealed text errs toward weaker, the safe direction.
+
+**No new pins.** Integrated mode's half is pinned in
+`packages/record/test/transactional-sidecar.test.ts`, `al2-conditions.test.ts` and the
+store-postgres suite; separate mode's by the existing condition (iii) pins.
+
+**Inversions.** None.
+
+**Gates, measured on the authoring machine at the records commit.** No code moved; the suite,
+run on this branch: `ci-assert-tests: ok — 1282 tests in 90 files (98 suites): 1282 passed, 0
+failed, 0 skipped, 0 todo`; `contract-scan`, `api-reference-sync`, `docs-index-sync` and biome
+(`--error-on-warnings`, 164 files) exit 0. `smoke` cannot run here and runs in CI.

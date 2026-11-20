@@ -260,7 +260,7 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   corrective-and-widening edit followed with no marker move — the profile-drift gate
   (2026-09-03), which widened `unknown-profile`'s producer text and the sentences it
   falsified across SPEC §§4, 8, 9, 10.1, 10.3 and the legend, OPEN-QUESTIONS §§1–2, CONTROLS,
-  GLOSSARY and DECISIONS #5, under the grant recorded in its design's §8. Four more followed at
+  GLOSSARY and DECISIONS #5, under the grant recorded in its design's §8. Five more followed at
   the AL2 restatement (2026-11-19 and 2026-11-20), none moving a marker: two, corrective, under
   call 3 of `docs/analysis/2026-11-17-sanction-calls.md` (its whole budget) — the first states
   AL2's closure with its three conditions in SPEC §13A and §14, CONTROLS, ASSURANCE and
@@ -269,7 +269,9 @@ From `docs/concept/SCOPING-GUIDE.md` §7, binding on implementation work here:
   owner's own grant of 2026-11-19, condition the ten sentences outside call 3 that stated the closure
   without its conditions — SPEC §§5, 10.1, 10.3, ARCHITECTURE, SCOPING-GUIDE, OPEN-QUESTIONS and
   CONCEPT.md's honesty-discipline bullet, which by this file's own rule makes that change a fork
-  of the concept, called out as one. A new
+  of the concept, called out as one; and one under the owner's word of 2026-11-20, bringing three
+  of those ten (ARCHITECTURE §3 and §9, SCOPING-GUIDE §5) from "not yet met" to where condition
+  (iii) holds, as SPEC §14 states it. A new
   `docs/concept/` edit needs a FRESH sanction through `SCOPING-GUIDE.md` §§1–2's own
   tier-test and promotion-rule machinery, never assumed from a past one.
   `docs/process/implementation-status.md` is the substitute exit record for every step

@@ -350,8 +350,15 @@ is the summary, and that file wins on conflict.
   unmet; it holds where the sidecar is the configured store's own and written inside the
   append's atomic unit, as the reference stores do, and fails for any other sidecar. The second
   and last commit call 3 of the 2026-11-17 sanction calls grants. Three sentences the owner's
-  2026-11-19 grant conditioned (ARCHITECTURE §3 and §9, SCOPING-GUIDE §5) still say the condition
-  is "not yet met": they understate, and wait for the owner's word.
+  2026-11-19 grant conditioned (ARCHITECTURE §3 and §9, SCOPING-GUIDE §5) said the condition is
+  "not yet met"; they followed the same day, in the next entry.
+
+- **ARCHITECTURE and SCOPING-GUIDE say where AL2's third condition holds, too** (2026-11-20,
+  branch `al2-grant-sentences-2026-11-20`; no marker moves, no behavior changes): under the
+  owner's word of 2026-11-20, ARCHITECTURE §3 and §9 and SCOPING-GUIDE §5 no longer call
+  condition (iii) "not yet met"; they say it is met only where the sidecar is the configured
+  store's own and written inside the append's atomic unit, not for any other sidecar — SPEC §14's
+  statement, in ASSURANCE §6's wording.
 
 ### Fixed
 
