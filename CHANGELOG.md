@@ -360,6 +360,66 @@ is the summary, and that file wins on conflict.
   store's own and written inside the append's atomic unit, not for any other sidecar — SPEC §14's
   statement, in ASSURANCE §6's wording.
 
+- **`create()` snapshots each profile and refuses more of what it cannot honor** (2026-11-20,
+  branch `profile-snapshot-2026-11-20`; no sealed-set edit, no marker, no new export): `create()`
+  validated each profile and then kept the host's own object, which every seam read live. It now
+  reads each profile once into a frozen plain-data copy and keeps only the copy, so mutating
+  your object afterwards changes nothing the instance enforces or digests. Visible to a host,
+  because construction now throws where it used to succeed: a profile that is not plain data (a
+  class instance, including a TypeScript class that `implements ConfirmProfile`, an
+  `Object.create` object, an accessor, a non-enumerable property, a `Set` or `Map`, a sparse
+  array, a `Proxy` anywhere in the profile, an object from another realm); a key the library
+  does not know whose value is data (a `description`, a misspelled `sigining`; an unknown
+  function-valued key, a host code reference, is still ignored, while a function in a profile
+  field or a redemption field placed outside `redeem` throws); a `null` where an optional
+  field is declared (omit the field); a non-string `proposer`, `eligibility` or
+  `policySource`, a non-boolean `reverify`, a non-object `redeem` or `subject` or leg; an
+  `expiry.ttl`, `redeem.confirmToRedeem`, `redeem.redeemBound` or `freshness` value over
+  3,155,760,000 seconds (100 years) — before, only a bound past the `Date` range (about 8.64e12
+  seconds) threw `RangeError`, at the first seam that stamped it (`freshness` never stamps),
+  and a bound between the cap and that point constructed and worked, so a host with, say, a
+  200-year `ttl` is affected; a `terminalRefusals` member the leg cannot produce
+  (`sod-violation` without `sod` or `proposer`, `policy-drift` without `policySource`,
+  `ineligible` without `eligibility`, `consultation-failed` without
+  `requiredConsultations`, `consultation-stale` without `freshness`, `ack-missing` or
+  `ack-stale` without `ackMode` and `requiredAcks`), which used to construct inert; a
+  canonicalizer registry entry that is not a function, which used to fail at the first
+  `stage()`; a `config.profiles` that is not an array. One behavior loosens: an explicit
+  `undefined` on a known field is now accepted as absent (`signing: undefined` used to
+  throw), as the digest already treated it, except a redemption field placed outside
+  `redeem`, which still throws. The upgrade consequence: a record opened under a profile
+  this build refuses (one carrying a `description`, a `terminalRefusals` member its leg cannot
+  produce, a bound over the cap) cannot be served after upgrading, because the old shape can no
+  longer be registered and any corrected shape digests differently, so every seam refuses it
+  with `unknown-profile`; before upgrading, drive such records to a terminal state, or keep
+  running the old build until they are. Message texts changed: every bound message's tail now
+  names the cap and what to do instead (`use 'none' for no expiry` for `ttl`, `omit the
+  field for no bound` for the redeem bounds, `leave a kind that needs no bound out of the
+  record` for freshness); a non-string or empty `sod.notActorOf` entry now meets "declares a
+  missing or empty leg id in sod.notActorOf" where it met "not a strictly-earlier leg"; and an
+  object or array in the wrong slot now meets the snapshot's text, which says what the slot
+  expects, in place of the older validation text: `legs: {}` used to be "legs must be an
+  array of leg declarations (found object)" and is now "legs on the profile is a plain object
+  — expected an array of leg declarations"; `expiry: []` used to be "expiry.ttl is
+  undefined …" and is now "expiry on the profile is an array — expected a plain object";
+  `sod: []` used to be "declares sod without a notActorOf array (found nothing)" and is now
+  "sod on leg '<id>' is an array — expected a plain object"; `allowedAuthorities: {}` used
+  to be "declares no allowedAuthorities list (found object)" and is now "allowedAuthorities
+  on leg '<id>' is a plain object — expected an array of plain values"; `subject: []` used
+  to reach "unresolved canonicalizerRef 'undefined'" and is now "subject on the profile is an
+  array — expected a plain object". Older tails that read `null` as an object or as nothing now
+  read it as null (`allowedAuthorities: null`, `sod: null`, `notActorOf: null`, `legs: null`).
+  Message heads that tests pin are unchanged.
+  `projectProfile` and `profileDigest` now keep an own `__proto__` key (`out[key] = …` set
+  the prototype instead of copying it, so the key was dropped); the digest changes only for a
+  profile that has one. The limits, stated: the snapshot covers profiles only —
+  `config.signing`'s inner fields (`signer`, `verifiers`, `signatures`), the options bags of
+  `finalize`, `decline` and the redemption seams, and canonicalizer output are still read
+  where they are used; the `Proxy` refusal uses `node:util`'s `types.isProxy`, a Node API, as
+  the library already is; and an in-process write to `Object.prototype` is outside the threat
+  model.
+  No existing assertion changed.
+
 ### Fixed
 
 - **The verifier registry could be satisfied with no key** (2026-09-03, branch
@@ -782,6 +842,20 @@ is the summary, and that file wins on conflict.
   realm — still reaches what operator code passes to it; the split confines in-process agent code
   only where the host confines it (frozen built-ins, no ambient module loading), being in-process
   object-capability discipline, not a sandbox (SPEC §9).
+
+- **A profile mutated or read through a getter after `create()` no longer changes the rules**
+  (2026-11-20, branch `profile-snapshot-2026-11-20`): `create()` digested a profile and then
+  kept the host's object, so a mutation after `create()` (a leg's `sod` or
+  `requiredConsultations` dropped, an `allowedAuthorities` entry added, `signing` deleted) changed
+  what every seam enforced while the cached digest stayed as it was and `verifySignatures`
+  still reported `matches`; and a profile built as a class with getters or with
+  `Object.create` was enforced through property reads that the digest's projection of own data
+  properties did not see, so the drift gate missed edits to it. The instance now keeps a frozen
+  plain-data copy, so a mutation changes nothing it enforces or digests; a profile whose reads
+  and projection could disagree is refused at construction (see Changed). For every profile
+  `create()` accepts, `profileDigest(profile)` on the profile as you passed it to `create()`
+  equals the digest the instance binds. The limit: a host that mutates its object and expects
+  the change to take effect now gets no effect, and no error either — register a new profile id.
 
 ### Known not-done
 

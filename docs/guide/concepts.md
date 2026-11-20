@@ -81,7 +81,17 @@ and you have the base confirm loop.
 **Construction is loud.** `create()` validates every profile fail-closed and throws on
 anything it cannot honor — a bad shape, an unresolvable canonicalizer reference, a
 `signing: true` profile on an instance with no signing configuration. A config the library
-cannot enforce fails at startup, never by silently degrading at decision time.
+cannot enforce fails at startup, never by silently degrading at decision time. The rules are
+stricter than a type check: a profile is plain data (object literals or parsed JSON — a class
+instance, accessor, non-enumerable property, `Object.create` object, `Set`, `Map` or `Proxy` is
+refused); an unknown data-valued key throws (an unknown function-valued one, a host code
+reference, is ignored; a function in a profile field, or a redemption field placed outside
+`redeem`, throws); an explicit `undefined` is an absent field (a redemption field outside
+`redeem` still throws) and `null` is refused; each time bound is at most 3,155,760,000 seconds
+(100 years); a `terminalRefusals` member the leg cannot produce throws; and a canonicalizer must
+be a function. `create()` keeps a frozen copy of each profile, so mutating your object
+afterwards changes nothing the instance enforces or digests, and `profileDigest(profile)` on a
+profile as you passed it to `create()` equals the digest the instance binds.
 
 Profiles are code, not persisted state — but each record's genesis carries a
 `profileDigest` of the profile it was opened under, so later drift between the record and

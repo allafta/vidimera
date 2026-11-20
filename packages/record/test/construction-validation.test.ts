@@ -28,17 +28,19 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import type { ConfirmProfile, LegSpec } from '../src/config.js';
+import type { Config, ConfirmProfile, LegSpec } from '../src/config.js';
 import { create } from '../src/create.js';
 import type { RefusalCode } from '../src/refusal-codes.js';
 import { MemorySignatureStore } from '../src/signing/memory.js';
 import type { Signer, Verifier } from '../src/signing/store.js';
 import {
   captureProfile,
+  DEFAULT_CANONICALIZER_REF,
   defaultCanonicalizer,
   effectSeamProfile,
   liveProfile,
   makeConfig,
+  twoLegProfile,
 } from './helpers/profiles.js';
 
 /** A minimal signing config for construction-only tests (the AL2 freshness increment's
@@ -837,4 +839,370 @@ test('structural: a non-array legs is a construction error, never a raw TypeErro
     const p = { ...captureProfile(), legs: value } as unknown as ConfirmProfile;
     assertStructural(p, /^invalid profile .*legs/);
   }
+});
+
+// === the construction rules on the snapshot (type, shape and bound rules) ===
+// `create()` validates a frozen plain-data snapshot, so any primitive can reach any slot.
+// Each rule below meets a named `invalid profile '<id>': …` message — never a raw
+// TypeError, never silent acceptance.
+
+const NAMED = (field: string) => new RegExp(`^invalid profile '[^']+': .*${field}`, 's');
+
+/** Asserts `create` throws an `Error` (never a TypeError) whose message matches `re`. */
+function assertNamed(profile: unknown, re: RegExp, config?: Partial<Config>): void {
+  assert.throws(
+    () =>
+      create({
+        ...makeConfig([captureProfile()]),
+        ...config,
+        profiles: [profile as ConfirmProfile],
+      }),
+    (err: unknown) => {
+      assert.ok(err instanceof Error);
+      assert.ok(!(err instanceof TypeError), `a raw TypeError escaped: ${err.message}`);
+      assert.match(err.message, re);
+      return true;
+    },
+  );
+}
+
+/** A two-leg profile whose SECOND leg carries `extra` (SoD and `proposer` need two legs). */
+function twoLegWith(extra: Record<string, unknown>): ConfirmProfile {
+  const p = twoLegProfile();
+  const second = p.legs[1] as LegSpec;
+  return { ...p, legs: [p.legs[0] as LegSpec, { ...second, ...extra }] };
+}
+
+/** A single-leg profile carrying `extra` on its leg and `top` on the profile. */
+function oneLegWith(extra: Record<string, unknown>, top: Record<string, unknown> = {}) {
+  const p = captureProfile();
+  return { ...p, ...top, legs: [{ ...(p.legs[0] as LegSpec), ...extra }] } as ConfirmProfile;
+}
+
+/** The signing-bearing config a `signing: true` profile needs to get past `create()`'s own check. */
+function signed(profile: ConfirmProfile): Config {
+  return { ...makeConfig([profile]), signing: stubSigningConfig() };
+}
+
+/** A captureProfile with `top` merged on, loosely typed (the keys the types rule out). */
+function withTop(top: Record<string, unknown>): ConfirmProfile {
+  return { ...captureProfile(), ...top } as unknown as ConfirmProfile;
+}
+
+test('scalar types: a non-string proposer is a construction error; null says to omit the field', () => {
+  for (const value of [7, true, {}, ['a']]) {
+    assertNamed(twoLegWith({ proposer: value }), NAMED('proposer'));
+  }
+  assertNamed(twoLegWith({ proposer: null }), /omit the field/);
+  assertNamed(twoLegWith({ proposer: null }), NAMED('proposer'));
+});
+
+test('scalar types: a non-string eligibility is a construction error; null says to omit the field', () => {
+  for (const value of [7, true, {}]) {
+    assertNamed(oneLegWith({ eligibility: value }), NAMED('eligibility'));
+  }
+  assertNamed(oneLegWith({ eligibility: null }), /omit the field/);
+  assertNamed(oneLegWith({ eligibility: null }), NAMED('eligibility'));
+});
+
+test('scalar types: a non-string policySource is a construction error; null says to omit the field', () => {
+  for (const value of [7, false, {}]) {
+    assertNamed(withTop({ policySource: value }), NAMED('policySource'));
+  }
+  assertNamed(withTop({ policySource: null }), /omit the field/);
+  assertNamed(withTop({ policySource: null }), NAMED('policySource'));
+});
+
+test('scalar types: a non-boolean redeem.reverify is a construction error; null says to omit the field', () => {
+  for (const value of ['yes', 1, 0, {}]) {
+    assertNamed(withTop({ redeem: { confirmToRedeem: 3600, reverify: value } }), NAMED('reverify'));
+  }
+  assertNamed(withTop({ redeem: { confirmToRedeem: 3600, reverify: null } }), /omit the field/);
+});
+
+test('scalar types: a non-string terminalRefusals member is refused before the registry lookup', () => {
+  for (const member of [7, null, true, ['sod-violation'], { code: 'sod-violation' }]) {
+    assertNamed(oneLegWith({ terminalRefusals: [member] }), NAMED('terminalRefusals'));
+  }
+  // An array or object member never reaches that guard: the snapshot's list slots take
+  // primitives only, so it refuses them first (and the profile-snapshot pins own that). Only the
+  // primitives above exercise the string check, which is what stops `Object.hasOwn(REGISTRY,
+  // ['content-drift'])` coercing an array to a key were one ever to arrive.
+});
+
+test('redeem shape: a non-object redeem is a construction error — null, false, 0, none and []', () => {
+  for (const value of [null, false, 0, 'none', []]) {
+    assertNamed(withTop({ redeem: value }), NAMED('redeem'));
+  }
+  // `null` is a declared non-object, not an absent field (and the message names which).
+  assertNamed(withTop({ redeem: null }), /found null/);
+  assertNamed(withTop({ redeem: 'none' }), /found a string/);
+});
+
+test('list types: every list field must be an array — a string, number or null meets a named message', () => {
+  const lists: Array<[string, (value: unknown) => ConfirmProfile]> = [
+    ['allowedAuthorities', (v) => oneLegWith({ allowedAuthorities: v })],
+    ['requiredConsultations', (v) => oneLegWith({ requiredConsultations: v })],
+    ['requiredAcks', (v) => oneLegWith({ ackMode: 'any', requiredAcks: v })],
+    ['terminalRefusals', (v) => oneLegWith({ terminalRefusals: v })],
+    ['notActorOf', (v) => twoLegWith({ sod: { notActorOf: v } })],
+  ];
+  for (const [field, build] of lists) {
+    for (const value of ['kyc', 7, null, true]) {
+      assertNamed(build(value), NAMED(field));
+    }
+  }
+});
+
+test('shapes: subject must be an object with a canonicalizerRef string', () => {
+  for (const subject of [null, 'x', 7, {}, { canonicalizerRef: null }, { canonicalizerRef: 7 }]) {
+    assertNamed(withTop({ subject }), NAMED('subject'));
+  }
+  const missing = { ...captureProfile() } as { subject?: unknown };
+  delete missing.subject;
+  assertNamed(missing, NAMED('subject'));
+});
+
+test('shapes: every legs element must be an object', () => {
+  const first = captureProfile().legs[0] as LegSpec;
+  for (const element of [null, 'x', 7, true]) {
+    assertNamed(withTop({ legs: [element] }), NAMED('legs'));
+    assertNamed(withTop({ legs: [first, element] }), NAMED('legs'));
+  }
+});
+
+test('shapes: null in any optional field meets a named message, never a raw TypeError', () => {
+  const signing = { signing: stubSigningConfig() };
+  const cases: Array<[ConfirmProfile, RegExp, Partial<Config>?]> = [
+    [twoLegWith({ sod: null }), NAMED('sod')],
+    [twoLegWith({ sod: { notActorOf: null } }), NAMED('notActorOf')],
+    [twoLegWith({ proposer: null }), NAMED('proposer')],
+    [oneLegWith({ ackMode: null, requiredAcks: ['k'] }), NAMED('ackMode')],
+    [oneLegWith({ ackMode: null }), NAMED('ackMode')],
+    [oneLegWith({ ackMode: 'any', requiredAcks: null }), NAMED('requiredAcks')],
+    [oneLegWith({ requiredConsultations: null }), NAMED('requiredConsultations')],
+    [
+      oneLegWith({ requiredConsultations: ['k'], freshness: null }, { signing: true }),
+      NAMED('freshness'),
+      signing,
+    ],
+    [oneLegWith({ eligibility: null }), NAMED('eligibility')],
+    [oneLegWith({ decline: null }), NAMED('decline')],
+    [oneLegWith({ terminalRefusals: null }), NAMED('terminalRefusals')],
+    [withTop({ policySource: null }), NAMED('policySource')],
+    [withTop({ redeem: null }), NAMED('redeem')],
+    [withTop({ redeem: { confirmToRedeem: null } }), NAMED('confirmToRedeem')],
+    [withTop({ redeem: { redeemBound: null } }), NAMED('redeemBound')],
+    [withTop({ redeem: { reverify: null } }), NAMED('reverify')],
+    [withTop({ redeem: { result: null } }), NAMED('result')],
+    [withTop({ signing: null }), NAMED('signing')],
+    [withTop({ expiry: null }), NAMED('expiry')],
+    [withTop({ expiry: { ttl: null } }), NAMED('ttl')],
+  ];
+  for (const [profile, re, config] of cases) assertNamed(profile, re, config);
+});
+
+test('shapes: a non-object freshness is a construction error, never a character-wise record', () => {
+  for (const value of ['risk-check', 7, true]) {
+    assertNamed(
+      oneLegWith({ requiredConsultations: ['risk-check'], freshness: value }, { signing: true }),
+      NAMED('freshness'),
+      { signing: stubSigningConfig() },
+    );
+  }
+});
+
+// --- bounds: the upper bound on every seconds-valued bound -------------------------------
+
+const CAP = 3_155_760_000; // 100 Julian years
+
+test('bounds: expiry.ttl at the cap constructs, one past it throws and states the cap', () => {
+  assert.doesNotThrow(() => create(makeConfig([captureProfile({ ttl: CAP })])));
+  assertNamed(
+    captureProfile({ ttl: CAP + 1 }),
+    /expiry\.ttl is 3155760001.*positive integer.*3155760000/s,
+  );
+});
+
+test('bounds: redeem.confirmToRedeem at the cap constructs, one past it throws and states the cap', () => {
+  assert.doesNotThrow(() => create(makeConfig([withTop({ redeem: { confirmToRedeem: CAP } })])));
+  assertNamed(
+    withTop({ redeem: { confirmToRedeem: CAP + 1 } }),
+    /redeem\.confirmToRedeem is 3155760001.*positive integer.*3155760000/s,
+  );
+});
+
+test('bounds: redeem.redeemBound at the cap constructs, one past it throws and states the cap', () => {
+  assert.doesNotThrow(() => create(makeConfig([withTop({ redeem: { redeemBound: CAP } })])));
+  assertNamed(
+    withTop({ redeem: { redeemBound: CAP + 1 } }),
+    /redeem\.redeemBound is 3155760001.*positive integer.*3155760000/s,
+  );
+});
+
+test('bounds: a freshness value at the cap constructs, one past it throws and states the cap', () => {
+  const build = (seconds: number) =>
+    oneLegWith(
+      { requiredConsultations: ['risk-check'], freshness: { 'risk-check': seconds } },
+      { signing: true },
+    );
+  assert.doesNotThrow(() => create(signed(build(CAP))));
+  assertNamed(build(CAP + 1), /bounds 'risk-check' at 3155760001.*positive integer.*3155760000/s, {
+    signing: stubSigningConfig(),
+  });
+});
+
+// --- terminalRefusals: a terminalRefusals member whose producer the leg or profile does not declare --
+
+/** The producer rule's own wording: not the registry, compromise or never-appends messages. */
+function producerRe(code: string, needs: string): RegExp {
+  return new RegExp(
+    `lists '${code}' in terminalRefusals, but nothing this leg declares can produce '${code}': only ${needs} does`,
+  );
+}
+
+test('terminalRefusals: sod-violation needs the leg to declare sod or proposer', () => {
+  assertNamed(
+    twoLegWith({ terminalRefusals: ['sod-violation'] }),
+    producerRe('sod-violation', 'a leg declaring sod or proposer'),
+  );
+  const bySod = twoLegWith({
+    sod: { notActorOf: ['maker-decide'] },
+    terminalRefusals: ['sod-violation'],
+  });
+  assert.doesNotThrow(() => create(makeConfig([bySod])));
+  const byProposer = twoLegWith({ proposer: 'maker:1', terminalRefusals: ['sod-violation'] });
+  assert.doesNotThrow(() => create(makeConfig([byProposer])));
+});
+
+test('terminalRefusals: policy-drift needs the profile to declare policySource', () => {
+  assertNamed(
+    oneLegWith({ terminalRefusals: ['policy-drift'] }),
+    producerRe('policy-drift', 'a profile declaring policySource'),
+  );
+  const declared = oneLegWith(
+    { terminalRefusals: ['policy-drift'] },
+    { policySource: 'ops.policy' },
+  );
+  assert.doesNotThrow(() => create(makeConfig([declared])));
+});
+
+test('terminalRefusals: ineligible needs the leg to declare eligibility', () => {
+  const re = producerRe('ineligible', 'a leg declaring eligibility');
+  assertNamed(oneLegWith({ terminalRefusals: ['ineligible'] }), re);
+  const declared = oneLegWith({ eligibility: 'hr.check', terminalRefusals: ['ineligible'] });
+  assert.doesNotThrow(() => create(makeConfig([declared])));
+  // Listing 'eligibility' in requiredConsultations is an ordinary kind, not the declaration:
+  // its verdict-fail is `consultation-failed`, so `ineligible` still has no producer.
+  assertNamed(
+    oneLegWith({ requiredConsultations: ['eligibility'], terminalRefusals: ['ineligible'] }),
+    re,
+  );
+});
+
+test('terminalRefusals: consultation-failed needs the leg to declare requiredConsultations', () => {
+  assertNamed(
+    oneLegWith({ terminalRefusals: ['consultation-failed'] }),
+    producerRe('consultation-failed', 'a leg declaring requiredConsultations'),
+  );
+  // Declaring eligibility alone is not enough: its verdict-fail refuses `ineligible`.
+  assertNamed(
+    oneLegWith({ eligibility: 'hr.check', terminalRefusals: ['consultation-failed'] }),
+    producerRe('consultation-failed', 'a leg declaring requiredConsultations'),
+  );
+  // 'eligibility' listed as an ordinary required kind does produce `consultation-failed`.
+  const asKind = oneLegWith({
+    requiredConsultations: ['eligibility'],
+    terminalRefusals: ['consultation-failed'],
+  });
+  assert.doesNotThrow(() => create(makeConfig([asKind])));
+  const declared = oneLegWith({
+    requiredConsultations: ['risk-check'],
+    terminalRefusals: ['consultation-failed'],
+  });
+  assert.doesNotThrow(() => create(makeConfig([declared])));
+});
+
+test('terminalRefusals: consultation-stale needs the leg to declare freshness', () => {
+  assertNamed(
+    oneLegWith({ requiredConsultations: ['risk-check'], terminalRefusals: ['consultation-stale'] }),
+    producerRe('consultation-stale', 'a leg declaring freshness'),
+  );
+  const declared = oneLegWith(
+    {
+      requiredConsultations: ['risk-check'],
+      freshness: { 'risk-check': 3600 },
+      terminalRefusals: ['consultation-stale'],
+    },
+    { signing: true },
+  );
+  assert.doesNotThrow(() => create(signed(declared)));
+});
+
+test('terminalRefusals: ack-missing and ack-stale need the leg to declare the findings flow', () => {
+  for (const code of ['ack-missing', 'ack-stale'] as const) {
+    assertNamed(
+      oneLegWith({ terminalRefusals: [code] }),
+      producerRe(code, 'a leg declaring the findings flow \\(ackMode and requiredAcks\\)'),
+    );
+    const declared = oneLegWith({ ackMode: 'any', requiredAcks: ['k'], terminalRefusals: [code] });
+    assert.doesNotThrow(() => create(makeConfig([declared])));
+  }
+});
+
+test('terminalRefusals: leg-expired and availability stay legal and inert without any feature', () => {
+  const profile = oneLegWith({ terminalRefusals: ['leg-expired', 'availability'] });
+  assert.doesNotThrow(() => create(makeConfig([profile])));
+});
+
+// --- canonicalizer: a registry entry must be a function ------------------------------------------
+
+test('canonicalizer: a canonicalizer registry entry that is not a function is refused at construction', () => {
+  for (const entry of [null, 'canon', 7, {}, [], true]) {
+    assert.throws(
+      () =>
+        create({
+          ...makeConfig([captureProfile()]),
+          canonicalizers: { [DEFAULT_CANONICALIZER_REF]: entry as never },
+        }),
+      /^Error: resolveCanonicalizer: unresolved canonicalizerRef 'test\.canonical\.v1'.*not a function/s,
+    );
+  }
+});
+
+test('shapes: a BigInt or Symbol in a primitive slot is described without throwing a TypeError', () => {
+  for (const value of [10n, Symbol('s')]) {
+    assertNamed(withTop({ captureMode: value }), NAMED('captureMode'));
+    assertNamed(withTop({ expiry: value }), NAMED('expiry'));
+    assertNamed(oneLegWith({ ackMode: value, requiredAcks: ['k'] }), NAMED('ackMode'));
+    assertNamed(twoLegWith({ sod: { notActorOf: [value] } }), NAMED('notActorOf'));
+  }
+  assertNamed(twoLegWith({ sod: { notActorOf: [7] } }), NAMED('notActorOf'));
+});
+
+test('bounds: a BigInt bound is shown unambiguously, not as the number it resembles', () => {
+  assertNamed(captureProfile({ ttl: 10n as never }), /expiry\.ttl is 10n/);
+  assertNamed(withTop({ redeem: { redeemBound: 10n } }), /redeem\.redeemBound is 10n/);
+});
+
+test('bounds: each bound message names its own spelling of no bound', () => {
+  assertNamed(captureProfile({ ttl: 0 }), /use 'none' for no expiry/);
+  assertNamed(withTop({ redeem: { confirmToRedeem: 0 } }), /omit the field for no bound/);
+  assertNamed(withTop({ redeem: { redeemBound: 0 } }), /omit the field for no bound/);
+  assertNamed(
+    oneLegWith(
+      { requiredConsultations: ['risk-check'], freshness: { 'risk-check': 0 } },
+      { signing: true },
+    ),
+    /leave a kind that needs no bound out of the record/,
+    { signing: stubSigningConfig() },
+  );
+});
+
+test('scalar types: a wrong-typed declared label reads "declares <field> as <type>" on a leg', () => {
+  assertNamed(twoLegWith({ proposer: 7 }), /leg 'checker-decide' declares proposer as a number/);
+  assertNamed(oneLegWith({ eligibility: true }), /declares eligibility as a boolean/);
+  assertNamed(withTop({ policySource: 7 }), /policySource is a number/);
+  assertNamed(withTop({ legs: [null] }), /the leg at position 0 is null, not an object/);
+  assertNamed(withTop({ legs: ['x'] }), /the leg at position 0 is a string, not an object/);
 });

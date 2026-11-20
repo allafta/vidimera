@@ -125,6 +125,32 @@ terminal records, so keep prior versions registered for as long as you may want 
 records. What is lost is the verified `supersedes` link, not the subject: a terminal predecessor
 releases exclusivity, and a plain `open` still works.
 
+`create()` reads each profile once and keeps a frozen copy; it does not keep your object.
+Mutating the object after `create()` changes nothing the instance enforces or digests, so a
+profile is changed by registering a new one (above), not by editing the one you passed. To
+make that copy unambiguous, a profile is **plain data**: object literals, arrays and
+primitives (parsed JSON qualifies). A class instance, an object built with `Object.create`,
+an accessor, a non-enumerable property (even one holding a function), a `Set` or `Map`, a
+sparse array or a `Proxy` throws at construction, naming what it found; a TypeScript class
+that `implements ConfirmProfile` is among them, so pass a literal. A key the library does
+not know throws too, because it is either a typo (`sigining`) or metadata that would enter
+the digest while governing nothing: keep your metadata beside the profile. (An unknown
+function-valued key is a host code reference, which the digest excludes, and is ignored; a
+function in a profile field, or a redemption field such as `confirmToRedeem` placed outside
+`redeem`, throws.) An explicit `undefined` is an absent field, except a redemption field
+placed outside `redeem`, which throws even then (`confirmToRedeem: undefined` on a leg);
+`null` is not absent, and throws. Each time bound (`expiry.ttl`, `redeem.confirmToRedeem`,
+`redeem.redeemBound`, each `freshness` value) is a positive integer of at most 3,155,760,000
+seconds (100 years); for no bound, omit the field (`'none'` for expiry). So
+`profileDigest(profile)` computed on a profile as you pass it to `create()` equals the digest
+the instance binds, for every profile `create()` accepts.
+
+**Before upgrading to this build,** drive to a terminal state any record opened under a
+profile it would now refuse (one carrying a `description`, a `terminalRefusals` member its
+leg cannot produce, a time bound over the cap), or keep running the old build until they
+are. After the upgrade the old shape cannot be registered, and any corrected shape digests
+differently, so every seam refuses such a record with `unknown-profile`.
+
 Fields worth deliberate choices:
 
 - **`expiry`** (`{ ttl }` in seconds, or the literal `'none'`): how long an open record
@@ -134,6 +160,9 @@ Fields worth deliberate choices:
   edge rather than leaving the record open for retry. List a code when a refusal is
   evidence you want on the chain (e.g. `content-drift` on payment-shaped subjects); leave
   it unlisted when the natural response is a corrected retry by the same or another actor.
+  A member the leg could never produce (`sod-violation` without `sod` or `proposer`,
+  `ineligible` without `eligibility`, and so on) throws at construction rather than sitting
+  inert.
 - **Multi-leg** (`legs: [maker, checker, …]`): legs conclude in declared order; each leg
   is its own record, opened with verified references to the prior legs
   (`open(stagedRef, { priorRecordRefs })`), and the separation-of-duties gate compares the
@@ -176,9 +205,12 @@ a fresh `{ principal, authority, proofRef? }` literal built from exactly those v
 `finalize` and `decline` (the actor, `facts.checker`, and each obtained consultation's
 `checker`) and at `raiseFinding` and `acknowledge`. A class with getters, an object built with
 `Object.create`, or a prototype `toJSON` is recorded as the values it validated: never as its
-`toJSON` view, and never changed by mutating your object after the call. The limit: only
-identities are snapshotted this way; other host values you hand the library — profiles,
-options, canonicalizer output — are not yet, so keep those plain data too.
+`toJSON` view, and never changed by mutating your object after the call. Profiles are
+snapshotted too, once, at `create()` (see Profile design), and `open()` reads its options bag
+once. The limit: those are the only host values snapshotted this way. The options you pass to
+`finalize`, `decline` and the redemption seams, what your canonicalizers return, and the inner
+fields of `config.signing` (`signer`, `verifiers`, `signatures`) are still read where they are
+used, so keep the values you pass plain data and do not change the signing fields after create().
 
 ## Handling outcomes
 
