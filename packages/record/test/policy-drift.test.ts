@@ -296,9 +296,11 @@ test('THE DECIDED OPEN QUESTION, superseded: a bound record under a same-id non-
   // (4.5). The profile-drift gate delivers the same fail-close one step earlier: dropping
   // policySource changes the profile's projection, so the non-declaring instance does not
   // hold the record's profile and refuses unknown-profile at profile resolution. The
-  // rung-(4.5) arm is unreachable and throws if ever reached (kernel/finalize.ts). This is
-  // the THIRTEENTH self-authored inversion in the status record's numbered sequence: the
-  // decided FORM moved, the decision did not.
+  // rung-(4.5) arm is unreachable on an honest chain; only a storage edit of a sole-genesis
+  // head inside the AL1 head-bound window reaches it, and it throws there as a storage fault
+  // (kernel/finalize.ts; pinned in tamper-shapes.test.ts, where AL2 refuses the same edit as
+  // chain-compromise). This is the THIRTEENTH self-authored inversion in the status record's
+  // numbered sequence: the decided FORM moved, the decision did not.
   const store = new MemoryStore();
   const { recordId } = await openBound(store);
   const nonDeclaring = create(

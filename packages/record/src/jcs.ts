@@ -68,8 +68,13 @@ export interface SerializeJcsOptions {
  *   instance (including one holding only `#private` state) and a boxed primitive
  *   (`new String('a')`, which once serialized as `{"0":"a"}`) have no JSON form. A `Date`
  *   still serializes through its `toJSON`. The three reference backings return plain data, so
- *   the chain-verify read path never meets one; a custom `Store` must keep that contract (return
- *   plain data, never class instances), or `verifyChain` would throw on its payloads.
+ *   the chain-verify read path never meets one. A custom `Store` must keep that contract (return
+ *   plain data, never class instances). One that does not is read as tampering, not as a fault:
+ *   `verifyChain` reports a row it cannot serialize as the break at that row rather than
+ *   throwing, and a verifying seam then refuses `chain-compromise` and appends a terminal
+ *   compromise edge where the head still digests. That is inherent at AL1, where any
+ *   store-corrupted row reads as tampering. The reads that digest rows without verifying the
+ *   chain first — `verifySignatures`, and a store's `chainHead` over its head row — still throw.
  * - **Lone surrogates are escaped by default** (the ES2019 well-formed escaping, so the read
  *   path is byte-identical to before) and **refused under `wellFormed: true`**, the strict
  *   mode `stage()` alone uses. It checks every key, every string value and every string a

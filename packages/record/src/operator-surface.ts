@@ -113,7 +113,10 @@ export interface OperatorSurface {
    * another record's id is a storage fault (SPEC §8), never replayed as this record. */
   replay(recordId: string): Promise<DecisionRecord>;
   /** Audit wrapper (not Outcome). Bound to `recordId`: another record's rows read back
-   * under this key report a break at seq 1 rather than throwing. */
+   * under this key report a break at seq 1 rather than throwing. A garbled row — one that is
+   * not an object, or has no canonical encoding — is likewise reported as the break at its
+   * position, the head included. It throws only on the caller-error class every read takes (an
+   * ill-formed recordId, or an unknown one: an empty chain) and on a failing store read. */
   verifyChain(recordId: string): Promise<ChainVerifyReport>;
   /** `null` for an unknown recordId. THROWS when the store returns a chain holding another
    * record's rows (foreign persisted data, SPEC §8) — the same posture `replay`, `review` and
@@ -136,7 +139,11 @@ export interface OperatorSurface {
    * `signingDeclared` alone. Throws on the
    * caller-error/unknown-record class every read takes, which now includes foreign persisted
    * data: a chain whose rows carry another record's id throws, as `getRecord`, `replay` and
-   * `review` do (SPEC §8). It also throws on a verifier fault: a verifier that throws or
+   * `review` do (SPEC §8). It throws, too, on persisted data it cannot digest — a row that is
+   * not an object, a malformed or unrecognized `prevHash`, a payload with no canonical
+   * encoding: it digests every row without verifying the chain first, so a garbled row is a
+   * storage fault here (DECISIONS.md #11), where `verifyChain` reports the same row as the
+   * break. It also throws on a verifier fault: a verifier that throws or
    * rejects could not answer, so the read propagates the first such fault in chain order
    * rather than report it as `verified: false` (a `false` answer, an unresolvable `keyRef`, and
    * an entry whose `keyRef` or `signature` is not a string still report `verified: false`). Its `orphans` names the sidecar

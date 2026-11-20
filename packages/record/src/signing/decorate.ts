@@ -174,15 +174,29 @@ export function withSigning(
       // A decorator restart mid-record (or any non-genesis append reaching this memo
       // cold): fall back to ONE genesis read rather than trusting the caller.
       const chain = await store.readChain(transition.recordId);
-      const genesis = chain[0];
-      if (genesis === undefined) {
+      if (chain.length === 0) {
         // No record yet: the store will refuse this non-genesis append (state-mismatch), and
         // an empty chain teaches the memo NOTHING — caching `false` here would pin the record
         // as non-signing before its genuine genesis arrives, and that genesis would then land
         // unsigned, which the fail-closed layer reads as chain-compromise.
         return false;
       }
-      if (genesis.recordId !== transition.recordId) {
+      const genesis: unknown = chain[0];
+      const payload: unknown =
+        typeof genesis === 'object' && genesis !== null
+          ? (genesis as { payload?: unknown }).payload
+          : undefined;
+      if (typeof payload !== 'object' || payload === null) {
+        // A garbled genesis — a row that is not an object (the `null` a SQL backing parses back
+        // from a stored `'null'`, a hole), or one whose payload is not — says nothing about
+        // whether this record signs. A verifying seam reports it as a break, so the append
+        // reaching here is in practice the chain-compromise edge that records it — and whatever
+        // it is, signing it costs at most an orphan, while an unsigned landed edge on a signing
+        // record is condemned. Treated as the foreign-genesis arm below treats a chain it cannot
+        // trust: sign, never throw, never cache.
+        return true;
+      }
+      if ((genesis as Transition).recordId !== transition.recordId) {
         // The store answered this record's read with ANOTHER record's chain (SPEC §5: the audit
         // functions run "over the chain the store returns for that record", and §4's genesis
         // rule binds a chain's first link to its own id; a foreign answer is §8's storage
@@ -194,7 +208,7 @@ export function withSigning(
         // chain-compromise edge that reports the fault.
         return true;
       }
-      const profileId = (genesis.payload as { profileId?: unknown }).profileId;
+      const profileId = (payload as { profileId?: unknown }).profileId;
       signs = typeof profileId === 'string' && isSigningProfile(profileId);
     }
     memoSet(transition.recordId, signs);
