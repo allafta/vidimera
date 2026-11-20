@@ -750,9 +750,11 @@ is the summary, and that file wins on conflict.
   genesis bound with no `policyDigest` (which then refuses `policy-drift`). `open()` now copies
   every option it uses at entry and checks and binds only the copy, and `verifySupersedes` and
   `verifyPriorLegs` read each reference once before their first await and record what they
-  verified; an accessor that throws during that copy propagates as a caller error — so a
-  throwing `priorRecordRefs` entry on a first leg now throws where it used to refuse
-  `prior-leg-unverified` unread. The honest bound, in the same breath: the check makes a
+  verified; an options accessor that throws during that copy propagates as a caller error — so it now
+  throws at `open()`'s entry, ahead of every outcome (the unknown-`stagedRef` throw and the
+  `unknown-profile`/`unknown-leg` refusals included), where the value used to go unread; a
+  throwing first-leg `priorRecordRefs` entry, which used to refuse `prior-leg-unverified`
+  unread, is one case. The honest bound, in the same breath: the check makes a
   draft's fields unchangeable under the reference the host holds; it does not authenticate who
   staged a draft — an insider who writes a whole new, self-consistent draft has written it under
   its own reference, bound only if the host opens or proposes that one. No refusal code, public

@@ -84,3 +84,13 @@ reaches the genesis as absent.
 ## 6. Exit
 
 Every gate clean; a whole-branch review on the most capable model; one fix wave.
+
+## 7. Amended after review
+
+The review found no code defect and asked for record and message fixes. Recorded in the status
+section: the SPEC §8 and §9 reading (the quoted passages describe a draft that re-derives; one
+that does not is corrupted persisted data and throws first, as `finalize` orders integrity before
+profile resolution; a SPEC finding if the owner reads the exception as covering any draft). Also:
+the check derives with the default digest algorithm (a stated limit under SPEC §7 migration); the
+throwing-accessor change stated generally; the `typeof` guards' rationale corrected (defensive);
+and the error message cites SPEC §12 and names a Store that does not round-trip the draft.

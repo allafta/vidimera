@@ -7177,7 +7177,9 @@ The design is `docs/superpowers/specs/2026-11-20-staged-integrity-design.md` and
 - `e06a8c0` — the design and the plan, with their `docs/superpowers/INDEX.md` row and counts.
 - `de004b9` — `kernel/open.ts`: `checkedDraft` reads a draft's five fields once, requires its
   `id` and its re-derived reference both to equal the reference it was read under (each bound
-  field also a string, so a missing one gets the named error rather than a serializer throw),
+  field also a string — defensive, so a non-string value cannot reach the digest; measured, a
+  missing field is already caught by the derived-reference comparison, since the serializer drops
+  an undefined key without throwing),
   and returns the four values `open()` binds; it runs after each `getStaged` null check — the
   opened draft before the profile resolves, the `proposed` draft before the same-triple
   comparison — and a mismatch throws `open: the persisted draft under <stagedRef | proposed
@@ -7242,8 +7244,12 @@ not an inversion.
   the profile lacks, now throws rather than refusing `unknown-profile` or `unknown-leg`: the
   check runs before any other use of the draft. A draft that re-derives keeps both refusals
   exactly as before.
-- An accessor that throws on a `priorRecordRefs` entry now throws on a first leg too, where the
-  entries used to go unread and the call refused `prior-leg-unverified`.
+- An options accessor that throws — on `supersedes`, `proposed`, `policyDigest` or
+  `priorRecordRefs`, or on an entry of it — now throws at `open()`'s entry, ahead of every
+  outcome, including the unknown-`stagedRef` throw and the `unknown-profile` and `unknown-leg`
+  refusals, where the value previously went unread (the snapshot reads every option once at
+  entry). The first-leg `priorRecordRefs` entry, which used to refuse `prior-leg-unverified`
+  unread, is one case of this.
 - A `null` `priorRecordRefs` entry — input the types forbid — still throws a `TypeError`, but
   `verifyPriorLegs` now meets it in its up-front read, before the first await, so on a profile of
   three or more legs it can outrank an earlier entry's `prior-leg-unverified` refusal. Accepted at
@@ -7251,6 +7257,29 @@ not an inversion.
 - What still passes through uncopied, as it came: a `priorRecordRefs` value that is not an array,
   and an entry that is not an object, so `verifyPriorLegs` meets them as before. For such a value
   the at-entry copy does not hold, but `verifyPriorLegs` still records only what it verified.
+
+**The SPEC reading, recorded.** CLAUDE.md makes a difference between the code and SPEC a finding,
+so the three passages this throw touches are quoted (each checked against `docs/concept/SPEC.md`,
+whitespace collapsed). §8's closing exception, after the loud-throw paragraph on "corrupted or
+foreign persisted config read back at a seam": "(An unknown *profile* is the exception — it is a
+fail-closed `unknown-profile` refusal.)". §8's table, on `unknown-leg`: "`unknown-leg` has two
+producers — a caller-named leg absent from the profile at `stage()`, and a staged draft's leg
+absent from the profile it resolves under at `open()`". §9, on `proposed`: "any mismatch THROWS
+naming both triples". This build reads those sentences as describing a staged draft that
+re-derives to its reference. A draft that does not is corrupted persisted data, which §8's
+loud-throw posture ("corrupted or foreign persisted config read back at a seam") covers, so the
+integrity check runs first and throws — the order `finalize` already uses (chain integrity before
+profile resolution). An honest draft naming an unregistered profile still refuses
+`unknown-profile`, and one naming an absent leg still refuses `unknown-leg`; both are pinned in
+`packages/record/test/unknown-ids.test.ts` (the `open()` unknown-profile test, its draft planted
+under its derived reference, and the `open()` unknown-leg test, staged honestly through
+`stage()`), not in `staged-integrity.test.ts`, which pins the throws. If the owner reads the parenthetical exception as covering any draft, this is
+a SPEC finding to raise, not a settled point.
+
+**Stated limit: hash migration.** The check re-derives with the default digest algorithm
+(`kernel/open.ts`, `checkedDraft`), not the algorithm the reference names. After a future
+digest-algorithm migration (SPEC §7), drafts staged before it would throw at `open()` until the
+check derives with the reference's own algorithm. Inert today: only `sha256` is supported.
 
 **What it does not do.** Authenticate who staged a draft. A whole new, self-consistent draft is
 the digest of its own fields, so it lives under a different reference and is bound only if the

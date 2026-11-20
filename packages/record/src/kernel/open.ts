@@ -370,11 +370,15 @@ type CheckedDraft = Readonly<
  * `contentDigest`, `profileId`, `subjectRef` and `legId`. So a draft read back under `ref` is
  * bound only if its `id` is `ref` and those four fields re-derive to `ref`. Each field is read
  * ONCE, here, and the caller binds exactly the values checked — never a second read of the
- * store's object. A mismatch means the draft was edited in storage between `stage()` and
- * `open()`: corrupted or foreign persisted data, met with SPEC §8's loud-throw posture — a throw
+ * store's object. The four bound fields are also required to be strings: defensive, so a value
+ * the serializer cannot take never reaches the digest (a missing field is already caught by the
+ * derived-reference comparison). A mismatch means the persisted draft is not the one staged — edited
+ * in storage between `stage()` and `open()`, or returned altered by a Store: corrupted or foreign
+ * persisted data, met with SPEC §8's loud-throw posture — a throw
  * naming the reference that records nothing, never a refusal. What it does not do: authenticate
  * who staged a draft. A whole new, self-consistent draft is the digest of its own fields, so it
- * lives under a different reference and is bound only if the host asks for that one.
+ * lives under a different reference and is bound only if the host asks for that one. A stated
+ * limit: the re-derivation uses the default digest algorithm, not the one the reference names.
  */
 function checkedDraft(draft: StagedDraft, ref: string, label: string): CheckedDraft {
   const { id, profileId, legId, subjectRef, contentDigest } = draft;
@@ -389,8 +393,9 @@ function checkedDraft(draft: StagedDraft, ref: string, label: string): CheckedDr
     throw new Error(
       `open: the persisted draft under ${label} '${ref}' does not match it — a staged draft's id ` +
         'and the reference its fields re-derive to must both be the reference it is stored under ' +
-        '(SPEC §3); a draft edited in storage is corrupted or foreign persisted data, a storage ' +
-        'fault, not a domain outcome (SPEC §8)',
+        '(SPEC §12); a persisted draft that does not match its reference was edited in storage, ' +
+        'or came back from a Store that does not round-trip it — corrupted or foreign persisted ' +
+        'data, a storage fault, not a domain outcome (SPEC §8)',
     );
   }
   return { profileId, legId, subjectRef, contentDigest };
