@@ -42,19 +42,18 @@ const MARKER_KEYS: ReadonlySet<string> = new Set(['kind', 'unreachable', 'author
 // date-only string, both parsed HOST-LOCAL, making staleness locale-dependent (found
 // at the AL2 freshness increment's final review). Required at intake; `Date.parse`
 // (below) still does the actual value parse once the shape is confirmed.
-const RFC3339_WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
+const RFC3339_WITH_OFFSET =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):\d{2}(?:\.\d+)?(?:Z|[+-](\d{2}):(\d{2}))$/;
 
 /**
  * The date-time's own fields must name a real instant, checked on the string itself so no host
  * time zone or engine leniency decides it: month 1-12, day within the month (Gregorian leap
  * years), hour <= 23, minute <= 59, and an offset of hour <= 23 and minute <= 59. Second 60
- * already fails `Date.parse`. Applied after the shape regex, which guarantees the fields.
+ * already fails `Date.parse`. The shape regex above is the one place the fields are captured;
+ * a string that does not match it is not a real instant either.
  */
 function isRealInstant(value: string): boolean {
-  const m =
-    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):\d{2}(?:\.\d+)?(?:Z|[+-](\d{2}):(\d{2}))$/.exec(
-      value,
-    );
+  const m = RFC3339_WITH_OFFSET.exec(value);
   if (m === null) return false;
   const year = Number(m[1]);
   const month = Number(m[2]);
@@ -133,13 +132,14 @@ export function validateConsultations(
           `${seam}: consultations[${index}] has unreachable: ${String(record.unreachable)} — a marker declares unreachable: true or is not a marker (SPEC §11.1)`,
         );
       }
-      if (!isNonEmptyString(record.authority)) {
+      const markerAuthority = record.authority;
+      if (!isNonEmptyString(markerAuthority)) {
         throw new Error(
           `${seam}: consultations[${index}] (unreachable marker '${kind}') has a missing or empty authority — the marker names the party that was down (SPEC §11.1)`,
         );
       }
-      assertWellFormedString(seam, `consultations[${index}].authority`, record.authority);
-      unreachable.push({ kind, unreachable: true, authority: record.authority });
+      assertWellFormedString(seam, `consultations[${index}].authority`, markerAuthority);
+      unreachable.push({ kind, unreachable: true, authority: markerAuthority });
       continue;
     }
 
@@ -178,32 +178,36 @@ export function validateConsultations(
       );
     }
     assertIdentityStrings(seam, `consultations[${index}].checker`, checker);
-    if (!isNonEmptyString(record.payloadDigest)) {
+    // Every remaining field is read ONCE into a local, checked, and the local is what is recorded.
+    const payloadDigest = record.payloadDigest;
+    const verdict = record.verdict;
+    const proofRef = record.proofRef;
+    const observedAt = record.observedAt;
+    if (!isNonEmptyString(payloadDigest)) {
       throw new Error(
         `${seam}: consultations[${index}] (obtained '${kind}') has a missing or empty payloadDigest — digest-only custody needs the digest (SPEC §11.1)`,
       );
     }
     assertDigestForm(
       `${seam}: consultations[${index}] (obtained '${kind}') payloadDigest`,
-      record.payloadDigest,
+      payloadDigest,
     );
-    if (record.verdict !== 'pass' && record.verdict !== 'fail') {
+    if (verdict !== 'pass' && verdict !== 'fail') {
       throw new Error(
-        `${seam}: consultations[${index}] (obtained '${kind}') has verdict '${String(record.verdict)}' — a Consultation verdict is 'pass' or 'fail' (SPEC §2)`,
+        `${seam}: consultations[${index}] (obtained '${kind}') has verdict '${String(verdict)}' — a Consultation verdict is 'pass' or 'fail' (SPEC §2)`,
       );
     }
-    if (record.proofRef !== undefined && typeof record.proofRef !== 'string') {
+    if (proofRef !== undefined && typeof proofRef !== 'string') {
       throw new Error(
         `${seam}: consultations[${index}] (obtained '${kind}') has a non-string proofRef — a caller error (SPEC §11.1)`,
       );
     }
-    assertWellFormedString(seam, `consultations[${index}].proofRef`, record.proofRef);
-    if (record.observedAt !== undefined) {
+    assertWellFormedString(seam, `consultations[${index}].proofRef`, proofRef);
+    if (observedAt !== undefined) {
       if (
-        typeof record.observedAt !== 'string' ||
-        !RFC3339_WITH_OFFSET.test(record.observedAt) ||
-        !isRealInstant(record.observedAt) ||
-        Number.isNaN(Date.parse(record.observedAt))
+        typeof observedAt !== 'string' ||
+        !isRealInstant(observedAt) ||
+        Number.isNaN(Date.parse(observedAt))
       ) {
         throw new Error(
           `${seam}: consultations[${index}] (obtained '${kind}') has a malformed observedAt — ` +
@@ -215,10 +219,10 @@ export function validateConsultations(
     obtained.push({
       kind,
       checker,
-      payloadDigest: record.payloadDigest,
-      verdict: record.verdict,
-      ...(record.proofRef !== undefined ? { proofRef: record.proofRef } : {}),
-      ...(record.observedAt !== undefined ? { observedAt: record.observedAt } : {}),
+      payloadDigest,
+      verdict,
+      ...(proofRef !== undefined ? { proofRef } : {}),
+      ...(observedAt !== undefined ? { observedAt } : {}),
     });
   }
   return { obtained, unreachable };

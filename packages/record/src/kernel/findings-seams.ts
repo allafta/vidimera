@@ -76,12 +76,19 @@ function isNonEmptyString(value: unknown): value is string {
  * the finding unacknowledgeable under `self`/`counterparty` (the counting predicate
  * fails closed on both sides) — the declarable-but-inert trap the settled class closes.
  */
+type ValidatedInput = {
+  findingId: string;
+  kind: string | undefined;
+  findingDigest: string;
+  magnitude: string | undefined;
+};
+
 function validateInput(
   seam: 'raiseFinding' | 'acknowledge',
   input: Record<string, unknown>,
   allowedKeys: Set<string>,
   requireKind: boolean,
-): void {
+): ValidatedInput {
   if (typeof input !== 'object' || input === null || Array.isArray(input)) {
     throw new Error(
       `${seam}: the ${requireKind ? 'finding' : 'ack'} argument is not a plain object — a caller error (SPEC §10.2)`,
@@ -94,30 +101,42 @@ function validateInput(
       );
     }
   }
-  if (!isNonEmptyString(input.findingId)) {
+  // Each field is read ONCE into a local, checked, and the literal returned is what the seam
+  // records: a caller mutating its argument after the call changes nothing recorded.
+  const findingId = input.findingId;
+  const kind = input.kind;
+  const findingDigest = input.findingDigest;
+  const magnitude = input.magnitude;
+  if (!isNonEmptyString(findingId)) {
     throw new Error(
       `${seam}: missing or empty findingId — a malformed argument is a caller error (SPEC §10.2)`,
     );
   }
-  assertWellFormedString(seam, 'findingId', input.findingId);
-  if (requireKind && !isNonEmptyString(input.kind)) {
+  assertWellFormedString(seam, 'findingId', findingId);
+  if (requireKind && !isNonEmptyString(kind)) {
     throw new Error(
       `${seam}: missing or empty kind — a malformed argument is a caller error (SPEC §10.2)`,
     );
   }
-  assertWellFormedString(seam, 'kind', input.kind);
-  if (!isNonEmptyString(input.findingDigest)) {
+  assertWellFormedString(seam, 'kind', kind);
+  if (!isNonEmptyString(findingDigest)) {
     throw new Error(
       `${seam}: missing or empty findingDigest — digest-only custody needs the digest (SPEC §3)`,
     );
   }
-  assertDigestForm(`${seam}: findingDigest`, input.findingDigest);
-  if (input.magnitude !== undefined && typeof input.magnitude !== 'string') {
+  assertDigestForm(`${seam}: findingDigest`, findingDigest);
+  if (magnitude !== undefined && typeof magnitude !== 'string') {
     throw new Error(
       `${seam}: a non-string magnitude — the library never interprets it, but it IS a string (SPEC §10.2)`,
     );
   }
-  assertWellFormedString(seam, 'magnitude', input.magnitude);
+  assertWellFormedString(seam, 'magnitude', magnitude);
+  return {
+    findingId,
+    kind: typeof kind === 'string' ? kind : undefined,
+    findingDigest,
+    magnitude: typeof magnitude === 'string' ? magnitude : undefined,
+  };
 }
 
 /**
@@ -284,25 +303,30 @@ export async function raiseFinding(
   identity: IdentityAssertion,
 ): Promise<SeamResult> {
   assertIdArg('raiseFinding', 'recordId', recordId);
-  validateInput('raiseFinding', finding as unknown as Record<string, unknown>, FINDING_KEYS, true);
+  const input = validateInput(
+    'raiseFinding',
+    finding as unknown as Record<string, unknown>,
+    FINDING_KEYS,
+    true,
+  );
   const raiser = validateSeamIdentity('raiseFinding', identity);
   const pre = await loadOpenDeclaringRecord(ctx, 'raiseFinding', recordId);
   if (!pre.ok) return pre.out;
   // (4) SPEC §10.2: "`kind` is immutable per `findingId` — a re-raise changing it
   // throws". The same shape replay treats as a storage fault is a live CALLER error
   // here — the seam refusing it is what keeps it impossible on honest chains.
-  const existing = pre.record.findings?.find((f) => f.findingId === finding.findingId);
-  if (existing !== undefined && existing.kind !== finding.kind) {
+  const existing = pre.record.findings?.find((f) => f.findingId === input.findingId);
+  if (existing !== undefined && existing.kind !== input.kind) {
     throw new Error(
-      `raiseFinding: finding '${finding.findingId}' was raised with kind '${existing.kind}' — ` +
+      `raiseFinding: finding '${input.findingId}' was raised with kind '${existing.kind}' — ` +
         'SPEC §10.2: "`kind` is immutable per `findingId` — a re-raise changing it throws"',
     );
   }
   const payload: FindingRaisedPayload = {
-    findingId: finding.findingId,
-    kind: finding.kind,
-    findingDigest: finding.findingDigest,
-    ...(finding.magnitude !== undefined ? { magnitude: finding.magnitude } : {}),
+    findingId: input.findingId,
+    kind: input.kind as string, // requireKind: validateInput guaranteed a non-empty string
+    findingDigest: input.findingDigest,
+    ...(input.magnitude !== undefined ? { magnitude: input.magnitude } : {}),
     raiser,
   };
   return appendSeamTransition(
@@ -323,7 +347,12 @@ export async function acknowledge(
   identity: IdentityAssertion,
 ): Promise<SeamResult> {
   assertIdArg('acknowledge', 'recordId', recordId);
-  validateInput('acknowledge', ack as unknown as Record<string, unknown>, ACK_KEYS, false);
+  const input = validateInput(
+    'acknowledge',
+    ack as unknown as Record<string, unknown>,
+    ACK_KEYS,
+    false,
+  );
   const acker = validateSeamIdentity('acknowledge', identity);
   const pre = await loadOpenDeclaringRecord(ctx, 'acknowledge', recordId);
   if (!pre.ok) return pre.out;
@@ -331,17 +360,17 @@ export async function acknowledge(
   // error)". A stale digest, a mismatched magnitude, an ackMode-violating acker all
   // APPEND — SPEC §10.2's "recorded and visibly non-counting (fidelity, not validity)";
   // counting is rung (5.7)'s business, never this seam's.
-  const target = pre.record.findings?.find((f) => f.findingId === ack.findingId);
+  const target = pre.record.findings?.find((f) => f.findingId === input.findingId);
   if (target === undefined) {
     throw new Error(
-      `acknowledge: finding '${ack.findingId}' was never raised on record '${recordId}' — ` +
+      `acknowledge: finding '${input.findingId}' was never raised on record '${recordId}' — ` +
         'SPEC §10.2: an ack naming an absent findingId throws (caller error)',
     );
   }
   const payload: AcknowledgedPayload = {
-    findingId: ack.findingId,
-    findingDigest: ack.findingDigest,
-    ...(ack.magnitude !== undefined ? { magnitude: ack.magnitude } : {}),
+    findingId: input.findingId,
+    findingDigest: input.findingDigest,
+    ...(input.magnitude !== undefined ? { magnitude: input.magnitude } : {}),
     acker,
   };
   return appendSeamTransition(

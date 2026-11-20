@@ -38,12 +38,7 @@ import {
   sodViolated,
 } from './finalize.js';
 import { heldProfile } from './held-profile.js';
-import {
-  assertFactsCheckerStrings,
-  assertIdArg,
-  assertOptionsBag,
-  intakeIdentity,
-} from './intake.js';
+import { assertIdArg, assertOptionsBag, intakeFactsChecker, intakeIdentity } from './intake.js';
 import { signatureLayerHolds } from './verify-signatures.js';
 
 export async function decline(
@@ -74,7 +69,7 @@ export async function decline(
   const supplied = validateConsultations(opts?.consultations, 'decline');
   // finalize's intake for the acting identity and the facts checker (kernel/finalize.ts).
   const intakeActor = intakeIdentity('decline', 'identity', identity);
-  assertFactsCheckerStrings('decline', facts);
+  const intakeChecker = intakeFactsChecker('decline', facts);
 
   // --- load the chain -------------------------------------------------------------------
   const chain = await store.readChain(recordId);
@@ -185,7 +180,7 @@ export async function decline(
   }
 
   // --- (5) facts — the decline binds what the decider saw when they said no ------------
-  const factsCheck = isValidFacts(facts);
+  const factsCheck = isValidFacts(facts, intakeChecker);
   if (!factsCheck.ok) {
     return refuseMaybeAppend(
       store,

@@ -15,6 +15,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'vitest';
 
+import { transitionDigest } from '../src/chain/encoding.js';
 import { create } from '../src/create.js';
 import { validateConsultations } from '../src/kernel/consultations.js';
 import { sodViolated } from '../src/kernel/finalize.js';
@@ -22,7 +23,7 @@ import { identitySnapshot } from '../src/kernel/identity.js';
 import { MemoryStore } from '../src/store/memory.js';
 import { SqliteStore } from '../src/store/sqlite.js';
 import type { Store } from '../src/store/store.js';
-import type { IdentityAssertion } from '../src/types.js';
+import type { IdentityAssertion, Transition } from '../src/types.js';
 import {
   captureProfile,
   DEFAULT_SUBJECT_REF,
@@ -32,6 +33,7 @@ import {
   makeConfig,
   openRecord,
   tamperNonLast,
+  twoLegProfile,
 } from './helpers/profiles.js';
 import { TamperingStore } from './helpers/stores.js';
 
@@ -406,6 +408,12 @@ const digestSites: DigestSite[] = [
       f.op.completeRedemption(f.recordId, 'token', CONTENT, { result: { digest: v as never } }),
   },
   {
+    name: 'redeem result.digest',
+    field: /redeem: opts\.result\.digest/,
+    open: true,
+    run: (f, v) => f.op.redeem(f.recordId, CONTENT, { result: { digest: v as never } }),
+  },
+  {
     name: 'open policyDigest',
     field: /open: .*policyDigest/,
     open: false,
@@ -467,6 +475,19 @@ describe('operator intake: digest form', () => {
       }
     });
   }
+});
+
+describe('operator intake: a result at issuance', () => {
+  test('beginRedemption admits no result, so there is no result digest to judge there', async () => {
+    const f = await intakeFixture();
+    await assertRefusedAtIntake(
+      f,
+      () =>
+        f.op.beginRedemption(f.recordId, CONTENT, { result: { digest: 'NOT A DIGEST' } as never }),
+      /beginRedemption: opts\.result is not admitted at issuance/,
+      'beginRedemption result',
+    );
+  });
 });
 
 describe('operator intake: observedAt', () => {
@@ -568,6 +589,12 @@ describe('operator intake: well-formed operator strings', () => {
         (f, b) => finalizeWith(f, {}, { ...facts(), checker: id(part, b) }),
       ],
       [
+        'decline',
+        `facts.checker.${part}`,
+        (f, b) =>
+          f.op.decline(f.recordId, identity(), CONTENT, { ...facts(), checker: id(part, b) }),
+      ],
+      [
         'finalize',
         `consultations[0].checker.${part}`,
         (f, b) => finalizeWith(f, { consultations: [{ ...obtained(D1), checker: id(part, b) }] }),
@@ -602,6 +629,12 @@ describe('operator intake: well-formed operator strings', () => {
       (f, b) => finalizeWith(f, { consultations: [marker({ authority: b })] }),
     ],
     ['decline', 'consultations[0].authority', (f, b) => declineWith(f, [marker({ authority: b })])],
+    ['decline', 'consultations[0].kind', (f, b) => declineWith(f, [marker({ kind: b })])],
+    [
+      'decline',
+      'consultations[0].proofRef',
+      (f, b) => declineWith(f, [{ ...obtained(D1), proofRef: b }]),
+    ],
     [
       'finalize',
       'opts.policy.authority',
@@ -684,6 +717,7 @@ describe('operator intake: well-formed operator strings', () => {
     const f = await intakeFixture();
     const refused = await finalizeWith(f, {}, facts(), { principal: '', authority: 'x' });
     assert.equal(refused.status, 'refused');
+    if (refused.status === 'refused') assert.equal(refused.code, 'identity-authority-refused');
     await assert.rejects(
       async () =>
         f.op.raiseFinding(f.recordId, finding({}) as never, { principal: '', authority: 'x' }),
@@ -708,5 +742,202 @@ describe('operator intake: the read path is unchanged', () => {
     const other = { principal: 'checker:1', authority: 'session:test-app' };
     assert.equal(sodViolated(record as never, leg as never, other, 'r-1', 'finalize'), false);
     assert.equal(sodViolated(record as never, leg as never, planted, 'r-1', 'finalize'), true);
+  });
+});
+
+// --- what was checked is what is recorded -------------------------------------------------------
+// A host that mutates its argument after the call (no await) must not get a value into the chain
+// that intake did not judge, and a getter that answers differently on a second read must not
+// either. Each seam reads a field once at intake and records that read.
+
+describe('operator intake: the value checked is the value recorded', () => {
+  const chainText = async (f: IntakeFixture) => JSON.stringify(await f.inner.readChain(f.recordId));
+  const EVIL = 'EVIL\ud800';
+  const BADDIGEST = 'junk';
+
+  test('finalize: a facts.checker mutated after the call is not recorded', async () => {
+    const f = await intakeFixture();
+    const factsArg = facts();
+    const call = f.op.finalize(f.recordId, identity(), CONTENT, factsArg, {
+      policy: { digest: D1 },
+    });
+    factsArg.checker.principal = EVIL;
+    const out = await call;
+    assert.equal(out.status, 'ok');
+    const text = await chainText(f);
+    assert.ok(text.includes('svc:review-surface'));
+    assert.ok(!text.includes('EVIL'));
+  });
+
+  test('decline: a facts.checker mutated after the call is not recorded', async () => {
+    const f = await intakeFixture();
+    const factsArg = facts();
+    const call = f.op.decline(f.recordId, identity(), CONTENT, factsArg);
+    factsArg.checker.principal = EVIL;
+    const out = await call;
+    assert.equal(out.status, 'ok');
+    const text = await chainText(f);
+    assert.ok(text.includes('svc:review-surface'));
+    assert.ok(!text.includes('EVIL'));
+  });
+
+  test('raiseFinding: a finding mutated after the call is recorded as validated', async () => {
+    const f = await intakeFixture();
+    const finding = { findingId: 'f-1', kind: 'variance', findingDigest: D1, magnitude: 'm-1' };
+    const call = f.op.raiseFinding(f.recordId, finding, identity());
+    finding.findingId = EVIL;
+    finding.kind = EVIL;
+    finding.findingDigest = BADDIGEST;
+    finding.magnitude = EVIL;
+    const out = await call;
+    assert.equal(out.status, 'ok');
+    const text = await chainText(f);
+    assert.ok(text.includes('"findingId":"f-1"') && text.includes('"magnitude":"m-1"'));
+    assert.ok(!text.includes('EVIL') && !text.includes(BADDIGEST));
+  });
+
+  test('acknowledge: an ack mutated after the call is recorded as validated', async () => {
+    const f = await intakeFixture();
+    const raised = await f.op.raiseFinding(
+      f.recordId,
+      { findingId: 'f-1', kind: 'variance', findingDigest: D1 },
+      identity(),
+    );
+    assert.equal(raised.status, 'ok');
+    const ack = { findingId: 'f-1', findingDigest: D1, magnitude: 'm-1' };
+    const call = f.op.acknowledge(f.recordId, ack, identity());
+    ack.findingId = 'f-2';
+    ack.findingDigest = BADDIGEST;
+    ack.magnitude = EVIL;
+    const out = await call;
+    assert.equal(out.status, 'ok');
+    const text = await chainText(f);
+    assert.ok(text.includes('"magnitude":"m-1"'));
+    assert.ok(
+      !text.includes('EVIL') && !text.includes(BADDIGEST) && !text.includes('"findingId":"f-2"'),
+    );
+  });
+
+  test('a consultation field that answers differently on a second read records the first answer', () => {
+    const reads: Record<string, number> = {};
+    const once = (name: string, first: unknown, later: unknown) => ({
+      configurable: true,
+      enumerable: true,
+      get() {
+        reads[name] = (reads[name] ?? 0) + 1;
+        return reads[name] === 1 ? first : later;
+      },
+    });
+    const entry = {
+      kind: 'k1',
+      checker: { principal: 'c', authority: 'mtls:c' },
+      verdict: 'pass',
+    };
+    Object.defineProperties(entry, {
+      payloadDigest: once('payloadDigest', D1, 'junk'),
+      proofRef: once('proofRef', 'proof-1', EVIL),
+      observedAt: once('observedAt', '2028-02-29T10:00:00Z', 'junk'),
+    });
+    const marker = { kind: 'k2', unreachable: true };
+    Object.defineProperty(marker, 'authority', once('authority', 'svc:x', EVIL));
+    const out = validateConsultations([entry, marker] as never, 'finalize');
+    assert.deepEqual(out.obtained[0], {
+      kind: 'k1',
+      checker: { principal: 'c', authority: 'mtls:c' },
+      payloadDigest: D1,
+      verdict: 'pass',
+      proofRef: 'proof-1',
+      observedAt: '2028-02-29T10:00:00Z',
+    });
+    assert.equal(out.unreachable[0]?.authority, 'svc:x');
+  });
+});
+
+// --- the read path, over a planted chain ----------------------------------------------------------
+
+describe('operator intake: a persisted lone-surrogate prior actor is read as before', () => {
+  function twoLegSod() {
+    const p = twoLegProfile({ id: 'test.twoleg.v1' });
+    const checker = p.legs[1];
+    if (checker === undefined) throw new Error('fixture: two legs');
+    p.legs[1] = { ...checker, sod: { notActorOf: ['maker-decide'] } };
+    return p;
+  }
+  /** Rewrites the maker's confirmed actor in place and relinks, the way a storage writer would. */
+  function plantActor(planted: unknown) {
+    return (chain: Transition[]): Transition[] => {
+      const copy = structuredClone(chain);
+      const at = copy.findIndex((t) => t.kind === 'confirmed');
+      const target = copy[at];
+      if (target === undefined) throw new Error('fixture: no confirmed transition');
+      copy[at] = { ...target, payload: { ...(target.payload as object), actor: planted } };
+      for (let i = at + 1; i < copy.length; i += 1) {
+        const prev = copy[i - 1];
+        const t = copy[i];
+        if (prev === undefined || t === undefined) throw new Error('fixture: dense');
+        copy[i] = { ...t, prevHash: transitionDigest(prev) };
+      }
+      return copy;
+    };
+  }
+
+  test('opening the successor and finalizing it as another principal behaves exactly as at the base', async () => {
+    // At the base identitySnapshot accepts any non-empty string principal, lone surrogate
+    // included, so the persisted prior actor is a valid identity: the successor opens, carries
+    // that actor into its evidence, and separation of duties compares it with the finalizer's
+    // principal like any other. The intake check judges only what a caller supplies now.
+    const planted = { principal: 'maker\ud800', authority: 'session:test-app' };
+    const inner = new MemoryStore();
+    const honest = create(makeConfig([twoLegSod()], { store: inner }));
+    const makerId = await openRecord(
+      honest,
+      CONTENT,
+      'test.twoleg.v1',
+      DEFAULT_SUBJECT_REF,
+      'maker-decide',
+    );
+    const made = await honest.operator.finalize(
+      makerId,
+      identity({ principal: 'alice' }),
+      CONTENT,
+      facts(),
+    );
+    assert.equal(made.status, 'ok');
+
+    const tampering = new TamperingStore(inner, makerId, plantActor(planted));
+    const handles = create(makeConfig([twoLegSod()], { store: tampering }));
+    assert.deepEqual(await handles.operator.verifyChain(makerId), { intact: true });
+    const last = (await tampering.readChain(makerId)).at(-1);
+    assert.ok(last !== undefined);
+    const head = transitionDigest(last);
+
+    const staged = await handles.agent.stage(
+      CONTENT,
+      'test.twoleg.v1',
+      DEFAULT_SUBJECT_REF,
+      'checker-decide',
+    );
+    assert.equal(staged.status, 'ok');
+    if (staged.status !== 'ok') return;
+    const opened = await handles.operator.open(staged.value.stagedRef, {
+      priorRecordRefs: [{ recordId: makerId, chainHead: head }],
+    });
+    assert.equal(opened.status, 'ok', JSON.stringify(opened));
+    if (opened.status !== 'ok') return;
+    const checkerId = opened.value.recordId;
+    const genesis = (await inner.readChain(checkerId))[0];
+    assert.deepEqual(
+      (genesis?.payload as unknown as { priorLegActors: unknown[] } | undefined)?.priorLegActors,
+      [planted],
+      'the planted actor is carried into the successor as read',
+    );
+
+    const out = await handles.operator.finalize(
+      checkerId,
+      identity({ principal: 'bob' }),
+      CONTENT,
+      facts(),
+    );
+    assert.equal(out.status, 'ok', JSON.stringify(out));
   });
 });

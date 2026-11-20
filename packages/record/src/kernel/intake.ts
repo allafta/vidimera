@@ -87,12 +87,13 @@ export function assertIdentityStrings(
 }
 
 /**
- * The same check for `facts.checker`, the identity the facts consultation records. A missing or
- * invalid facts payload or checker is the facts gate's own answer (`consultation-missing`), so
- * only a well-formed-shape checker carrying a lone surrogate throws here.
+ * The same intake for `facts.checker`, the identity the facts consultation records: read ONCE
+ * through `identitySnapshot`, an ill-formed string throws, and the snapshot is returned for the
+ * facts gate (`isValidFacts`) to use instead of reading `facts.checker` again. `null` is any
+ * other invalidity (or a facts payload that is not an object), which the gate still answers
+ * `consultation-missing`.
  */
-export function assertFactsCheckerStrings(seam: string, facts: unknown): void {
-  if (facts === null || typeof facts !== 'object') return;
-  const snapshot = identitySnapshot((facts as { checker?: unknown }).checker as IdentityAssertion);
-  if (snapshot !== null) assertIdentityStrings(seam, 'facts.checker', snapshot);
+export function intakeFactsChecker(seam: string, facts: unknown): IdentityAssertion | null {
+  if (facts === null || typeof facts !== 'object') return null;
+  return intakeIdentity(seam, 'facts.checker', (facts as { checker?: unknown }).checker as never);
 }
