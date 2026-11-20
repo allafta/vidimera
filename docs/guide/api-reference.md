@@ -210,8 +210,53 @@ Notes that save debugging time:
   referenced record's profile held (its id registered, its declarative fields unedited) — and
   `policyDigest`,
   which is presence-checked against the profile's `policySource` declaration (a mismatch
-  throws) and bound verbatim as the operator's attestation; the drift comparison happens
-  at finalize's own gate.
+  throws), must be a string of digest form (the next note) when supplied, and is then bound
+  as given, the operator's attestation; the drift comparison happens at finalize's own gate.
+  Both `priorRecordRefs` and `supersedes` are shape-checked at argument depth: a
+  `priorRecordRefs` that is not an array, an entry that is not a plain
+  `{ recordId, chainHead }` object, an unknown key, or an empty or non-string field
+  **throws** `open: priorRecordRefs…` (a caller error, as `supersedes`' shape already was),
+  while a well-formed reference that fails verification still refuses `prior-leg-unverified`.
+- **Operator intake — what each seam checks before it reads a chain.** Every check below
+  throws a named message with the seam's head (`finalize: …`), before any chain is read, any
+  lock taken or anything appended, the same on every backing; none is a refusal code.
+  - **Digest form.** A host digest field must be `<algorithm>:<lowercase-hex>`: an algorithm
+    name of lowercase letters, digits or hyphens starting with a letter, a colon, then a
+    non-empty even-length run of lowercase hex (SPEC §7). It applies to a consultation's
+    `payloadDigest`, `policy.digest`, `findingDigest` (`raiseFinding` and `acknowledge`),
+    `result.digest`, `open`'s `policyDigest`, and the `chainHead` in each `supersedes` and
+    `priorRecordRefs` entry. The algorithm name is not checked against a list, so a host
+    whose evidence system uses another algorithm is admitted. The limit: a form-valid string
+    is still the host's claim; nothing checks that it digests anything.
+  - **`observedAt`.** Beyond RFC 3339 shape with an offset and a parse, its fields must name
+    a real instant: month 1 to 12, a day that exists in that month (Gregorian leap years),
+    hour at most 23, minute at most 59, and an offset of at most 23:59. `2026-02-30T00:00:00Z`
+    throws instead of being read as 2 March.
+  - **Ids.** A `recordId` or `stagedRef` argument must be a string at `open`, `finalize`,
+    `decline`, `raiseFinding`, `acknowledge`, the three redemption seams, `seal`, `review`,
+    `verifySignatures`, and the reads `getRecord`, `readChain`, `chainHead`, `replay` and
+    `verifyChain`. An empty or unknown string keeps its existing answer (`null`, an empty
+    chain, or the seam's domain outcome); only a non-string throws. Before, a number was a
+    domain answer on `MemoryStore` and a raw driver `TypeError` on `SqliteStore`.
+  - **Options bags.** `open`, `finalize`, `decline` and the redemption seams take an absent
+    bag, an explicit `undefined`, or a plain object. `null` and an array throw
+    `<seam>: options must be an object when supplied`; `null` is not read as absent.
+  - **`tx`.** When `opts.tx` is present and not `undefined` it must be an object or a
+    function, since a driver's transaction handle is never a primitive; `null` and the other
+    primitives throw, before any evidence edge. The limit: only the store can judge whether
+    an object is enlistable, so a non-enlistable object still passes intake, still counts as
+    enlisted on a refusal path (suppressing the compromise, clock and drift edges an
+    un-enlisted call appends), and on the success path still throws at the store.
+  - **Well-formed strings.** Every operator string a seam records must be well-formed UTF-16:
+    the acting identity (`principal`, `authority`, `proofRef`), `facts.checker`, each obtained
+    consultation's `kind`, `checker`, `proofRef` and `observedAt`, each unreachable marker's
+    `kind` and `authority`, `policy`'s `authority`, the finding and acknowledgement fields, and
+    the `recordId` in `supersedes` and `priorRecordRefs`. A lone surrogate throws
+    `<seam>: <field> holds a lone surrogate`. The value recorded is the value checked: each is
+    read once, so a host that changes its object, or an accessor on it, after the call changes
+    nothing recorded. The limit: this is the write path only; a persisted identity read back
+    for separation of duties, or replayed, is never re-judged, and `facts.figures` is digested,
+    not recorded, and is read where it is used.
 - `open`'s `proposed: { stagedRef }` binds into the genesis, as `proposedDigest`, the
   digest of the draft the store holds under that reference when the record opens: the ref
   resolves through the store exactly as `stagedRef` itself does — re-derivation check
@@ -436,7 +481,7 @@ is how an e-mail address or a bearer token ends up in it for good (SPEC §6, §1
 for `facts.checker` it is `consultation-missing`.
 
 ```ts
-type Digest = string;                        // "sha256:<hex>"
+type Digest = string;                        // "sha256:<hex>" from the library; a host-supplied one is any <algorithm>:<hex> form
 
 interface IdentityAssertion {
   principal: string;

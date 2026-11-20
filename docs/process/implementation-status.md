@@ -7810,3 +7810,141 @@ assertion changed. `byte-stability.test.ts` and the byte-regression suites are u
 packages/record --noEmit` and `tsc -p packages/store-postgres --noEmit` exit 0; biome
 (`--error-on-warnings`, 170 files), `contract-scan`, `api-reference-sync` and `docs-index-sync`
 exit 0; `smoke` cannot run here and runs in CI.
+
+## Post-build-order increment — Operator intake
+
+**The fortieth post-build-order increment (branch `operator-intake-2026-11-20`, off `main` at
+`19bdbc7`).** The design is `docs/superpowers/specs/2026-11-20-operator-intake-design.md` and the
+plan `docs/superpowers/plans/2026-11-20-operator-intake.md`. No sealed-set edit, no maturity
+marker, no new export. It changes what the operator seams accept, and what the read methods on
+both handles accept as an id. The subject and content intake handled the agent seam; this one
+handles the rest.
+
+**What it closes.** The operator seams trusted the shape of what the host passed. (1) Host digest
+fields were checked only for being a non-empty string (a consultation's `payloadDigest`, finalize's
+`policy.digest`, `findingDigest` at `raiseFinding` and `acknowledge`, `result.digest`), and
+`open()`'s `policyDigest` was not type-checked at all: a number, an array or `true` was bound into
+the genesis as given. So values that are not SPEC §7 digests were recorded verbatim in
+signature-covered payloads. (2) `observedAt` accepted impossible calendar instants:
+`2026-02-30T00:00:00Z` passed the regex and `Date.parse` moved it to 2 March, so the freshness gate
+judged an instant the recorded string did not name. (3) A `null` options bag threw a raw
+`TypeError` at `finalize`, `decline` and `open`, and the storage-fault message for a single append
+said the batch was all-or-nothing when there was no batch. (4) `RedeemOptions.tx` was never
+inspected: `tx: null` counted as enlisted and suppressed the compromise, clock and drift evidence
+edges an un-enlisted refusal appends, then threw at the store on success. (5) `open()` did not
+shape-check `priorRecordRefs`, though it shape-checked `supersedes`, and no seam type-checked an id
+argument, so one malformed id was a domain answer on `MemoryStore` and a raw `node:sqlite`
+`TypeError` on `SqliteStore`. (6) Operator strings (identities, consultation kinds, finding fields)
+reached the chain unchecked for well-formedness: a lone surrogate became a non-RFC 8785 escape in a
+transition, so a compliant second implementation could not reproduce that transition's digest. The
+requirements: SPEC §7 (every digest field is `<algorithm>:<lowercase-hex>`), SPEC §3 (RFC 8785),
+SPEC §11.1 (`observedAt` is an authority-claimed time; the code's own contract is RFC 3339), and the
+repository's caller-error posture (a malformed call meets a named message and appends nothing, the
+same on every backing).
+
+**What landed, per commit.**
+
+- `b4f152a` — the design and the plan, with the INDEX rows.
+- `0684835` — `packages/record/src/kernel/intake.ts`: `assertIdArg` at every seam and read that takes
+  a `recordId` or `stagedRef` (`open`, `finalize`, `decline`, `raiseFinding`, `acknowledge`, the three
+  redemption seams, `seal`, `review`, `verifySignatures`, and `getRecord`, `readChain`, `chainHead`,
+  `replay`, `verifyChain` on the handles that carry them); `assertOptionsBag` at `open`, `finalize`,
+  `decline` and `validateRedeemOptions`; the `tx` check there; `open`'s `priorRecordRefs` shape check
+  into the options snapshot; the single-append fault message.
+- `9dd3abf` — `isDigestForm` in `canonical.ts` (internal), applied at every host digest site;
+  `observedAt`'s calendar check; the lone-surrogate check at every operator string a seam records;
+  the arrays-through-the-options-guard fix carried from the first task's review.
+- `7b9152e` — the fix round after the second task's review: the value recorded is the value checked
+  (see "Amended after review"), plus the pin gaps and the strengthened read-path pin.
+- The records commit: this section, `CHANGELOG.md`, the guide (`integrating.md`, `api-reference.md`),
+  `next-phases.md` and `CLAUDE.md`'s counts.
+
+**Rulings.**
+
+- **The form, not an algorithm list.** SPEC §7 fixes the form of every digest field and says the
+  algorithm for new records is `sha256`, which is the library's own behaviour. A host digests its own
+  evidence and the library never re-verifies a host digest, so requiring `sha256` would refuse a host
+  whose evidence system uses another algorithm for no check the library makes. The form is an
+  algorithm name of lowercase letters, digits or hyphens starting with a letter, a colon, then a
+  non-empty even-length run of lowercase hex. The limit: a form-valid string is still the host's
+  claim; nothing checks that it digests anything.
+- **Caller errors throw, the same on every backing.** A non-string id throws a named error before any
+  store call; before, it was a domain answer on `MemoryStore` and a raw driver `TypeError` on
+  `SqliteStore`. An empty or unknown string keeps today's answer. No refusal code is minted (a sealed
+  SPEC §8 edit).
+- **`null` is not absent for an options bag.** TypeScript excludes it, and treating it as absent
+  would hide a host bug. An array is not an options bag either.
+- **Write-path strings only.** Well-formedness is checked where an operator string enters the write
+  path; `identitySnapshot`, which finalize uses to read persisted prior actors, is unchanged, so a
+  persisted string is never re-judged (the subject and content intake's ruling).
+- **A malformed `priorRecordRefs` throws; a reference that fails verification still refuses.** A
+  structurally malformed one (not an array, an entry that is not a plain `{ recordId, chainHead }`, an
+  unknown key, an empty field) is a caller error that throws at argument intake, as `supersedes`'
+  shape already did and as SPEC §11.1 treats malformed input; SPEC §10.1's "on any failure refuses
+  `prior-leg-unverified`" is read as the verification of well-formed references, which still refuses.
+  The cost if that reading is wrong: a host feeding garbage references gets a throw in place of a
+  never-appends refusal; both append nothing.
+- **The `tx` limit.** A present, non-`undefined` `tx` must be an object or a function, since a
+  driver's transaction handle is never a primitive. A non-enlistable object still passes intake,
+  still counts as enlisted on a refusal path (suppressing the evidence edge), and on the success path
+  still throws at the store; only the store can judge enlistability, and asking it would mean a new
+  `Store` method.
+- **The upgrade consequences are stated, not migrated.** Host code passing a non-form digest, a
+  `null` options bag, `tx: null`, an ill-formed string or a malformed `priorRecordRefs` now throws.
+  Records already bound with such values keep them, since nothing re-reads a host digest for form.
+  The one that needs care is an open record bound under a `policyDigest` that is not in digest form:
+  finalize compares the live `policy.digest` to the bound one, re-presenting the bound value now
+  throws at finalize's policy-input check, and any form-valid value is `policy-drift` (terminal on the
+  leg when the profile lists it), so such a record cannot be confirmed; drive it to a terminal state
+  before upgrading. A finding raised with a non-form digest stays recorded and can be raised again
+  with a form-valid one.
+
+**Pins (37 tests, 1434 to 1471, 93 files to 94, after the amendment below).**
+`packages/record/test/operator-intake.test.ts` (new, 37): every id seam and read throws a named
+error for `42`, `{}` and `null` on `MemoryStore` and `SqliteStore` with nothing appended, and an
+empty or unknown string keeps its answer; `null` and `[]` throw at each options-taking seam; `null`,
+`false` and `'x'` throw as `tx` at each redemption seam before any edge; a non-array, a non-object
+entry, an unknown key and an empty field in `priorRecordRefs` each throw; each digest field refuses
+`'NOT A DIGEST'`, an uppercase digest, an odd-length one, `5` and `''`, and accepts `sha256` and
+`sha512`; `observedAt` refuses 30 February, 31 April, a non-leap 29 February, hour 24 and offset
+`+24:00` and accepts 29 February 2028; a lone surrogate in each operator string field throws and
+appends nothing; a record whose persisted prior actor holds a lone surrogate still opens a
+successor and finalizes (the read path unchanged). Against `19bdbc7`'s source the behaviour pins fail;
+the read-path pin passes there by design. The mutation-after-call pins for `finalize`, `decline`,
+`raiseFinding` and `acknowledge` and the getter-read-twice consultation pin fail against `9dd3abf`'s
+source.
+
+**Amended after review.** Both task reviews found something. The first (approved): the options-bag
+guard let an array through (`[]` silently, a non-empty one with a misleading unknown-key `'0'`); fixed
+in `9dd3abf`. The second (one Important, five Minor): the operator strings were checked at intake and
+then read again after awaits, so a host that mutated its object, or an accessor that answered clean
+then ill-formed, after the call could still have a lone surrogate or a non-form digest recorded
+(`facts.checker`, the finding and acknowledgement fields, and a consultation's `payloadDigest`,
+`verdict`, `proofRef`, `observedAt` and marker `authority`). The fix reads each once into a snapshot
+and records from it (`intakeFactsChecker`; `validateInput` returns a fresh literal; the consultation
+fields into locals), and one regex now serves `observedAt`'s shape and calendar. The pin gaps
+closed: decline's `facts.checker`, `proofRef` and marker `kind`; `result.digest` at `redeem`;
+`beginRedemption` admits no result; the identity-authority-refused code asserted rather than a status.
+The read-path pin was strengthened from a direct `identitySnapshot` call to a planted chain (a prior
+confirmed actor rewritten through `TamperingStore` to a lone-surrogate principal, a successor opens
+and finalizes as another principal). All fixed and re-reviewed clean.
+
+**Existing test inputs changed.** `policy-drift.test.ts`: `BOUND` `'p'` to `'a'` and `LIVE_DRIFTED`
+`'q'` to `'b'`; `staged-integrity.test.ts`: `BOUND` `'p'` to `'a'`. These were placeholder digests
+that were not hex; their subjects (policy drift, option snapshotting) are unrelated to digest form.
+
+**Inversions.** None. `git diff 19bdbc7..HEAD -- packages/record/test packages/store-postgres/test`
+removes three lines, all of them the input constants above; no assertion line is removed or changed.
+`byte-stability.test.ts` and the byte-regression suites are untouched.
+
+**What is not covered, stated.** A non-enlistable `tx` object (the limit above). `facts.figures` is
+read after awaits: it is digested, never recorded raw, so a mutation changes the digest consistently
+with what was canonicalized, and it is left as is. A staged-draft prune stays gated on the owner's
+sanction (a new `Store` method on a sealed surface; `next-phases.md`). A form-valid digest is still
+the host's claim. A persisted string read back is never re-judged.
+
+**Gates, measured on the authoring machine at the final records commit.** `ci-assert-tests: ok —
+1471 tests in 94 files (111 suites): 1471 passed, 0 failed, 0 skipped, 0 todo`; `tsc -p
+packages/record --noEmit` and `tsc -p packages/store-postgres --noEmit` exit 0; biome
+(`--error-on-warnings`, 172 files), `contract-scan`, `api-reference-sync` and `docs-index-sync`
+exit 0; `smoke` cannot run here and runs in CI.

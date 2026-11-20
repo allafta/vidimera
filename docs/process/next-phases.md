@@ -500,14 +500,16 @@ increment and none a sanction question, are recorded here so they are not lost:
   the record-row lock. Lock order is unchanged, so no new deadlock risk; a single multi-row
   insert would shorten the time the lock is held for a many-element batch.
 
-**The next increment: operator-seam intake** (named 2026-11-20 by the subject and content intake
-increment, which checked the agent's input and the content-binding path and stopped there). The
-operator-side inputs are still read as given: the format of the digest fields a caller supplies,
+**Done, 2026-11-20: operator-seam intake** (the increment the subject and content intake
+named, branch `operator-intake-2026-11-20`, no sealed-set edit, no marker, no new export). Each
+operator-side input it listed is now a caller-error throw at an exported seam, the same on every
+backing: the format of the digest fields a caller supplies (SPEC §7's form, any algorithm name),
 `observedAt`'s calendar validity, a `null` options bag, `RedeemOptions.tx`, the shape of
-`priorRecordRefs`, the types of the id arguments, and the well-formedness of the operator
-strings that enter transitions (identities, consultation kinds, finding fields, labels). It is
-not a sanction question on its face: each is a caller-error throw at an exported seam, the
-posture the subject rule took. It is built under its own design.
+`priorRecordRefs`, the types of the id arguments, and the well-formedness of the operator strings
+that enter transitions. The limits, stated: a non-enlistable `tx` object still passes intake and
+is judged only by the store; a form-valid digest is still the host's claim; the string rule is the
+write path only. The record is `docs/process/implementation-status.md`'s "Operator intake"
+section.
 
 ### OQ §2 — decided in code; the recording gap closed 2026-08-19; the corner itself
 superseded 2026-09-03
