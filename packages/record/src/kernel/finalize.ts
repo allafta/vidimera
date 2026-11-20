@@ -345,6 +345,7 @@ export async function finalize(
     resolved.canonicalizer,
     resolved.profile.subject.canonicalizerRef,
     content,
+    { wellFormed: false },
   );
   if (recomputed !== record.contentDigest) {
     return refuseMaybeAppend(store, recordId, 'content-drift', leg, chain, resolved, finalLeg, now);

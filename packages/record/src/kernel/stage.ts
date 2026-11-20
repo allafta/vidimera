@@ -13,7 +13,7 @@
 //      BEFORE any `putStaged` (the FIRST `unknown-leg` producer; SPEC §8);
 //   3. bind the content: `contentDigest = bindContent(...)` (canonical.ts)
 //      — the adopter canonicalizer projects domain content to a JSON-safe structure (it must
-//      be synchronous), then strict library JCS + digest; content itself is NEVER persisted, only its digest;
+//      be synchronous), then library JCS in the strict well-formed mode (stage() alone is strict) + digest; content itself is NEVER persisted, only its digest;
 //   4. derive the content-derived, idempotent `stagedRef` (id.ts `deriveStagedRef`, now
 //      leg-folded) and write the digest-only draft via the idempotent `putStaged`.
 // It APPENDS NOTHING and creates NO record — `open()` (kernel/open.ts) is what mints the
@@ -69,7 +69,9 @@ export async function stage(
 
   // Content binding (SPEC §3): adopter canonicalizer -> library JCS -> digest. The digest
   // is all that is persisted; the raw content never crosses into the Store.
-  const contentDigest = bindContent(canonicalizer, profile.subject.canonicalizerRef, content);
+  const contentDigest = bindContent(canonicalizer, profile.subject.canonicalizerRef, content, {
+    wellFormed: true,
+  });
 
   // Content-derived + idempotent (same content+profile+subject+leg -> same ref); putStaged
   // is idempotent by this id (SPEC §12). Leg-folded: two different legs staging identical

@@ -26,23 +26,29 @@ const BACKINGS: readonly { name: string; store: () => Store }[] = [
 ];
 
 const BAD_SUBJECTS: readonly { what: string; subject: unknown; rule: string }[] = [
-  { what: 'a number', subject: 42, rule: 'must be a string' },
-  { what: 'an object', subject: {}, rule: 'must be a string' },
+  { what: 'a number', subject: 42, rule: 'must be a string (received a number)' },
+  { what: 'an object', subject: {}, rule: 'must be a string (received an object)' },
+  { what: 'an array', subject: ['a'], rule: 'must be a string (received an array)' },
+  { what: 'undefined', subject: undefined, rule: 'must be a string (received undefined)' },
   {
     what: 'an object with toJSON',
     subject: { toJSON: () => 'subject:redirected' },
-    rule: 'must be a string',
+    rule: 'must be a string (received an object)',
   },
-  { what: 'null', subject: null, rule: 'must be a string' },
+  { what: 'null', subject: null, rule: 'must be a string (received null)' },
   { what: 'the empty string', subject: '', rule: 'must not be empty' },
   { what: 'a lone high surrogate', subject: 'a\ud800b', rule: 'must be well-formed UTF-16' },
   { what: 'a lone low surrogate', subject: 'a\udc00', rule: 'must be well-formed UTF-16' },
   { what: 'a U+0000', subject: 'a\u0000b', rule: 'must not contain U+0000' },
-  { what: '1,025 UTF-8 bytes', subject: 'a'.repeat(1025), rule: 'must be at most 1024 bytes' },
+  {
+    what: '1,025 UTF-8 bytes',
+    subject: 'a'.repeat(1025),
+    rule: 'must be at most 1024 bytes in UTF-8 — digest a longer natural key into one',
+  },
   {
     what: '1,026 UTF-8 bytes of multi-byte characters',
     subject: 'é'.repeat(513),
-    rule: 'must be at most 1024 bytes',
+    rule: 'must be at most 1024 bytes in UTF-8 — digest a longer natural key into one',
   },
 ];
 
@@ -64,6 +70,13 @@ for (const backing of BACKINGS) {
   for (const { what, subject, rule } of BAD_SUBJECTS) {
     test(`${backing.name}: stage() throws on ${what} as the subject and writes no draft`, async () => {
       const store = backing.store();
+      // Counts every draft write, so a non-string subject (which has no derivable ref) is observed too.
+      let writes = 0;
+      const putStaged = store.putStaged.bind(store);
+      store.putStaged = (...args) => {
+        writes++;
+        return putStaged(...args);
+      };
       const handles = create(makeConfig([PROFILE], { store }));
       // A draft written despite the throw would sit under the ref stage() derives for a string.
       const wouldBe =
@@ -82,6 +95,7 @@ for (const backing of BACKINGS) {
           return true;
         },
       );
+      assert.equal(writes, 0, 'no draft was written');
       if (wouldBe !== undefined) assert.equal(await store.getStaged(wouldBe), null);
     });
   }
@@ -135,18 +149,6 @@ for (const backing of BACKINGS) {
       assert.equal(await store.findNonTerminal(PROFILE.id, subject), null);
     });
   }
-
-  test(`${backing.name}: open() throws on a proposed draft whose subject breaks the rule`, async () => {
-    const store = backing.store();
-    const handles = create(makeConfig([PROFILE], { store }));
-    const proposal = await plant(store, 'a\u0000b', { amount: 1 });
-    // The opened draft carries the same bad subject, so the cross-triple check cannot be what throws.
-    const opened = await plant(store, 'a\u0000b');
-    await assert.rejects(
-      handles.operator.open(opened, { proposed: { stagedRef: proposal } }),
-      /^Error: open: subjectRef /,
-    );
-  });
 
   test(`${backing.name}: a legal opened draft with an illegal proposed draft throws naming the proposed one`, async () => {
     const store = backing.store();

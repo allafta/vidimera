@@ -119,3 +119,11 @@ test('refuses a Map and a class instance built in another realm', () => {
   assert.throws(() => serializeJcs(vm.runInNewContext('new Map()')), /Map/);
   assert.throws(() => serializeJcs(vm.runInNewContext('new (class Foo {})()')), /Foo/);
 });
+
+test('names a typed array without a wrong article', () => {
+  assert.throws(
+    () => serializeJcs({ b: new Uint8Array(2) }),
+    /^TypeError: serializeJcs: an instance of 'Uint8Array' has no JCS representation/,
+  );
+  assert.throws(() => serializeJcs(new Map()), /an instance of 'Map' has no JCS representation/);
+});

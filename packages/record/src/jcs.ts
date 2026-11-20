@@ -7,9 +7,9 @@
 // QuoteJSONString (section 3.2.2.2). `JSON.stringify` already implements both,
 // including the lowercase \u00xx fallback for control characters with no short escape.
 // RFC 8785 requires a lone surrogate to be REFUSED; `JSON.stringify` escapes it (ES2019).
-// The default mode here keeps that escape deliberately, so the read path stays
-// byte-identical and a persisted chain carrying one still verifies; the strict mode
-// (`wellFormed: true`), used where content enters, refuses it. The only step
+// The default mode here keeps that escape deliberately, so the read path and every
+// re-bind seam stay byte-identical and a persisted chain carrying one still verifies; the strict
+// mode (`wellFormed: true`), used only where content enters (`stage()`), refuses it. The only step
 // JCS layers on top is recursive object-key ordering by UTF-16 code unit, which is
 // what this file adds.
 //
@@ -25,7 +25,7 @@ export interface SerializeJcsOptions {
    * When true, every string written (each key, each value, and any string a `toJSON` returns)
    * must be well-formed UTF-16, or the call throws. The default (false) keeps the ES2019
    * escaping of a lone surrogate, which is what lets a persisted chain that carries one keep
-   * verifying: intake paths opt in, the read path never does.
+   * verifying: only `stage()` opts in; the read path and the re-bind seams never do.
    */
   wellFormed?: boolean;
 }
@@ -63,14 +63,16 @@ export interface SerializeJcsOptions {
  *   twice in sibling positions is a finite tree and serializes fine.
  * - **Only plain objects serialize.** An object that is not an array, carries no callable
  *   `toJSON`, and whose prototype is not `Object.prototype`, `null`, or another realm's
- *   `Object.prototype` throws, naming its constructor (or the generic 'non-plain object' when it has no named
- *   one): a `Map`, a `Set`, a Promise, a class
+ *   `Object.prototype` throws, naming its constructor (as "an instance of 'Name'", or the generic
+ *   'a non-plain object' when it has no named one): a `Map`, a `Set`, a Promise, a class
  *   instance (including one holding only `#private` state) and a boxed primitive
  *   (`new String('a')`, which once serialized as `{"0":"a"}`) have no JSON form. A `Date`
- *   still serializes through its `toJSON`. Data read back from a store is always plain.
+ *   still serializes through its `toJSON`. The three reference backings return plain data, so
+ *   the chain-verify read path never meets one; a custom `Store` must keep that contract (return
+ *   plain data, never class instances), or `verifyChain` would throw on its payloads.
  * - **Lone surrogates are escaped by default** (the ES2019 well-formed escaping, so the read
  *   path is byte-identical to before) and **refused under `wellFormed: true`**, the strict
- *   mode content intake uses. It checks every key, every string value and every string a
+ *   mode `stage()` alone uses. It checks every key, every string value and every string a
  *   `toJSON` returns.
  */
 export function serializeJcs(value: unknown, options?: SerializeJcsOptions): string {
@@ -132,7 +134,7 @@ function writeContainer(container: object, open: Set<object>, strict: boolean): 
     }
     if (!isPlainObject(container)) {
       throw new TypeError(
-        `serializeJcs: ${withArticle(constructorName(container))} has no JCS representation — only plain objects, arrays and values with a toJSON serialize`,
+        `serializeJcs: ${describeNonPlain(container)} has no JCS representation — only plain objects, arrays and values with a toJSON serialize`,
       );
     }
     const members: string[] = [];
@@ -167,16 +169,13 @@ function isPlainObject(value: object): boolean {
   return typeof ctor === 'function' && ctor.name === 'Object';
 }
 
-function constructorName(value: object): string {
+/** Names the refused object by its constructor, with no article to get wrong. */
+function describeNonPlain(value: object): string {
   try {
     const ctor = (Object.getPrototypeOf(value) as { constructor?: unknown } | null)?.constructor;
-    if (typeof ctor === 'function' && ctor.name !== '') return ctor.name;
+    if (typeof ctor === 'function' && ctor.name !== '') return `an instance of '${ctor.name}'`;
   } catch {
     // fall through to the generic name
   }
-  return 'non-plain object';
-}
-
-function withArticle(name: string): string {
-  return `${/^[AEIOUaeiou]/.test(name) ? 'an' : 'a'} ${name}`;
+  return 'a non-plain object';
 }

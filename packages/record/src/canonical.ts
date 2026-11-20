@@ -3,6 +3,7 @@
 // and canonicalizer-registry resolution (consumed by config.ts/create.ts).
 
 import { createHash } from 'node:crypto';
+import { types } from 'node:util';
 
 import { serializeJcs } from './jcs.js';
 import type { Digest } from './types.js';
@@ -75,36 +76,67 @@ export function canonicalize(structure: unknown): Uint8Array {
   return UTF8.encode(serializeJcs(structure));
 }
 
+/** How `bindContent` serializes the canonicalizer's output. Internal. */
+export interface BindContentOptions {
+  /**
+   * True only where content ENTERS the library (`stage()`): the output must be well-formed
+   * UTF-16, so every new binding is one the escaping default reproduces injectively. False at
+   * every re-bind seam (finalize, decline, redeem, beginRedemption, completeRedemption): they
+   * only COMPARE against a recorded digest, so a record bound by an older build from content
+   * holding a lone surrogate re-binds exactly as before, and an ill-formed value introduced
+   * after staging is recorded as `content-drift` instead of an unrecorded throw.
+   */
+  wellFormed: boolean;
+}
+
 /**
  * Content binding (SPEC §3), the one path every seam uses: runs the adopter canonicalizer over
- * `content`, serializes its output as library JCS in the strict well-formed mode, and digests
- * the bytes. A canonicalizer is SYNCHRONOUS, so an output with a callable `then` is refused;
- * a rejection handler is attached to it first, so a later rejection is observed instead of
- * ending the process as an unhandled rejection (only the top-level output is observed — a
- * promise nested deeper is refused by `serializeJcs` and its rejection stays the host's).
- * Any throw propagates: it is a configuration fault, never read as content drift. Internal:
- * not exported from the package index.
+ * `content`, serializes its output as library JCS (strictly well-formed only when
+ * `options.wellFormed` is true — see `BindContentOptions`), and digests the bytes. A
+ * canonicalizer is SYNCHRONOUS, so an output with a callable `then` is refused. When it is a
+ * native promise a rejection handler is attached first, so a later rejection is observed instead
+ * of ending the process as an unhandled rejection; any other thenable is refused WITHOUT calling
+ * its `then`, so a lazy thenable is never run. The limit: only a native promise's rejection is
+ * observed here — a non-native thenable that fails on its own (eagerly) stays the host's, and so
+ * does a promise nested deeper (`serializeJcs` refuses it). Any throw propagates: it is a
+ * configuration fault, never read as content drift; a serializer refusal is wrapped to name the
+ * canonicalizer, with the original as `cause`. Internal: not exported from the package index.
  */
 export function bindContent(
   canonicalizer: Canonicalizer,
   canonicalizerRef: string,
   content: unknown,
+  options: BindContentOptions,
 ): Digest {
   const out = canonicalizer(content);
   if ((typeof out === 'object' && out !== null) || typeof out === 'function') {
     const then = (out as { then?: unknown }).then;
     if (typeof then === 'function') {
-      try {
-        Promise.resolve(out).then(undefined, () => {});
-      } catch {
-        // an exotic thenable that throws while being adopted: the refusal below still stands
+      if (types.isPromise(out)) {
+        try {
+          Promise.prototype.then.call(out, undefined, () => {});
+        } catch {
+          // an exotic promise whose adoption throws: the refusal below still stands
+        }
       }
       throw new TypeError(
         `canonicalizer for '${canonicalizerRef}' returned a thenable — a canonicalizer is synchronous; return the projected content, not a promise`,
       );
     }
   }
-  return digest(UTF8.encode(serializeJcs(out, { wellFormed: true })));
+  let text: string;
+  try {
+    text = serializeJcs(out, { wellFormed: options.wellFormed });
+  } catch (cause) {
+    const reason = cause instanceof Error ? cause.message : String(cause);
+    throw new TypeError(
+      `canonicalizer for '${canonicalizerRef}' returned output that cannot be serialized — ${reason}`,
+      {
+        cause,
+      },
+    );
+  }
+  return digest(UTF8.encode(text));
 }
 
 /**

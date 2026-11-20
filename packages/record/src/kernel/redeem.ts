@@ -421,6 +421,7 @@ export async function redeem(
     resolved.canonicalizer,
     resolved.profile.subject.canonicalizerRef,
     content,
+    { wellFormed: false },
   );
   if (recomputed !== record.contentDigest) {
     return refuseCorrespondenceMismatch(
@@ -535,6 +536,7 @@ export async function beginRedemption(
     resolved.canonicalizer,
     resolved.profile.subject.canonicalizerRef,
     content,
+    { wellFormed: false },
   );
   if (recomputed !== record.contentDigest) {
     return refuseCorrespondenceMismatch(
@@ -692,6 +694,7 @@ export async function completeRedemption(
     resolved.canonicalizer,
     resolved.profile.subject.canonicalizerRef,
     content,
+    { wellFormed: false },
   );
   if (recomputed !== record.contentDigest) {
     return refuseCorrespondenceMismatch(
