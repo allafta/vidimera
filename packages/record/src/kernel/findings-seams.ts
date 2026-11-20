@@ -16,8 +16,9 @@
 //         byte-identical to a pre-findings implementation"
 //   (3) state/expiry (en passant)     -> leg-expired / record-not-open (never-append)
 //   (4) seam-specific semantic check  -> THROW (kind mutation; ack to absent findingId)
-//   (5) append, CAS target 'open'     -> state-mismatch refuses record-not-open; a seq loss with
-//         a moved head refuses record-contended (SPEC §8); an unmoved head throws
+//   (5) append, CAS target 'open'     -> state-mismatch re-reads: expired refuses leg-expired,
+//         any other moved state record-not-open, an unmoved 'open' throws; a seq loss with a
+//         moved head refuses record-contended (SPEC §8); an unmoved head throws
 //
 // The append's meta RE-SUPPLIES the open window's dueAt (SPEC §12: "present sets the
 // record's pending-clock column, absent clears it") — a mid-lifecycle append that
@@ -313,9 +314,17 @@ async function appendSeamTransition(
       if (verdict.contended) return refused('record-contended');
       throw verdict.fault;
     }
-    // `state-mismatch`: a racing writer moved the state between the read and this CAS — the
-    // state the caller saw is gone; re-invocation re-reads (the established lost-race posture).
-    return refused('record-not-open');
+    // `state-mismatch`: a racing writer moved the state between the read and this CAS. This arm
+    // used to answer `record-not-open` with no re-read, which is false of the record when the
+    // racer expired it — SPEC §8 defines `record-not-open` for "a non-open, non-expired record"
+    // and its `leg-expired` row names the findings seams for an expired one — and re-invoking
+    // then says `leg-expired`. So it re-reads once, as the decision seams' lost clock CAS does
+    // (`lostResolutionRefusal`, kernel/expiry.ts, its `open`-window mapping): `expired` ->
+    // `leg-expired`; any other moved state -> `record-not-open`; the record still `open` (no
+    // racer explains it; these seams take no `tx`, so the re-read sees what the store judged)
+    // or a re-read that fails throws. An `exclusivity` conflict, which binds only a genesis,
+    // throws there too. Rung (6) of `finalize` and `decline` keeps SPEC §9's `record-not-open`.
+    return lostResolutionRefusal(seam, ctx.store, recordId, 'open', res);
   }
   return ok({ recordId, state: 'open', transitionRef: res.transitionDigest });
 }

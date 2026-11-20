@@ -41,8 +41,8 @@
 //   (6) append redeemed   -> ok; a non-append residual is a racing writer -> the
 //                            family-wide CAS-residual re-read (`residualRefusal` below); a
 //                            `'seq'` conflict, which no honest writer produces here, a
-//                            re-read that finds the state unmoved, or a re-read that fails,
-//                            THROWS (the faults-and-races increment)
+//                            re-read that finds the state unmoved on an UN-enlisted call, or
+//                            a re-read that fails, THROWS (the faults-and-races increment)
 //
 // (4) before (5): a replayed redemption refuses `already-redeemed` whatever content it
 // carries — at-most-once outranks mismatch reporting.
@@ -145,13 +145,29 @@ const REDEMPTION_SEQ_WHY =
  * return, and nothing was appended by it, which is the exception scope DECISIONS.md #10 keeps
  * for "storage faults where nothing was recorded". The inverted reading, therefore:
  *  - `'seq'` throws the storage fault (`REDEMPTION_SEQ_WHY`: it has no honest producer here);
- *  - `state-mismatch` re-reads as before. A re-read that finds the record still in `target`,
- *    the state the append expected, throws the storage fault too (`unmovedStateWhy`: `target`
- *    is never terminal here, so neither C3 nor C4 explains it, and a state never returns); a
- *    re-read that rejects, returns another record's rows or does not replay throws with that
- *    failure as `cause` (`lostCasReadFault`) — the posture `kernel/finalize.ts`'s
- *    `seqConflict` already takes with its own diagnostic re-read. Honest races are unchanged:
- *    each still answers what re-invocation would.
+ *  - `state-mismatch` re-reads as before. On an UN-enlisted call, a re-read that finds the
+ *    record still in `target`, the state the append expected, throws the storage fault too
+ *    (`unmovedStateWhy`: `target` is never terminal here, so neither C3 nor C4 explains it, and
+ *    a state never returns); a re-read that rejects, returns another record's rows or does not
+ *    replay throws with that failure as `cause` (`lostCasReadFault`) — the posture
+ *    `kernel/finalize.ts`'s `seqConflict` already takes with its own diagnostic re-read. Honest
+ *    races are unchanged: each still answers what re-invocation would.
+ *
+ * THE ASSUMPTION the unmoved-state throw rests on, and why it is scoped to un-enlisted calls:
+ * the re-read sees at least the state the compare-and-swap was judged against. That holds for
+ * the reference stores on an un-enlisted call — the append and the re-read both read committed
+ * state, and the re-read comes after. It does NOT hold for an enlisted call on a store whose
+ * reads skip the host transaction: `PostgresStore`'s reads take no transaction handle
+ * (deferral-register row 23), so a second enlisted redemption call on one record inside one host
+ * transaction reads the committed state, its append inside the transaction loses
+ * `state-mismatch` to the first call's uncommitted edge, and the re-read, also outside the
+ * transaction, finds the committed state — the one the append expected — on a store that
+ * conforms. The kernel cannot tell that from a fault, so an ENLISTED call (`enlisted`: the
+ * append rode a host `tx`) keeps the domain answer it gave before the faults-and-races
+ * increment: `already-redeemed` on a `redeemed` re-read, `unredeemable-state` otherwise,
+ * the unmoved state included. The cost, stated: an enlisted call on a store whose reads DO see
+ * the transaction (`SqliteStore`) answers that domain code for a genuine unmoved-state fault too.
+ * When row 23 lands (the reads take the `tx`, and this re-read passes it), the carve-out can lift.
  */
 async function residualRefusal(
   seam: RedeemSeam,
@@ -159,6 +175,7 @@ async function residualRefusal(
   recordId: string,
   target: RecordState,
   lost: LostAppend,
+  enlisted: boolean,
 ): Promise<Outcome<never>> {
   if (lost.conflict !== 'state-mismatch') {
     throw appendConflictFault(seam, lost.conflict, REDEMPTION_SEQ_WHY);
@@ -172,7 +189,7 @@ async function residualRefusal(
   } catch (err) {
     throw lostCasReadFault(seam, err);
   }
-  if (fresh.state === target) {
+  if (fresh.state === target && !enlisted) {
     throw appendConflictFault(seam, 'state-mismatch', unmovedStateWhy(target));
   }
   return refused(fresh.state === 'redeemed' ? 'already-redeemed' : 'unredeemable-state');
@@ -227,8 +244,9 @@ async function refuseCorrespondenceMismatch(
   };
   const res = await store.appendTransition(target, edge, meta);
   if (!res.appended) {
-    // A racing writer moved the state — the family-wide CAS-residual discipline.
-    return residualRefusal(seam, store, recordId, target, res);
+    // A racing writer moved the state — the family-wide CAS-residual discipline. Never
+    // enlisted: an enlisted caller returned above, and this append rides no `tx`.
+    return residualRefusal(seam, store, recordId, target, res, false);
   }
   return refused('content-drift', res.transitionDigest);
 }
@@ -391,7 +409,11 @@ async function prologue(
     const due = await resolveDueClock(store, recordId, chain, resolved, instant);
     if (due.due) {
       if (!due.result.appended) {
-        return { refusal: await residualRefusal(seam, store, recordId, due.window, due.result) };
+        // Never enlisted: an enlisted caller on a due window returned above, and
+        // `resolveDueClock`'s append rides no `tx`.
+        return {
+          refusal: await residualRefusal(seam, store, recordId, due.window, due.result, false),
+        };
       }
       return {
         refusal: refused(due.window === 'redeeming' ? 'redemption-timeout' : 'unredeemable-state'),
@@ -560,7 +582,7 @@ export async function redeem(
 
   const res = await store.appendTransition('confirmed', redeemedTransition, meta, tx);
   if (!res.appended) {
-    return residualRefusal('redeem', store, recordId, 'confirmed', res);
+    return residualRefusal('redeem', store, recordId, 'confirmed', res, tx !== undefined);
   }
   return ok({ recordId, state: 'redeemed', transitionRef: res.transitionDigest });
 }
@@ -683,7 +705,7 @@ export async function beginRedemption(
   };
   const res = await store.appendTransition('confirmed', redeemingTransition, meta, tx);
   if (!res.appended) {
-    return residualRefusal('beginRedemption', store, recordId, 'confirmed', res);
+    return residualRefusal('beginRedemption', store, recordId, 'confirmed', res, tx !== undefined);
   }
   return ok({ recordId, state: 'redeeming', token, transitionRef: res.transitionDigest });
 }
@@ -829,7 +851,14 @@ export async function completeRedemption(
   };
   const res = await store.appendTransition('redeeming', redeemedTransition, meta, tx);
   if (!res.appended) {
-    return residualRefusal('completeRedemption', store, recordId, 'redeeming', res);
+    return residualRefusal(
+      'completeRedemption',
+      store,
+      recordId,
+      'redeeming',
+      res,
+      tx !== undefined,
+    );
   }
   return ok({ recordId, state: 'redeemed', transitionRef: res.transitionDigest });
 }

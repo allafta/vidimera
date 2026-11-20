@@ -40,7 +40,12 @@ import type {
   SupersedesRef,
   Transition,
 } from '../types.js';
-import { expiryDeadlineMs, resolveDueClock } from './expiry.js';
+import {
+  appendConflictFault,
+  CONFIRMED_SEQ_WHY,
+  expiryDeadlineMs,
+  resolveDueClock,
+} from './expiry.js';
 import {
   assertDigestForm,
   assertIdArg,
@@ -367,12 +372,18 @@ export async function open(
     return refused('record-exists');
   }
   if (blocker.state !== 'open' && blocker.state !== 'confirmed') {
-    // Terminal under every profile. The store named it a blocker, so a racer decided it
-    // between this call's genesis attempt and the read: the pair is free. This arm used to
-    // refuse `record-exists` ("a coherent store never names one"), which re-invoking would
-    // contradict. It takes the single retry instead, stamped from a fresh reading — the first
-    // stamp predates the racer's edge — and answers `record-exists` only when the retry's own
-    // C1 names a live blocker (the faults-and-races increment). This call appended nothing.
+    // Terminal under every profile. THE TWENTIETH SELF-AUTHORED STANCE INVERSION (the
+    // faults-and-races increment). This arm read "Defensive: a terminal blocker cannot hold C1;
+    // a coherent store never names one." and refused `record-exists` — written at the third
+    // step-3 increment, when open() learned to resolve a confirmed blocker's window too. The
+    // stance is false of a coherent store: the store names the blocker when it adjudicates this
+    // call's genesis, and this read comes after, so a racer that decided the blocker in between
+    // (a confirm, a decline, a refusal, an expiry) leaves a terminal record the store named
+    // honestly. The pair is then free, `record-exists` is false of it, and re-invoking would
+    // open the record. The inverted reading: a blocker terminal when read takes the single
+    // retry, stamped from a fresh reading — the first stamp predates the racer's edge — and
+    // answers `record-exists` only when the retry's own C1 names a live blocker. This call
+    // appended nothing. No test assertion inverts: the old arm was unpinned.
     return retryOnce(now());
   }
   // The profile-drift gate: this instance may expire the blocker en passant only if it HOLDS
@@ -424,10 +435,28 @@ export async function open(
     return refused('record-exists');
   }
   if (!ex.result.appended) {
+    // A conflict with no honest producer throws the storage fault, and appends nothing (the
+    // faults-and-races increment): a `'seq'` on a CONFIRMED blocker's expiry edge, whose
+    // compare-and-swap target is a state every legitimate competing append leaves
+    // (`CONFIRMED_SEQ_WHY`), and an `exclusivity` conflict, which binds only a genesis. The
+    // imported comment here named `'seq'` among the races this arm answers; no pinned
+    // assertion covers that arm, and on the confirmed window no race produces it. A confirmed
+    // blocker whose chain was edited in storage reaches this throw too (a deleted middle row:
+    // open() does not verify its blocker, so the edge's `chain.length + 1` misses the store's
+    // next seq) — a storage fault from this seam's view, until a verifying seam lands the
+    // compromise edge and releases the pair.
+    const { conflict } = ex.result;
+    if (conflict === 'exclusivity' || (conflict === 'seq' && ex.window === 'confirmed')) {
+      throw appendConflictFault('open', conflict, CONFIRMED_SEQ_WHY);
+    }
     // A race flipped the blocker away from its resolveDueClock-observed state between our
-    // read and the expire CAS (`conflict:'state-mismatch'`/`'seq'`) -> record-exists, and
-    // NEVER re-loop. (Left as it is: taking the single retry here too would invert an
-    // inherited pinned assertion, which waits for the owner's explicit word.)
+    // read and the expire CAS (`conflict:'state-mismatch'`), or, on an OPEN blocker, a
+    // finding or acknowledgment took the seq (`'seq'`: the blocker is still open and due)
+    // -> record-exists, and NEVER re-loop. (Left as it is: taking the single retry here
+    // would invert an inherited pinned assertion, which waits for the owner's explicit word.
+    // The same arm answers a state-mismatch whose blocker never moved — a fault no racer
+    // explains — `record-exists` too, since telling it apart needs the re-read the retry
+    // question decides; `next-phases.md` carries both under the owner-gated item.)
     return refused('record-exists');
   }
 

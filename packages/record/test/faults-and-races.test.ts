@@ -1,7 +1,7 @@
 // @vidimera/record — test/faults-and-races.test.ts: a fault throws, and the loser of an honest
 // race is told what re-invoking would tell it.
 //
-// Seven groups of pins:
+// The groups of pins:
 //   - the redemption seams, their shared clock rung, the reverify `content-drift` edge and
 //     `seal`: a `'seq'` conflict has no honest producer there (every CAS target is a state each
 //     legitimate competing append leaves, and every backing checks state before seq), so it
@@ -9,11 +9,17 @@
 //     same call then succeeds. A lost CAS whose re-read rejects, or comes back holding another
 //     record's rows, throws with that failure as `cause`, where it used to answer
 //     `unredeemable-state`. Enlisted on SqliteStore, the host's transaction stays open and
-//     usable. A racing seal still refuses `unsealable-state`;
+//     usable, and an unmoved re-read answers `unredeemable-state` rather than throwing (the
+//     enlisted-read limit, deferral-register row 23). A racing seal still refuses
+//     `unsealable-state`;
 //   - `finalize`, `decline` and `raiseFinding` losing their clock CAS: the open window answers
 //     `record-not-open` when a racer decided the record and `leg-expired` when it only took the
 //     seq; the confirmed window answers `leg-expired` when a racer expired the record; a `'seq'`
 //     on the confirmed window throws; a failed re-read throws with `cause`;
+//   - `raiseFinding` and `acknowledge` losing their OWN append's state check: a racer that
+//     expired the record gives `leg-expired`, one that confirmed or declined it
+//     `record-not-open`, and no racer at all (the record still open) throws; an `exclusivity`
+//     conflict there throws;
 //   - `open()` with a blocker that is already terminal when it is read: the pair is free, so the
 //     single retry runs and opens the record; `record-exists` only when the retry's own C1 names a
 //     live blocker. A blocker a racer moved to another non-terminal state still answers
@@ -22,6 +28,10 @@
 //     expired the blocker throws an error naming that blocker, whose edge stands, with the store's
 //     error as `cause` — on MemoryStore and SqliteStore — while a failure after this call appended
 //     nothing propagates unchanged;
+//   - `open()`'s own expiry of a due blocker: a `'seq'` on a confirmed blocker's edge and an
+//     `exclusivity` conflict throw and append nothing; a `'seq'` on an open blocker (a finding
+//     landed) and an unmoved state-mismatch still answer `record-exists`, inside the owner-gated
+//     item (characterizations);
 //   - `operator.listDue()`: a store (or clock) that throws synchronously rejects;
 //   - the findings seams on a due-confirmed record: a characterization of SPEC §4's lazy
 //     resolution at those seams, unchanged by this file.
@@ -711,6 +721,22 @@ async function enlistedFault(
   arm: (rig: Rig, recordId: string) => void,
   expect: (err: unknown) => true,
 ): Promise<void> {
+  await enlistedCall(seam, arm, (thrown) => {
+    expect(thrown);
+  });
+}
+
+/**
+ * One enlisted call on SqliteStore inside a host transaction the test holds open: `arm` sets the
+ * rig up, `check` receives what the call threw (or `undefined`) and what it returned. The host's
+ * transaction must still be open and usable afterwards; it is rolled back, the chain must be as
+ * it was, and the same call un-enlisted then succeeds.
+ */
+async function enlistedCall(
+  seam: 'redeem' | 'beginRedemption' | 'completeRedemption',
+  arm: (rig: Rig, recordId: string) => void,
+  check: (thrown: unknown, out: Outcome<unknown> | undefined) => void,
+): Promise<void> {
   const sqlite = new SqliteStore(':memory:');
   try {
     const clock = { t: T0 };
@@ -725,8 +751,9 @@ async function enlistedFault(
     arm(rig, recordId);
     sqlite.database.exec('BEGIN IMMEDIATE');
     let thrown: unknown;
+    let out: Outcome<unknown> | undefined;
     try {
-      await call({ tx: sqlite.database });
+      out = await call({ tx: sqlite.database });
     } catch (e) {
       thrown = e;
     }
@@ -742,7 +769,7 @@ async function enlistedFault(
       "the host's transaction is still usable",
     );
     sqlite.database.exec('ROLLBACK');
-    expect(thrown);
+    check(thrown, out);
     assert.deepEqual(await sqlite.readChain(recordId), before, `${seam}: unchanged`);
     assertOk(await call());
   } finally {
@@ -789,6 +816,36 @@ test("enlisted on SqliteStore: a lost CAS whose re-read rejects throws with the 
           },
         ),
       (err) => lostReadFault(seam, causeOf('rejects'))(err),
+    );
+  }
+});
+
+test("enlisted on SqliteStore: a state-mismatch whose re-read finds the record still in the expected state answers unredeemable-state, not the un-enlisted storage fault (the enlisted-read limit, deferral-register row 23), and the host's transaction stays open and usable", async () => {
+  // The kernel cannot tell this from a second enlisted call on a store whose reads skip the
+  // host transaction (PostgresStore; its own suite runs that shape for real), so an enlisted
+  // call keeps the domain answer. On SqliteStore, whose reads see the transaction, the same
+  // answer covers a genuine fault: the stated cost of the ruling.
+  const appends = {
+    redeem: ['confirmed', 'redeemed'],
+    beginRedemption: ['confirmed', 'redeeming'],
+    completeRedemption: ['redeeming', 'redeemed'],
+  } as const;
+  for (const seam of ['redeem', 'beginRedemption', 'completeRedemption'] as const) {
+    const [state, kind] = appends[seam];
+    await enlistedCall(
+      seam,
+      (rig) =>
+        armOnce(
+          rig,
+          (e, t) => e === state && t.kind === kind,
+          async () => LOST,
+        ),
+      (thrown, out) => {
+        assert.equal(thrown, undefined, `${seam}: nothing thrown`);
+        assert.ok(out !== undefined, `${seam}: an outcome`);
+        refusedWith(out, 'unredeemable-state');
+        assert.ok(out.status === 'refused' && out.transitionRef === undefined, 'no edge');
+      },
     );
   }
 });
@@ -1031,6 +1088,89 @@ for (const seam of SEAMS) {
 }
 
 // ============================================================================================
+// The findings seams' own append (CAS target 'open'): a lost state check re-reads
+// ============================================================================================
+
+const FINDINGS_SEAMS = ['raiseFinding', 'acknowledge'] as const;
+type FindingsSeam = (typeof FINDINGS_SEAMS)[number];
+
+/**
+ * An open findings-flow record, not due, and the seam's own call. For `acknowledge` the finding
+ * it acknowledges is raised first. `racer` writes straight to the backing at the same instant.
+ */
+async function openForFindings(seam: FindingsSeam) {
+  const clock = { t: T0 };
+  const rig = new Rig(new MemoryStore());
+  const handles = on(rig, [OPEN_PROFILE()], clock);
+  const racer = on(rig.inner, [OPEN_PROFILE()], { t: T0 });
+  const recordId = await openRecord(handles, CONTENT, 'test.fr.open.v1', `subject:fo-${seam}`);
+  if (seam === 'acknowledge') assertOk(await DECISION_SEAMS.raiseFinding(handles, recordId));
+  const call = () =>
+    seam === 'raiseFinding'
+      ? DECISION_SEAMS.raiseFinding(handles, recordId)
+      : handles.operator.acknowledge(recordId, { findingId: 'f-1', findingDigest: D1 }, RAISER);
+  const ownAppend = (e: RecordState | null, t: Transition) =>
+    e === 'open' && t.kind === (seam === 'raiseFinding' ? 'finding-raised' : 'acknowledged');
+  return { rig, racer, recordId, call, ownAppend };
+}
+
+for (const seam of FINDINGS_SEAMS) {
+  test(`${seam}: its own append losing the state check to a racer that EXPIRED the record refuses leg-expired, appending nothing, and re-invoking agrees`, async () => {
+    const { rig, recordId, call, ownAppend } = await openForFindings(seam);
+    armOnce(rig, ownAppend, async () => {
+      await land(rig.inner, recordId, 'open', 'expired', {
+        bound: new Date(T0 + HOUR).toISOString(),
+      });
+      return undefined;
+    });
+    refusedWith(await call(), 'leg-expired');
+    const chain = await rig.inner.readChain(recordId);
+    assert.equal(chain.at(-1)?.kind, 'expired', "only the racer's edge landed");
+    refusedWith(await call(), 'leg-expired');
+  });
+
+  test(`${seam}: its own append losing the state check to a racer that DECLINED the record refuses record-not-open, appending nothing`, async () => {
+    const { rig, racer, recordId, call, ownAppend } = await openForFindings(seam);
+    armOnce(rig, ownAppend, async () => {
+      assertOk(await DECISION_SEAMS.decline(racer, recordId));
+      return undefined;
+    });
+    refusedWith(await call(), 'record-not-open');
+    assert.equal((await rig.inner.readChain(recordId)).at(-1)?.kind, 'declined');
+    refusedWith(await call(), 'record-not-open');
+  });
+
+  test(`${seam}: its own append losing the state check with no racer (the record still 'open') throws a storage fault, appends nothing, and the same call then lands`, async () => {
+    const { rig, recordId, call, ownAppend } = await openForFindings(seam);
+    armOnce(rig, ownAppend, async () => LOST);
+    await assertUnmovedFault(seam, 'open', call, rig.inner, recordId);
+    assertOk(await call());
+  });
+}
+
+test('raiseFinding: its own append losing the state check to a racer that CONFIRMED the record refuses record-not-open, appending nothing', async () => {
+  const { rig, racer, recordId, call, ownAppend } = await openForFindings('raiseFinding');
+  armOnce(rig, ownAppend, async () => {
+    assertOk(await DECISION_SEAMS.finalize(racer, recordId));
+    return undefined;
+  });
+  refusedWith(await call(), 'record-not-open');
+  assert.equal((await rig.inner.readChain(recordId)).at(-1)?.kind, 'confirmed');
+});
+
+test("raiseFinding: an 'exclusivity' conflict on its own append (C1 binds only a genesis) throws a storage fault and appends nothing", async () => {
+  const { rig, recordId, call, ownAppend } = await openForFindings('raiseFinding');
+  armOnce(rig, ownAppend, async () => ({
+    appended: false,
+    conflict: 'exclusivity',
+    blockingRecordId: 'rec-elsewhere',
+  }));
+  const before = await rig.inner.readChain(recordId);
+  await assert.rejects(call, /^Error: raiseFinding: append conflict \('exclusivity'\)/);
+  assert.deepEqual(await rig.inner.readChain(recordId), before);
+});
+
+// ============================================================================================
 // open(): a blocker already terminal when read, and the single retry's conflicts and faults
 // ============================================================================================
 
@@ -1268,6 +1408,77 @@ test('open(): the retry failing after a blocker that was already terminal — th
       return true;
     },
   );
+});
+
+// ============================================================================================
+// open()'s own expiry of a due blocker: a conflict with no honest producer throws
+// ============================================================================================
+
+/** A due blocker for `profile` (confirmed first when `confirm`), and a second draft on its pair. */
+async function dueBlocker(profile: ConfirmProfile, confirm: boolean) {
+  const clock = { t: T0 };
+  const rig = new Rig(new MemoryStore());
+  const handles = on(rig, [profile], clock);
+  const racer = on(rig.inner, [profile], { t: T0 });
+  const blockerId = await openRecord(handles, CONTENT, profile.id, PAIR);
+  if (confirm) assertOk(await DECISION_SEAMS.finalize(handles, blockerId));
+  const ref = await stageOn(handles, 41, profile.id);
+  clock.t = T0 + (confirm ? CONFIRM_MS : HOUR) + 10_000;
+  rig.genesisAttempts = 0;
+  return { rig, handles, racer, blockerId, ref };
+}
+
+const OWN_EXPIRE_FAULTS: { name: string; result: AppendResult; message: RegExp }[] = [
+  { name: "'seq'", result: SEQ, message: /^Error: open: append conflict \('seq'\)/ },
+  {
+    name: "'exclusivity'",
+    result: { appended: false, conflict: 'exclusivity', blockingRecordId: 'rec-elsewhere' },
+    message: /^Error: open: append conflict \('exclusivity'\)/,
+  },
+];
+
+for (const fault of OWN_EXPIRE_FAULTS) {
+  test(`open(): its own expiry of a due CONFIRMED blocker losing on ${fault.name} (no honest producer there) throws a storage fault, appends nothing and opens nothing; a host retry then opens`, async () => {
+    const profile = effectSeamProfile({ id: OPEN_ID });
+    const { rig, handles, blockerId, ref } = await dueBlocker(profile, true);
+    const before = await rig.inner.readChain(blockerId);
+    armOnce(rig, CONFIRMED_EXPIRE, async () => fault.result);
+    await assert.rejects(
+      () => handles.operator.open(ref),
+      (err: unknown) => {
+        assert.ok(err instanceof Error);
+        assert.match(String(err), fault.message);
+        assert.match(err.message, /storage fault/);
+        assert.match(err.message, /nothing was appended and the record is unchanged/);
+        return true;
+      },
+    );
+    assert.deepEqual(await rig.inner.readChain(blockerId), before, 'the blocker is unchanged');
+    assert.equal(rig.genesisAttempts, 1, 'no retry');
+    assert.equal(await rig.inner.findNonTerminal(OPEN_ID, PAIR), blockerId, 'nothing opened');
+    assertOk(await handles.operator.open(ref));
+    assert.equal((await rig.inner.readChain(blockerId)).at(-1)?.kind, 'expired');
+  });
+}
+
+test("open(): its own expiry of a due OPEN blocker losing on 'seq' to a racer's finding (an honest race; the blocker is still open) still answers record-exists after one genesis attempt — inside the owner-gated item", async () => {
+  const profile = seamsLeg(captureProfile({ id: OPEN_ID, decline: true }));
+  const { rig, handles, racer, blockerId, ref } = await dueBlocker(profile, false);
+  armOnce(rig, OPEN_EXPIRE, async () => {
+    assertOk(await DECISION_SEAMS.raiseFinding(racer, blockerId));
+    return undefined;
+  });
+  refusedWith(await handles.operator.open(ref), 'record-exists');
+  assert.equal(rig.genesisAttempts, 1);
+  assert.deepEqual(kinds(await rig.inner.readChain(blockerId)), ['opened', 'finding-raised']);
+});
+
+test('open(): its own expiry of a due OPEN blocker losing a state check with no racer (the blocker still open) still answers record-exists — the fault the owner-gated item leaves inside the inherited arm', async () => {
+  const { rig, handles, blockerId, ref } = await dueBlocker(pairProfile(), false);
+  armOnce(rig, OPEN_EXPIRE, async () => LOST);
+  refusedWith(await handles.operator.open(ref), 'record-exists');
+  assert.equal(rig.genesisAttempts, 1);
+  assert.deepEqual(kinds(await rig.inner.readChain(blockerId)), ['opened']);
 });
 
 // ============================================================================================

@@ -228,8 +228,11 @@ export function lostCasReadFault(seam: string, cause: unknown): Error {
   );
 }
 
-/** Why `'seq'` has no honest producer on an expiry edge proposed against `confirmed`. */
-const CONFIRMED_SEQ_WHY =
+/**
+ * Why `'seq'` has no honest producer on an expiry edge proposed against `confirmed`. Shared with
+ * `open()`'s own expiry of a due confirmed blocker (`kernel/open.ts`).
+ */
+export const CONFIRMED_SEQ_WHY =
   "the expiry edge's compare-and-swap target is 'confirmed' on a record awaiting redemption " +
   '(a final leg on an effect-seam profile, the only confirmed record with a window), and every ' +
   'legitimate append such a record admits leaves that state; every conforming backing checks ' +
@@ -246,8 +249,10 @@ const REDEEMING_SEQ_WHY =
 /**
  * A decision-progress seam's lost resolution CAS (`finalize`, `decline`, the findings seams;
  * the faults-and-races increment): the seam asked `resolveDueClock` to append a due window's
- * edge and the store did not take it. The loser answers what re-invoking would answer, and a
- * conflict no honest writer produces throws:
+ * edge and the store did not take it. The findings seams also route their OWN `open`-target
+ * append here for every conflict but `'seq'` (which `appendSeqConflict` classifies there), so
+ * only the `state-mismatch` and `exclusivity` arms below serve that caller. The loser answers
+ * what re-invoking would answer, and a conflict no honest writer produces throws:
  *  - `'seq'` on the OPEN window: the state CAS passed, so the record is still `open` — a
  *    state-preserving append (a finding or an acknowledgment) took the seq — and still due.
  *    `leg-expired`: re-invoking lands the edge and says the same.

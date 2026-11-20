@@ -1,7 +1,7 @@
 // @vidimera/record — test/tamper-shapes.test.ts: tampering never crashes verification, and a
 // detected break lands its edge at the store's next seq.
 //
-// Five groups of pins:
+// Six groups of pins:
 //   - the pure `verifyChain`: a row that is not an object, or one whose digest throws (a number
 //     with no JCS form, such as the `Infinity` a SQL backing parses back from a stored `1e999`),
 //     is REPORTED as the break at its position, never thrown on;
@@ -20,6 +20,11 @@
 //     `null`, signs the compromise edge instead of throwing, and a deleted genesis (the first
 //     row read is then not a genesis) signs it instead of landing it unsigned; and, under
 //     signing, the head guard refuses a digestless head with no mint and no sidecar entry;
+//   - `open()` before a verifying seam runs on the holder: it does not verify its blocker, so a
+//     middle row deleted leaves it answering `record-exists` (or, on a due confirmed holder,
+//     throwing the storage fault its own expiry append's `'seq'` conflict is), a genesis deleted
+//     leaves its blocker read throwing a replay error that does not name the holder, and the
+//     pair is released once a verifying seam lands the edge;
 //   - rung (4.5) in `finalize`: a storage edit of a sole-genesis head that adds a `policyDigest`
 //     reaches it at AL1 and throws a storage fault that says so; at AL2 the same edit refuses
 //     `chain-compromise`.
@@ -32,7 +37,7 @@ import { test } from 'vitest';
 import { transitionDigest } from '../src/chain/encoding.js';
 import { verifyChain } from '../src/chain/replay.js';
 import type { ConfirmProfile } from '../src/config.js';
-import { create } from '../src/create.js';
+import { create, createWithClock } from '../src/create.js';
 import type { Outcome } from '../src/outcome.js';
 import { MemorySignatureStore } from '../src/signing/memory.js';
 import type { Signer, Verifier } from '../src/signing/store.js';
@@ -41,7 +46,14 @@ import { SqliteStore } from '../src/store/sqlite.js';
 import type { Store } from '../src/store/store.js';
 import type { Transition } from '../src/types.js';
 import { buildChain } from './helpers/chain.js';
-import { captureProfile, facts, identity, makeConfig, openRecord } from './helpers/profiles.js';
+import {
+  captureProfile,
+  effectSeamProfile,
+  facts,
+  identity,
+  makeConfig,
+  openRecord,
+} from './helpers/profiles.js';
 import { TamperingStore } from './helpers/stores.js';
 
 const CONTENT = { subject: 'week-1', total: 40 };
@@ -428,6 +440,86 @@ test('SqliteStore: the genesis deleted — finalize lands the edge, and open() o
   assertNoEdge(await handles.operator.finalize(recordId, identity(), CONTENT, facts()));
   assert.deepEqual(rawRows(sqlite, recordId), after, 'a second call appends nothing');
   await pairIsFree(handles, 'test.tamper.flow.v1', subject);
+});
+
+// --- open() before a verifying seam runs on the holder --------------------------------------
+// open() does not verify the record already holding its pair (it reads and replays it), so it
+// never lands the compromise edge itself: the pair is released once a verifying seam runs on
+// the holder.
+
+async function stageSecond(handles: Handles, profileId: string, subjectRef: string) {
+  const staged = await handles.agent.stage({ ...CONTENT, total: 41 }, profileId, subjectRef);
+  if (staged.status !== 'ok') throw new Error(`fixture: stage ${JSON.stringify(staged)}`);
+  return staged.value.stagedRef;
+}
+
+test('SqliteStore: open() on the subject of an open record with its middle row deleted answers record-exists and lands nothing, until a verifying seam lands the edge', async () => {
+  const { sqlite, handles } = sqliteRig();
+  const subject = 'subject:s-o1';
+  const recordId = await openFlowRecord(handles, subject);
+  deleteRow(sqlite, recordId, 2);
+  const ref = await stageSecond(handles, 'test.tamper.flow.v1', subject);
+  const before = rawRows(sqlite, recordId);
+
+  const blocked = await handles.operator.open(ref);
+  assert.equal(blocked.status, 'refused');
+  assert.ok(blocked.status === 'refused' && blocked.code === 'record-exists');
+  assert.deepEqual(rawRows(sqlite, recordId), before, 'open() lands no edge on the holder');
+
+  assertEdge(await handles.operator.finalize(recordId, identity(), CONTENT, facts()));
+  assert.equal((await handles.operator.open(ref)).status, 'ok', 'released by the verifying seam');
+});
+
+test('SqliteStore: open() on the subject of a record whose genesis was deleted throws a replay error that does not name the holder, until a verifying seam lands the edge', async () => {
+  const { sqlite, handles } = sqliteRig();
+  const subject = 'subject:s-o2';
+  const recordId = await openFlowRecord(handles, subject);
+  deleteRow(sqlite, recordId, 1);
+  const ref = await stageSecond(handles, 'test.tamper.flow.v1', subject);
+  const before = rawRows(sqlite, recordId);
+
+  await assert.rejects(
+    () => handles.operator.open(ref),
+    (err: unknown) => {
+      assert.ok(err instanceof Error);
+      assert.match(err.message, /^replay: first transition must be 'opened'/);
+      assert.ok(!err.message.includes(recordId), 'the holder is not named');
+      return true;
+    },
+  );
+  assert.deepEqual(rawRows(sqlite, recordId), before, 'open() lands no edge on the holder');
+
+  assertEdge(await handles.operator.finalize(recordId, identity(), CONTENT, facts()));
+  assert.equal((await handles.operator.open(ref)).status, 'ok', 'released by the verifying seam');
+});
+
+test("SqliteStore: open() on the subject of a DUE confirmed effect-seam record with its middle row deleted throws the storage fault its own expiry append's 'seq' conflict is, appending nothing, until a verifying seam lands the edge", async () => {
+  const sqlite = new SqliteStore(':memory:');
+  const clock = { t: Date.UTC(2026, 0, 1) };
+  const profile = effectSeamProfile({ id: 'test.tamper.effect.v1' });
+  const handles = createWithClock(
+    makeConfig([profile], { store: sqlite }),
+    () => new Date(clock.t),
+  );
+  const subject = 'subject:s-o3';
+  const recordId = await openRecord(handles, CONTENT, profile.id, subject);
+  const confirmed = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(confirmed.status, 'ok', 'fixture: confirmed, awaiting redemption');
+  assert.ok(rawRows(sqlite, recordId).length >= 3, 'fixture: a middle row exists');
+  deleteRow(sqlite, recordId, 2);
+  const ref = await stageSecond(handles, profile.id, subject);
+  clock.t += ((profile.redeem?.confirmToRedeem ?? 0) + 10) * 1000;
+  const before = rawRows(sqlite, recordId);
+
+  await assert.rejects(
+    () => handles.operator.open(ref),
+    /^Error: open: append conflict \('seq'\)\. .*storage fault/,
+  );
+  assert.deepEqual(rawRows(sqlite, recordId), before, 'nothing appended to the holder');
+  assert.equal(await sqlite.findNonTerminal(profile.id, subject), recordId, 'nothing opened');
+
+  assertEdge(await handles.operator.redeem(recordId, CONTENT));
+  assert.equal((await handles.operator.open(ref)).status, 'ok', 'released by the verifying seam');
 });
 
 // ============================================================================================
