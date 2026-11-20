@@ -7985,3 +7985,381 @@ the host's claim. A persisted string read back is never re-judged.
 packages/record --noEmit` and `tsc -p packages/store-postgres --noEmit` exit 0; biome
 (`--error-on-warnings`, 172 files), `contract-scan`, `api-reference-sync` and `docs-index-sync`
 exit 0; `smoke` cannot run here and runs in CI.
+
+## Post-build-order increment — Tampering, faults and lost races
+
+**The forty-first post-build-order increment (branch `tamper-and-race-2026-11-20`, off `main` at
+`c5e4fe6`).** The design is `docs/superpowers/specs/2026-11-20-tamper-and-race-design.md` and the
+plan `docs/superpowers/plans/2026-11-20-tamper-and-race.md`. No sealed-set edit, no maturity marker,
+no new export. It changes three things: what verification and the compromise edge do on a damaged
+chain, what a seam does when its append fails for a reason that is not an honest race, and what the
+loser of an honest race is told.
+
+**What it closes.**
+
+- **Verification crashed on rows it could not digest.** `verifyChain` digests every row, the head
+  included, so a `null` row, or a number with no JCS form (the `Infinity` a SQL backing parses back
+  from a stored `1e999`), made it throw. That broke two promises at once: `verifyChain` is meant to
+  report the first break, and a verifying seam is meant to refuse `chain-compromise`.
+- **The compromise edge threw on a damaged head.** `appendChainCompromise` threw when the head's
+  `prevHash` was malformed: the break was detected, nothing was recorded, and the record kept
+  holding its (profile, subject) pair.
+- **A detected break whose edge could never land.** The edge proposed `chain.length + 1`, and after
+  a middle row or the genesis was deleted (SPEC §5 names deletion first) every backing adjudicates
+  `max(seq) + 1`. The edge never landed, the record stayed open and non-terminal, and it held C1
+  for good: `open()` on its subject answered `record-exists` forever, or threw once the genesis was
+  gone.
+- **Faults reported as domain refusals.** The redemption residual answered `unredeemable-state`
+  after a `'seq'` conflict, a failed re-read and a foreign chain on the re-read, each of which left
+  a record that may still be `confirmed` and redeemable; a token executor can read the code as
+  "abandon the approved effect". `seal` mapped a `'seq'` conflict to `unsealable-state`, and
+  `open()`'s retry mapped any genesis conflict to `record-exists` where its first attempt throws on
+  a non-exclusivity conflict. `open()`'s retry could throw a raw store or signer error after the
+  call had already appended the blocker's expiry edge, against a guide that says exceptions mean
+  "storage faults where nothing was recorded". `operator.listDue` threw synchronously where every
+  other Promise-typed read rejects.
+- **Lost races that answered a fixed code.** `finalize`, `decline` and the findings seams refused
+  `leg-expired` when they lost the open-window expiry CAS even if a racer had confirmed or refused
+  the record, and refused `record-not-open` when they lost the confirmed-window CAS even if a racer
+  had expired it. Re-invoking answered differently. `open()` refused `record-exists` when the
+  blocker it read was already terminal, that is, when the pair was free.
+- **Smaller items.** The rung-(4.5) "unreachable" throw in `finalize` is reachable, by a
+  non-recomputing edit of a sole genesis inside the AL1 head-bound window SPEC §5 and §10.3
+  disclose, and its message and comment said it could not happen. The redemption seams' result
+  admission throw ran after the clock rung, so on a due record a stray `result` on a non-declaring
+  profile resolved the clock and refused, where SPEC §8 and §11.2 make it a caller error that
+  records nothing. The findings seams on a due-confirmed record append `expired` and refuse
+  `leg-expired`, as SPEC §4's lazy resolution and §8's `leg-expired` row read, while SPEC §10.2's
+  sentence reads otherwise and no test pinned the behaviour.
+
+**What landed, per commit.**
+
+- `165f308` — the design and the plan, with the INDEX rows. `50f6c4a` — the plan's tasks numbered.
+- `99dd6e9` — verification never crashes and the edge lands. `chain/replay.ts`: `verifyChain` throws
+  only on an empty chain (keyed on `length === 0`, so a sparse first slot is a break), checks each
+  row's shape first, and digests each row inside a guard that makes a throw the break at that row's
+  own seq. `kernel/finalize.ts`: `appendChainCompromise` guards the head (not an object, or a digest
+  that throws, refuses `chain-compromise` before any mint, CAS or sidecar write), proposes the edge
+  at `head.seq + 1` then `chain.length + 1` (each variant built once, tried only while the backing
+  answers `'seq'`), and the rung-(4.5) throw's comment and message now say it is reachable and why.
+  `signing/decorate.ts`: the cold genesis read signs, and never throws or caches, on a garbled
+  genesis. Comments in `jcs.ts` and `operator-surface.ts`. Pins: `tamper-shapes.test.ts` in both
+  packages.
+- `da9bf11` — the fix round after that commit's review: a chain whose first element is not a genesis
+  (`seq !== 1` or `kind !== 'opened'`, as when the genesis is deleted) now takes the decorator's
+  garbled arm, because the edge that now lands was otherwise minted unsigned on a signing record;
+  the head guard's no-mint, no-sidecar-entry property was pinned under signing.
+- `7f8f183` — faults throw and lost races re-read. `kernel/redeem.ts`: the residual takes the append
+  result; `'seq'` throws, and a failed re-read, a foreign chain or a chain that no longer replays
+  throws with the failure as `cause`; the admission throw moved into the prologue, before the clock.
+  `kernel/seal.ts`: a conflict other than `state-mismatch` throws. `kernel/expiry.ts`:
+  `lostResolutionRefusal`, shared by `finalize`, `decline` and the findings seams. `kernel/open.ts`:
+  one local `retryOnce`, a terminal-when-read blocker takes it, a non-exclusivity retry conflict
+  throws, and a retry failing after this call expired the blocker throws an error that names it.
+  `create.ts`: `listDue` is `async`. Comments in `outcome.ts` and `chain/binding.ts`. Pins:
+  `faults-and-races.test.ts`, and four added to `effect-result.test.ts`.
+- `60910ff` — the fix round after that commit's review: a `state-mismatch` whose re-read finds the
+  state unmoved throws, and a `'seq'` on the redeeming window throws (see the rulings).
+- The records commit: this section, `CHANGELOG.md`, the guide (`api-reference.md`, `concepts.md`),
+  `next-phases.md` and `CLAUDE.md`'s counts.
+- `175eb22` — the fix wave after the whole-branch review (see "Amended after the whole-branch
+  review" below): `kernel/redeem.ts` scopes the residual's unmoved-state throw to un-enlisted
+  calls; `kernel/findings-seams.ts` re-reads when the seams' own append loses its state check;
+  `kernel/open.ts` throws on a `'seq'` conflict against a confirmed blocker's expiry edge and on
+  an exclusivity conflict there, and numbers the terminal-blocker arm as the TWENTIETH inversion.
+  Its records commit follows: this section, `CHANGELOG.md`, the guide, `next-phases.md` and
+  `CLAUDE.md`'s counts.
+- The follow-up commit of the same wave, after `c273cdf`: `open()`'s own-expire `'seq'` fault on a
+  confirmed blocker names the blocker and both causes (`blockerSeqFault`, see the rulings), with
+  its two branch-added pins adjusted to the new message; and the design gains its "Amended after
+  the whole-branch review" note (§6), which corrects §3's reading of the paths that never verify
+  and records the wave's rulings without rewriting the original text.
+
+**Rulings.**
+
+- **The not-an-object check runs first at each index of `verifyChain`.** The design text places it
+  after the seq, recordId and prevHash checks. Reading `.seq` off `null` is the very crash being
+  fixed, so the check runs first; a primitive row is now reported as "not a transition" at its
+  position where it used to read "found seq undefined". Same break seq, and no pinned text moved.
+- **A sparse first element is a garbled row, not an empty chain.** `verifyChain`, the compromise
+  edge and the decorator key the empty-chain throw on `length === 0`, so `[undefined, …]` is a break
+  at seq 1. The chain is not empty. Nothing observable changes for an honest chain.
+- **A non-genesis `chain[0]` signs.** With the genesis deleted, `chain[0]` is the seq-2 row, which
+  passes every shape check and reads no `profileId`, so the decorator cached `signs = false` and the
+  now-landing edge was unsigned. A first row that is not a genesis takes the garbled arm: sign, never
+  cache. This extends the design's decorator sentence. The cost if wrong: a non-signing record whose
+  genesis was deleted gets a signed compromise edge, which is harmless, since signing is additive
+  and the record is condemned anyway.
+- **`open()` retries over a blocker confirmed and terminal under the held profile,** beyond the
+  design's "terminal when read" arm. A capture leg, or a non-final leg, finalized by a racer between
+  the genesis conflict and the read frees the pair the same way, and the retry's own C1 still
+  adjudicates. The arm sits after the profile-drift gate, so terminality is derived from the
+  blocker's own profile. Pinned, red before.
+- **The retry's conflict after this call expired the blocker is wrapped.** The design says an
+  exclusivity conflict answers `record-exists` and any other conflict throws, and that the retry's
+  failure names the blocker. Read together: every throw after the blocker's edge stands names it,
+  with the unexpected-conflict error as `cause`. When the call appended nothing, the raw error
+  propagates unchanged.
+- **An unmoved re-read throws.** A `state-mismatch` whose re-read finds the record still in the
+  state the append expected cannot be an honest race, since a record never returns to a state it
+  left and neither C3 nor C4 explains a conflict at a non-terminal target. It throws the storage
+  fault at the redemption seams and at the decision and findings seams alike, rather than mapping
+  to the design's "else" code, which would be false of the record. It extends to the redeeming
+  window, at the cost of one extra read on a lost-CAS path only. Narrowed after the whole-branch
+  review, at the redemption seams, to un-enlisted calls (the next ruling).
+- **The redemption residual's unmoved-state throw applies only to un-enlisted calls** (the
+  controller's ruling after the whole-branch review). The throw assumes that the re-read sees at
+  least the state the compare-and-swap was judged against. That is true of the reference stores
+  for un-enlisted calls; an enlisted call's reads skip the host transaction on `PostgresStore`
+  (deferral-register row 23). So a second enlisted redemption call on one record inside one host
+  transaction (`redeem` then `redeem`, `beginRedemption` then `redeem`, `beginRedemption` twice)
+  reads the committed state, its append inside the transaction loses `state-mismatch`, and the
+  re-read, also outside the transaction, finds the state unmoved, on a store that conforms. The
+  base answered `unredeemable-state` there, and the branch head threw "A Store honouring the
+  compare-and-swap contract cannot report this … storage fault", blaming a conforming store. An
+  enlisted call (`tx` supplied) now keeps the base's domain answer for the unmoved case
+  (`unredeemable-state`; `already-redeemed` where the re-read finds `redeemed`, the existing
+  mapping), and `residualRefusal` is told whether the append rode the host's transaction. The
+  findings and decision seams are never enlisted, so their unmoved-state throws stand. The cost if
+  wrong: an enlisted fault on a store whose reads skip the transaction still answers a domain
+  code, as before this branch, and so does a genuine unmoved-state fault enlisted on `SqliteStore`,
+  whose reads see the transaction. Row 23's text and next-phases' "Enlisted reads" section were
+  checked and are accurate again with this fix (the second call's compare-and-swap refuses); when
+  row 23 lands and the re-read passes the `tx`, the carve-out can lift.
+- **The findings seams' own append re-reads when it loses its state check** (the controller's
+  ruling after the whole-branch review). It answered `record-not-open` with no re-read, which is
+  false when a racer expired the record (SPEC §8's `leg-expired` row names the findings seams for
+  an expired record, and SPEC §10.2 says an already-`expired` record refuses `leg-expired`). It
+  now routes through `lostResolutionRefusal`'s open-window mapping: `expired` gives
+  `leg-expired`, any other moved state `record-not-open`, and the record still `open` or a failed
+  re-read throws. The helper also throws on an `exclusivity` conflict there, where the old arm
+  answered `record-not-open`; C1 binds only a genesis, so that arm has no honest producer. Rung (6)
+  of `finalize` and `decline` keeps SPEC §9's `record-not-open` (deferred, below). The census tally
+  is unchanged: the re-read is the helper's existing one in `kernel/expiry.ts`.
+- **`open()`'s own expiry of a due blocker throws on a conflict with no honest producer** (the
+  controller's ruling after the whole-branch review). A `'seq'` conflict on a confirmed blocker's
+  edge (`CONFIRMED_SEQ_WHY`, now exported) and an `exclusivity` conflict throw the storage fault,
+  with nothing appended. The arm the inherited pin covers is unchanged: a `state-mismatch` still
+  answers `record-exists` and never re-loops, and so does a `'seq'` on an open blocker, which a
+  finding or acknowledgment landing in a race that straddles the deadline produces honestly. The
+  imported comment there named `'seq'` among that arm's races; no pinned assertion covered it. A
+  confirmed blocker whose middle row was deleted reaches the new throw too, because `open()` does
+  not verify its blocker; pinned, and stated in the guide. Its message, as first written, was the
+  shared append-conflict fault's, which reasons only about a concurrent writer; at the
+  coordinator's follow-up in the same wave (`blockerSeqFault`, `kernel/open.ts`) it names the
+  blocker and both causes, a storage fault or a damaged blocker chain, and points to a verifying
+  seam on the blocker (seal, finalize, or an un-enlisted redemption seam). The exclusivity throw
+  keeps the shared fault.
+- **A `'seq'` on the redeeming window throws.** The design's text answers `record-not-open` there,
+  but `'seq'` has no honest producer on a state-checked append at any window. Honest redeeming races
+  still answer `record-not-open`.
+
+**Inversions.** The EIGHTEENTH, NINETEENTH and TWENTIETH self-authored stance inversions, each
+argued at its site and numbered (the seventeenth is in `signing/decorate.ts`, in the "Transactional
+sidecar" section above; the twentieth was numbered after the whole-branch review). No test
+assertion inverts. Only the recorded stances move.
+
+- The EIGHTEENTH, at `residualRefusal` in `kernel/redeem.ts`: "This helper took no append result and
+  caught every failure of its re-read — 'fall through — result-first either way' — and the
+  chain-binding increment recorded that a foreign chain on the re-read falls through to
+  `unredeemable-state` the same way, since it 'can never make this seam say `already-redeemed`'. So
+  a `'seq'` conflict, a `state-mismatch` at a state that never moved, a re-read that rejected, a
+  foreign chain and a chain that no longer replays all answered `unredeemable-state`. That code is
+  a statement about the record — SPEC §8: 'no redeemable seam or state applies' — and none of those
+  five supports it … a token executor reading `unredeemable-state` may abandon an effect the
+  decision approved." The inverted reading: `'seq'` throws the storage fault; `state-mismatch`
+  re-reads as before, throws when the state is unmoved on an un-enlisted call (an enlisted call
+  keeps `unredeemable-state` there, the ruling above), and throws with the failure as `cause` when
+  the re-read fails, is foreign or does not replay. Honest races are unchanged.
+- The NINETEENTH, at `finalize`'s rung (2) in `kernel/finalize.ts`: "this arm refused
+  `record-not-open` whatever won, and this comment called that 'a deliberate divergence from the
+  redemption family's loser-agrees-with-reinvocation discipline', tolerated because the race is rare
+  and 'the plain state verdict returned here is still true of the record'. It is not: when the
+  winner resolved the confirmed window to `expired`, `record-not-open` is false of the record —
+  SPEC §8 defines it for 'a non-open, non-expired record' and sends 'an expired record at those
+  seams' to `leg-expired` — and re-invoking says `leg-expired`." So the lost CAS now re-reads once
+  and answers what re-invoking would (`lostResolutionRefusal`, shared with `decline` and the
+  findings seams), and a conflict no honest writer produces throws. The open-window arm's old
+  parenthetical ("if the CAS raced, the record is past its deadline regardless") is folded under
+  the same inversion and is not numbered separately.
+- The TWENTIETH, at `open()`'s terminal-blocker arm in `kernel/open.ts`, written at the third
+  step-3 increment: "Defensive: a terminal blocker cannot hold C1; a coherent store never names
+  one." — and the arm refused `record-exists`. The stance is false of a coherent store: the store
+  names the blocker when it adjudicates this call's genesis, and the read comes after, so a racer
+  that decided the blocker in between leaves a terminal record the store named honestly; the pair
+  is free, `record-exists` is false of it, and re-invoking would open the record. The inverted
+  reading: a blocker terminal when read takes the single retry, stamped from a fresh reading, and
+  answers `record-exists` only when the retry's own C1 names a live blocker. The arm was built in
+  `7f8f183` and numbered only after the whole-branch review found it reversed this build's own
+  recorded stance; no test assertion inverts, since the old arm was unpinned.
+
+**Pins (144 tests, 1477 to 1621, 94 files to 97).**
+
+- `packages/record/test/tamper-shapes.test.ts` (new, 37): pure `verifyChain` on `Infinity` in a
+  middle and in the head payload, `at: Infinity`, a `null` middle row, a `null` head, a `null`
+  genesis with and without a `recordId`, and a sparse row, plus the unchanged check order and
+  messages; SqliteStore raw `UPDATE`/`DELETE` shapes (a sole-genesis `prevHash` garbage, a head
+  `prevHash` set to `md5:00`, a middle payload set to `1e999` or `'null'`, a middle row deleted from
+  a confirmed and from an open findings-flow record, the genesis deleted), each with a second call
+  that refuses with no ref and an `open()` on the subject that succeeds where the edge landed; the
+  same shapes through a read-copy tampering wrapper on MemoryStore, with the edge landing on the
+  inner store; the walk on a contiguous chain (one attempt per state target, all at `length + 1`,
+  green on the old and the new source) and on a gapped one; the AL2 cold genesis read (a `null`
+  genesis and a deleted genesis, the edge signed) and the AL2 head guard (no mint, no sidecar
+  entry); and rung (4.5) on MemoryStore and SqliteStore, with the AL2 variant refusing
+  `chain-compromise`.
+- `packages/store-postgres/test/tamper-shapes.test.ts` (new, 4, embedded Postgres, raw SQL): a
+  sole-genesis `prevHash` garbage, a middle payload at `1e999`, a middle row deleted and the genesis
+  deleted.
+- `packages/record/test/faults-and-races.test.ts` (new, 96): a synthetic `'seq'` conflict at
+  `redeem`, `beginRedemption`, `completeRedemption`, the reverify edge, the clock rung and `seal`; a
+  lost CAS whose re-read rejects or comes back foreign at five call sites; the enlisted SqliteStore
+  case, with the host transaction still usable; `finalize`, `decline` and `raiseFinding` on each
+  window and each racer; the unmoved `state-mismatch` at six redemption sites and nine decision-seam
+  windows; a redeeming-window `'seq'`; `open()` over a terminal blocker, a capture-leg blocker, a
+  live new holder and a negative control; the retry failing after this call expired the blocker, on
+  MemoryStore and SqliteStore and under AL2; `listDue` rejecting; and the findings seams on a
+  due-confirmed record, as a characterization.
+- `packages/record/test/effect-result.test.ts` (4 added): a due-confirmed `redeem` and a
+  due-redeeming `completeRedemption` with a stray `result` throw and append nothing, the same
+  enlisted on SqliteStore, and the non-declaring twin of the existing gate-order pin.
+- The fix wave after the whole-branch review (19 added): `postgres-store.test.ts` (3, embedded
+  Postgres) runs two enlisted redemption calls on one record inside one host transaction —
+  `redeem` then `redeem`, `beginRedemption` then `redeem`, `beginRedemption` twice — and requires
+  the second to answer `unredeemable-state`, never throw, with the transaction still usable and
+  committing the first call's edge alone; `faults-and-races.test.ts` (13) adds the enlisted
+  unmoved case on SqliteStore (a domain answer, the transaction usable), the findings seams' own
+  append losing its state check (a racer that expired, declined or confirmed the record; no racer;
+  an exclusivity conflict), and `open()`'s own expiry (a `'seq'` and an exclusivity conflict on a
+  due confirmed blocker throw, with two characterizations: a `'seq'` from a finding on an open
+  blocker and an unmoved `state-mismatch`, both `record-exists`); `tamper-shapes.test.ts` (3)
+  pins `open()` before a verifying seam runs on a holder with a deleted row — `record-exists` with
+  a middle row deleted, a replay error that does not name the holder with the genesis deleted,
+  and the storage fault on a due confirmed holder — each released once a verifying seam lands
+  the edge. Red against `2cc7e2a`: 12 of 19 (the 3 Postgres pins, 8 of the 13, 1 of the 3); the
+  7 others are controls and characterizations, green on both.
+- Red-first: against each task's base source, 28 of `tamper-shapes.test.ts`'s first 32 and 4 of the
+  postgres file's 4 were red; and of `faults-and-races.test.ts`'s first 59, 47 were red, with the 12
+  controls and characterizations green by design; the fix round's 24 added pins were measured
+  against the commit before it (18 red, 6 coverage). Controls that pass on the old source are marked
+  as such at their tests.
+
+**Amended after review.** Both tasks' reviews found something, and each fix was re-reviewed clean.
+The first review: a deleted genesis landed an unsigned compromise edge on a signing record, because
+the cold decorator read the seq-2 row as the genesis (fixed in `da9bf11`, see the rulings), and two
+minors, the head guard's no-mint pin under signing and a report that overstated the separate-mode
+orphan count. The second review: a `state-mismatch` whose re-read shows the unmoved state answered a
+domain code false of the record, and a `'seq'` on the redeeming window answered `record-not-open`
+(both fixed in `60910ff`, see the rulings), plus three minors (the confirmed-window fault's wording
+scoped to a record awaiting redemption, the failed re-read's message, and the confirmed-window
+failed-re-read pin).
+
+**Amended after the whole-branch review.** The final review (with fixes, no Critical) found two
+Important items and six Minor ones, fixed in one wave (`175eb22` and its records commit) and
+recorded in the rulings, inversions and pins above.
+
+- **Important 1 — an enlisted redemption blamed a conforming store.** The unmoved-state throw met
+  a second enlisted redemption call inside one host transaction on `PostgresStore`, whose reads
+  skip the transaction. Ruled and fixed: the throw is un-enlisted only, and the assumption it rests
+  on (the re-read sees at least the state the compare-and-swap was judged against: true of the
+  reference stores for un-enlisted calls, not of an enlisted call's reads on `PostgresStore`, row
+  23) is stated in `kernel/redeem.ts`, the guide's lost-race limit and its custom-Store paragraph,
+  and the ruling above. Pinned on embedded Postgres, red before.
+- **Important 2 — the guide said the reads that never verify throw on a chain they cannot
+  digest.** They never digest: `replay`, `getRecord`, `review` and `open()`'s blocker read throw
+  only on a row they cannot read (`null`, a primitive, another record's row, no genesis first) and
+  return a state with no throw over a row with no canonical encoding, while `verifyChain` reports
+  the break; only `verifySignatures` and a store's `chainHead` throw on a digest failure.
+  `api-reference.md` and `CHANGELOG.md` now say so, and that a successful replay is not evidence
+  the chain digests. (Checked by a scratch run, not pinned.)
+- **Minor 3** — the findings seams' own append re-reads (ruling above; 5 red-before pins of 8).
+- **Minor 4** — `open()`'s own-expire `'seq'` arm on a confirmed blocker throws, and an
+  exclusivity conflict there with it (ruling above); the remaining unmoved `state-mismatch`, and
+  an open blocker's `'seq'`, are named inside the owner-gated item in `next-phases.md` and in the
+  guide's limit.
+- **Minor 5** — the released-subject limits: a deleted non-head row, where the persisted state
+  admits an append, is released once a verifying seam runs on the holder; `open()` does not verify
+  its blocker, so with a middle row deleted it answers `record-exists` until then (or throws, over
+  a due confirmed holder) and with the holder's genesis deleted its blocker read throws a replay
+  error that does not name the holder. In `concepts.md`, `api-reference.md` and `CHANGELOG.md`,
+  whose digestless-head entry now adds that the record keeps holding its pair. Pinned in
+  `tamper-shapes.test.ts`.
+- **Minor 6** — `next-phases.md`'s free-standing `max(seq)` follow-up duplicated register row 23's
+  `headSeq` signal; it is now a sentence under the "Enlisted reads" section, cross-referencing
+  row 23.
+- **Minor 7** — the terminal-blocker retry arm reversed this build's own recorded stance unnumbered;
+  it is the TWENTIETH inversion (above).
+- **Minor 8** — wording: `CHANGELOG.md` ("`confirmed` or `redeeming`"; "no persisted chain's bytes
+  or format change"), `concepts.md` (an ill-formed `recordId` is a caller error too), and
+  `api-reference.md` (the plain-data list gains booleans and `null`; a verifying seam's edge on a
+  healthy record lands where the head still digests; the quotation marks around a phrase SPEC §8
+  does not contain are gone, and §8's own "no redeemable seam or state applies" is used unquoted).
+- **A follow-up recorded, not built** — `open()` should name the blocking record when its read of
+  it throws (`next-phases.md`).
+
+**Existing assertions.** None changed. `git diff c5e4fe6..HEAD -- packages/record/test
+packages/store-postgres/test` removes only comment lines (in `effect-result.test.ts`, two gate-order
+comment blocks rewritten for the new order; in `policy-drift.test.ts`, the sentence about the
+rung-(4.5) arm, which still carries its THIRTEENTH-inversion wording) and one import line
+(`effect-result.test.ts` gained names), and, in the fix wave, one more import line
+(`postgres-store.test.ts` gained names). The one tally change is a line added to
+`chain-binding-census.test.ts`'s `READ_CHAIN` table (`'kernel/expiry.ts': { reads: 1, asserts: 1 }`,
+the lost-resolution helper's one re-read); its assertion, that every `.readChain(` site is listed, is
+unchanged. The fix wave changes no read count: the findings seams' new re-read is that helper's.
+`byte-stability.test.ts` and the byte-regression suites are untouched and green. The
+inherited pin that stays is `exclusivity.test.ts`'s "an expire-CAS state-mismatch (a race flipped
+the blocker) -> record-exists, NEVER re-loop".
+
+**Deferred, stated.**
+
+- **`open()`'s lost own-expire CAS** still answers `record-exists` and never re-loops. Taking the
+  single retry there would invert an inherited pinned assertion, and `CLAUDE.md` requires the
+  owner's explicit authorization for that. Cost of holding it: one lost-race code stays
+  `record-exists` until the owner decides. `next-phases.md` carries it, with the two further cases
+  the same arm answers `record-exists` (a `'seq'` from a finding on an open blocker still due, and
+  a `state-mismatch` whose blocker never moved, a fault no racer explains); a `'seq'` on a
+  confirmed blocker and an exclusivity conflict throw since the fix wave.
+- **A batch-append `state-mismatch` at rung (6) answers `record-not-open`,** even where a racer
+  expired the record. SPEC §9 prescribes it, so changing it is a sealed edit; SPEC §8 sends an
+  expired record at those seams to `leg-expired`.
+- **SPEC §10.2's due-record sentence,** which reads that a findings seam on any other non-open
+  state refuses, while the seams append `expired` and refuse `leg-expired` on a due-confirmed
+  record (SPEC §4, §8). Sealed wording; the code's reading is commented at the seam.
+- **DECISIONS #10's and ARCHITECTURE §4's "storage faults where nothing was recorded".** The
+  non-sealed docs now say "where the failing write recorded nothing", because `open()` can stand a
+  clock edge before a failing retry. Sealed wording; recorded rather than reconciled.
+- **The digestless-head corner of SPEC §5.** A head with no computable digest refuses
+  `chain-compromise` with no edge, decided before any attempt and leaving no orphan in either mode.
+  It is SPEC §5's no-edge outcome reached by a corner §5's list does not name. A reading for this
+  record and `next-phases.md`, not a sealed edit. Only a hash break can bring a digestless head
+  here, never a signature-layer failure alone.
+- **A store-reported adjudicated `max(seq)`.** A `Store`-contract change across three backings;
+  `head.seq + 1` with a `length + 1` fallback suffices without it. It is register row 23's
+  `headSeq` signal, so `next-phases.md` records it under that row's section, not as an item of its
+  own.
+- **`open()` naming the blocking record when its read of it throws.** A follow-up from the
+  whole-branch review, in `next-phases.md`: with the holder's genesis deleted, the replay error
+  does not name the record a host must run a verifying seam on.
+- **Left as they were:** the paths that never verify keep their throws: `open()`'s blocker read,
+  `replay`, `getRecord` and `review` throw on a row they cannot read and never digest a row (a row
+  with no canonical encoding replays with no throw), and `verifySignatures` and a store's
+  `chainHead` throw on a row they cannot digest; and `refuseMaybeAppend`'s best-effort lost CAS
+  stays the already-recorded residual. A custom `Store` that returns non-plain data now reads as
+  tampering, where it used to throw; that is inherent at AL1 and is stated in `jcs.ts` and the
+  guide as the contract a custom Store keeps. The guide now states the second contract a custom
+  Store keeps: a read after a lost compare-and-swap sees at least the state it was judged
+  against.
+- **Separate-mode orphans, as the source comment states them.** A compromise attempt that loses on
+  `'seq'` leaves its sidecar entry in separate mode, and integrated mode leaves none. Two seq
+  variants exist only on a gapped or seq-rewritten chain, and an honest deletion lands on the first
+  variant, so the extra attempt and its orphan appear only when the head's own `seq` was also
+  rewritten. Not pinned by count.
+
+**Gates, measured on the authoring machine at the final records commit (after the fix wave).**
+`ci-assert-tests: ok — 1621 tests in 97 files (116 suites): 1621 passed, 0 failed, 0 skipped,
+0 todo`; `tsc -p
+packages/record --noEmit` and `tsc -p packages/store-postgres --noEmit` exit 0; biome
+(`--error-on-warnings`, 175 files), `contract-scan`, `api-reference-sync` and
+`docs-index-sync` exit 0; `smoke` cannot run here and runs in CI. The embedded-postgres run prints
+the known register-row-24 exit-hook noise (`TypeError: done is not a function`) at process exit,
+which is not a failure.

@@ -37,6 +37,8 @@
 // (2) State/expiry gate (intact chain, before any append): a due-open record → en-passant
 //     `resolveDueClock` CAS-append `expired` → `leg-expired`; already-`expired` → `leg-expired`;
 //     `state !== 'open'` (confirmed/refused) → `record-not-open` (no append, no transitionRef).
+//     A lost resolution CAS answers what re-invoking would (`lostResolutionRefusal`,
+//     kernel/expiry.ts — the faults-and-races increment).
 // (3) Identity — both branches → `identity-authority-refused`: the arg missing/malformed (the
 //     library reads identity ONLY from the explicit arg — a payload-carried id is never
 //     trusted), or `identity.authority` not in the leg's `allowedAuthorities`.
@@ -127,7 +129,7 @@ import type {
   Transition,
 } from '../types.js';
 import { validateConsultations, validatePolicyInput } from './consultations.js';
-import { deadlineIso, resolveDueClock } from './expiry.js';
+import { deadlineIso, lostResolutionRefusal, resolveDueClock } from './expiry.js';
 import { findingCoverage } from './findings.js';
 import { heldProfile } from './held-profile.js';
 import { identitySnapshot } from './identity.js';
@@ -292,19 +294,29 @@ export async function finalize(
     // The clock rung (third step-3 increment; §4's lazy rule at this seam too): an
     // elapsed confirmed window resolves to `expired` → `leg-expired` (§8's "expired or
     // due-expired record"); an elapsed redeeming window resolves to `redemption-failed`
-    // → `record-not-open` (a non-open, non-expired record). Not due, or the CAS lost to
-    // a racing writer: the plain state verdict below — the record is not open either way.
+    // → `record-not-open` (a non-open, non-expired record). Not due: the plain state
+    // verdict — the record is not open.
     const due = await resolveDueClock(store, recordId, chain, resolved, now());
-    if (due.due && due.result.appended) {
-      return refused(due.window === 'confirmed' ? 'leg-expired' : 'record-not-open');
+    if (due.due) {
+      if (due.result.appended) {
+        return refused(due.window === 'confirmed' ? 'leg-expired' : 'record-not-open');
+      }
+      // Lost the CAS to a racing writer. THE NINETEENTH SELF-AUTHORED STANCE INVERSION (the
+      // faults-and-races increment): this arm refused `record-not-open` whatever won, and this
+      // comment called that "a deliberate divergence from the redemption family's
+      // loser-agrees-with-reinvocation discipline", tolerated because the race is rare and
+      // "the plain state verdict returned here is still true of the record". It is not: when
+      // the winner resolved the confirmed window to `expired`, `record-not-open` is false of
+      // the record — SPEC §8 defines it for "a non-open, non-expired record" and sends "an
+      // expired record at those seams" to `leg-expired` — and re-invoking says `leg-expired`.
+      // A loser that answers differently from re-invocation is exactly what that discipline
+      // exists to prevent, and rarity does not make a false code true. So the lost CAS now
+      // re-reads once and answers what re-invoking would (`lostResolutionRefusal`,
+      // kernel/expiry.ts, shared with decline and the findings seams). A conflict no honest
+      // writer produces against `confirmed` or `redeeming` — a `'seq'`, or a `state-mismatch`
+      // whose re-read finds the state unmoved — throws as the storage fault it is.
+      return lostResolutionRefusal('finalize', store, recordId, due.window, due.result);
     }
-    // Lost the CAS to a racing writer: this refuses `record-not-open` even when the
-    // winner resolved a `confirmed` window to `expired` (re-invocation would say
-    // `leg-expired` there instead) — a deliberate divergence from the redemption
-    // family's loser-agrees-with-reinvocation discipline, tolerated because the race is
-    // rare (a concurrent resolver on a multi-connection backing) and harmless: the plain
-    // state verdict returned here is still true of the record regardless of which window
-    // raced, and re-invocation reports the fresh state.
     return refused('record-not-open');
   }
   if (record.state !== 'open') {
@@ -320,9 +332,18 @@ export async function finalize(
   // state === 'open': en-passant expiry (resolveDueClock performs the CAS append if due).
   const ex = await resolveDueClock(store, recordId, chain, resolved, now());
   if (ex.due) {
-    // Due — the `expired` transition was appended (the en-passant expiry edge; if the CAS
-    // raced, the record is past its deadline regardless). `leg-expired` carries no
-    // transitionRef — the expired edge is an expiry transition, not a `refused` edge.
+    // Due — the `expired` transition was appended (the en-passant expiry edge). `leg-expired`
+    // carries no transitionRef — the expired edge is an expiry transition, not a `refused`
+    // edge. A lost CAS used to answer `leg-expired` too, on the ground that the record is past
+    // its deadline regardless; but a racer that confirmed, declined or refused it first left a
+    // decided record, which re-invoking reports as `record-not-open`. The faults-and-races
+    // increment re-reads instead (`lostResolutionRefusal`, kernel/expiry.ts) — the same
+    // nineteenth inversion argued on the confirmed arm above, at the same rung and for the same
+    // reason: a racer that expired it, or a `'seq'` loss to a state-preserving finding, still
+    // answers `leg-expired`.
+    if (!ex.result.appended) {
+      return lostResolutionRefusal('finalize', store, recordId, ex.window, ex.result);
+    }
     return refused('leg-expired');
   }
 
@@ -361,17 +382,30 @@ export async function finalize(
 
   // --- (4.5) policy drift (SPEC §10.3; second step-6 increment) ------------------------
   if (record.policyDigest !== undefined && resolved.profile.policySource === undefined) {
-    // UNREACHABLE since the profile-drift gate: a record binding a policyDigest was opened
-    // under a profile declaring policySource, and policySource is a declarative field the
-    // genesis profileDigest covers — so a same-id profile that dropped it does not digest to
-    // the binding and profile resolution above refused `unknown-profile` first (SPEC §4, §10.3
-    // as amended; OPEN-QUESTIONS §2's fail-close decision stands, delivered one step earlier).
-    // Until that gate this arm refused `policy-drift`, the decided open question of record. It
-    // throws now so that a projection change that stopped covering policySource would fail
-    // loudly here rather than silently re-open the corner.
+    // UNREACHABLE ON AN HONEST CHAIN since the profile-drift gate: a record binding a
+    // policyDigest was opened under a profile declaring policySource, and policySource is a
+    // declarative field the genesis profileDigest covers — so a same-id profile that dropped it
+    // does not digest to the binding and profile resolution above refused `unknown-profile`
+    // first (SPEC §4, §10.3 as amended; OPEN-QUESTIONS §2's fail-close decision stands,
+    // delivered one step earlier). Until that gate this arm refused `policy-drift`, the decided
+    // open question of record.
+    //
+    // REACHABLE through a storage edit, and only that way: a non-recomputing edit of a SOLE
+    // genesis that adds a `policyDigest` under a profile declaring none leaves the genesis
+    // `profileDigest` untouched, so resolution holds the profile, and leaves no later link to
+    // break, so AL1 verifies the chain intact. That is the head-bound window SPEC §5 and §10.3
+    // disclose. The arm keeps its throw — a garbled chain is a storage fault (DECISIONS.md #11),
+    // and nothing is appended — and its message says so. At AL2 the same edit never reaches
+    // here: the edited genesis no longer matches its signature, and rung (1) refuses
+    // `chain-compromise` (SPEC §14, under the conditions it states). The throw also still
+    // catches a projection change that stopped covering policySource, loudly, rather than
+    // silently re-opening the corner.
     throw new Error(
-      'finalize: unreachable — a bound policyDigest under a profile declaring no policySource ' +
-        'cannot pass profile resolution; the profile-drift gate refuses unknown-profile first (SPEC §4)',
+      'finalize: a bound policyDigest under a profile declaring no policySource — unreachable ' +
+        'on an honest chain, where profile resolution refuses unknown-profile first (SPEC §4); ' +
+        'reachable only through a storage edit of a sole-genesis head inside the AL1 head-bound ' +
+        'window (SPEC §5, §10.3), so it is thrown as a storage fault and nothing was appended; ' +
+        'AL2 closes it as chain-compromise',
     );
   }
   if (resolved.profile.policySource !== undefined) {
@@ -815,12 +849,28 @@ const NO_EDGE_STATE = {
 
 /**
  * The chain-compromise failure path (SPEC §5, AL1-honest). Appends ONE `refused`
- * edge at head via NORMAL C2 (`seq=max+1`, `prevHash=chainHead`, payload `{code}`-only), then
- * refuses `chain-compromise` WITH the appended edge's digest — compromise carries a
- * transitionRef wherever the Store's C3 carve-out admits an edge (`open→refused`;
- * `confirmed→refused`; `redeeming→refused`). On an already-terminal `expired`/`refused`
- * record NO CAS candidate is admitted (the C3-forced corner), no edge is appended, and the
- * refusal surfaces result-first with NO transitionRef — see the fallback below / SPEC §5.
+ * edge at head via NORMAL C2 (`seq=max+1`, `prevHash` = the head's digest, payload
+ * `{code}`-only), then refuses `chain-compromise` WITH the appended edge's digest — compromise
+ * carries a transitionRef wherever the Store's C3 carve-out admits an edge (`open→refused`;
+ * `confirmed→refused`; `redeeming→refused`) and the head has a digest to chain onto. On an
+ * already-terminal `expired`/`refused` record NO CAS candidate is admitted (the C3-forced
+ * corner), no edge is appended, and the refusal surfaces result-first with NO transitionRef —
+ * see the fallback below / SPEC §5.
+ *
+ * THE SEQ IT PROPOSES. The backing adjudicates C2 against its own `max(seq) + 1`, which the
+ * chain handed here does not always show: once a middle row or the genesis is deleted (the
+ * deletion within a surviving chain SPEC §5 has `verifyChain` detect), `chain.length + 1` falls
+ * short of it, and an edge proposed there could never land — the record stayed open and
+ * non-terminal, held its (profile, subject) pair under C1 for good, and every later seam
+ * re-detected the break and failed the same way. So the edge is proposed first at
+ * `head.seq + 1` (when the head's `seq` is a safe positive integer: every read is seq-ordered,
+ * so that is the best estimate of the store's `max + 1`) and then at `chain.length + 1` (for a
+ * head whose own `seq` was rewritten), each tried against a state target only while the
+ * backing answers `'seq'`. On a contiguous chain the two are equal and only one is tried. A
+ * gapped record's edge now lands and the pair is released; `verifyChain` still reports the
+ * original break, and every later seam re-detects it and refuses with no further edge (the
+ * persisted state is then `refused`). A store-reported adjudicated seq would make this exact
+ * rather than estimated; that is a Store-contract change across every backing, not made here.
  *
  * THE NO-EDGE CORNER, enumerated once. No candidate can land when the backing's PERSISTED
  * state is any of `NO_EDGE_STATE`'s five terminal states — `refused`, `expired`, `declined`,
@@ -838,7 +888,22 @@ const NO_EDGE_STATE = {
  * call on this corner still leaves ONE sidecar entry with no chain counterpart
  * (deferral-register row 22); the narrowing does not change that. In integrated mode every
  * attempt is still signed first, but its entry rides the attempt's own append, so an attempt
- * that loses its CAS writes none.
+ * that loses its CAS writes none. The same holds for a seq variant that loses on `'seq'` (a
+ * gapped or seq-rewritten chain only, where two variants exist): in separate mode its entry is
+ * one more orphan, a valid signature over an edge that never landed; in integrated mode it
+ * leaves none.
+ *
+ * ONE MORE NO-EDGE SHAPE sits outside that rule, decided before any attempt rather than by a
+ * CAS: a DIGESTLESS HEAD — a head that is not an object, or whose digest throws (a malformed or
+ * unrecognized `prevHash`, a payload with no canonical encoding). The ordinary sequencing rules
+ * cannot form `prevHash` = the head's digest, so there is nothing to chain an edge onto, and
+ * the seam refuses with no edge before it mints, writes a sidecar entry or tries a CAS — in
+ * either signing mode it leaves no orphan. The record is left as it was, still holding its
+ * pair if it was open. That is SPEC §5's own no-edge outcome reached by a corner its list does
+ * not name — a reading for the status record and next-phases, not an edit to the sealed text.
+ * `verifyChain` digests the head too and reports such a head as the break, so a digestless
+ * head never arrives here behind an intact report: only a hash break brings one, never a
+ * failed signature layer alone.
  *
  * The CAS target state is the REPLAYED current state of the (tampered) chain — `open→refused`
  * for an unconfirmed record; `confirmed→refused` rides the Store's C3 compromise carve-out for
@@ -923,33 +988,71 @@ export async function appendChainCompromise(
     candidates = ['open', 'confirmed', 'redeeming'];
   }
 
-  const last = chain.at(-1);
-  if (last === undefined) {
+  if (chain.length === 0) {
     throw new Error('appendChainCompromise: empty chain — callers hold a loaded chain');
   }
-  const refusedTransition: Transition = {
+  // --- the head guard: the edge's `prevHash` is the head's digest -----------------------
+  // A head that is not an object, or whose digest throws (a malformed or unrecognized
+  // `prevHash`, a payload with no canonical encoding), has nothing to chain an edge onto, so
+  // the compromise surfaces result-first with no edge — decided BEFORE any CAS attempt, so
+  // nothing is minted and no sidecar entry is written. See the no-edge corner above.
+  const last: unknown = chain[chain.length - 1];
+  if (typeof last !== 'object' || last === null) {
+    return refused('chain-compromise');
+  }
+  const head = last as Transition;
+  let headDigest: Digest;
+  try {
+    headDigest = transitionDigest(head); // the (tampered) head's digest — AL1-honest
+  } catch {
+    return refused('chain-compromise');
+  }
+
+  // --- the seq candidates: the store's next seq, estimated two ways -----------------------
+  // Every read is seq-ordered, so `head.seq + 1` is the best estimate of the backing's
+  // authoritative `max(seq) + 1` (SPEC §12's C2) — and the only one that lands after a middle
+  // row or the genesis was deleted, where `chain.length + 1` falls short of it.
+  // `chain.length + 1` follows as the fallback for a head whose own `seq` field was rewritten.
+  // On a contiguous chain the two are equal and dedupe to ONE candidate, so the walk below is
+  // the single-seq walk it always was: the same edge bytes, the same attempts, the same mints.
+  const seqs = dedupe([
+    ...(Number.isSafeInteger(head.seq) && head.seq >= 1 ? [head.seq + 1] : []),
+    chain.length + 1,
+  ]);
+  // Each variant is built ONCE, before the walk: the signing decorator memoizes its mint by
+  // transition OBJECT, so reusing one object across state targets mints once per variant.
+  const at = now().toISOString();
+  const variants: Transition[] = seqs.map((seq) => ({
     recordId,
-    seq: chain.length + 1,
-    at: now().toISOString(),
+    seq,
+    at,
     kind: 'refused',
     payload: { code: 'chain-compromise' },
-    prevHash: transitionDigest(last), // the (tampered) head's digest — AL1-honest
-  };
+    prevHash: headDigest,
+  }));
   // A `refused` record is terminal under every leg/effect-seam combination.
   const refusedNonTerminal = nonTerminal('refused', false, false); // false
 
   for (const target of candidates) {
-    const res = await store.appendTransition(target, refusedTransition, {
-      nonTerminal: refusedNonTerminal,
-    });
-    if (res.appended) {
-      return refused('chain-compromise', res.transitionDigest);
+    for (const refusedTransition of variants) {
+      const res = await store.appendTransition(target, refusedTransition, {
+        nonTerminal: refusedNonTerminal,
+      });
+      if (res.appended) {
+        return refused('chain-compromise', res.transitionDigest);
+      }
+      // Every backing checks state, then C4, then C3, then C2's seq: a `'seq'` conflict means
+      // this state target passed and only the seq was wrong, so the next variant is worth a
+      // try. A `state-mismatch` says nothing about seq — move to the next state target. A
+      // failed CAS appends nothing either way, so another attempt is safe.
+      if (res.conflict !== 'seq') break;
     }
   }
-  // No candidate CAS target admitted the edge (not reachable for the tested tampers, which
-  // always replay to `open`/`confirmed`). Last-resort: refuse without a transitionRef rather
-  // than throw — the compromise is still surfaced: SPEC §5 admits no edge against an already-
-  // terminal record and surfaces the compromise result-first with no transition reference.
+  // No candidate CAS target admitted the edge (the no-edge corner above: a persisted terminal
+  // or sealed record — or, off the honest path, a store whose next seq matched no variant).
+  // Last-resort: refuse without a transitionRef rather than throw — the
+  // compromise is still surfaced: SPEC §5 admits no edge against an already-terminal record
+  // and surfaces the compromise result-first with no transition reference.
   return refused('chain-compromise');
 }
 

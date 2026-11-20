@@ -8,7 +8,14 @@ import { verifyChain } from '../../record/src/chain/replay.js';
 import { create } from '../../record/src/create.js';
 import { deriveStagedRef } from '../../record/src/id.js';
 import { storeGenesis, storeNext } from '../../record/test/helpers/chain.js';
-import { captureProfile, makeConfig, openRecord } from '../../record/test/helpers/profiles.js';
+import {
+  captureProfile,
+  effectSeamProfile,
+  facts,
+  identity,
+  makeConfig,
+  openRecord,
+} from '../../record/test/helpers/profiles.js';
 import { newStore, nextSchemaName, sharedPool } from './helpers/pg.js';
 
 test('tx validation: a foreign object is refused loudly (not a pg client)', async () => {
@@ -69,6 +76,94 @@ test('enlistment: a host COMMIT persists the enlisted append', async () => {
   const chain = await store.readChain('rec-enlist');
   assert.equal(chain.length, 1);
   assert.equal(await store.findNonTerminal('profile.p1', 'subject:enlist'), 'rec-enlist');
+});
+
+// The enlisted-read limit (deferral-register row 23), executed: the store's reads take no
+// transaction handle, so a SECOND enlisted redemption call on one record inside one host
+// transaction reads the committed state through the pool, passes its state gate, and its append
+// — riding the host's transaction, where the first call's edge already sits — loses
+// 'state-mismatch'. Its re-read also skips the transaction and finds the committed state, the one
+// the append expected. Un-enlisted, that unmoved re-read is a storage fault and throws; enlisted,
+// the kernel cannot tell it from this limit, so it answers the domain code it answered before
+// the faults-and-races increment — `unredeemable-state`, a returned refusal — and the host's
+// transaction stays open and usable: it commits the first call's edge and nothing else.
+const ENLISTED_CONTENT = { subject: 'week-1', total: 40 };
+
+async function twoEnlistedRedemptions(
+  first: 'redeem' | 'beginRedemption',
+  second: 'redeem' | 'beginRedemption',
+  subjectRef: string,
+): Promise<void> {
+  const { PostgresStore } = await import('../src/postgres-store.js');
+  const schema = nextSchemaName();
+  const store = new PostgresStore(sharedPool(), { schema });
+  const profile = effectSeamProfile();
+  const handles = create(makeConfig([profile], { store }));
+  const recordId = await openRecord(handles, ENLISTED_CONTENT, profile.id, subjectRef);
+  const confirmed = await handles.operator.finalize(
+    recordId,
+    identity(),
+    ENLISTED_CONTENT,
+    facts(),
+  );
+  assert.equal(confirmed.status, 'ok', 'fixture: the record confirms and awaits redemption');
+  const before = await store.readChain(recordId);
+
+  const client = await sharedPool().connect();
+  let committed = false;
+  let rollbackFailure: Error | undefined;
+  try {
+    await client.query('BEGIN');
+    const one = await handles.operator[first](recordId, ENLISTED_CONTENT, { tx: client });
+    assert.equal(one.status, 'ok', `${first}: the first enlisted call lands in the transaction`);
+    const two = await handles.operator[second](recordId, ENLISTED_CONTENT, { tx: client });
+    assert.equal(
+      two.status,
+      'refused',
+      `${second}: the second enlisted call refuses, never throws`,
+    );
+    if (two.status === 'refused') {
+      assert.equal(two.code, 'unredeemable-state');
+      assert.equal(two.transitionRef, undefined, 'nothing appended by the second call');
+    }
+    // The transaction is still usable: a statement on the host's own client runs, and sees
+    // exactly the first call's edge.
+    const { rows } = await client.query(
+      `SELECT COUNT(*)::int AS n FROM "${schema}"."transitions" WHERE record_id = $1`,
+      [recordId],
+    );
+    assert.equal(rows[0]?.n, before.length + 1, "inside the transaction: the first call's edge");
+    await client.query('COMMIT');
+    committed = true;
+  } finally {
+    // A client whose ROLLBACK failed is released WITH that error, so pg discards it rather than
+    // handing a possibly open transaction to the next borrower.
+    if (!committed) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (err) {
+        rollbackFailure = err instanceof Error ? err : new Error(String(err));
+      }
+    }
+    client.release(rollbackFailure);
+  }
+
+  const after = await store.readChain(recordId);
+  assert.equal(after.length, before.length + 1, 'the commit persisted one edge');
+  assert.equal(after.at(-1)?.kind, first === 'redeem' ? 'redeemed' : 'redeeming');
+  assert.equal(verifyChain(after, recordId).intact, true);
+}
+
+test('enlisted reads (row 23): redeem then redeem on one record inside one host transaction — the second answers unredeemable-state, never a storage-fault throw, and the transaction commits the first', async () => {
+  await twoEnlistedRedemptions('redeem', 'redeem', 'subject:enlisted-rr');
+});
+
+test('enlisted reads (row 23): beginRedemption then redeem on one record inside one host transaction — the second answers unredeemable-state, never a storage-fault throw, and the transaction commits the first', async () => {
+  await twoEnlistedRedemptions('beginRedemption', 'redeem', 'subject:enlisted-br');
+});
+
+test('enlisted reads (row 23): beginRedemption then beginRedemption on one record inside one host transaction — the second answers unredeemable-state, never a storage-fault throw, and the transaction commits the first', async () => {
+  await twoEnlistedRedemptions('beginRedemption', 'beginRedemption', 'subject:enlisted-bb');
 });
 
 test('recovery: a transient failure during lazy DDL does not brick the store — the next call retries', async () => {

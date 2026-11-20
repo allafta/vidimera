@@ -26,8 +26,12 @@
 //                            `opts.result` supplied but the resolved profile does not
 //                            declare `redeem.result` throws, PROFILE-RESOLUTION depth, so it
 //                            sits after (1)/(2)/(3) — chain-compromise, unknown-profile and
-//                            the effect-seam/final-leg gate all outrank it, matching
-//                            finalize's own policy-presence-contract depth
+//                            the effect-seam/final-leg gate all outrank it — and, since the
+//                            faults-and-races increment, inside the shared `prologue` BEFORE
+//                            its clock rung, so a stray result on a due record throws and
+//                            records nothing. Only from then on does it match finalize's own
+//                            presence-contract depth (after profile resolution, before the
+//                            state/expiry rung); before, the clock rung ran first
 //   (4) state gate        -> already-redeemed on 'redeemed' (at-most-once, replay half);
 //                            unredeemable-state otherwise-not-confirmed
 //   (5) correspondence    -> effect-mismatch     — re-digest vs the bound contentDigest;
@@ -35,7 +39,10 @@
 //                            reverify-declaring profile (SPEC §9.2, the live-capture
 //                            increment: `refuseCorrespondenceMismatch` below)
 //   (6) append redeemed   -> ok; a non-append residual is a racing writer -> the
-//                            family-wide CAS-residual re-read (`residualRefusal` below)
+//                            family-wide CAS-residual re-read (`residualRefusal` below); a
+//                            `'seq'` conflict, which no honest writer produces here, a
+//                            re-read that finds the state unmoved on an UN-enlisted call, or
+//                            a re-read that fails, THROWS (the faults-and-races increment)
 //
 // (4) before (5): a replayed redemption refuses `already-redeemed` whatever content it
 // carries — at-most-once outranks mismatch reporting.
@@ -86,13 +93,31 @@ import { isFinalLeg, nonTerminal } from '../nonterminal.js';
 import type { Outcome } from '../outcome.js';
 import { ok, refused } from '../outcome.js';
 import type { AppendMeta, Store } from '../store/store.js';
-import type { DecisionRecord, Digest, Transition } from '../types.js';
+import type { DecisionRecord, Digest, RecordState, Transition } from '../types.js';
 import { isWellFormedUtf16 } from '../utf16.js';
-import { deadlineIso, pendingWindow, resolveDueClock } from './expiry.js';
+import {
+  appendConflictFault,
+  deadlineIso,
+  type LostAppend,
+  lostCasReadFault,
+  pendingWindow,
+  resolveDueClock,
+  unmovedStateWhy,
+} from './expiry.js';
 import { appendChainCompromise } from './finalize.js';
 import { heldProfile } from './held-profile.js';
 import { assertDigestForm, assertIdArg, assertOptionsBag } from './intake.js';
 import { signatureLayerHolds } from './verify-signatures.js';
+
+type RedeemSeam = 'redeem' | 'beginRedemption' | 'completeRedemption';
+
+/** Why `'seq'` has no honest producer on any append this module proposes. */
+const REDEMPTION_SEQ_WHY =
+  "every redemption append's compare-and-swap target is 'confirmed' (a record awaiting " +
+  "redemption: the seam gate admits only a final leg on an effect-seam profile) or 'redeeming', " +
+  'and every legitimate competing append leaves that state (redeemed, redeeming, expired, ' +
+  'redemption-failed, refused); every conforming backing checks the state before the seq, so ' +
+  "a concurrent writer reaches this call as 'state-mismatch', never 'seq'";
 
 /**
  * The family-wide CAS-residual refusal (second step-3 increment; an authorized behavior
@@ -103,21 +128,71 @@ import { signatureLayerHolds } from './verify-signatures.js';
  * agrees with what re-invocation would say: a record now `redeemed` is §11.2's "replayed
  * redemption of an already-redeemed record" (`already-redeemed` — the case a
  * crash-recovering separated executor must be able to distinguish); anything else maps
- * to the seams' own residual, `unredeemable-state`. A chain that no longer replays is
- * not this helper's to diagnose (the caller's NEXT invocation will hit verify-first).
+ * to the seams' own residual, `unredeemable-state`.
+ *
+ * THE EIGHTEENTH SELF-AUTHORED STANCE INVERSION (the faults-and-races increment). This helper
+ * took no append result and caught every failure of its re-read — "fall through —
+ * result-first either way" — and the chain-binding increment recorded that a foreign chain on
+ * the re-read falls through to `unredeemable-state` the same way, since it "can never make
+ * this seam say `already-redeemed`". So a `'seq'` conflict, a `state-mismatch` at a state that
+ * never moved, a re-read that rejected, a foreign chain and a chain that no longer replays all
+ * answered `unredeemable-state`. That code is a statement about the record — SPEC §8: "no
+ * redeemable seam or state applies" — and none of those five supports it: each leaves a
+ * record that may still be (or, at an unmoved state, still is) `confirmed` or `redeeming` and
+ * redeemable, and a token executor reading `unredeemable-state` may abandon an effect the
+ * decision approved. "Result-first" governs domain outcomes; a call that cannot learn the
+ * record's state, or whose store reports a conflict nothing explains, has no domain outcome to
+ * return, and nothing was appended by it, which is the exception scope DECISIONS.md #10 keeps
+ * for "storage faults where nothing was recorded". The inverted reading, therefore:
+ *  - `'seq'` throws the storage fault (`REDEMPTION_SEQ_WHY`: it has no honest producer here);
+ *  - `state-mismatch` re-reads as before. On an UN-enlisted call, a re-read that finds the
+ *    record still in `target`, the state the append expected, throws the storage fault too
+ *    (`unmovedStateWhy`: `target` is never terminal here, so neither C3 nor C4 explains it, and
+ *    a state never returns); a re-read that rejects, returns another record's rows or does not
+ *    replay throws with that failure as `cause` (`lostCasReadFault`) — the posture
+ *    `kernel/finalize.ts`'s `seqConflict` already takes with its own diagnostic re-read. Honest
+ *    races are unchanged: each still answers what re-invocation would.
+ *
+ * THE ASSUMPTION the unmoved-state throw rests on, and why it is scoped to un-enlisted calls:
+ * the re-read sees at least the state the compare-and-swap was judged against. That holds for
+ * the reference stores on an un-enlisted call — the append and the re-read both read committed
+ * state, and the re-read comes after. It does NOT hold for an enlisted call on a store whose
+ * reads skip the host transaction: `PostgresStore`'s reads take no transaction handle
+ * (deferral-register row 23), so a second enlisted redemption call on one record inside one host
+ * transaction reads the committed state, its append inside the transaction loses
+ * `state-mismatch` to the first call's uncommitted edge, and the re-read, also outside the
+ * transaction, finds the committed state — the one the append expected — on a store that
+ * conforms. The kernel cannot tell that from a fault, so an ENLISTED call (`enlisted`: the
+ * append rode a host `tx`) keeps the domain answer it gave before the faults-and-races
+ * increment: `already-redeemed` on a `redeemed` re-read, `unredeemable-state` otherwise,
+ * the unmoved state included. The cost, stated: an enlisted call on a store whose reads DO see
+ * the transaction (`SqliteStore`) answers that domain code for a genuine unmoved-state fault too.
+ * When row 23 lands (the reads take the `tx`, and this re-read passes it), the carve-out can lift.
  */
-async function residualRefusal(store: Store, recordId: string): Promise<Outcome<never>> {
+async function residualRefusal(
+  seam: RedeemSeam,
+  store: Store,
+  recordId: string,
+  target: RecordState,
+  lost: LostAppend,
+  enlisted: boolean,
+): Promise<Outcome<never>> {
+  if (lost.conflict !== 'state-mismatch') {
+    throw appendConflictFault(seam, lost.conflict, REDEMPTION_SEQ_WHY);
+  }
+  let fresh: DecisionRecord;
   try {
     const chain = await store.readChain(recordId);
-    // A foreign chain throws into the fallback below: it can never make this seam say
-    // `already-redeemed`.
+    // A foreign chain is a failed re-read: it can never name this record's state.
     assertChainFor(chain, recordId, 'redemption residual re-read');
-    const fresh = replay(chain);
-    if (fresh.state === 'redeemed') return refused('already-redeemed');
-  } catch {
-    // fall through — result-first either way
+    fresh = replay(chain);
+  } catch (err) {
+    throw lostCasReadFault(seam, err);
   }
-  return refused('unredeemable-state');
+  if (fresh.state === target && !enlisted) {
+    throw appendConflictFault(seam, 'state-mismatch', unmovedStateWhy(target));
+  }
+  return refused(fresh.state === 'redeemed' ? 'already-redeemed' : 'unredeemable-state');
 }
 
 /**
@@ -135,6 +210,7 @@ async function residualRefusal(store: Store, recordId: string): Promise<Outcome<
  * completeRedemption is never routed here: a wrong token is not state drift.
  */
 async function refuseCorrespondenceMismatch(
+  seam: RedeemSeam,
   store: Store,
   recordId: string,
   chain: readonly Transition[],
@@ -168,8 +244,9 @@ async function refuseCorrespondenceMismatch(
   };
   const res = await store.appendTransition(target, edge, meta);
   if (!res.appended) {
-    // A racing writer moved the state — the family-wide CAS-residual discipline.
-    return residualRefusal(store, recordId);
+    // A racing writer moved the state — the family-wide CAS-residual discipline. Never
+    // enlisted: an enlisted caller returned above, and this append rides no `tx`.
+    return residualRefusal(seam, store, recordId, target, res, false);
   }
   return refused('content-drift', res.transitionDigest);
 }
@@ -199,14 +276,18 @@ function dueNow(chain: readonly Transition[], resolved: ResolvedProfile, now: Da
  *   (2) resolve profile -> unknown-profile (fail-closed); persisted legId absent -> THROW
  *   (3) effect seam + final leg -> unredeemable-state (§11.2 "on-iff-effects"; the
  *       non-final-leg refusal is structural until the separation-of-duties step)
+ *   (3.5) result admission -> THROWS — `redeem`/`completeRedemption` only (`beginRedemption`
+ *       passes `resultSupplied: false`; its intake already refuses a result). Before the
+ *       clock rung, so a stray result throws and records nothing on a due record too.
  * The STATE gates stay in each ladder — they are where the three seams differ.
  * The clock increment's en-passant resolution (due-`confirmed` / due-`redeeming`, §4)
  * lands HERE once, not three times — that is this helper's reason to exist.
  */
 async function prologue(
   ctx: KernelContext,
-  seam: 'redeem' | 'beginRedemption' | 'completeRedemption',
+  seam: RedeemSeam,
   recordId: string,
+  resultSupplied: boolean,
   tx?: unknown,
 ): Promise<
   | { refusal: Outcome<never> }
@@ -267,6 +348,23 @@ async function prologue(
     return { refusal: refused('unredeemable-state') };
   }
 
+  // --- (3.5) SPEC §11.2's admission gate (the effect-result increment) -----------------
+  // The declaration ADMITS the field: a non-declaring profile supplying one is a caller error,
+  // and SPEC §8 makes a caller error one "that throws and records nothing". So the gate sits
+  // HERE, after the profile is resolved (chain-compromise, unknown-profile and the seam gate
+  // outrank it) and BEFORE the clock rung below — including its enlisted due guard. Until the
+  // faults-and-races increment it ran after this prologue returned, so on a due record a stray
+  // result first resolved the clock (appending `expired` or `redemption-failed`) and refused,
+  // or refused `unredeemable-state` enlisted, and threw only on a record that was not due.
+  // This is finalize's own presence-contract depth: its policy and observedAt contracts
+  // likewise sit after profile resolution and before its state/expiry rung (2).
+  if (resultSupplied && resolved.profile.redeem?.result !== true) {
+    throw new Error(
+      `${seam}: opts.result supplied but profile '${record.profileId}' does not declare ` +
+        'redeem.result — declaring it is what admits an outcome digest (SPEC §9.1, §11.2)',
+    );
+  }
+
   // --- the clock rung (third step-3 increment; §4 "appended lazily at the next
   // operator-side mutating seam that observes the bound has passed") -------------------
   // Placed AFTER the seam gate: a pure-capture record never reaches here, and a
@@ -279,9 +377,10 @@ async function prologue(
   // refuses `redemption-timeout` (§11.2: the bound elapsed "with the outcome unknown...
   // with `redemption-timeout`"). A seam arriving AFTER a resolution finds the terminal
   // state at its own state gate and refuses `unredeemable-state` — nothing timed out at
-  // that call. A lost resolution CAS re-reads once (the family residual discipline). An
-  // ENLISTED caller reaching a due window is a further exception, guarded immediately
-  // below, before the resolver is ever called.
+  // that call. A lost resolution CAS re-reads once (the family residual discipline; a
+  // `'seq'`, an unmoved state or a failed re-read throws, `residualRefusal` above). An
+  // ENLISTED caller reaching a due window is a further exception, guarded immediately below,
+  // before the resolver is ever called.
   if (record.state === 'confirmed' || record.state === 'redeeming') {
     // ONE clock read for the whole rung (the review-hardening pass, 2026-09-05): the enlisted
     // guard below and `resolveDueClock` judge the same instant. Read twice, a deadline falling
@@ -310,7 +409,11 @@ async function prologue(
     const due = await resolveDueClock(store, recordId, chain, resolved, instant);
     if (due.due) {
       if (!due.result.appended) {
-        return { refusal: await residualRefusal(store, recordId) };
+        // Never enlisted: an enlisted caller on a due window returned above, and
+        // `resolveDueClock`'s append rides no `tx`.
+        return {
+          refusal: await residualRefusal(seam, store, recordId, due.window, due.result, false),
+        };
       }
       return {
         refusal: refused(due.window === 'redeeming' ? 'redemption-timeout' : 'unredeemable-state'),
@@ -407,20 +510,10 @@ export async function redeem(
   assertIdArg('redeem', 'recordId', recordId);
   const { tx, resultSupplied, resultDigest } = validateRedeemOptions('redeem', opts);
   const { store, now } = ctx;
-  const pro = await prologue(ctx, 'redeem', recordId, tx);
+  // The admission gate (3.5) runs inside the prologue, before its clock rung.
+  const pro = await prologue(ctx, 'redeem', recordId, resultSupplied, tx);
   if ('refusal' in pro) return pro.refusal;
   const { chain, record, resolved, finalLeg } = pro.gated;
-
-  // SPEC §11.2's admission gate (the effect-result increment): the declaration ADMITS
-  // the field. A non-declaring profile supplying one is a caller error at
-  // profile-resolution depth — chain-compromise, unknown-profile and the seam gate
-  // outrank it, matching finalize's own presence-contract depth.
-  if (resultSupplied && resolved.profile.redeem?.result !== true) {
-    throw new Error(
-      `redeem: opts.result supplied but profile '${record.profileId}' does not declare ` +
-        'redeem.result — declaring it is what admits an outcome digest (SPEC §9.1, §11.2)',
-    );
-  }
 
   // --- (4) state gate ------------------------------------------------------------------
   if (record.state === 'redeemed') {
@@ -453,6 +546,7 @@ export async function redeem(
   );
   if (recomputed !== record.contentDigest) {
     return refuseCorrespondenceMismatch(
+      'redeem',
       store,
       recordId,
       chain,
@@ -488,7 +582,7 @@ export async function redeem(
 
   const res = await store.appendTransition('confirmed', redeemedTransition, meta, tx);
   if (!res.appended) {
-    return residualRefusal(store, recordId);
+    return residualRefusal('redeem', store, recordId, 'confirmed', res, tx !== undefined);
   }
   return ok({ recordId, state: 'redeemed', transitionRef: res.transitionDigest });
 }
@@ -537,7 +631,8 @@ export async function beginRedemption(
   assertIdArg('beginRedemption', 'recordId', recordId);
   const { tx } = validateRedeemOptions('beginRedemption', opts);
   const { store, now, tokenSource } = ctx;
-  const pro = await prologue(ctx, 'beginRedemption', recordId, tx);
+  // "No result": intake already threw on one — issuance never admits it.
+  const pro = await prologue(ctx, 'beginRedemption', recordId, false, tx);
   if ('refusal' in pro) return pro.refusal;
   const { chain, record, resolved, finalLeg } = pro.gated;
 
@@ -568,6 +663,7 @@ export async function beginRedemption(
   );
   if (recomputed !== record.contentDigest) {
     return refuseCorrespondenceMismatch(
+      'beginRedemption',
       store,
       recordId,
       chain,
@@ -609,7 +705,7 @@ export async function beginRedemption(
   };
   const res = await store.appendTransition('confirmed', redeemingTransition, meta, tx);
   if (!res.appended) {
-    return residualRefusal(store, recordId);
+    return residualRefusal('beginRedemption', store, recordId, 'confirmed', res, tx !== undefined);
   }
   return ok({ recordId, state: 'redeeming', token, transitionRef: res.transitionDigest });
 }
@@ -654,20 +750,10 @@ export async function completeRedemption(
   }
   const { tx, resultSupplied, resultDigest } = validateRedeemOptions('completeRedemption', opts);
   const { store, now } = ctx;
-  const pro = await prologue(ctx, 'completeRedemption', recordId, tx);
+  // The admission gate (3.5) runs inside the prologue, before its clock rung.
+  const pro = await prologue(ctx, 'completeRedemption', recordId, resultSupplied, tx);
   if ('refusal' in pro) return pro.refusal;
   const { chain, record, resolved, finalLeg } = pro.gated;
-
-  // SPEC §11.2's admission gate (the effect-result increment): the declaration ADMITS
-  // the field. A non-declaring profile supplying one is a caller error at
-  // profile-resolution depth — chain-compromise, unknown-profile and the seam gate
-  // outrank it, matching finalize's own presence-contract depth.
-  if (resultSupplied && resolved.profile.redeem?.result !== true) {
-    throw new Error(
-      `completeRedemption: opts.result supplied but profile '${record.profileId}' does not declare ` +
-        'redeem.result — declaring it is what admits an outcome digest (SPEC §9.1, §11.2)',
-    );
-  }
 
   // --- (4) state gate ------------------------------------------------------------------
   if (record.state === 'redeemed') {
@@ -725,6 +811,7 @@ export async function completeRedemption(
   );
   if (recomputed !== record.contentDigest) {
     return refuseCorrespondenceMismatch(
+      'completeRedemption',
       store,
       recordId,
       chain,
@@ -764,7 +851,14 @@ export async function completeRedemption(
   };
   const res = await store.appendTransition('redeeming', redeemedTransition, meta, tx);
   if (!res.appended) {
-    return residualRefusal(store, recordId);
+    return residualRefusal(
+      'completeRedemption',
+      store,
+      recordId,
+      'redeeming',
+      res,
+      tx !== undefined,
+    );
   }
   return ok({ recordId, state: 'redeemed', transitionRef: res.transitionDigest });
 }

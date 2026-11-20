@@ -228,7 +228,9 @@ function makeKernel(ctx: KernelContext): Kernel {
       assertIdArg('chainHead', 'recordId', recordId);
       return store.chainHead(recordId);
     },
-    listDue: () => store.listDue(ctx.now()),
+    // `async`, like every other read here, so a store or clock that throws synchronously
+    // rejects instead of throwing out of a Promise-typed call.
+    listDue: async () => store.listDue(ctx.now()),
 
     // --- audit wrappers: REAL (readChain + the pure chain/replay.ts core; `replay`
     // identity-checks the chain, `verifyChain` reports a foreign one as a break) ---

@@ -202,6 +202,8 @@ const READ_CHAIN: Record<string, { reads: number; asserts?: number }> = {
   'kernel/finalize.ts': { reads: 2, asserts: 1 },
   // prologue: verify; residualRefusal: identity
   'kernel/redeem.ts': { reads: 2, asserts: 1 },
+  // lostResolutionRefusal's re-read after a lost clock CAS: identity
+  'kernel/expiry.ts': { reads: 1, asserts: 1 },
   // verify
   'kernel/decline.ts': { reads: 1 },
   'kernel/findings-seams.ts': { reads: 1 },

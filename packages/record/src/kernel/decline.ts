@@ -27,7 +27,7 @@ import { ok, refused, unavailable } from '../outcome.js';
 import type { AppendMeta } from '../store/store.js';
 import type { Consultation, Digest, IdentityAssertion, Transition } from '../types.js';
 import { validateConsultations } from './consultations.js';
-import { resolveDueClock } from './expiry.js';
+import { lostResolutionRefusal, resolveDueClock } from './expiry.js';
 import {
   appendChainCompromise,
   batchSeqConflict,
@@ -133,8 +133,13 @@ export async function decline(
   }
   if (record.state === 'confirmed' || record.state === 'redeeming') {
     const due = await resolveDueClock(store, recordId, chain, resolved, now());
-    if (due.due && due.result.appended) {
-      return refused(due.window === 'confirmed' ? 'leg-expired' : 'record-not-open');
+    if (due.due) {
+      if (due.result.appended) {
+        return refused(due.window === 'confirmed' ? 'leg-expired' : 'record-not-open');
+      }
+      // A lost resolution CAS answers what re-invoking would — finalize's rung (2) argues the
+      // nineteenth self-authored stance inversion (kernel/finalize.ts).
+      return lostResolutionRefusal('decline', store, recordId, due.window, due.result);
     }
     return refused('record-not-open');
   }
@@ -143,6 +148,9 @@ export async function decline(
   }
   const ex = await resolveDueClock(store, recordId, chain, resolved, now());
   if (ex.due) {
+    if (!ex.result.appended) {
+      return lostResolutionRefusal('decline', store, recordId, ex.window, ex.result);
+    }
     return refused('leg-expired');
   }
 

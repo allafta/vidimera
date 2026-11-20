@@ -19,13 +19,25 @@ id at genesis). Two operator functions make the chain useful:
 - `replay(recordId)` folds the chain back into the record: its state, actor,
   consultations, findings, linkage.
 - `verifyChain(recordId)` recomputes every link, checks that every transition is
-  `recordId`'s own, and reports `{ intact: true }` or the first break's sequence number.
+  `recordId`'s own and that every row, the head included, has a canonical encoding, and reports
+  `{ intact: true }` or the first break's sequence number. It does not throw on a damaged chain:
+  a row it cannot read or digest is the reported break. It still throws on a caller error (an
+  ill-formed `recordId`, or one with no chain) and on a failing store read.
 
 The guarantee, with its limit in the same breath: the chain is **tamper-evident against
 non-recomputing edits**. Deleting, reordering, or editing a non-head transition breaks the
 next link and is caught on verify. Another record's rows copied unrewritten under this
 record's id are caught too: `verifyChain` reports a break (at seq 1 for a whole copied
-chain), the seams refuse `chain-compromise`, and the non-verifying reads throw. A tamper
+chain), the seams refuse `chain-compromise`, and the non-verifying reads throw. A deleted
+non-head row is caught too, and where the persisted state still admits an append, the first
+verifying seam to run on the record lands its compromise edge at the store's next seq: the
+record becomes `refused` and its subject is released, while `verifyChain` keeps reporting the
+original break. The limits: the release waits for a verifying seam, because `open()` reads the
+record holding its pair without verifying it (with a middle row deleted it answers
+`record-exists` until then, or throws an error naming the holder where it would expire a due
+confirmed holder; with the holder's genesis deleted its read throws a replay error that does not name the
+holder); and a head with no digest to chain onto (a malformed `prevHash`, a non-canonical
+payload) refuses with no edge, so a non-terminal record keeps holding its pair. A tamper
 to the *last* transition — or to a transition's own `prevHash` field — is indistinguishable
 from that transition never having existed, because a singly-linked chain protects each
 transition through the *next* link.
@@ -158,15 +170,20 @@ type Outcome<T> =
 ```
 
 Exceptions are reserved for **caller and config errors** (unknown `recordId`, malformed
-input, a construction-time contract violation) and storage faults — cases where nothing
-was recorded and the caller has a bug or an outage, not a decision outcome. A lost race is
-neither: a concurrent `raiseFinding` or `acknowledge` can cost `finalize`, `decline`, or a
+input, a construction-time contract violation) and storage faults — cases where the failing
+write recorded nothing and the caller has a bug or an outage, not a decision outcome. One call
+can have appended a clock edge en passant before it fails: `open()` expires a due blocker, and if
+its retried genesis then fails, the error names that blocker, whose expiry edge stands. A lost
+race is neither: a concurrent `raiseFinding` or `acknowledge` can cost `finalize`, `decline`, or a
 findings seam its append, which surfaces as the refusal `record-contended` — nothing recorded,
-re-invoke (the integration guide has the shape).
+re-invoke (the integration guide has the shape). A race that resolves the record's clock, or a
+redemption, answers what re-invoking would (`leg-expired` where a racer expired the record,
+`already-redeemed` where it was redeemed), and a conflict no honest writer produces throws
+instead of returning a code that is false of the record; the API reference lists each seam.
 
 A refusal *may* append a `refused` transition — that is itself a recorded decision — or
 may leave the record open for retry. The rule: `chain-compromise` records itself wherever
-the record's state still admits an append; a fixed never-appends set (the pre-record
+the record's state still admits an append and the head has a digest to chain onto; a fixed never-appends set (the pre-record
 failures, the state-gate refusals, the contention refusal, and every redemption-seam refusal)
 never does; every
 other refusal appends `open → refused` only if the leg's `terminalRefusals` lists that

@@ -334,12 +334,16 @@ export type ChainVerifyReport =
 
 /**
  * `verifyChain(chain, recordId?)` (SPEC §5 "Operator audit functions", the run of §5 that
- * defines both this and `replay`): recomputes every transition's digest linkage. Four checks, run
+ * defines both this and `replay`): recomputes every transition's digest linkage. Six checks, run
  * at each index IN THIS ORDER, so when several fail at one index the detail names the most
  * specific diagnosis first —
- *  1. seq continuity: `chain[i].seq` must equal `i + 1` for every `i` (1-based, +1 per
+ *  1. shape: `chain[i]` must be a non-null object. Anything else — the `null` a SQL backing
+ *     parses back from a stored `'null'`, a sparse hole, a primitive — is a break at its
+ *     position. It runs first because every later check reads the row's fields, and reading
+ *     them off `null` would throw;
+ *  2. seq continuity: `chain[i].seq` must equal `i + 1` for every `i` (1-based, +1 per
  *     transition);
- *  2. record identity: every `chain[i].recordId` must equal the requested `recordId` — or,
+ *  3. record identity: every `chain[i].recordId` must equal the requested `recordId` — or,
  *     when none is given, the genesis row's `chain[0].recordId`. A chain is one record's, and
  *     that id is what binds it to its record: the SQL backings key a read by a `record_id`
  *     column that the row's own JSON need not match, so a store can hand back another
@@ -347,12 +351,21 @@ export type ChainVerifyReport =
  *     the chain was fetched for a known id (and in an offline audit of an archived chain,
  *     the id it is supposed to belong to); without it a wholly relocated chain verifies
  *     clean, because it is compared only with itself;
- *  3. genesis: `chain[0].prevHash` must equal `genesisPrevHash` of that same id;
- *  4. every subsequent `chain[i].prevHash` must equal `transitionDigest(chain[i-1])`
- *     (recomputed under `chain[i-1]`'s own recorded algorithm, via `encoding.ts`).
+ *  4. genesis: `chain[0].prevHash` must equal `genesisPrevHash` of that same id;
+ *  5. every subsequent `chain[i].prevHash` must equal `transitionDigest(chain[i-1])`
+ *     (recomputed under `chain[i-1]`'s own recorded algorithm, via `encoding.ts`);
+ *  6. canonical encoding: `transitionDigest(chain[i])` must not throw. A row holding a number
+ *     with no JCS form (the `Infinity` a SQL backing parses back from a stored `1e999`) or a
+ *     non-plain object (`jcs.ts`) is a break at its OWN seq, detailed as having no canonical
+ *     encoding. No honest writer can persist such a row — every backing digests on append — so
+ *     it is tampering, or a store breaking its contract, never a caller error. The head is
+ *     digested too: a chain reported intact is one whose every row, the head included, digests,
+ *     which every reader of a verified chain relies on (the signature layer, the prior-leg and
+ *     supersedes checks, the compromise edge's `prevHash`).
  * Reports `{intact:true}` if every check passes, or `{intact:false, firstBreakSeq,
  * detail}` on the FIRST index (1-based) at which any check fails — later breaks in
- * the same chain are not reported.
+ * the same chain are not reported. A garbled row is therefore REPORTED, never thrown on: the
+ * only throw is the empty chain below.
  *
  * Honesty limit (documented, not a bug): a mutation to a transition's OWN prevHash
  * field, or to the LAST transition in the chain, is not distinguishable from that
@@ -370,18 +383,32 @@ export type ChainVerifyReport =
  * `{intact:true}`.
  */
 export function verifyChain(chain: readonly Transition[], recordId?: string): ChainVerifyReport {
-  const genesis = chain[0];
-  if (genesis === undefined) {
+  // `length`, not `chain[0] === undefined`: a chain whose first slot is a hole or an
+  // `undefined` row exists and is reported as a break at seq 1 by the shape check below.
+  if (chain.length === 0) {
     throw new Error(
       'verifyChain: empty chain (verifying a chain that does not exist is a caller error)',
     );
   }
 
   let expectedPrevHash: Digest | undefined;
-  const expectedRecordId = recordId ?? genesis.recordId;
+  // Read only when the genesis passes the shape check, which runs at index 0 before any use.
+  const genesis: unknown = chain[0];
+  const expectedRecordId =
+    recordId ?? (isTransitionShaped(genesis) ? genesis.recordId : '<no genesis>');
 
   for (const [i, transition] of chain.entries()) {
     const expectedSeq = i + 1;
+
+    if (!isTransitionShaped(transition)) {
+      const found = transition === null ? 'null' : typeof transition;
+      return {
+        intact: false,
+        firstBreakSeq: expectedSeq,
+        detail: `row at chain position ${expectedSeq} is not a transition (found ${found})`,
+      };
+    }
+
     expectedPrevHash ??= genesisPrevHash(expectedRecordId);
 
     if (transition.seq !== expectedSeq) {
@@ -414,9 +441,24 @@ export function verifyChain(chain: readonly Transition[], recordId?: string): Ch
       };
     }
 
-    // This transition's own digest becomes the expected prevHash of the next one.
-    expectedPrevHash = transitionDigest(transition);
+    // This transition's own digest becomes the expected prevHash of the next one. A row with
+    // no canonical encoding is the break at its own seq — the head's included, so "intact"
+    // promises every row digests.
+    try {
+      expectedPrevHash = transitionDigest(transition);
+    } catch (err) {
+      return {
+        intact: false,
+        firstBreakSeq: expectedSeq,
+        detail: `transition at seq ${expectedSeq} has no canonical encoding — ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
   }
 
   return { intact: true };
+}
+
+/** The shape check: a row the later checks can read fields from without throwing. */
+function isTransitionShaped(row: unknown): row is Transition {
+  return typeof row === 'object' && row !== null;
 }

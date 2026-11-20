@@ -189,7 +189,8 @@ interface OperatorSurface {
     Promise<Outcome<{ recordId: string; status: 'retired'; transitionRef: Digest }>>;
 
   // audit (not Outcome-shaped: an unknown record is a caller-error throw; for another
-  // record's rows read back under this id, see the chain-binding note below)
+  // record's rows read back under this id, see the chain-binding note below; a garbled row
+  // is the break `verifyChain` reports, never a throw — see the damaged-chain note below)
   replay(recordId: string): Promise<DecisionRecord>;
   verifyChain(recordId: string): Promise<ChainVerifyReport>;
   verifySignatures(recordId: string): Promise<SignatureReport>;
@@ -198,7 +199,8 @@ interface OperatorSurface {
   getRecord(recordId: string): Promise<DecisionRecord | null>;
   readChain(recordId: string): Promise<Transition[]>;
   chainHead(recordId: string): Promise<Digest | null>;
-  listDue(): Promise<string[]>;              // the sweep's read: record ids past a pending bound
+  listDue(): Promise<string[]>;              // the sweep's read: record ids past a pending bound;
+                                             // a store that throws synchronously still rejects
 }
 ```
 
@@ -334,7 +336,9 @@ Notes that save debugging time:
   profile — declaring the field is what admits it, never a value; a declaring profile that
   redeems without supplying one records nothing (`resultDigest` stays absent). Two throw
   postures guard it: supplying `result` on a profile that does not declare `redeem.result`
-  throws (a caller error at profile-resolution depth), and supplying `result` at
+  throws (a caller error at profile-resolution depth; the check runs before the clock rung, so
+  a stray `result` throws and records nothing on a due record too, instead of resolving the
+  clock and refusing), and supplying `result` at
   `beginRedemption` throws unconditionally, declared or not — issuance precedes execution,
   so a result at issuance time would claim an outcome for an effect that has not run yet;
   supply it at `redeem()` or `completeRedemption()`, where the executor actually knows it.
@@ -382,6 +386,55 @@ Notes that save debugging time:
   three conditions — the signing key outside that insider's boundary, every registered profile
   signing, and no signature outliving an uncommitted append, which this build does not yet
   meet.
+- **A damaged chain is reported, never thrown on, and the compromise edge lands wherever the
+  state and the head allow** (the tampering-and-races increment, 2026-11-20).
+  - `verifyChain`, the pure function and `operator.verifyChain` alike, throws on an empty chain
+    and nowhere else on chain data (the operator form also throws on an ill-formed or unknown
+    `recordId` and on a failing store read). A row it cannot read or digest is the reported
+    break: a row that is not an object (a `null` a SQL backing parses back, a sparse hole, a
+    primitive) breaks at its position, and a row with no canonical encoding (a number such as
+    `Infinity`, a non-plain object) breaks at its own seq. The head is digested too, so "intact"
+    now means every row digests. The seams that verify therefore refuse `chain-compromise`
+    where they used to throw. The limit: that holds for the verifying seams only. `replay`,
+    `getRecord`, `review` and `open()`'s read of the record already holding the pair never
+    digest a row: they throw, as storage faults, only on a row they cannot read (`null`, a
+    primitive, another record's row, a chain with no genesis first), and over a row with no
+    canonical encoding (`Infinity` in a payload) they return a state with no throw while
+    `verifyChain` reports the break. A successful replay is therefore not evidence that the chain
+    digests; only `verifyChain` and the verifying seams report that. `verifySignatures` and a
+    store's `chainHead` over its head row do digest, and throw on a row they cannot digest.
+  - `chain-compromise` appends its terminal `refused` edge wherever the persisted state still
+    admits an append (SPEC §5, §8) **and the head has a digest to chain onto**. A head that is not
+    an object, or whose digest cannot be computed (a malformed `prevHash`, a non-canonical
+    payload), refuses `chain-compromise` with no edge, no signature minted and nothing written
+    to a sidecar; the record keeps its state, and if it is non-terminal it keeps holding its
+    (profile, subject) pair. That is the no-edge outcome SPEC §5 already has for a terminal
+    record, reached by a corner its list does not name.
+  - After a deleted non-head row (a middle row or the genesis), where the persisted state still
+    admits an append, the first verifying seam to run on the record lands the edge at the
+    store's next seq (the head's own `seq` plus one, then the chain's length plus one when the
+    head's `seq` was rewritten), the record becomes `refused`, and its subject is released, so
+    `open()` on it works again. `verifyChain` still reports the original break, at the deleted
+    seq, and every later seam re-detects it and refuses with no further edge. The limits: the
+    seq is the kernel's estimate of the store's `max(seq) + 1`, not a store-reported value;
+    where neither candidate matches, no edge lands and the refusal carries no `transitionRef`.
+    The pair is released only once a verifying seam runs on the record holding it: `open()`
+    reads that record without verifying it, so it never lands the edge itself. With a middle
+    row deleted, `open()` answers `record-exists` until then (or, when the holder is a due
+    confirmed record, throws on its own expiry append's `'seq'` conflict, with an error that
+    names the holder and both possible causes: a storage fault, or a damaged holder chain);
+    with the holder's genesis deleted, its read of the holder throws a replay error that does
+    not name the holder. In separate-mode signing, an extra seq attempt leaves its
+    signature-sidecar entry orphaned; that happens only when the head's own `seq` was also
+    rewritten, and integrated mode leaves none.
+  - At AL2 the edge is signed even where the decorator cannot read the record's own genesis (a
+    missing, non-object or non-genesis first row), the same fail-safe direction as a foreign
+    genesis.
+  - A custom `Store` must return plain data from every read, never class instances, `Map`s or
+    the like. One that does not now reads as tampering, not as a fault: `verifyChain` reports
+    the break and a verifying seam appends a terminal compromise edge where the head still
+    digests, where it used to throw. That is inherent at AL1, where a store-corrupted row is
+    indistinguishable from an edited one.
 - SPEC §11.2 names one redemption verb; the three names here (`redeem`, `beginRedemption`,
   `completeRedemption`) are this build's own, ratified at the 2026-08-19 review.
 
@@ -431,8 +484,12 @@ type Outcome<T> =
 ```
 
 Domain refusals are returned, never thrown. Exceptions are reserved for caller/config
-errors and storage faults where nothing was recorded. `transitionRef` is present only when
-the refusal actually appended a transition.
+errors and storage faults where the failing write recorded nothing. One call can append a clock
+edge en passant before it fails, and that edge stands: `open()` expires a due blocker and then
+retries its genesis, and if that retry fails the error it throws names the blocker whose expiry
+edge stands, with the store's or signer's error as `cause` (the blocker is `expired`, the pair
+is free, and a host retry succeeds). When the call appended nothing, the raw error propagates
+unchanged. `transitionRef` is present only when the refusal actually appended a transition.
 
 One refusal describes a race rather than an input. When `finalize`, `decline`, `raiseFinding`
 or `acknowledge` loses its append to a concurrent state-preserving append on the same record (a
@@ -441,6 +498,62 @@ finding raised or acknowledged between the seam's chain read and its write), it 
 and still open, and re-invoking re-runs the whole gate ladder against the new head — so a
 required-kind finding raised in between now gates. The seam never retries the append itself. A
 genuine storage fault at the same site stays a throw, told apart by a one-time re-read.
+
+**A lost race answers what re-invoking would; a fault throws.** Where a seam's append loses to a
+competing writer, it re-reads once and tells the loser the code the next call would. Where the
+loss has no honest producer, it throws and the record is unchanged:
+
+- `finalize`, `decline`, `raiseFinding` and `acknowledge`, losing the clock-resolution append:
+  - on an open record, a racer that confirmed or refused it gives `record-not-open`, a racer
+    that expired it gives `leg-expired`, and a `'seq'` conflict (a finding raised meanwhile)
+    gives `leg-expired`, since the record is still open and due;
+  - on a confirmed record awaiting redemption, a racer that expired it gives `leg-expired` and
+    any other racer `record-not-open`; a lost state check on a redeeming record is `record-not-open`;
+  - a `'seq'` conflict on a confirmed or redeeming record, a conflict whose re-read finds the
+    record still in the state the append expected, and a re-read that fails, returns another
+    record's rows or does not replay (the failure rides as `cause`) all throw a storage fault,
+    with nothing appended.
+- `raiseFinding` and `acknowledge`, losing their own append's state check: the same re-read and
+  mapping as the open record above — a racer that expired the record gives `leg-expired`, any
+  other racer `record-not-open`, and a record still `open` or a failed re-read throws. (A `'seq'`
+  loss there is `record-contended`, above.)
+- `redeem`, `beginRedemption`, `completeRedemption`, the reverify `content-drift` edge and the
+  redemption clock rung: a lost state check re-reads, and answers `already-redeemed` when the
+  record is `redeemed` and `unredeemable-state` otherwise. A `'seq'` conflict and a re-read that
+  fails, is foreign or does not replay throw instead, and so does a record still in the expected
+  state when the call was not enlisted: `unredeemable-state` says no redeemable seam or state
+  applies (SPEC §8), and a token executor may abandon an approved effect on reading it; none of
+  those cases supports it. An enlisted call (`opts.tx` supplied) whose re-read finds the record
+  still in the expected state answers `unredeemable-state`, as before this increment: on
+  `PostgresStore` a conforming store produces exactly that for a second enlisted redemption call
+  on one record inside one host transaction, because the store's reads skip the transaction
+  (deferral-register row 23), and the kernel cannot tell it from a fault. The cost: on a store
+  whose reads do see the transaction (`SqliteStore`), an enlisted call answers that code for a
+  genuine fault too.
+- `seal`: a lost state check is `unsealable-state`; any other conflict throws.
+- `open()`: a blocker that is already terminal when read (a racer freed the pair), or a
+  `confirmed` blocker terminal under the profile held, takes the one retry and succeeds, and
+  answers `record-exists` only when the retry's own check names a live holder. A retry
+  conflict that is not an exclusivity conflict throws, as the first attempt does. When
+  `open()`'s own expiry append on a due blocker loses, a `'seq'` conflict on a confirmed
+  blocker and an exclusivity conflict throw a storage fault with nothing appended; the `'seq'`
+  error names the blocker and, since `open()` does not verify its blocker, a damaged blocker
+  chain as the other possible cause, and points to a verifying seam on it. The limit:
+  any other lost expiry append still answers `record-exists` without a retry — a racer that
+  moved the blocker, a finding that took the seq on an open blocker still due, and a state
+  check lost with the blocker still in the state the append expected, which no racer explains.
+  That arm is an inherited pinned behaviour, held for the owner's decision.
+- `operator.listDue` rejects, never throws synchronously, when the store's `listDue` or the
+  clock throws.
+
+The limit on all of it: the honest-race answers assume a store that checks state before seq, as
+every backing here does, and a batch append that loses its state check at the success rung
+still answers `record-not-open`, as SPEC §9 prescribes, even where a racer expired the record.
+The unmoved-state throws assume, too, that the re-read sees at least the state the
+compare-and-swap was judged against. That is true of the reference stores for un-enlisted calls,
+and the findings and decision seams are never enlisted; an enlisted call's reads skip the host
+transaction on `PostgresStore` (deferral-register row 23), which is why an enlisted redemption
+keeps the domain answer instead.
 
 ### Refusal codes
 
@@ -453,7 +566,7 @@ genuine storage fault at the same site stays a throw, told apart by a one-time r
 | `record-exists` | Opening over an existing non-terminal record for the same profile+subject (never appends) |
 | `leg-expired` | The record is expired, or a lapsed expiry window just resolved it en passant at the seam |
 | `consultation-missing` | Missing/malformed `facts`, or a required consultation absent |
-| `chain-compromise` | Chain verification failed — class **`compromise`**; records itself wherever the record's state still admits an append |
+| `chain-compromise` | Chain verification failed — class **`compromise`**; records itself wherever the record's state still admits an append and the head has a digest to chain onto (a head with none refuses with no edge) |
 | `record-not-open` | Finalize or decline against a record not in `open` (never appends) |
 | `unknown-profile` / `unknown-leg` | Resolution failures (never append): an unknown id — or, for `unknown-profile`, a registered same-id profile whose data-only projection does not digest to the record's genesis `profileDigest`, at every seam that resolves a record |
 | `unredeemable-state` / `unsealable-state` | The seam's state gate: nothing redeemable/sealable there (never append) |
@@ -470,7 +583,7 @@ genuine storage fault at the same site stays a throw, told apart by a one-time r
 | `record-contended` | A decision or findings seam lost its append to a concurrent finding or acknowledgment on the same record — nothing recorded, the record still open; re-invoke (never appends; findings-flow profiles only) |
 | `consultation-stale` | A freshness-bounded consultation's `observedAt` claim is missing, future, or out of bound |
 
-Append behavior: `chain-compromise` appends wherever the state admits it; `availability`
+Append behavior: `chain-compromise` appends wherever the state admits it and the head digests; `availability`
 never appends; the codes marked "never appends" (a set that includes every redemption-seam
 refusal) never do; every other refusal appends `open → refused` iff the leg's
 `terminalRefusals` lists it, else the record stays open. `leg-expired` and `availability`
@@ -583,8 +696,10 @@ type Canonicalizer = (content: unknown) => unknown;     // YOUR projection: sync
 // the offline case: an archived chain — a sealed record's, say — replays and verifies
 // with no store and no handle.
 function replay(chain: readonly Transition[]): DecisionRecord;
-// verifyChain recomputes four things: the genesis link, every prevHash, seq continuity, and
-// record identity. Pass the recordId the chain should belong to — the id you fetched it for,
+// verifyChain checks six things at each index: the row's shape (a non-null object), seq
+// continuity, record identity, the genesis link, every prevHash, and that the row digests (has a
+// canonical encoding). It throws on an empty chain and nowhere else: a row it cannot read or
+// digest is the reported break, and "intact" means every row, the head included, digests. Pass the recordId the chain should belong to — the id you fetched it for,
 // or the one an archived chain is supposed to be — and every transition must name it and the
 // genesis link must derive from it, so another record's chain reports a break at seq 1. Omit
 // it and identity is checked against the genesis row's own recordId: a spliced foreign
@@ -652,7 +767,17 @@ interface AppendMeta {                       // SPEC §12's per-append metadata,
 Both store classes are public but explicitly unstable pre-1.0 (their own doc comments say
 so). `AppendMeta`, `AppendResult`, and `BatchResult` are exported alongside `Store`. A new
 backing proves itself against the conformance suite at
-`packages/record/test/conformance/store-conformance.ts`.
+`packages/record/test/conformance/store-conformance.ts`. A custom Store keeps two contracts that
+suite does not state. Every read returns plain data (object literals, arrays, strings, finite
+numbers, booleans and `null`), never class instances or values with no JSON form: a store that
+returns anything else reads as tampering (see the damaged-chain note above), and a verifying
+seam appends a terminal `chain-compromise` edge on a healthy record, where the head still digests
+and the state admits an append. And a read made after an append lost its compare-and-swap sees at
+least the state that compare-and-swap was judged against: the seams' lost-race re-reads rely on
+it to tell a racer from a fault, so a store that breaks it makes a call throw a storage fault
+where the record looks unmoved. That holds for the reference stores on un-enlisted calls; an
+enlisted call's reads skip the host transaction on `PostgresStore` (deferral-register row 23), so
+an enlisted redemption answers its domain code there instead (the lost-race note above).
 
 **`Store.signatures` — the integrated sidecar.** Optional, and not one of the eight methods
 SPEC §12 names: a `SignatureStore` the store persists atomically with its own appends. A store
