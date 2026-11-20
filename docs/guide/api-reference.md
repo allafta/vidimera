@@ -227,7 +227,11 @@ Notes that save debugging time:
     `result.digest`, `open`'s `policyDigest`, and the `chainHead` in each `supersedes` and
     `priorRecordRefs` entry. The algorithm name is not checked against a list, so a host
     whose evidence system uses another algorithm is admitted. The limit: a form-valid string
-    is still the host's claim; nothing checks that it digests anything.
+    is still the host's claim; nothing checks that it digests anything. An empty
+    `policyDigest` is the one exception to "before any store read": which message it
+    gets depends on whether the staged draft's profile declares a `policySource`, so it
+    still reads the staged draft first and then throws the existing presence message (or
+    the unknown-`stagedRef` throw).
   - **`observedAt`.** Beyond RFC 3339 shape with an offset and a parse, its fields must name
     a real instant: month 1 to 12, a day that exists in that month (Gregorian leap years),
     hour at most 23, minute at most 59, and an offset of at most 23:59. `2026-02-30T00:00:00Z`
@@ -235,9 +239,13 @@ Notes that save debugging time:
   - **Ids.** A `recordId` or `stagedRef` argument must be a string at `open`, `finalize`,
     `decline`, `raiseFinding`, `acknowledge`, the three redemption seams, `seal`, `review`,
     `verifySignatures`, and the reads `getRecord`, `readChain`, `chainHead`, `replay` and
-    `verifyChain`. An empty or unknown string keeps its existing answer (`null`, an empty
-    chain, or the seam's domain outcome); only a non-string throws. Before, a number was a
-    domain answer on `MemoryStore` and a raw driver `TypeError` on `SqliteStore`.
+    `verifyChain`. An empty or unknown string keeps its existing answer: the reads answer
+    `null` or an empty chain, and on most seams an unknown string id is the named
+    `unknown recordId` (or `unknown stagedRef`) throw, as before; only a non-string throws
+    anew. Before, a number was an empty answer on both stores' reads, and a boolean,
+    `undefined` or a symbol reached `SqliteStore` as a raw driver `TypeError` (a non-empty
+    object or array as a raw `Unknown named parameter` error), while `MemoryStore` answered
+    empty for all of them.
   - **Options bags.** `open`, `finalize`, `decline` and the redemption seams take an absent
     bag, an explicit `undefined`, or a plain object. `null` and an array throw
     `<seam>: options must be an object when supplied`; `null` is not read as absent.
@@ -252,7 +260,8 @@ Notes that save debugging time:
     consultation's `kind`, `checker`, `proofRef` and `observedAt`, each unreachable marker's
     `kind` and `authority`, `policy`'s `authority`, the finding and acknowledgement fields, and
     the `recordId` in `supersedes` and `priorRecordRefs`. A lone surrogate throws
-    `<seam>: <field> holds a lone surrogate`. The value recorded is the value checked: each is
+    `<seam>: <field> holds a lone surrogate`, except in `observedAt`, whose pattern admits ASCII
+    only, so a lone surrogate there throws the existing `malformed observedAt`. The value recorded is the value checked: each is
     read once, so a host that changes its object, or an accessor on it, after the call changes
     nothing recorded. The limit: this is the write path only; a persisted identity read back
     for separation of duties, or replayed, is never re-judged, and `facts.figures` is digested,

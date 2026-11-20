@@ -325,7 +325,8 @@ record bound under a `policyDigest` that is not in digest form: it can no longer
 `finalize` compares the live `policy.digest` to the bound one, so re-presenting the bound
 value now throws at `finalize`'s intake (it is not in digest form), and any form-valid value is
 `policy-drift`, which is terminal on the leg when the profile lists it in `terminalRefusals`.
-Drive such records to a terminal state before upgrading. A finding raised with a non-form
+Drive such records to a terminal state before upgrading; after upgrading, `decline`, which
+takes no policy input, still closes such a record when the profile declares it. A finding raised with a non-form
 digest stays as recorded; an acknowledgement presenting that digest now throws too, so raise
 the finding again with a form-valid digest and acknowledge that.
 

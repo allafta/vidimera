@@ -496,7 +496,8 @@ is the summary, and that file wins on conflict.
   `prior-leg-unverified`. (7) Every operator string a seam records must be well-formed UTF-16
   (the identity, `facts.checker`, each consultation's and marker's fields, `policy`'s
   `authority`, the finding and acknowledgement fields, the `recordId` in `supersedes` and
-  `priorRecordRefs`), and the value recorded is the value checked, each read once. The limits,
+  `priorRecordRefs`), and the value recorded is the value checked, each read once (the
+  redemption options bag's `tx` and `result.digest` too). The limits,
   stated: a non-enlistable `tx` object still passes intake, still counts as enlisted on a
   refusal path and still throws at the store on the success path, because only the store can
   judge it; the string rule is the write path only, so `identitySnapshot` and replay never
@@ -507,9 +508,10 @@ is the summary, and that file wins on conflict.
   a `policyDigest` that is not in digest form can no longer be confirmed: re-presenting the
   bound value at `finalize` throws, and any form-valid value is `policy-drift`, terminal on the
   leg when the profile lists it; drive such records to a terminal state before upgrading. A
-  finding raised with a non-form digest can be raised again with a form-valid one. Three existing
-  tests had placeholder digests that were not hex and were made form-valid (`policy-drift.test.ts`,
-  `staged-integrity.test.ts`); no assertion changed.
+  finding raised with a non-form digest can be raised again with a form-valid one. Three input
+  constants in two existing test files (`policy-drift.test.ts`, `staged-integrity.test.ts`), each
+  feeding several tests, were placeholder digests that were not hex and were made form-valid; no
+  assertion changed.
 
 ### Fixed
 
@@ -972,8 +974,10 @@ is the summary, and that file wins on conflict.
 
 - **Raw driver errors, a `tx: null` that hid evidence, impossible dates and ill-formed strings**
   (2026-11-20, branch `operator-intake-2026-11-20`): a non-string id given to a seam or read was
-  a domain answer on `MemoryStore` and a raw `node:sqlite` `TypeError` on `SqliteStore`; it now
-  throws a named error on both. `tx: null` counted as enlisted and suppressed the compromise,
+  an empty answer on `MemoryStore` for every type, and on `SqliteStore` an empty answer for a
+  number, `{}` or `null`, a raw `node:sqlite` `TypeError` for a boolean, `undefined` or a symbol,
+  and a raw `Unknown named parameter` error for a non-empty object or array; it now throws a
+  named error on both. `tx: null` counted as enlisted and suppressed the compromise,
   clock and drift evidence edges an un-enlisted refusal appends, then threw at the store on
   success; it now throws at intake. `observedAt` accepted `2026-02-30T00:00:00Z`, which
   `Date.parse` moves to 2 March, so the freshness gate judged an instant the recorded string
@@ -982,10 +986,11 @@ is the summary, and that file wins on conflict.
   "batch". An ill-formed UTF-16 operator string reached a transition as a non-RFC 8785 escape,
   so a compliant second implementation could not reproduce that transition's digest; it now
   throws before anything is appended, and the recorded value is the value checked rather than a
-  second read of the caller's object. The limits, stated: a non-enlistable `tx` object is only
-  caught at the store; strings already recorded, and a persisted identity read back, are not
-  re-judged; a staged-draft prune would be a new `Store` method, a sealed edit awaiting the
-  owner's sanction.
+  second read of the caller's object; the redemption options bag (`tx`, `result.digest`) and a
+  consultation's `kind` are read once as well. The limits, stated: a non-enlistable `tx` object
+  still passes intake, is never caught on a refusal path (where it counts as enlisted and
+  suppresses the evidence edge) and is only caught at the store on success; strings already
+  recorded, and a persisted identity read back, are not re-judged.
 
 ### Known not-done
 
