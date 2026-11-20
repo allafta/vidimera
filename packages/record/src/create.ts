@@ -81,8 +81,8 @@ export interface ResolvedProfile {
    * `profileDigest(profile)` of the snapshot, computed once here: the digest `open()` binds
    * into every genesis and the digest `kernel/held-profile.ts` compares a record's binding
    * against at every seam. Because the snapshot keeps exactly the own enumerable data the
-   * projection reads, it equals `profileDigest(hostObject)` for the profile as the host
-   * passed it, so the offline helper and the instance never disagree about a registrable
+   * projection reads (and a Proxy, whose reads could differ, is refused), it equals
+   * `profileDigest(hostObject)` for the profile as the host passed it to `create()`, so the offline helper and the instance never disagree about a registrable
    * profile. `kernel/verify-signatures.ts`'s report reads this same cached value.
    */
   profileDigest: Digest;

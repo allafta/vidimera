@@ -191,6 +191,13 @@ function found(value: unknown): string {
   return `${type === 'object' ? 'an' : 'a'} ${type}`;
 }
 
+/** The short tail three older messages carry ("found nothing", "found string"): the type name,
+ * with `null` read as null rather than as an object. */
+function foundKind(value: unknown): string {
+  if (value === undefined) return 'nothing';
+  return value === null ? 'null' : typeof value;
+}
+
 /** A primitive as a message shows it: JSON for the JSON-able ones (the text the messages
  * already carried), and a plain rendering for the ones `JSON.stringify` cannot take (a BigInt
  * throws, a Symbol yields `undefined`, a NaN or Infinity yields `null`), so describing a value never itself throws. */
@@ -252,7 +259,7 @@ function validateAllowedAuthorities(profile: ConfirmProfile, leg: LegSpec): void
     // empty-array one — the operator must be pointed at the shape they actually wrote.
     throw new Error(
       `invalid profile '${profile.id}': leg '${leg.id}' declares no allowedAuthorities list ` +
-        `(found ${authorities === undefined ? 'nothing' : typeof authorities}) — every leg names ` +
+        `(found ${foundKind(authorities)}) — every leg names ` +
         'the transport authorities that may decide it (SPEC §6)',
     );
   }
@@ -637,7 +644,7 @@ function validateSodShape(profile: ConfirmProfile, index: number, leg: LegSpec):
     if (!Array.isArray(entries)) {
       throw new Error(
         `invalid profile '${profile.id}': leg '${leg.id}' declares sod without a notActorOf array ` +
-          `(found ${entries === undefined ? 'nothing' : typeof entries}) — SPEC §10.1`,
+          `(found ${foundKind(sod === null ? null : entries)}) — SPEC §10.1`,
       );
     }
     if (entries.length === 0) {
@@ -926,7 +933,7 @@ export function validateProfile(profile: ConfirmProfile): void {
   if (!Array.isArray(legs)) {
     throw new Error(
       `invalid profile '${profile.id}': legs must be an array of leg declarations ` +
-        `(found ${legs === undefined ? 'nothing' : typeof legs}) — SPEC §9.1`,
+        `(found ${foundKind(legs)}) — SPEC §9.1`,
     );
   }
   if (profile.legs.length === 0) {

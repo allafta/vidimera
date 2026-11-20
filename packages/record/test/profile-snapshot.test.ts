@@ -645,3 +645,66 @@ test('config.profiles, store, canonicalizers and signing are each read once', ()
   create(config);
   assert.equal(reads, 4);
 });
+
+// === a Proxy anywhere in a profile is refused ===========================================
+
+test('a Proxy as the profile, a leg, a list, a record or a nested object throws at create()', () => {
+  const proxied = <T extends object>(target: T): T => new Proxy(target, {});
+  throwsCreate(
+    proxied(captureProfile({ id: 'test.snapshot.proxy.v1' })),
+    /invalid profile .*Proxy/s,
+  );
+  const leg = captureProfile({ id: 'test.snapshot.proxy.v1' });
+  leg.legs = [proxied(leg.legs[0] as LegSpec)];
+  throwsCreate(leg, /invalid profile 'test\.snapshot\.proxy\.v1'.*element 0.*Proxy/s);
+  const list = captureProfile({ id: 'test.snapshot.proxy.v1' });
+  (list.legs[0] as LegSpec).allowedAuthorities = proxied(['a']);
+  throwsCreate(list, /allowedAuthorities.*Proxy/s);
+  const legs = captureProfile({ id: 'test.snapshot.proxy.v1' });
+  legs.legs = proxied(legs.legs);
+  throwsCreate(legs, /legs.*Proxy/s);
+  const record = captureProfile({ id: 'test.snapshot.proxy.v1' });
+  (record.legs[0] as LegSpec).freshness = proxied({ rederive: 60 });
+  throwsCreate(record, /freshness.*Proxy/s);
+  const nested = effectSeamProfile({ id: 'test.snapshot.proxy.v1' });
+  nested.redeem = proxied({ ...nested.redeem });
+  throwsCreate(nested, /redeem.*Proxy/s);
+});
+
+// === null reads as null; a wrong slot says what the slot expects ========================
+
+test('null in a list or leg slot is reported as null, not as an object or as nothing', () => {
+  const a = captureProfile({ id: 'test.snapshot.null.v1' });
+  (a.legs[0] as { allowedAuthorities: unknown }).allowedAuthorities = null;
+  throwsCreate(a, /declares no allowedAuthorities list \(found null\)/);
+  const b = twoLegProfile({ id: 'test.snapshot.null.v1' });
+  (b.legs[1] as { sod: unknown }).sod = { notActorOf: null };
+  throwsCreate(b, /declares sod without a notActorOf array \(found null\)/);
+  const c = twoLegProfile({ id: 'test.snapshot.null.v1' });
+  (c.legs[1] as { sod: unknown }).sod = null;
+  throwsCreate(c, /declares sod without a notActorOf array \(found null\)/);
+  const d = captureProfile({ id: 'test.snapshot.null.v1' });
+  (d as { legs: unknown }).legs = null;
+  throwsCreate(d, /legs must be an array of leg declarations \(found null\)/);
+});
+
+test('plain data in the wrong slot says what the slot expects, without the plain-data tail', () => {
+  const g = captureProfile({ id: 'test.snapshot.wrong.v1' });
+  (g as { legs: unknown }).legs = {};
+  assert.throws(
+    () => create({ ...makeConfig([captureProfile()]), profiles: [g] }),
+    (e: Error) =>
+      /legs on the profile is a plain object — expected an array of leg declarations$/.test(
+        e.message,
+      ),
+  );
+  const x = captureProfile({ id: 'test.snapshot.wrong.v1' });
+  (x as { expiry: unknown }).expiry = [];
+  throwsCreate(x, /expiry on the profile is an array — expected a plain object$/);
+  const set = captureProfile({ id: 'test.snapshot.wrong.v1' });
+  (set.legs[0] as { requiredConsultations: unknown }).requiredConsultations = new Set(['a']);
+  throwsCreate(
+    set,
+    /a Set — expected an array of plain values; a profile must be plain data, such as/,
+  );
+});

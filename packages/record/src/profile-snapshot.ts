@@ -13,9 +13,12 @@
 // sparse array would be enforced through `[[Get]]` yet missed (or differently read) by the
 // projection, so each throws here and says what it found. Symbol-keyed properties are ignored,
 // as the projection and the kernel ignore them. An object from another realm has a different
-// `Object.prototype` and is refused with the class instances. Each property's descriptor is
-// read once, so an object whose reads disagree from one read to the next still yields one
-// consistent copy.
+// `Object.prototype` and is refused with the class instances. A Proxy is refused wherever it
+// sits (`types.isProxy`, checked before anything else is asked of the object, so no trap
+// runs): its reads can disagree from one read to the next, so no copy of it could be known to
+// match what the digest projection reads. Every other object is read through descriptors, once
+// each, which is what makes the copy and `profileDigest(hostObject)` agree. The limit: `isProxy`
+// is a Node API, and so is this library (it already imports `node:crypto`).
 //
 // THE SCHEMA is SPEC §9.1's field table, nested, and bounded: list elements are primitives and
 // are never recursed into, so a cyclic structure meets an unknown key or a non-primitive
@@ -31,6 +34,7 @@
 // Messages use `validateProfile`'s `invalid profile '<id>': …` register; a profile whose id is
 // not yet a usable string is named by its position in `config.profiles` instead.
 
+import { types } from 'node:util';
 import { type ConfirmProfile, isRedemptionKey, strayRedemptionKeyMessage } from './config.js';
 
 type Slot = 'scalar' | 'list' | 'record' | { object: Schema } | { objects: Schema };
@@ -87,7 +91,7 @@ interface Ctx {
   head: string;
 }
 
-const PLAIN_DATA = 'a profile must be plain data (an object literal or parsed JSON)';
+const PLAIN_DATA = 'a profile must be plain data, such as an object literal or parsed JSON';
 
 function fail(ctx: Ctx, message: string): never {
   throw new Error(`${ctx.head}: ${message}`);
@@ -111,6 +115,24 @@ function isPlainObject(value: object): boolean {
   if (Array.isArray(value)) return false;
   const proto: unknown = Object.getPrototypeOf(value);
   return proto === Object.prototype || proto === null;
+}
+
+/** A Proxy is refused before any other question is asked of the object, so no trap runs. */
+function refuseProxy(value: object, ctx: Ctx, what: string): void {
+  if (types.isProxy(value)) {
+    fail(ctx, `${what} is a Proxy — ${PLAIN_DATA}, and a Proxy can answer each read differently`);
+  }
+}
+
+/** An object that is not what its slot expects. Says what the slot expects; the plain-data
+ * tail is added only when the value is not plain-shaped at all (a plain object or an array in
+ * the wrong slot IS plain data, so telling the host to use plain data would mislead). */
+function wrongShape(ctx: Ctx, field: string, value: object, expected: string): never {
+  const plainShaped = Array.isArray(value) || isPlainObject(value);
+  fail(
+    ctx,
+    `${field} is ${describe(value)} — expected ${expected}${plainShaped ? '' : `; ${PLAIN_DATA}`}`,
+  );
 }
 
 type Described = Array<[string, PropertyDescriptor]>;
@@ -182,12 +204,12 @@ function readElements(arr: unknown[], ctx: Ctx, field: string): unknown[] {
 
 function copyPrimitiveList(value: object, key: string, where: string, ctx: Ctx): unknown[] {
   const field = `${key} on ${where}`;
-  if (!Array.isArray(value)) {
-    fail(ctx, `${field} is ${describe(value)} — expected an array (${PLAIN_DATA})`);
-  }
+  if (!Array.isArray(value)) wrongShape(ctx, field, value, 'an array of plain values');
   const elements = readElements(value, ctx, field);
   elements.forEach((element, index) => {
     if (!isPrimitive(element)) {
+      if (typeof element === 'object')
+        refuseProxy(element as object, ctx, `${field}: element ${index}`);
       fail(
         ctx,
         `${field}: element ${index} is ${typeof element === 'function' ? 'a function' : describe(element as object)} — list entries are plain values`,
@@ -199,15 +221,12 @@ function copyPrimitiveList(value: object, key: string, where: string, ctx: Ctx):
 
 function copyRecord(value: object, key: string, where: string, ctx: Ctx): object {
   const field = `${key} on ${where}`;
-  if (!isPlainObject(value)) {
-    fail(
-      ctx,
-      `${field} is ${describe(value)} — expected a plain object keyed by name (${PLAIN_DATA})`,
-    );
-  }
+  if (!isPlainObject(value)) wrongShape(ctx, field, value, 'a plain object keyed by name');
   const entries = readEntries(value, ctx, field);
   for (const [name, member] of entries) {
     if (!isPrimitive(member)) {
+      if (typeof member === 'object')
+        refuseProxy(member as object, ctx, `${field}: the value for '${name}'`);
       fail(
         ctx,
         `${field}: the value for '${name}' is ${typeof member === 'function' ? 'a function' : describe(member as object)} — expected a plain value`,
@@ -221,21 +240,12 @@ function copyRecord(value: object, key: string, where: string, ctx: Ctx): object
 function copySlot(value: unknown, slot: Slot, key: string, where: string, ctx: Ctx): unknown {
   if (isPrimitive(value)) return value;
   const object = value as object;
-  if (slot === 'scalar') {
-    fail(
-      ctx,
-      `${key} on ${where} is ${describe(object)} — expected a single value (${PLAIN_DATA})`,
-    );
-  }
+  refuseProxy(object, ctx, `${key} on ${where}`);
+  if (slot === 'scalar') wrongShape(ctx, `${key} on ${where}`, object, 'a single value');
   if (slot === 'list') return copyPrimitiveList(object, key, where, ctx);
   if (slot === 'record') return copyRecord(object, key, where, ctx);
   if ('object' in slot) {
-    if (!isPlainObject(object)) {
-      fail(
-        ctx,
-        `${key} on ${where} is ${describe(object)} — expected a plain object (${PLAIN_DATA})`,
-      );
-    }
+    if (!isPlainObject(object)) wrongShape(ctx, `${key} on ${where}`, object, 'a plain object');
     return copyObject(object, slot.object, key === 'sod' ? `sod of ${where}` : key, ctx);
   }
   return copyLegs(object, slot.objects, key, where, ctx);
@@ -243,18 +253,14 @@ function copySlot(value: unknown, slot: Slot, key: string, where: string, ctx: C
 
 function copyLegs(value: object, schema: Schema, key: string, where: string, ctx: Ctx): unknown[] {
   const field = `${key} on ${where}`;
-  if (!Array.isArray(value)) {
-    fail(ctx, `${field} is ${describe(value)} — expected an array (${PLAIN_DATA})`);
-  }
+  if (!Array.isArray(value)) wrongShape(ctx, field, value, 'an array of leg declarations');
   const copied = readElements(value, ctx, field).map((leg, index) => {
     if (isPrimitive(leg)) return leg;
     if (typeof leg === 'function') fail(ctx, `${field}: element ${index} is a function`);
     const object = leg as object;
+    refuseProxy(object, ctx, `${field}: element ${index}`);
     if (!isPlainObject(object)) {
-      fail(
-        ctx,
-        `${field}: element ${index} is ${describe(object)} — expected a plain object (${PLAIN_DATA})`,
-      );
+      wrongShape(ctx, `${field}: element ${index}`, object, 'a plain object');
     }
     const described = readDescriptors(object);
     const legId = idOf(described);
@@ -285,7 +291,8 @@ function copyEntries(
       if (typeof value === 'function' || value === undefined) continue;
       fail(
         ctx,
-        `unknown key '${key}' on ${where} — a profile carries only the fields SPEC §9.1 names`,
+        `unknown key '${key}' on ${where} — a profile carries only the profile type's fields ` +
+          '(SPEC §9.1, §9.2, §14); keep host metadata beside the profile, not in it',
       );
     }
     if (value === undefined) continue;
@@ -313,6 +320,7 @@ export function snapshotProfile(input: unknown, position: number): ConfirmProfil
     fail(byPosition, `expected a profile object, found ${input === null ? 'null' : typeof input}`);
   }
   const object = input as object;
+  refuseProxy(object, byPosition, 'the profile');
   if (!isPlainObject(object)) {
     fail(byPosition, `the profile is ${describe(object)} — ${PLAIN_DATA}`);
   }
