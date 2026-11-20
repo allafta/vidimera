@@ -293,3 +293,44 @@ runs there.
   - the store `max(seq)` signal.
 - **`CLAUDE.md`'s counts.**
 - **No external review IDs anywhere.**
+
+## 6. Amended after the whole-branch review
+
+The text above stands as designed. The whole-branch review found the points below, and the
+controller ruled on each; the status record's section for this increment carries the full
+account.
+
+- **§3's "Not changed" bullet misreads the paths that never verify.** It says they "keep their
+  storage-fault throws on a garbled chain". `replay`, `getRecord`, `review` and `open()`'s blocker
+  read never digest a row: they throw only on a row they cannot read (`null`, a primitive, another
+  record's row, a chain with no genesis first), and over a row with no canonical encoding they
+  return a state with no throw while `verifyChain` reports the break. So a successful replay is
+  not evidence that the chain digests. Only `verifySignatures` and a store's `chainHead` throw on a
+  row they cannot digest.
+- **The redemption residual's unmoved-state throw is un-enlisted only.** The throw assumes the
+  re-read sees at least the state the compare-and-swap was judged against. That is true of the
+  reference stores for un-enlisted calls, but an enlisted call's reads skip the host transaction on
+  `PostgresStore` (deferral-register row 23). So a second enlisted redemption call on one record
+  inside one host transaction lost `state-mismatch` and re-read the committed, unmoved state on a
+  conforming store. An enlisted call keeps the pre-increment domain answer (`unredeemable-state`).
+- **The findings seams' own append re-reads when it loses its state check.** §2's lost-race
+  mapping covered only their clock-resolution append. Their own `open`-target append now maps the
+  same way: `expired` gives `leg-expired`, any other moved state `record-not-open`, and the record
+  still `open` or a failed re-read throws. Rung (6) of `finalize` and `decline` keeps SPEC §9's
+  `record-not-open`, as §3 defers.
+- **`open()`'s own expiry of a due blocker throws on a conflict with no honest producer.** A
+  `'seq'` on a confirmed blocker's edge and an exclusivity conflict throw a storage fault, with
+  nothing appended. The `'seq'` message names the blocker and both possible causes: a store
+  misreporting, or a blocker chain damaged in storage, since `open()` does not verify its blocker
+  and a deleted row makes the proposed seq miss the store's next one. §3's deferred own-expire
+  item is otherwise unchanged. A `state-mismatch`, and a `'seq'` on an open blocker, still answer
+  `record-exists`.
+- **The released-subject limit.** A deleted non-head row lands its edge, where the state admits
+  an append, once a verifying seam runs on the holder. `open()` does not verify its blocker, so it
+  never lands the edge itself.
+- **The TWENTIETH self-authored stance inversion.** §3 numbers two inversions. `open()`'s arm for a
+  blocker already terminal when read reverses a third stance this build recorded: "Defensive: a
+  terminal blocker cannot hold C1; a coherent store never names one." That inversion is now argued
+  and numbered at the site.
+- **§5's `max(seq)` signal is register row 23's `headSeq` signal.** `next-phases.md` records it
+  under that row's section, not as an item of its own.

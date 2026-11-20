@@ -421,7 +421,8 @@ Notes that save debugging time:
     The pair is released only once a verifying seam runs on the record holding it: `open()`
     reads that record without verifying it, so it never lands the edge itself. With a middle
     row deleted, `open()` answers `record-exists` until then (or, when the holder is a due
-    confirmed record, throws the storage fault its own expiry append's `'seq'` conflict is);
+    confirmed record, throws on its own expiry append's `'seq'` conflict, with an error that
+    names the holder and both possible causes: a storage fault, or a damaged holder chain);
     with the holder's genesis deleted, its read of the holder throws a replay error that does
     not name the holder. In separate-mode signing, an extra seq attempt leaves its
     signature-sidecar entry orphaned; that happens only when the head's own `seq` was also
@@ -535,7 +536,9 @@ loss has no honest producer, it throws and the record is unchanged:
   answers `record-exists` only when the retry's own check names a live holder. A retry
   conflict that is not an exclusivity conflict throws, as the first attempt does. When
   `open()`'s own expiry append on a due blocker loses, a `'seq'` conflict on a confirmed
-  blocker and an exclusivity conflict throw a storage fault with nothing appended. The limit:
+  blocker and an exclusivity conflict throw a storage fault with nothing appended; the `'seq'`
+  error names the blocker and, since `open()` does not verify its blocker, a damaged blocker
+  chain as the other possible cause, and points to a verifying seam on it. The limit:
   any other lost expiry append still answers `record-exists` without a retry — a racer that
   moved the blocker, a finding that took the seq on an open blocker still due, and a state
   check lost with the blocker still in the state the append expected, which no racer explains.

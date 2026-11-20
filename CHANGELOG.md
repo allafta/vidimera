@@ -1064,7 +1064,7 @@ is the summary, and that file wins on conflict.
   an orphaned sidecar entry only when the head's own seq was also rewritten; the pair is
   released only once a verifying seam runs on the record holding it, because `open()` does not
   verify its blocker (with a middle row deleted it answers `record-exists` until then, or throws
-  a storage fault where it would expire a due confirmed holder; with the holder's genesis
+  an error naming the holder where it would expire a due confirmed holder; with the holder's genesis
   deleted its blocker read throws a replay error that does not name the holder); the reads that
   never digest (`replay`, `getRecord`, `review`, `open()`'s blocker read) throw only on a row
   they cannot read (`null`, a primitive, another record's row, no genesis first) and return a

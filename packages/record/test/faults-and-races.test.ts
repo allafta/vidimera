@@ -1428,12 +1428,33 @@ async function dueBlocker(profile: ConfirmProfile, confirm: boolean) {
   return { rig, handles, racer, blockerId, ref };
 }
 
-const OWN_EXPIRE_FAULTS: { name: string; result: AppendResult; message: RegExp }[] = [
-  { name: "'seq'", result: SEQ, message: /^Error: open: append conflict \('seq'\)/ },
+/** The `'seq'` fault names the blocker and both causes; it never blames a concurrent writer alone. */
+function assertBlockerSeqFault(err: Error, blockerId: string): void {
+  assert.match(String(err), /^Error: open: append conflict \('seq'\) on the expiry edge/);
+  assert.ok(err.message.includes(`blocker '${blockerId}'`), 'names the blocker');
+  assert.match(err.message, /storage fault, or a damaged blocker chain/);
+  assert.match(err.message, /open\(\) does not verify its blocker/);
+  assert.match(err.message, /This call appended nothing: the blocker is unchanged and no record/);
+  assert.ok(
+    err.message.includes(`a verifying seam on '${blockerId}'`),
+    'names the seam that reports the break',
+  );
+}
+
+const OWN_EXPIRE_FAULTS: {
+  name: string;
+  result: AppendResult;
+  check: (err: Error, blockerId: string) => void;
+}[] = [
+  { name: "'seq'", result: SEQ, check: assertBlockerSeqFault },
   {
     name: "'exclusivity'",
     result: { appended: false, conflict: 'exclusivity', blockingRecordId: 'rec-elsewhere' },
-    message: /^Error: open: append conflict \('exclusivity'\)/,
+    check: (err) => {
+      assert.match(String(err), /^Error: open: append conflict \('exclusivity'\)/);
+      assert.match(err.message, /storage fault/);
+      assert.match(err.message, /nothing was appended and the record is unchanged/);
+    },
   },
 ];
 
@@ -1447,9 +1468,7 @@ for (const fault of OWN_EXPIRE_FAULTS) {
       () => handles.operator.open(ref),
       (err: unknown) => {
         assert.ok(err instanceof Error);
-        assert.match(String(err), fault.message);
-        assert.match(err.message, /storage fault/);
-        assert.match(err.message, /nothing was appended and the record is unchanged/);
+        fault.check(err, blockerId);
         return true;
       },
     );

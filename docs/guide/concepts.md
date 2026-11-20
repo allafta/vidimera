@@ -34,8 +34,8 @@ verifying seam to run on the record lands its compromise edge at the store's nex
 record becomes `refused` and its subject is released, while `verifyChain` keeps reporting the
 original break. The limits: the release waits for a verifying seam, because `open()` reads the
 record holding its pair without verifying it (with a middle row deleted it answers
-`record-exists` until then, or throws a storage fault where it would expire a due confirmed
-holder; with the holder's genesis deleted its read throws a replay error that does not name the
+`record-exists` until then, or throws an error naming the holder where it would expire a due
+confirmed holder; with the holder's genesis deleted its read throws a replay error that does not name the
 holder); and a head with no digest to chain onto (a malformed `prevHash`, a non-canonical
 payload) refuses with no edge, so a non-terminal record keeps holding its pair. A tamper
 to the *last* transition — or to a transition's own `prevHash` field — is indistinguishable

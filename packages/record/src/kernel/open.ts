@@ -441,13 +441,18 @@ export async function open(
     // (`CONFIRMED_SEQ_WHY`), and an `exclusivity` conflict, which binds only a genesis. The
     // imported comment here named `'seq'` among the races this arm answers; no pinned
     // assertion covers that arm, and on the confirmed window no race produces it. A confirmed
-    // blocker whose chain was edited in storage reaches this throw too (a deleted middle row:
-    // open() does not verify its blocker, so the edge's `chain.length + 1` misses the store's
-    // next seq) — a storage fault from this seam's view, until a verifying seam lands the
-    // compromise edge and releases the pair.
+    // blocker whose chain was edited in storage reaches the `'seq'` throw too (a deleted middle
+    // row: open() does not verify its blocker, so the edge's `chain.length + 1` misses the
+    // store's next seq), so that throw names the blocker and both causes
+    // (`blockerSeqFault`, below), never a concurrent writer alone; a verifying seam on the
+    // blocker then reports the break and lands the compromise edge that releases the pair.
     const { conflict } = ex.result;
-    if (conflict === 'exclusivity' || (conflict === 'seq' && ex.window === 'confirmed')) {
-      throw appendConflictFault('open', conflict, CONFIRMED_SEQ_WHY);
+    if (conflict === 'exclusivity') {
+      // The helper supplies its own reason for an exclusivity conflict.
+      throw appendConflictFault('open', conflict, 'C1 exclusivity binds only a genesis');
+    }
+    if (conflict === 'seq' && ex.window === 'confirmed') {
+      throw blockerSeqFault(first.blockingRecordId);
     }
     // A race flipped the blocker away from its resolveDueClock-observed state between our
     // read and the expire CAS (`conflict:'state-mismatch'`), or, on an OPEN blocker, a
@@ -465,6 +470,27 @@ export async function open(
   // at the instant the blocker expired, never before it. A retry that fails names the blocker
   // whose edge stands (`retryOnce`, above).
   return retryOnce(resolveNow, first.blockingRecordId);
+}
+
+/**
+ * The fault `open()`'s own expiry of a due CONFIRMED blocker becomes when the store answers
+ * `'seq'`. No concurrent writer produces that against a confirmed record awaiting redemption
+ * (`CONFIRMED_SEQ_WHY`), but `open()` reads its blocker without verifying it, so the conflict has
+ * two possible causes, and the message names both and the blocker: a store misreporting, or a
+ * blocker chain damaged in storage (a deleted row makes the proposed seq miss the store's next
+ * one). The append is all-or-nothing, so this call appended nothing and opened nothing.
+ */
+function blockerSeqFault(blockerId: string): Error {
+  return new Error(
+    `open: append conflict ('seq') on the expiry edge this call proposed for blocker ` +
+      `'${blockerId}' — the store adjudicated a different seq for it. No concurrent writer ` +
+      `explains that: ${CONFIRMED_SEQ_WHY}. So it is a storage fault, or a damaged blocker chain: ` +
+      "open() does not verify its blocker, and a deleted row makes the proposed seq miss the store's " +
+      'next one. This call appended nothing: the blocker is unchanged and no record was opened. If ' +
+      `the chain is damaged, a verifying seam on '${blockerId}' (seal, finalize, or an un-enlisted ` +
+      'redemption seam) reports the break and, where its head still digests, records the compromise ' +
+      'edge that releases the pair.',
+  );
 }
 
 /** A staged draft's four bound fields, as `checkedDraft` read and checked them. */

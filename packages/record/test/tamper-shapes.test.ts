@@ -493,7 +493,7 @@ test('SqliteStore: open() on the subject of a record whose genesis was deleted t
   assert.equal((await handles.operator.open(ref)).status, 'ok', 'released by the verifying seam');
 });
 
-test("SqliteStore: open() on the subject of a DUE confirmed effect-seam record with its middle row deleted throws the storage fault its own expiry append's 'seq' conflict is, appending nothing, until a verifying seam lands the edge", async () => {
+test("SqliteStore: open() on the subject of a DUE confirmed effect-seam record with its middle row deleted throws on its own expiry append's 'seq' conflict, naming the blocker and both causes (a storage fault or a damaged blocker chain), appending nothing, until a verifying seam lands the edge", async () => {
   const sqlite = new SqliteStore(':memory:');
   const clock = { t: Date.UTC(2026, 0, 1) };
   const profile = effectSeamProfile({ id: 'test.tamper.effect.v1' });
@@ -513,7 +513,19 @@ test("SqliteStore: open() on the subject of a DUE confirmed effect-seam record w
 
   await assert.rejects(
     () => handles.operator.open(ref),
-    /^Error: open: append conflict \('seq'\)\. .*storage fault/,
+    (err: unknown) => {
+      assert.ok(err instanceof Error);
+      assert.match(String(err), /^Error: open: append conflict \('seq'\) on the expiry edge/);
+      assert.ok(err.message.includes(`blocker '${recordId}'`), 'names the blocker');
+      assert.match(err.message, /storage fault, or a damaged blocker chain/);
+      assert.match(err.message, /open\(\) does not verify its blocker/);
+      assert.match(err.message, /a deleted row makes the proposed seq miss/);
+      assert.ok(
+        err.message.includes(`a verifying seam on '${recordId}'`),
+        'names where the break is reported',
+      );
+      return true;
+    },
   );
   assert.deepEqual(rawRows(sqlite, recordId), before, 'nothing appended to the holder');
   assert.equal(await sqlite.findNonTerminal(profile.id, subject), recordId, 'nothing opened');

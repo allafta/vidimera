@@ -8069,6 +8069,11 @@ loser of an honest race is told.
   an exclusivity conflict there, and numbers the terminal-blocker arm as the TWENTIETH inversion.
   Its records commit follows: this section, `CHANGELOG.md`, the guide, `next-phases.md` and
   `CLAUDE.md`'s counts.
+- The follow-up commit of the same wave, after `c273cdf`: `open()`'s own-expire `'seq'` fault on a
+  confirmed blocker names the blocker and both causes (`blockerSeqFault`, see the rulings), with
+  its two branch-added pins adjusted to the new message; and the design gains its "Amended after
+  the whole-branch review" note (§6), which corrects §3's reading of the paths that never verify
+  and records the wave's rulings without rewriting the original text.
 
 **Rulings.**
 
@@ -8139,7 +8144,12 @@ loser of an honest race is told.
   finding or acknowledgment landing in a race that straddles the deadline produces honestly. The
   imported comment there named `'seq'` among that arm's races; no pinned assertion covered it. A
   confirmed blocker whose middle row was deleted reaches the new throw too, because `open()` does
-  not verify its blocker; pinned, and stated in the guide.
+  not verify its blocker; pinned, and stated in the guide. Its message, as first written, was the
+  shared append-conflict fault's, which reasons only about a concurrent writer; at the
+  coordinator's follow-up in the same wave (`blockerSeqFault`, `kernel/open.ts`) it names the
+  blocker and both causes, a storage fault or a damaged blocker chain, and points to a verifying
+  seam on the blocker (seal, finalize, or an un-enlisted redemption seam). The exclusivity throw
+  keeps the shared fault.
 - **A `'seq'` on the redeeming window throws.** The design's text answers `record-not-open` there,
   but `'seq'` has no honest producer on a state-checked append at any window. Honest redeeming races
   still answer `record-not-open`.
