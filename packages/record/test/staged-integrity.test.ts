@@ -47,7 +47,7 @@ const SUBJECT = 'subject:staged-integrity';
 const CONTENT = { amount: 8.0 };
 const OTHER_CONTENT = { amount: 6.5 };
 const THIRD_CONTENT = { amount: 1.25 };
-const BOUND = `sha256:${'p'.repeat(64)}`;
+const BOUND = `sha256:${'a'.repeat(64)}`;
 const NEVER_VERIFIED_HEAD = `sha256:${'e'.repeat(64)}`;
 
 /** Two registered profiles with the same leg ids, so a `profileId` edit lands on a real one. */

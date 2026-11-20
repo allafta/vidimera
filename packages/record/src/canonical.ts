@@ -166,6 +166,20 @@ export function digest(input: Uint8Array | string, algorithm: DigestAlgorithm = 
   return `${algorithm}:${hex.toLowerCase()}`;
 }
 
+const DIGEST_FORM = /^[a-z][a-z0-9-]*:(?:[0-9a-f]{2})+$/;
+
+/**
+ * True when `value` has the form SPEC §7 fixes for every digest field: an algorithm name of
+ * lowercase letters, digits or hyphens starting with a letter, a colon, then a non-empty,
+ * even-length run of lowercase hex. The algorithm name is not checked against a list: a host
+ * digests its own evidence under its own algorithm and the library never re-verifies that
+ * digest, so only the FORM is required. A form-valid string is still the host's claim — nothing
+ * here checks that it digests anything. Internal: not exported from the package index.
+ */
+export function isDigestForm(value: unknown): boolean {
+  return typeof value === 'string' && DIGEST_FORM.test(value);
+}
+
 /**
  * Splits a recorded `Digest` (`"<alg>:<hex>"`) back into its algorithm, so a
  * re-verify (chain-verify, content-drift re-check) hashes under the

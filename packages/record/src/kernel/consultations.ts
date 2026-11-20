@@ -21,6 +21,7 @@ import {
 } from '../config.js';
 import type { IdentityAssertion } from '../types.js';
 import { identitySnapshot } from './identity.js';
+import { assertDigestForm, assertIdentityStrings, assertWellFormedString } from './intake.js';
 
 export interface PartitionedConsultations {
   obtained: ObtainedConsultation[]; // supplied order preserved — the batch records in this order
@@ -42,6 +43,30 @@ const MARKER_KEYS: ReadonlySet<string> = new Set(['kind', 'unreachable', 'author
 // at the AL2 freshness increment's final review). Required at intake; `Date.parse`
 // (below) still does the actual value parse once the shape is confirmed.
 const RFC3339_WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
+
+/**
+ * The date-time's own fields must name a real instant, checked on the string itself so no host
+ * time zone or engine leniency decides it: month 1-12, day within the month (Gregorian leap
+ * years), hour <= 23, minute <= 59, and an offset of hour <= 23 and minute <= 59. Second 60
+ * already fails `Date.parse`. Applied after the shape regex, which guarantees the fields.
+ */
+function isRealInstant(value: string): boolean {
+  const m =
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):\d{2}(?:\.\d+)?(?:Z|[+-](\d{2}):(\d{2}))$/.exec(
+      value,
+    );
+  if (m === null) return false;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  if (month < 1 || month > 12) return false;
+  const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  const daysInMonth = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1] ?? 0;
+  if (day < 1 || day > daysInMonth) return false;
+  if (Number(m[4]) > 23 || Number(m[5]) > 59) return false;
+  if (m[6] !== undefined && (Number(m[6]) > 23 || Number(m[7]) > 59)) return false;
+  return true;
+}
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0;
@@ -80,6 +105,7 @@ export function validateConsultations(
       );
     }
     const kind = record.kind;
+    assertWellFormedString(seam, `consultations[${index}].kind`, kind);
     if (RESERVED_CONSULTATION_KINDS.has(kind)) {
       throw new Error(
         `${seam}: consultations[${index}] names the reserved library-emitted kind '${kind}' — ` +
@@ -112,6 +138,7 @@ export function validateConsultations(
           `${seam}: consultations[${index}] (unreachable marker '${kind}') has a missing or empty authority — the marker names the party that was down (SPEC §11.1)`,
         );
       }
+      assertWellFormedString(seam, `consultations[${index}].authority`, record.authority);
       unreachable.push({ kind, unreachable: true, authority: record.authority });
       continue;
     }
@@ -150,11 +177,16 @@ export function validateConsultations(
         `${seam}: consultations[${index}] (obtained '${kind}') has a malformed checker identity — a caller error (SPEC §11.1)`,
       );
     }
+    assertIdentityStrings(seam, `consultations[${index}].checker`, checker);
     if (!isNonEmptyString(record.payloadDigest)) {
       throw new Error(
         `${seam}: consultations[${index}] (obtained '${kind}') has a missing or empty payloadDigest — digest-only custody needs the digest (SPEC §11.1)`,
       );
     }
+    assertDigestForm(
+      `${seam}: consultations[${index}] (obtained '${kind}') payloadDigest`,
+      record.payloadDigest,
+    );
     if (record.verdict !== 'pass' && record.verdict !== 'fail') {
       throw new Error(
         `${seam}: consultations[${index}] (obtained '${kind}') has verdict '${String(record.verdict)}' — a Consultation verdict is 'pass' or 'fail' (SPEC §2)`,
@@ -165,10 +197,12 @@ export function validateConsultations(
         `${seam}: consultations[${index}] (obtained '${kind}') has a non-string proofRef — a caller error (SPEC §11.1)`,
       );
     }
+    assertWellFormedString(seam, `consultations[${index}].proofRef`, record.proofRef);
     if (record.observedAt !== undefined) {
       if (
         typeof record.observedAt !== 'string' ||
         !RFC3339_WITH_OFFSET.test(record.observedAt) ||
+        !isRealInstant(record.observedAt) ||
         Number.isNaN(Date.parse(record.observedAt))
       ) {
         throw new Error(
@@ -233,6 +267,7 @@ export function validatePolicyInput(policy: PolicyInput | undefined): void {
         'finalize: opts.policy.digest is missing or empty — a caller error (SPEC §10.3)',
       );
     }
+    assertDigestForm('finalize: opts.policy.digest', record.digest);
     return;
   }
   if (hasUnreachable) {
@@ -253,6 +288,7 @@ export function validatePolicyInput(policy: PolicyInput | undefined): void {
         'finalize: opts.policy (unreachable marker) has a missing or empty authority — the marker names the party that was down (SPEC §10.3)',
       );
     }
+    assertWellFormedString('finalize', 'opts.policy.authority', record.authority);
     return;
   }
   throw new Error(

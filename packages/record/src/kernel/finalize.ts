@@ -131,7 +131,12 @@ import { deadlineIso, resolveDueClock } from './expiry.js';
 import { findingCoverage } from './findings.js';
 import { heldProfile } from './held-profile.js';
 import { identitySnapshot } from './identity.js';
-import { assertIdArg, assertOptionsBag } from './intake.js';
+import {
+  assertFactsCheckerStrings,
+  assertIdArg,
+  assertOptionsBag,
+  intakeIdentity,
+} from './intake.js';
 import { signatureLayerHolds } from './verify-signatures.js';
 
 /**
@@ -192,6 +197,11 @@ export async function finalize(
   }
   const supplied = validateConsultations(opts?.consultations, 'finalize');
   validatePolicyInput(opts?.policy);
+  // The acting identity and the facts checker are recorded: an ill-formed string in either is a
+  // caller error here, before the chain loads. Any OTHER invalidity keeps its path below
+  // (identity-authority-refused; the facts gate). The snapshot is read once and rung (3) uses it.
+  const intakeActor = intakeIdentity('finalize', 'identity', identity);
+  assertFactsCheckerStrings('finalize', facts);
 
   // --- load the chain ------------------------------------------------------------------
   const chain = await store.readChain(recordId);
@@ -324,7 +334,7 @@ export async function finalize(
   // --- (3) identity — both branches → identity-authority-refused -----------------------
   // Validated ONCE into a fresh literal (`identitySnapshot`); the allowlist check, rung (3.5)
   // and the recorded `actor` all read that literal, never the caller's object again.
-  const actor = identitySnapshot(identity);
+  const actor = intakeActor;
   if (actor === null || !leg.allowedAuthorities.includes(actor.authority)) {
     return refuseMaybeAppend(
       store,

@@ -7,15 +7,22 @@
 //   - an options bag is absent, `undefined`, or an object — `null` and other non-objects throw;
 //   - `tx`, when present and not `undefined`, is an object or a function — a primitive throws
 //     before anything else in the redemption seam runs;
-//   - `open()`'s `priorRecordRefs` is an array of exact `{ recordId, chainHead }` entries.
+//   - `open()`'s `priorRecordRefs` is an array of exact `{ recordId, chainHead }` entries;
+//   - every host digest field has SPEC §7's form, and `observedAt` names a real instant;
+//   - every operator string a seam records is well-formed UTF-16, and the read path that
+//     re-reads persisted identities is unchanged.
 
 import assert from 'node:assert/strict';
 import { describe, test } from 'vitest';
 
 import { create } from '../src/create.js';
+import { validateConsultations } from '../src/kernel/consultations.js';
+import { sodViolated } from '../src/kernel/finalize.js';
+import { identitySnapshot } from '../src/kernel/identity.js';
 import { MemoryStore } from '../src/store/memory.js';
 import { SqliteStore } from '../src/store/sqlite.js';
 import type { Store } from '../src/store/store.js';
+import type { IdentityAssertion } from '../src/types.js';
 import {
   captureProfile,
   DEFAULT_SUBJECT_REF,
@@ -137,7 +144,7 @@ for (const [backingName, makeStore] of backings) {
       const before = await inner.readChain(recordId);
       const op = handles.operator;
       const callsBefore = spy.calls();
-      for (const bad of [null, 5, 'x', true]) {
+      for (const bad of [null, 5, 'x', true, []]) {
         const withBad: Array<[string, () => unknown]> = [
           ['open', () => op.open('staged', bad as never)],
           ['finalize', () => op.finalize(recordId, identity(), CONTENT, facts(), bad as never)],
@@ -270,3 +277,436 @@ for (const [backingName, makeStore] of backings) {
     });
   });
 }
+
+// --- digest form, observedAt, well-formed operator strings --------------------------------
+// One fixture: a capture profile declaring decline, a policy source and a findings flow, so a
+// single record reaches every seam whose intake these pins exercise.
+
+const GOOD_DIGESTS = [`sha256:${'a'.repeat(64)}`, `sha512:${'0f'.repeat(64)}`];
+const BAD_FORM_DIGESTS: unknown[] = ['NOT A DIGEST', 'sha256:ABC', 'sha256:abc'];
+const BAD_OTHER_DIGESTS: unknown[] = [5, ''];
+const LONE = 'x\ud800';
+
+function intakeProfile() {
+  const p = captureProfile({ id: 'test.intake.v1', decline: true });
+  p.policySource = 'rules.v1';
+  const leg = p.legs[0];
+  if (leg === undefined) throw new Error('fixture: no leg');
+  p.legs[0] = { ...leg, ackMode: 'any' as const, requiredAcks: ['variance'] };
+  return p;
+}
+
+async function intakeFixture(opts: { open: boolean } = { open: true }) {
+  const inner = new MemoryStore();
+  const spy = spyStore(inner);
+  const handles = create(makeConfig([intakeProfile()], { store: spy.store }));
+  const staged = await handles.agent.stage(CONTENT, 'test.intake.v1', DEFAULT_SUBJECT_REF);
+  if (staged.status !== 'ok') throw new Error('fixture: stage refused');
+  const { stagedRef } = staged.value;
+  if (!opts.open) return { inner, spy, op: handles.operator, stagedRef, recordId: '' };
+  const opened = await handles.operator.open(stagedRef, { policyDigest: D1 });
+  if (opened.status !== 'ok') throw new Error('fixture: open refused');
+  return { inner, spy, op: handles.operator, stagedRef, recordId: opened.value.recordId };
+}
+type IntakeFixture = Awaited<ReturnType<typeof intakeFixture>>;
+
+/** A refused call must throw the expected message, reach no store and append nothing. */
+async function assertRefusedAtIntake(
+  f: IntakeFixture,
+  run: () => Promise<unknown>,
+  pattern: RegExp,
+  label: string,
+  opts: { storeFree: boolean } = { storeFree: true },
+): Promise<void> {
+  const before = f.recordId === '' ? [] : await f.inner.readChain(f.recordId);
+  const callsBefore = f.spy.calls();
+  await assert.rejects(
+    async () => run(),
+    (err: unknown) => {
+      assert.ok(err instanceof Error, `${label}: an Error`);
+      assert.match(err.message, pattern, label);
+      return true;
+    },
+    label,
+  );
+  if (opts.storeFree) {
+    assert.equal(f.spy.calls(), callsBefore, `${label}: no store call after intake`);
+  }
+  if (f.recordId !== '') {
+    assert.deepEqual(await f.inner.readChain(f.recordId), before, `${label}: nothing appended`);
+  }
+}
+
+type DigestSite = {
+  name: string;
+  field: RegExp;
+  open: boolean;
+  /** An empty string keeps the seam's own message, which is reached after a store read. */
+  emptyReadsStore?: boolean;
+  run: (f: IntakeFixture, v: unknown) => Promise<unknown>;
+};
+
+const obtained = (payloadDigest: unknown) => ({
+  kind: 'k1',
+  checker: { principal: 'c', authority: 'mtls:c' },
+  payloadDigest,
+  verdict: 'pass' as const,
+});
+
+const digestSites: DigestSite[] = [
+  {
+    name: 'finalize consultations[].payloadDigest',
+    field: /finalize: consultations\[0\].*payloadDigest/,
+    open: true,
+    run: (f, v) =>
+      f.op.finalize(f.recordId, identity(), CONTENT, facts(), {
+        consultations: [obtained(v) as never],
+        policy: { digest: D1 },
+      }),
+  },
+  {
+    name: 'decline consultations[].payloadDigest',
+    field: /decline: consultations\[0\].*payloadDigest/,
+    open: true,
+    run: (f, v) =>
+      f.op.decline(f.recordId, identity(), CONTENT, facts(), {
+        consultations: [obtained(v) as never],
+      }),
+  },
+  {
+    name: 'finalize policy.digest',
+    field: /finalize: opts\.policy\.digest/,
+    open: true,
+    run: (f, v) =>
+      f.op.finalize(f.recordId, identity(), CONTENT, facts(), { policy: { digest: v as never } }),
+  },
+  {
+    name: 'raiseFinding findingDigest',
+    field: /raiseFinding: .*findingDigest/,
+    open: true,
+    run: (f, v) =>
+      f.op.raiseFinding(
+        f.recordId,
+        { findingId: 'f-1', kind: 'variance', findingDigest: v as never },
+        identity(),
+      ),
+  },
+  {
+    name: 'acknowledge findingDigest',
+    field: /acknowledge: .*findingDigest/,
+    open: true,
+    run: (f, v) =>
+      f.op.acknowledge(f.recordId, { findingId: 'f-1', findingDigest: v as never }, identity()),
+  },
+  {
+    name: 'completeRedemption result.digest',
+    field: /completeRedemption: opts\.result\.digest/,
+    open: true,
+    run: (f, v) =>
+      f.op.completeRedemption(f.recordId, 'token', CONTENT, { result: { digest: v as never } }),
+  },
+  {
+    name: 'open policyDigest',
+    field: /open: .*policyDigest/,
+    open: false,
+    emptyReadsStore: true,
+    run: (f, v) => f.op.open(f.stagedRef, { policyDigest: v as never }),
+  },
+  {
+    name: 'open supersedes.chainHead',
+    field: /open: supersedes .*chainHead/,
+    open: false,
+    run: (f, v) =>
+      f.op.open(f.stagedRef, {
+        policyDigest: D1,
+        supersedes: { recordId: 'r-1', chainHead: v as never },
+      }),
+  },
+  {
+    name: 'open priorRecordRefs[].chainHead',
+    field: /open: priorRecordRefs\[0\] .*chainHead/,
+    open: false,
+    run: (f, v) =>
+      f.op.open(f.stagedRef, {
+        policyDigest: D1,
+        priorRecordRefs: [{ recordId: 'r-1', chainHead: v as never }],
+      }),
+  },
+];
+
+describe('operator intake: digest form', () => {
+  for (const site of digestSites) {
+    test(`${site.name} refuses a non-digest and accepts sha256 and sha512 forms`, async () => {
+      for (const bad of BAD_FORM_DIGESTS) {
+        const f = await intakeFixture({ open: site.open });
+        await assertRefusedAtIntake(
+          f,
+          () => site.run(f, bad),
+          new RegExp(`${site.field.source}.*digest form`, 's'),
+          `${site.name} ${JSON.stringify(bad)}`,
+        );
+      }
+      for (const bad of BAD_OTHER_DIGESTS) {
+        const f = await intakeFixture({ open: site.open });
+        await assertRefusedAtIntake(
+          f,
+          () => site.run(f, bad),
+          site.field,
+          `${site.name} ${JSON.stringify(bad)}`,
+          { storeFree: !(bad === '' && site.emptyReadsStore === true) },
+        );
+      }
+      for (const good of GOOD_DIGESTS) {
+        const f = await intakeFixture({ open: site.open });
+        try {
+          await site.run(f, good);
+        } catch (err) {
+          // A domain error downstream is fine; the digest-form refusal is not.
+          assert.doesNotMatch((err as Error).message, /digest form/, `${site.name} ${good}`);
+        }
+      }
+    });
+  }
+});
+
+describe('operator intake: observedAt', () => {
+  const REFUSED = [
+    '2027-02-30T10:00:00Z',
+    '2027-04-31T10:00:00Z',
+    '2027-02-29T10:00:00Z',
+    '2100-02-29T10:00:00Z',
+    '2027-01-01T24:00:00Z',
+    '2027-01-01T10:00:00+24:00',
+    '2027-01-01T10:00:00+05:60',
+    '2027-13-01T10:00:00Z',
+    '2027-00-10T10:00:00Z',
+    '2027-01-00T10:00:00Z',
+    '2027-01-01T10:60:00Z',
+    '2027-01-01T23:59:60Z',
+  ];
+  const ACCEPTED = [
+    '2028-02-29T10:00:00Z',
+    '2000-02-29T00:00:00.5-23:59',
+    '2027-12-31T23:59:59+23:59',
+    '2027-04-30T10:00:00Z',
+  ];
+  const withObservedAt = (observedAt: unknown) => [{ ...obtained(D1), observedAt }] as never;
+
+  test('an impossible calendar or clock value throws at intake and appends nothing', async () => {
+    for (const bad of REFUSED) {
+      const f = await intakeFixture();
+      await assertRefusedAtIntake(
+        f,
+        () =>
+          f.op.finalize(f.recordId, identity(), CONTENT, facts(), {
+            consultations: withObservedAt(bad),
+            policy: { digest: D1 },
+          }),
+        /finalize: consultations\[0\].*malformed observedAt/s,
+        bad,
+      );
+    }
+  });
+
+  test('real instants are accepted, including 29 February 2028', () => {
+    for (const good of ACCEPTED) {
+      assert.doesNotThrow(() => validateConsultations(withObservedAt(good), 'finalize'), good);
+    }
+  });
+});
+
+describe('operator intake: well-formed operator strings', () => {
+  type Case = [string, string, (f: IntakeFixture, bad: string) => Promise<unknown>];
+  const id = (part: 'principal' | 'authority' | 'proofRef', bad: string) => ({
+    principal: part === 'principal' ? bad : 'approver:1',
+    authority: part === 'authority' ? bad : 'session:test-app',
+    ...(part === 'proofRef' ? { proofRef: bad } : {}),
+  });
+  const finalizeWith = (
+    f: IntakeFixture,
+    opts: object,
+    factsArg: ReturnType<typeof facts> = facts(),
+    who: IdentityAssertion = identity(),
+  ) =>
+    f.op.finalize(f.recordId, who, CONTENT, factsArg, {
+      policy: { digest: D1 },
+      ...opts,
+    } as never);
+  const declineWith = (f: IntakeFixture, consultations: object[]) =>
+    f.op.decline(f.recordId, identity(), CONTENT, facts(), { consultations } as never);
+  const marker = (m: object) => ({ kind: 'k2', unreachable: true, authority: 'svc:x', ...m });
+  const finding = (m: object) => ({
+    findingId: 'f-1',
+    kind: 'variance',
+    findingDigest: D1,
+    ...m,
+  });
+
+  const cases: Case[] = [];
+  for (const part of ['principal', 'authority', 'proofRef'] as const) {
+    cases.push(
+      ['finalize', `identity.${part}`, (f, b) => finalizeWith(f, {}, facts(), id(part, b))],
+      [
+        'decline',
+        `identity.${part}`,
+        (f, b) => f.op.decline(f.recordId, id(part, b), CONTENT, facts()),
+      ],
+      [
+        'raiseFinding',
+        `identity.${part}`,
+        (f, b) => f.op.raiseFinding(f.recordId, finding({}) as never, id(part, b)),
+      ],
+      [
+        'acknowledge',
+        `identity.${part}`,
+        (f, b) =>
+          f.op.acknowledge(f.recordId, { findingId: 'f-1', findingDigest: D1 }, id(part, b)),
+      ],
+      [
+        'finalize',
+        `facts.checker.${part}`,
+        (f, b) => finalizeWith(f, {}, { ...facts(), checker: id(part, b) }),
+      ],
+      [
+        'finalize',
+        `consultations[0].checker.${part}`,
+        (f, b) => finalizeWith(f, { consultations: [{ ...obtained(D1), checker: id(part, b) }] }),
+      ],
+      [
+        'decline',
+        `consultations[0].checker.${part}`,
+        (f, b) => declineWith(f, [{ ...obtained(D1), checker: id(part, b) }]),
+      ],
+    );
+  }
+  cases.push(
+    [
+      'finalize',
+      'consultations[0].kind',
+      (f, b) => finalizeWith(f, { consultations: [{ ...obtained(D1), kind: b }] }),
+    ],
+    ['decline', 'consultations[0].kind', (f, b) => declineWith(f, [{ ...obtained(D1), kind: b }])],
+    [
+      'finalize',
+      'consultations[0].proofRef',
+      (f, b) => finalizeWith(f, { consultations: [{ ...obtained(D1), proofRef: b }] }),
+    ],
+    [
+      'finalize',
+      'consultations[0].kind',
+      (f, b) => finalizeWith(f, { consultations: [marker({ kind: b })] }),
+    ],
+    [
+      'finalize',
+      'consultations[0].authority',
+      (f, b) => finalizeWith(f, { consultations: [marker({ authority: b })] }),
+    ],
+    ['decline', 'consultations[0].authority', (f, b) => declineWith(f, [marker({ authority: b })])],
+    [
+      'finalize',
+      'opts.policy.authority',
+      (f, b) =>
+        f.op.finalize(f.recordId, identity(), CONTENT, facts(), {
+          policy: { unreachable: true, authority: b },
+        }),
+    ],
+    [
+      'raiseFinding',
+      'findingId',
+      (f, b) => f.op.raiseFinding(f.recordId, finding({ findingId: b }) as never, identity()),
+    ],
+    [
+      'raiseFinding',
+      'kind',
+      (f, b) => f.op.raiseFinding(f.recordId, finding({ kind: b }) as never, identity()),
+    ],
+    [
+      'raiseFinding',
+      'magnitude',
+      (f, b) => f.op.raiseFinding(f.recordId, finding({ magnitude: b }) as never, identity()),
+    ],
+    [
+      'acknowledge',
+      'findingId',
+      (f, b) => f.op.acknowledge(f.recordId, { findingId: b, findingDigest: D1 }, identity()),
+    ],
+    [
+      'acknowledge',
+      'magnitude',
+      (f, b) =>
+        f.op.acknowledge(
+          f.recordId,
+          { findingId: 'f-1', findingDigest: D1, magnitude: b },
+          identity(),
+        ),
+    ],
+    [
+      'open',
+      'supersedes.recordId',
+      (f, b) =>
+        f.op.open(f.stagedRef, { policyDigest: D1, supersedes: { recordId: b, chainHead: D1 } }),
+    ],
+    [
+      'open',
+      'priorRecordRefs[0].recordId',
+      (f, b) =>
+        f.op.open(f.stagedRef, {
+          policyDigest: D1,
+          priorRecordRefs: [{ recordId: b, chainHead: D1 }],
+        }),
+    ],
+  );
+
+  test('a lone surrogate in any recorded operator string throws at intake and appends nothing', async () => {
+    for (const [seam, field, run] of cases) {
+      const f = await intakeFixture({ open: seam !== 'open' });
+      const escaped = field.replace(/[[\]().]/g, '\\$&');
+      await assertRefusedAtIntake(
+        f,
+        () => run(f, LONE),
+        new RegExp(`^${seam}: ${escaped} holds a lone surrogate`),
+        `${seam} ${field}`,
+      );
+    }
+  });
+
+  test('a well-formed astral string is accepted', async () => {
+    const f = await intakeFixture();
+    const out = await f.op.raiseFinding(
+      f.recordId,
+      { findingId: 'f-\u{1F600}', kind: 'variance', findingDigest: D1 },
+      identity({ principal: 'p-\u{1F600}' }),
+    );
+    assert.equal(out.status, 'ok');
+  });
+
+  test('an invalid identity that is not an ill-formed string keeps its own path', async () => {
+    const f = await intakeFixture();
+    const refused = await finalizeWith(f, {}, facts(), { principal: '', authority: 'x' });
+    assert.equal(refused.status, 'refused');
+    await assert.rejects(
+      async () =>
+        f.op.raiseFinding(f.recordId, finding({}) as never, { principal: '', authority: 'x' }),
+      /raiseFinding: a malformed identity/,
+    );
+  });
+});
+
+describe('operator intake: the read path is unchanged', () => {
+  test('identitySnapshot and the prior-leg SoD read still accept a persisted lone-surrogate identity', () => {
+    const planted = { principal: 'maker\ud800', authority: 'session:test-app' };
+    assert.deepEqual(identitySnapshot(planted), planted);
+    const record = {
+      priorRecordRefs: [{ recordId: 'r-0', chainHead: D1, legId: 'maker-decide' }],
+      priorLegActors: [planted],
+    };
+    const leg = {
+      id: 'checker-decide',
+      allowedAuthorities: [],
+      sod: { notActorOf: ['maker-decide'] },
+    };
+    const other = { principal: 'checker:1', authority: 'session:test-app' };
+    assert.equal(sodViolated(record as never, leg as never, other, 'r-1', 'finalize'), false);
+    assert.equal(sodViolated(record as never, leg as never, planted, 'r-1', 'finalize'), true);
+  });
+});

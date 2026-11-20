@@ -22,9 +22,9 @@ import {
 import { TamperingStore } from './helpers/stores.js';
 
 const CONTENT = { subject: 'week-1', total: 40 };
-const BOUND = `sha256:${'p'.repeat(64)}`;
+const BOUND = `sha256:${'a'.repeat(64)}`;
 const LIVE_SAME = BOUND;
-const LIVE_DRIFTED = `sha256:${'q'.repeat(64)}`;
+const LIVE_DRIFTED = `sha256:${'b'.repeat(64)}`;
 
 function policyProfile(extra?: Partial<ConfirmProfile>): ConfirmProfile {
   return { ...captureProfile({ id: 'test.policy.v1' }), policySource: 'rules.v1', ...extra };

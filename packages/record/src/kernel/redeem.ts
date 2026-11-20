@@ -91,7 +91,7 @@ import { isWellFormedUtf16 } from '../utf16.js';
 import { deadlineIso, pendingWindow, resolveDueClock } from './expiry.js';
 import { appendChainCompromise } from './finalize.js';
 import { heldProfile } from './held-profile.js';
-import { assertIdArg, assertOptionsBag } from './intake.js';
+import { assertDigestForm, assertIdArg, assertOptionsBag } from './intake.js';
 import { signatureLayerHolds } from './verify-signatures.js';
 
 /**
@@ -381,6 +381,7 @@ function validateRedeemOptions(
   if (typeof digestValue !== 'string' || digestValue.length === 0) {
     throw new Error(`${seam}: opts.result.digest must be a non-empty string (SPEC §11.2)`);
   }
+  assertDigestForm(`${seam}: opts.result.digest`, digestValue);
 }
 
 export async function redeem(

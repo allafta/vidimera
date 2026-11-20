@@ -38,8 +38,12 @@ import {
   sodViolated,
 } from './finalize.js';
 import { heldProfile } from './held-profile.js';
-import { identitySnapshot } from './identity.js';
-import { assertIdArg, assertOptionsBag } from './intake.js';
+import {
+  assertFactsCheckerStrings,
+  assertIdArg,
+  assertOptionsBag,
+  intakeIdentity,
+} from './intake.js';
 import { signatureLayerHolds } from './verify-signatures.js';
 
 export async function decline(
@@ -68,6 +72,9 @@ export async function decline(
     }
   }
   const supplied = validateConsultations(opts?.consultations, 'decline');
+  // finalize's intake for the acting identity and the facts checker (kernel/finalize.ts).
+  const intakeActor = intakeIdentity('decline', 'identity', identity);
+  assertFactsCheckerStrings('decline', facts);
 
   // --- load the chain -------------------------------------------------------------------
   const chain = await store.readChain(recordId);
@@ -147,7 +154,7 @@ export async function decline(
   // --- (3) identity ---------------------------------------------------------------------
   // finalize's rung (3) exactly: one fresh literal, read by the allowlist check, rung (3.5)
   // and the recorded `actor` — never the caller's object again.
-  const actor = identitySnapshot(identity);
+  const actor = intakeActor;
   if (actor === null || !leg.allowedAuthorities.includes(actor.authority)) {
     return refuseMaybeAppend(
       store,

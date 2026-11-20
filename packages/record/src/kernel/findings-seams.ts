@@ -42,8 +42,7 @@ import type {
 import { expiryDeadlineMs, resolveDueClock } from './expiry.js';
 import { appendChainCompromise, appendSeqConflict } from './finalize.js';
 import { heldProfile } from './held-profile.js';
-import { identitySnapshot } from './identity.js';
-import { assertIdArg } from './intake.js';
+import { assertDigestForm, assertIdArg, assertWellFormedString, intakeIdentity } from './intake.js';
 import { signatureLayerHolds } from './verify-signatures.js';
 
 /** SPEC §10.2's `finding` argument: `{ findingId, kind, findingDigest, magnitude? }`. */
@@ -100,21 +99,25 @@ function validateInput(
       `${seam}: missing or empty findingId — a malformed argument is a caller error (SPEC §10.2)`,
     );
   }
+  assertWellFormedString(seam, 'findingId', input.findingId);
   if (requireKind && !isNonEmptyString(input.kind)) {
     throw new Error(
       `${seam}: missing or empty kind — a malformed argument is a caller error (SPEC §10.2)`,
     );
   }
+  assertWellFormedString(seam, 'kind', input.kind);
   if (!isNonEmptyString(input.findingDigest)) {
     throw new Error(
       `${seam}: missing or empty findingDigest — digest-only custody needs the digest (SPEC §3)`,
     );
   }
+  assertDigestForm(`${seam}: findingDigest`, input.findingDigest);
   if (input.magnitude !== undefined && typeof input.magnitude !== 'string') {
     throw new Error(
       `${seam}: a non-string magnitude — the library never interprets it, but it IS a string (SPEC §10.2)`,
     );
   }
+  assertWellFormedString(seam, 'magnitude', input.magnitude);
 }
 
 /**
@@ -125,7 +128,7 @@ function validateInput(
  * `ackCounts` (kernel/findings.ts) later compares.
  */
 function validateSeamIdentity(seam: string, identity: IdentityAssertion): IdentityAssertion {
-  const snapshot = identitySnapshot(identity);
+  const snapshot = intakeIdentity(seam, 'identity', identity);
   if (snapshot === null) {
     throw new Error(
       `${seam}: a malformed identity (not exactly { principal, authority, proofRef? } with a ` +

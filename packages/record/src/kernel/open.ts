@@ -39,7 +39,12 @@ import type {
   Transition,
 } from '../types.js';
 import { expiryDeadlineMs, resolveDueClock } from './expiry.js';
-import { assertIdArg, assertOptionsBag } from './intake.js';
+import {
+  assertDigestForm,
+  assertIdArg,
+  assertOptionsBag,
+  assertWellFormedString,
+} from './intake.js';
 import { verifyPriorLegs } from './prior-legs.js';
 import { type SupersedesCheck, validateSupersedesShape, verifySupersedes } from './supersedes.js';
 
@@ -91,6 +96,16 @@ export async function open(
     proposedClaim === undefined ? undefined : validateProposedShape(proposedClaim);
   const priorRecordRefs = snapshotPriorRecordRefs(opts?.priorRecordRefs);
   const policyDigest = opts?.policyDigest;
+  // A supplied policyDigest is a string of SPEC §7's form. An empty one keeps the policy
+  // binding contract's own message below (declaring: not supplied; non-declaring: supplied).
+  if (policyDigest !== undefined) {
+    if (typeof policyDigest !== 'string') {
+      throw new Error(
+        'open: policyDigest must be a string of digest form when supplied — a caller error (SPEC §10.3)',
+      );
+    }
+    if (policyDigest.length > 0) assertDigestForm('open: policyDigest', policyDigest);
+  }
 
   const { store, profiles, now, mintId } = ctx;
 
@@ -450,12 +465,14 @@ function snapshotPriorRecordRefs(refs: unknown): PriorRecordRef[] | undefined {
         `open: priorRecordRefs[${i}] has a missing or empty recordId — a caller error (SPEC §10.1)`,
       );
     }
+    assertWellFormedString('open', `priorRecordRefs[${i}].recordId`, recordId);
     const chainHead = fields.chainHead;
     if (typeof chainHead !== 'string' || chainHead.length === 0) {
       throw new Error(
         `open: priorRecordRefs[${i}] has a missing or empty chainHead — a caller error (SPEC §10.1)`,
       );
     }
+    assertDigestForm(`open: priorRecordRefs[${i}] chainHead`, chainHead);
     out.push({ recordId, chainHead });
   }
   return out;
