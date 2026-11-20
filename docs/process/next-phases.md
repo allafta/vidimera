@@ -461,6 +461,16 @@ commit message on `code-review-fixes`; for the fourth, in
   restated by the AL2 restatement follow-up); the three now say so in ASSURANCE §6's wording.
   The owner's 2026-11-20 word is spent at that commit.
 
+- **A staged-draft prune — sanction-gated, not decided** (recorded 2026-11-20 by the subject and
+  content intake increment). Staged drafts are never removed: `stage()` is idempotent by
+  content, so a new subject or a new content digest is a new row, and nothing reclaims a draft
+  that is never opened. A prune is a new method on SPEC §12's staged-draft surface (`putStaged`,
+  `getStaged`), so it is a sealed edit and needs a fresh pass through
+  `docs/concept/SCOPING-GUIDE.md` §§1–2. What bounds the growth meanwhile, and only that: the
+  `subjectRef` cap (1,024 UTF-8 bytes) bounds each draft's subject; a host can rate-limit
+  `stage()` at its own tool boundary; and `MemoryStore` is non-durable, so its drafts end with
+  the process. A durable store's staged table is not bounded by the library.
+
 (A fourth, a never-appends contention refusal code, was decided the same day: `record-contended`,
 minted under its own sanction — `docs/superpowers/specs/2026-09-02-record-contended-design.md`.)
 
@@ -489,6 +499,15 @@ increment and none a sanction question, are recorded here so they are not lost:
 - **`PostgresStore` writes an append's signature entries one round trip at a time** while it holds
   the record-row lock. Lock order is unchanged, so no new deadlock risk; a single multi-row
   insert would shorten the time the lock is held for a many-element batch.
+
+**The next increment: operator-seam intake** (named 2026-11-20 by the subject and content intake
+increment, which checked the agent's input and the content-binding path and stopped there). The
+operator-side inputs are still read as given: the format of the digest fields a caller supplies,
+`observedAt`'s calendar validity, a `null` options bag, `RedeemOptions.tx`, the shape of
+`priorRecordRefs`, the types of the id arguments, and the well-formedness of the operator
+strings that enter transitions (identities, consultation kinds, finding fields, labels). It is
+not a sanction question on its face: each is a caller-error throw at an exported seam, the
+posture the subject rule took. It is built under its own design.
 
 ### OQ §2 — decided in code; the recording gap closed 2026-08-19; the corner itself
 superseded 2026-09-03

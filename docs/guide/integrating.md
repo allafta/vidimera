@@ -98,15 +98,56 @@ the library's own canonical JSON encoding digests it. Rules of thumb:
   fields (fetch timestamps, cache keys) — anything left in changes the digest and will
   refuse as drift later.
 - JSON-safe: plain objects, arrays, strings, finite numbers, booleans, null. No `BigInt`,
-  no class instances, no functions.
+  no class instances, no functions. Three parts of this are enforced when content is bound
+  (at `stage`, `finalize`, `decline` and the three redemption seams), each as a throw of the
+  kind the next rule describes, with nothing written or appended:
+  - **Synchronous.** An output with a callable `then` (an `async` canonicalizer returns a
+    Promise) throws `canonicalizer for '<ref>' returned a thenable`. Before it throws, the
+    library attaches a rejection handler to that output, so a Promise that later rejects cannot
+    reach Node's unhandled-rejection policy and end your process. Only the top-level output is
+    observed: a Promise nested deeper is refused by the serializer, but its rejection stays
+    yours.
+  - **Plain objects only.** A `Map`, a `Set`, a class instance (one holding only `#private`
+    state included) or a boxed primitive anywhere in the output throws, naming the constructor;
+    each used to serialize as `{}` or as numbered keys and bind a digest that ignored the
+    content. `toJSON` is still honored, so a `Date` is its ISO string. Objects from another
+    realm that are plain by shape, and objects with a `null` prototype, are accepted.
+  - **Well-formed strings.** A lone surrogate (an ill-formed UTF-16 string) in any key, any
+    value or any string a `toJSON` returns throws.
 - Total: it must return for any content a seam will hand it. A canonicalizer is your
   registered code, not caller data, so a throw at `finalize`, `decline` or a redemption seam
   propagates as a configuration fault — nothing is appended and no refusal is minted; it is
-  never read as `content-drift`. (The `facts.figures` side is the deliberate contrast: those
-  are caller data, and a non-canonicalizable payload there refuses `consultation-missing`.)
+  never read as `content-drift`. The three JSON-safe throws above take this path. (The
+  `facts.figures` side is the deliberate contrast: those are caller data, and a
+  non-canonicalizable payload there, a `Map` included, refuses `consultation-missing`.)
 - Versioned: the ref is part of the profile (`'finance.invoice.v1'`); when the projection
   changes meaningfully, mint a new ref and a new profile version rather than silently
   changing what old records' digests meant.
+
+**The subject reference.** `stage()` is the agent's one free-form input, so it checks
+`subjectRef` before anything else, before the profile is even resolved: it must be a string,
+non-empty, well-formed UTF-16 (no lone surrogate), free of U+0000, and at most 1,024 bytes
+in UTF-8. Anything else throws `stage: subjectRef …`, naming the rule — a caller error, as
+`open`'s unknown `stagedRef` is, with no refusal code and no draft written. A number is not a
+subject: `42` and `"42"` used to be two subjects on two live records, which split exclusivity
+for one real thing; pass the string. If your natural key can exceed the cap, digest it into
+one string (a hex or base64url digest of the key) and use that as the subject; keep the
+mapping back to the natural key in your own store. `open()` re-checks the rule on the staged
+draft it resolves and on a `proposed` draft, and throws when a persisted draft breaks it. Such
+a draft was persisted before this rule or written by something other than `stage()`.
+
+The limits, stated. The rule governs the subject only: other strings that reach the chain
+through operator-side calls (identities, consultation kinds, finding fields, labels) are not
+yet checked for well-formedness, and are the host's to keep clean. And an open record's
+`subjectRef` is never re-checked: only drafts are.
+
+**Upgrading.** Two kinds of record cannot be served as they were, so drive them to a terminal
+state before upgrading, or keep running the old build until they are. A record whose content
+was bound through a void canonicalizer (an `async` one, or one returning a `Map`) cannot
+re-bind under this build: its seams throw a configuration fault until the canonicalizer is
+fixed, and a fixed canonicalizer digests differently, so the record then refuses
+`content-drift`. A staged draft whose subject breaks the rule above throws at `open()`.
+Nothing is migrated.
 
 ## Profile design
 

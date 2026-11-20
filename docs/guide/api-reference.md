@@ -136,7 +136,11 @@ interface AgentSurface {
 ```
 
 `stage` digests the content through the profile's canonicalizer and persists a digest-only
-staged draft. `legId` omitted means the profile's first leg; a named leg absent from the
+staged draft. `subjectRef` must be a string that is non-empty, well-formed UTF-16, free of
+U+0000 and at most 1,024 bytes in UTF-8; anything else **throws** `stage: subjectRef …` before
+the profile is resolved and writes no draft (a caller error, not a refusal — there is no code
+for it). A canonicalizer that returns a thenable, or output holding a non-plain object or an
+ill-formed string, makes `stage` throw as a configuration fault, with no draft written. `legId` omitted means the profile's first leg; a named leg absent from the
 profile refuses `unknown-leg`. The three reads are pure. `getRecord` answers `null` for an
 unknown `recordId` and **throws** when the store hands back a chain whose rows carry another
 record's id — foreign persisted data, a storage fault rather than a domain outcome (SPEC §8;
@@ -515,7 +519,7 @@ type ChainVerifyReport =
 function canonicalize(structure: unknown): Uint8Array;  // the library's canonical JSON bytes
 function digest(input: Uint8Array | string, algorithm?: DigestAlgorithm): Digest;
 type DigestAlgorithm = 'sha256';                        // the supported set today
-type Canonicalizer = (content: unknown) => unknown;     // YOUR projection, run before canonicalize
+type Canonicalizer = (content: unknown) => unknown;     // YOUR projection: synchronous, run before canonicalize
 
 // The pure audit functions (SPEC §5), exported beside their operator-handle forms for
 // the offline case: an archived chain — a sealed record's, say — replays and verifies
@@ -538,6 +542,19 @@ function verifyChain(chain: readonly Transition[], recordId?: string): ChainVeri
 function projectProfile(profile: ConfirmProfile): unknown;
 function profileDigest(profile: ConfirmProfile): Digest;
 ```
+
+`canonicalize` serializes with RFC 8785 and **throws** on a value with no JSON form: a `Map`,
+a `Set`, a Promise, a class instance (one holding only `#private` state included) or a boxed
+primitive anywhere in the structure, naming the constructor. A plain object, an object with a
+`null` prototype and an array serialize; `toJSON` is honored, so a `Date` is its ISO string.
+Its default mode still **escapes** a lone surrogate (as a "backslash-u" escape, which RFC 8785 would refuse)
+rather than throwing, so a chain persisted with one still verifies; the
+library's own content binding (a canonicalizer's output) refuses an ill-formed string instead,
+and `canonicalize` has no option to ask for that. A canonicalizer must be synchronous: a
+returned thenable is a configuration fault at the seam that binds it. `digest` hashes a
+`Uint8Array` as given; a `string` input is hashed as UTF-8 and must be well-formed UTF-16, or
+`digest` throws a `TypeError` (it used to collapse each lone surrogate to U+FFFD, so two
+different strings digested the same). The bytes a well-formed string hashes to are unchanged.
 
 ## Stores
 
