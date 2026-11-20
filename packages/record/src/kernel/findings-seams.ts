@@ -43,6 +43,7 @@ import { expiryDeadlineMs, resolveDueClock } from './expiry.js';
 import { appendChainCompromise, appendSeqConflict } from './finalize.js';
 import { heldProfile } from './held-profile.js';
 import { identitySnapshot } from './identity.js';
+import { assertIdArg } from './intake.js';
 import { signatureLayerHolds } from './verify-signatures.js';
 
 /** SPEC §10.2's `finding` argument: `{ findingId, kind, findingDigest, magnitude? }`. */
@@ -279,6 +280,7 @@ export async function raiseFinding(
   finding: FindingInput,
   identity: IdentityAssertion,
 ): Promise<SeamResult> {
+  assertIdArg('raiseFinding', 'recordId', recordId);
   validateInput('raiseFinding', finding as unknown as Record<string, unknown>, FINDING_KEYS, true);
   const raiser = validateSeamIdentity('raiseFinding', identity);
   const pre = await loadOpenDeclaringRecord(ctx, 'raiseFinding', recordId);
@@ -317,6 +319,7 @@ export async function acknowledge(
   ack: AckInput,
   identity: IdentityAssertion,
 ): Promise<SeamResult> {
+  assertIdArg('acknowledge', 'recordId', recordId);
   validateInput('acknowledge', ack as unknown as Record<string, unknown>, ACK_KEYS, false);
   const acker = validateSeamIdentity('acknowledge', identity);
   const pre = await loadOpenDeclaringRecord(ctx, 'acknowledge', recordId);

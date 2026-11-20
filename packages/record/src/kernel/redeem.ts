@@ -91,6 +91,7 @@ import { isWellFormedUtf16 } from '../utf16.js';
 import { deadlineIso, pendingWindow, resolveDueClock } from './expiry.js';
 import { appendChainCompromise } from './finalize.js';
 import { heldProfile } from './held-profile.js';
+import { assertIdArg, assertOptionsBag } from './intake.js';
 import { signatureLayerHolds } from './verify-signatures.js';
 
 /**
@@ -331,7 +332,20 @@ function validateRedeemOptions(
   seam: 'redeem' | 'beginRedemption' | 'completeRedemption',
   opts: RedeemOptions | undefined,
 ): void {
+  assertOptionsBag(seam, opts);
   if (opts === undefined) return;
+  // A driver's transaction handle is never a primitive: a present, non-undefined `tx` must be an
+  // object or a function. Only the store can judge whether a handle is enlistable.
+  const txValue: unknown = opts.tx;
+  if (
+    txValue !== undefined &&
+    typeof txValue !== 'function' &&
+    (typeof txValue !== 'object' || txValue === null)
+  ) {
+    throw new Error(
+      `${seam}: opts.tx must be an object or a function when supplied (a transaction handle)`,
+    );
+  }
   for (const key of Object.keys(opts)) {
     if (key === 'tx' || key === 'result') continue;
     throw new Error(
@@ -375,6 +389,7 @@ export async function redeem(
   content: unknown,
   opts?: RedeemOptions,
 ): Promise<Outcome<{ recordId: string; state: 'redeemed'; transitionRef: Digest }>> {
+  assertIdArg('redeem', 'recordId', recordId);
   validateRedeemOptions('redeem', opts);
   const { store, now } = ctx;
   const tx = opts?.tx;
@@ -506,6 +521,7 @@ export async function beginRedemption(
 ): Promise<
   Outcome<{ recordId: string; state: 'redeeming'; token: string; transitionRef: Digest }>
 > {
+  assertIdArg('beginRedemption', 'recordId', recordId);
   validateRedeemOptions('beginRedemption', opts);
   const { store, now, tokenSource } = ctx;
   const tx = opts?.tx;
@@ -614,6 +630,7 @@ export async function completeRedemption(
   content: unknown,
   opts?: RedeemOptions,
 ): Promise<Outcome<{ recordId: string; state: 'redeemed'; transitionRef: Digest }>> {
+  assertIdArg('completeRedemption', 'recordId', recordId);
   if (typeof token !== 'string') {
     // A caller bug throws at argument intake, ahead of every outcome — the same depth as
     // finalize's consultation-shape throw (SPEC §8: caller errors are not refusals). An

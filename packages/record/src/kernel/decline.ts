@@ -39,6 +39,7 @@ import {
 } from './finalize.js';
 import { heldProfile } from './held-profile.js';
 import { identitySnapshot } from './identity.js';
+import { assertIdArg, assertOptionsBag } from './intake.js';
 import { signatureLayerHolds } from './verify-signatures.js';
 
 export async function decline(
@@ -49,6 +50,8 @@ export async function decline(
   facts: Facts,
   opts?: DeclineOptions,
 ): Promise<Outcome<{ recordId: string; state: 'declined'; transitionRef: Digest }>> {
+  assertIdArg('decline', 'recordId', recordId);
+  assertOptionsBag('decline', opts);
   const { store, profiles, now } = ctx;
 
   // --- intake (finalize's posture: throws before anything is loaded) -------------------

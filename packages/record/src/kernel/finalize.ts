@@ -131,6 +131,7 @@ import { deadlineIso, resolveDueClock } from './expiry.js';
 import { findingCoverage } from './findings.js';
 import { heldProfile } from './held-profile.js';
 import { identitySnapshot } from './identity.js';
+import { assertIdArg, assertOptionsBag } from './intake.js';
 import { signatureLayerHolds } from './verify-signatures.js';
 
 /**
@@ -175,6 +176,8 @@ export async function finalize(
   facts: Facts,
   opts?: FinalizeOptions,
 ): Promise<Outcome<{ recordId: string; state: 'confirmed'; transitionRef: Digest }>> {
+  assertIdArg('finalize', 'recordId', recordId);
+  assertOptionsBag('finalize', opts);
   const { store, profiles, now } = ctx;
 
   // --- intake (SPEC §9: consultation shape "throws at argument intake, before anything
@@ -776,7 +779,7 @@ async function seqConflict(
   const message =
     `${seam}: ${index === undefined ? `${site} ('seq')` : site}. A Store honouring the ` +
     `compare-and-swap contract cannot report this: ${why}. This is a storage fault. The ` +
-    'batch is all-or-nothing: nothing was appended and the record is unchanged.';
+    `${index === undefined ? 'append' : 'batch'} is all-or-nothing: nothing was appended and the record is unchanged.`;
   const fault =
     reReadFailure === undefined ? new Error(message) : new Error(message, { cause: reReadFailure });
   return { contended: false, fault };

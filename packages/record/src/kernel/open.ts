@@ -39,6 +39,7 @@ import type {
   Transition,
 } from '../types.js';
 import { expiryDeadlineMs, resolveDueClock } from './expiry.js';
+import { assertIdArg, assertOptionsBag } from './intake.js';
 import { verifyPriorLegs } from './prior-legs.js';
 import { type SupersedesCheck, validateSupersedesShape, verifySupersedes } from './supersedes.js';
 
@@ -47,6 +48,8 @@ export async function open(
   stagedRef: string,
   opts?: OpenOptions,
 ): Promise<Outcome<{ recordId: string }>> {
+  assertIdArg('open', 'stagedRef', stagedRef);
+  assertOptionsBag('open', opts);
   // Every documented `open()` options key is real, each as of its own increment
   // (`priorRecordRefs` since the first step-4 increment, `policyDigest` since the
   // second step-6 increment, `supersedes` since the step-8 recovery increment,
@@ -415,18 +418,47 @@ function checkedDraft(draft: StagedDraft, ref: string, label: string): CheckedDr
 }
 
 /**
- * The `priorRecordRefs` half of open()'s option snapshot: a fresh array holding each entry's
- * `recordId` and `chainHead`, each read once. An entry that is not an object, and a value that is
- * not an array, pass through as they came, so `verifyPriorLegs` meets them as it always has —
- * and it reads every reference's fields once itself, before its first await.
+ * The `priorRecordRefs` half of open()'s option snapshot, shape-checked at argument depth before
+ * any store read: an array, each entry a plain `{ recordId, chainHead }` — the shape exact,
+ * unknown keys thrown, both fields non-empty strings (`validateSupersedesShape`'s rules, per
+ * entry). Returns a fresh array holding each entry's two fields, each read once.
  */
-function snapshotPriorRecordRefs(refs: PriorRecordRef[] | undefined): PriorRecordRef[] | undefined {
-  if (!Array.isArray(refs)) return refs;
-  return refs.map((ref) =>
-    typeof ref === 'object' && ref !== null
-      ? { recordId: ref.recordId, chainHead: ref.chainHead }
-      : ref,
-  );
+function snapshotPriorRecordRefs(refs: unknown): PriorRecordRef[] | undefined {
+  if (refs === undefined) return undefined;
+  if (!Array.isArray(refs)) {
+    throw new Error('open: priorRecordRefs must be an array when supplied (SPEC §10.1)');
+  }
+  const out: PriorRecordRef[] = [];
+  for (let i = 0; i < refs.length; i++) {
+    const entry: unknown = refs[i];
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+      throw new Error(
+        `open: priorRecordRefs[${i}] must be a plain { recordId, chainHead } object (SPEC §10.1)`,
+      );
+    }
+    const fields = entry as Record<string, unknown>;
+    for (const key of Object.keys(fields)) {
+      if (key !== 'recordId' && key !== 'chainHead') {
+        throw new Error(
+          `open: priorRecordRefs[${i}] carries the unknown key '${key}' — the shape is exact (SPEC §10.1)`,
+        );
+      }
+    }
+    const recordId = fields.recordId;
+    if (typeof recordId !== 'string' || recordId.length === 0) {
+      throw new Error(
+        `open: priorRecordRefs[${i}] has a missing or empty recordId — a caller error (SPEC §10.1)`,
+      );
+    }
+    const chainHead = fields.chainHead;
+    if (typeof chainHead !== 'string' || chainHead.length === 0) {
+      throw new Error(
+        `open: priorRecordRefs[${i}] has a missing or empty chainHead — a caller error (SPEC §10.1)`,
+      );
+    }
+    out.push({ recordId, chainHead });
+  }
+  return out;
 }
 
 /** SPEC §9's provenance option shape: a plain object with exactly `stagedRef`, a

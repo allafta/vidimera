@@ -34,12 +34,14 @@ import type { AppendMeta } from '../store/store.js';
 import type { Digest, Transition } from '../types.js';
 import { appendChainCompromise } from './finalize.js';
 import { heldProfile } from './held-profile.js';
+import { assertIdArg } from './intake.js';
 import { signatureLayerHolds } from './verify-signatures.js';
 
 export async function seal(
   ctx: KernelContext,
   recordId: string,
 ): Promise<Outcome<{ recordId: string; status: 'retired'; transitionRef: Digest }>> {
+  assertIdArg('seal', 'recordId', recordId);
   const { store, profiles, now } = ctx;
 
   const chain = await store.readChain(recordId);
