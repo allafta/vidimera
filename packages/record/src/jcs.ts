@@ -4,9 +4,12 @@
 // Zero dependencies by construction. This is not a shortcut: RFC 8785 section 3.2.2
 // normatively *delegates* primitive serialization to ECMAScript — numbers to the
 // Number::toString algorithm (section 3.2.2.3) and strings to the escaping rules of
-// QuoteJSONString (section 3.2.2.2). `JSON.stringify` already implements both
-// exactly, including the lowercase \u00xx fallback for control characters with no
-// short escape and the ES2019 well-formed escaping of lone surrogates. The only step
+// QuoteJSONString (section 3.2.2.2). `JSON.stringify` already implements both,
+// including the lowercase \u00xx fallback for control characters with no short escape.
+// RFC 8785 requires a lone surrogate to be REFUSED; `JSON.stringify` escapes it (ES2019).
+// The default mode here keeps that escape deliberately, so the read path stays
+// byte-identical and a persisted chain carrying one still verifies; the strict mode
+// (`wellFormed: true`), used where content enters, refuses it. The only step
 // JCS layers on top is recursive object-key ordering by UTF-16 code unit, which is
 // what this file adds.
 //
@@ -14,7 +17,7 @@
 // precisely RFC 8785 section 3.2.3's requirement — so the sort is deliberately the
 // default one, never `localeCompare` (locale-sensitive) and never a codepoint sort.
 
-import { isWellFormedUtf16 } from './subject-ref.js';
+import { isWellFormedUtf16 } from './utf16.js';
 
 /** Options for `serializeJcs`. Internal: not exported from the package index. */
 export interface SerializeJcsOptions {
@@ -60,7 +63,8 @@ export interface SerializeJcsOptions {
  *   twice in sibling positions is a finite tree and serializes fine.
  * - **Only plain objects serialize.** An object that is not an array, carries no callable
  *   `toJSON`, and whose prototype is not `Object.prototype`, `null`, or another realm's
- *   `Object.prototype` throws, naming its constructor: a `Map`, a `Set`, a Promise, a class
+ *   `Object.prototype` throws, naming its constructor (or the generic 'non-plain object' when it has no named
+ *   one): a `Map`, a `Set`, a Promise, a class
  *   instance (including one holding only `#private` state) and a boxed primitive
  *   (`new String('a')`, which once serialized as `{"0":"a"}`) have no JSON form. A `Date`
  *   still serializes through its `toJSON`. Data read back from a store is always plain.
@@ -128,7 +132,7 @@ function writeContainer(container: object, open: Set<object>, strict: boolean): 
     }
     if (!isPlainObject(container)) {
       throw new TypeError(
-        `serializeJcs: a ${constructorName(container)} has no JCS representation — only plain objects, arrays and values with a toJSON serialize`,
+        `serializeJcs: ${withArticle(constructorName(container))} has no JCS representation — only plain objects, arrays and values with a toJSON serialize`,
       );
     }
     const members: string[] = [];
@@ -171,4 +175,8 @@ function constructorName(value: object): string {
     // fall through to the generic name
   }
   return 'non-plain object';
+}
+
+function withArticle(name: string): string {
+  return `${/^[AEIOUaeiou]/.test(name) ? 'an' : 'a'} ${name}`;
 }

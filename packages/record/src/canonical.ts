@@ -5,9 +5,8 @@
 import { createHash } from 'node:crypto';
 
 import { serializeJcs } from './jcs.js';
-import { isWellFormedUtf16 } from './subject-ref.js';
-
 import type { Digest } from './types.js';
+import { isWellFormedUtf16 } from './utf16.js';
 
 /** One encoder for the module — `TextEncoder` is stateless, and a per-call allocation bought
  * nothing (the review-hardening pass, 2026-09-05). */
@@ -101,7 +100,7 @@ export function bindContent(
         // an exotic thenable that throws while being adopted: the refusal below still stands
       }
       throw new TypeError(
-        `canonicalizer for '${canonicalizerRef}' returned a thenable — a canonicalizer is synchronous (SPEC §3); return the projected content, not a promise`,
+        `canonicalizer for '${canonicalizerRef}' returned a thenable — a canonicalizer is synchronous; return the projected content, not a promise`,
       );
     }
   }

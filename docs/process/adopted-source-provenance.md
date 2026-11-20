@@ -397,9 +397,9 @@ before it lands.**
 
 `structuredClone` throws a `DataCloneError` on any function- or symbol-valued member anywhere
 in the object graph it is given. This repository's own canonicalizer, `jcs.ts`, deliberately
-does **not** do that: `hasNoJsonForm` (`jcs.ts:111-113`) treats a function or symbol member the
+does **not** do that: `hasNoJsonForm` (in `jcs.ts`) treats a function or symbol member the
 same way `JSON.stringify` does — it is silently **omitted** from an object, or turned into
-`null` in an array (`jcs.ts:24-45` documents this as a deliberate, tested decision, matching
+`null` in an array (the `serializeJcs` header documents this as a deliberate, tested decision, matching
 `JSON.stringify`'s own structural rules).
 
 Concretely: a caller-supplied `IdentityAssertion` (the `identity` argument to `finalize()`, or

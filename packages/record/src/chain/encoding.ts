@@ -13,6 +13,9 @@
 import { algorithmOf, canonicalize, digest } from '../canonical.js';
 import type { Digest, Transition } from '../types.js';
 
+/** One stateless encoder for the genesis hash. */
+const UTF8 = new TextEncoder();
+
 /**
  * The exact shape fed to library JCS for a transition digest (SPEC §4 "the digest
  * input, stated exactly"): the same
@@ -48,8 +51,9 @@ function toDigestInput(transition: Transition): TransitionDigestInput {
 /**
  * Genesis rule (SPEC §4): `prevHash = digest(UTF-8 "vidimera:genesis:<recordId>")`
  * — a digest of the RAW UTF-8 bytes of that literal string, not a library-JCS digest
- * of some wrapper structure (there is no JCS involved here at all; `digest()` accepts
- * a plain string and UTF-8-encodes it itself). Computed under `digest()`'s default
+ * of some wrapper structure (there is no JCS involved here at all; the string is UTF-8-encoded
+ * here and `digest()` hashes the bytes, because `digest()` refuses an ill-formed STRING while
+ * verification of an untrusted chain must keep working on one). Computed under `digest()`'s default
  * algorithm (`sha256`, the only algorithm this build supports) — genesis is what ESTABLISHES the
  * algorithm a record's whole chain is recorded under; every subsequent
  * `transitionDigest()` call derives its algorithm from the PREVIOUS transition's
@@ -57,7 +61,9 @@ function toDigestInput(transition: Transition): TransitionDigestInput {
  * hardcoded again downstream.
  */
 export function genesisPrevHash(recordId: string): Digest {
-  return digest(`vidimera:genesis:${recordId}`);
+  // Hashed as BYTES so this read path never throws on a recordId carrying a lone surrogate:
+  // the encoder collapses it to U+FFFD, exactly as `digest(string)` once did.
+  return digest(UTF8.encode(`vidimera:genesis:${recordId}`));
 }
 
 /**

@@ -899,3 +899,13 @@ test('beginRedemption: an unknown option key gets the seam-true tail, and a PRES
     },
   );
 });
+
+test('completeRedemption: an ill-formed presented token refuses effect-mismatch and leaves the chain unchanged', async () => {
+  const { handles, recordId, store } = await redeemingRecord();
+  const before = await store.readChain(recordId);
+  const outcome = await handles.operator.completeRedemption(recordId, 'x\ud800', CONTENT);
+  assert.equal(outcome.status, 'refused');
+  if (outcome.status !== 'refused') return;
+  assert.equal(outcome.code, 'effect-mismatch');
+  assert.deepEqual(await store.readChain(recordId), before, 'the chain is untouched');
+});

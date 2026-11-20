@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import vm from 'node:vm';
 import { test } from 'vitest';
 import { digest } from '../src/canonical.js';
 import { serializeJcs } from '../src/jcs.js';
@@ -88,13 +89,7 @@ test('accepts a null-prototype object, another realm plain object, and a Date th
   bare.b = 1;
   bare.a = 2;
   assert.equal(serializeJcs(bare), '{"a":2,"b":1}');
-  const foreign = Object.create(
-    Object.create(null, {
-      constructor: { value: Object.defineProperty(() => 0, 'name', { value: 'Object' }) },
-    }),
-  ) as Record<string, unknown>;
-  foreign.k = 1;
-  assert.equal(serializeJcs(foreign), '{"k":1}');
+  assert.equal(serializeJcs(vm.runInNewContext('({ k: 1 })')), '{"k":1}');
   assert.equal(serializeJcs(new Date('2030-01-15T10:03:44.612Z')), '"2030-01-15T10:03:44.612Z"');
 });
 
@@ -118,4 +113,9 @@ test('digest refuses an ill-formed string and still hashes bytes as given', () =
   assert.throws(() => digest('a\ud800b'), /lone surrogate/);
   assert.match(digest(new TextEncoder().encode('a\ud800b')), /^sha256:[0-9a-f]{64}$/);
   assert.match(digest('a\u{1F600}b'), /^sha256:[0-9a-f]{64}$/);
+});
+
+test('refuses a Map and a class instance built in another realm', () => {
+  assert.throws(() => serializeJcs(vm.runInNewContext('new Map()')), /Map/);
+  assert.throws(() => serializeJcs(vm.runInNewContext('new (class Foo {})()')), /Foo/);
 });

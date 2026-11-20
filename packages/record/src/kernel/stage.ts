@@ -11,9 +11,9 @@
 //      sites stay byte-compatible); a legId the CALLER NAMES that is absent from the
 //      resolved profile's legs fails CLOSED with `refused('unknown-leg')` — pre-record,
 //      BEFORE any `putStaged` (the FIRST `unknown-leg` producer; SPEC §8);
-//   3. bind the content: `contentDigest = digest(canonicalize(adopterCanonicalizer(content)))`
-//      — the adopter canonicalizer projects domain content to a JSON-safe structure, then
-//      library JCS + digest; content itself is NEVER persisted, only its digest;
+//   3. bind the content: `contentDigest = bindContent(...)` (canonical.ts)
+//      — the adopter canonicalizer projects domain content to a JSON-safe structure (it must
+//      be synchronous), then strict library JCS + digest; content itself is NEVER persisted, only its digest;
 //   4. derive the content-derived, idempotent `stagedRef` (id.ts `deriveStagedRef`, now
 //      leg-folded) and write the digest-only draft via the idempotent `putStaged`.
 // It APPENDS NOTHING and creates NO record — `open()` (kernel/open.ts) is what mints the

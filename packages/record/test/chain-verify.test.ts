@@ -410,3 +410,30 @@ test("finalize's pre-seam verify and operator verifyChain() share one verifyChai
   if (outcome.status !== 'refused') return;
   assert.equal(outcome.code, 'chain-compromise');
 });
+
+// === the read path never throws on an ill-formed recordId =============================
+// `verifyChain` audits untrusted chains, so a recordId carrying a lone surrogate must be
+// REPORTED as a break, not thrown on: the genesis hash is taken over bytes.
+
+function aShortChain(recordId: string) {
+  return buildChain(recordId, [
+    { kind: 'opened', payload: { profileId: PROFILE_ID } },
+    { kind: 'consultation-recorded', payload: aConsultation('sha256:bbbb') },
+  ]);
+}
+
+test('verifyChain reports a break, not a throw, when the genesis recordId holds a lone surrogate', () => {
+  const chain = aShortChain('rec-ok');
+  const first = chain[0];
+  if (first === undefined) throw new Error('buildChain returned nothing');
+  const tampered = [{ ...first, recordId: 'rec-\ud800' }, ...chain.slice(1)];
+  const report = verifyChain(tampered);
+  assert.equal(report.intact, false);
+  assert.equal(report.firstBreakSeq, 1);
+});
+
+test('verifyChain(chain, recordId) reports a recordId mismatch, not a throw, for an ill-formed requested id', () => {
+  const report = verifyChain(aShortChain('rec-ok'), 'x\ud800');
+  assert.equal(report.intact, false);
+  assert.equal(report.firstBreakSeq, 1);
+});

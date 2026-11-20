@@ -98,7 +98,7 @@ interface StoredRecord {
  *     will need, not an arbitrary new restriction;
  *  3. a helper that faithfully mirrored `jcs.ts`'s tolerance would also have to honor its
  *     `toJSON`-takes-precedence rule to genuinely match "what the digest accepts" (`jcs.ts`
- *     calls `toJSON` before ever checking a member for omission, `jcs.ts:88-91`) —
+ *     calls `toJSON` before ever checking a member for omission, `writeContainer` in `jcs.ts`) —
  *     reimplementing that recursive traversal a second time, on this hot path, is new-code
  *     risk disproportionate to the actual need: SPEC §6's `IdentityAssertion` shape is
  *     plain data, and the kernel projects every identity it records to a literal

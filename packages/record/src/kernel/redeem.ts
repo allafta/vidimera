@@ -86,8 +86,8 @@ import { isFinalLeg, nonTerminal } from '../nonterminal.js';
 import type { Outcome } from '../outcome.js';
 import { ok, refused } from '../outcome.js';
 import type { AppendMeta, Store } from '../store/store.js';
-import { isWellFormedUtf16 } from '../subject-ref.js';
 import type { DecisionRecord, Digest, Transition } from '../types.js';
+import { isWellFormedUtf16 } from '../utf16.js';
 import { deadlineIso, pendingWindow, resolveDueClock } from './expiry.js';
 import { appendChainCompromise } from './finalize.js';
 import { heldProfile } from './held-profile.js';
@@ -683,7 +683,7 @@ export async function completeRedemption(
   // the secret is the PREIMAGE, protected by the digest's preimage resistance. A timing
   // oracle on `===` can only ever recover the non-secret side; `timingSafeEqual` here
   // would defend nothing. (Written down so nobody "fixes" it.)
-  // A presented token that is not well-formed UTF-16 can never be the minted one (a hex string),
+  // A presented token that is not well-formed UTF-16 can never be the minted one (base64url),
   // and `digest` refuses such a string, so it is a mismatch here rather than a throw.
   if (!isWellFormedUtf16(token) || digest(token) !== persisted) {
     return refused('effect-mismatch');
