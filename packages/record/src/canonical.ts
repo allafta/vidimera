@@ -146,5 +146,14 @@ export function resolveCanonicalizer(
   if (c === undefined) {
     throw new Error(`resolveCanonicalizer: unresolved canonicalizerRef '${ref}'`);
   }
+  // A registry entry that is not a function (a `null`, a string, an object) would construct
+  // and then fail at the first `stage()`, deep inside the kernel; construction is loud, so it
+  // is refused here, with the same head as a missing entry.
+  if (typeof c !== 'function') {
+    throw new Error(
+      `resolveCanonicalizer: unresolved canonicalizerRef '${ref}' — the registry entry is not a function ` +
+        `(found ${c === null ? 'null' : Array.isArray(c) ? 'an array' : typeof c}); a canonicalizer is a function (SPEC §3)`,
+    );
+  }
   return c;
 }

@@ -164,6 +164,71 @@ function assertNoStrayRedemptionKeys(profileId: string, where: string, obj: obje
 }
 
 /**
+ * The upper bound on every seconds-valued bound (`expiry.ttl`, `redeem.confirmToRedeem`,
+ * `redeem.redeemBound`, each `freshness` value): 100 Julian years, 3,155,760,000 seconds. The
+ * three stamping bounds are added to the clock to make a deadline the build records, and at
+ * this cap every such deadline stays inside RFC 3339's four-digit years for any clock before
+ * the year 9899; a longer bound is the unbounded idiom, whose spelling is to OMIT the field
+ * (`'none'` for expiry). Freshness stamps nothing but takes the same rule, so "the ttl
+ * convention" stays one convention.
+ */
+const MAX_BOUND_SECONDS = 3_155_760_000;
+
+/** The tail every bound message ends with: the convention and the cap that completes it. */
+const BOUND_RULE = `a positive integer of seconds (the ttl convention), at most ${MAX_BOUND_SECONDS} (100 Julian years) — omit the field for no bound`;
+
+function isValidBound(value: unknown): boolean {
+  return Number.isInteger(value) && (value as number) > 0 && (value as number) <= MAX_BOUND_SECONDS;
+}
+
+/** What a wrong value IS, for a message: `typeof` calls both `null` and an array 'object'. */
+function found(value: unknown): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'an array';
+  return typeof value;
+}
+
+/** A primitive as a message shows it: JSON for the JSON-able ones (the text the messages
+ * already carried), and a plain rendering for the two `JSON.stringify` cannot take (a BigInt
+ * throws, a Symbol yields `undefined`), so describing a value never itself throws. */
+function show(value: unknown): string {
+  if (typeof value === 'bigint') return `${value}n`;
+  if (typeof value === 'symbol') return String(value);
+  return JSON.stringify(value) ?? 'undefined';
+}
+
+/**
+ * A declared optional string (`proposer`, `eligibility`, `policySource`): the snapshot lets any
+ * primitive through, and `.length` on a number reads `undefined` and would pass. `null` is a
+ * declared non-string (digested, so never silently dropped) and its message says to omit the
+ * field instead.
+ */
+function assertOptionalString(
+  profileId: string,
+  where: string,
+  name: string,
+  value: unknown,
+): void {
+  if (value === undefined || typeof value === 'string') return;
+  throw new Error(
+    `invalid profile '${profileId}': ${where}${name} is ${found(value)} — ` +
+      (value === null
+        ? 'omit the field to declare nothing; null is a declared non-string, not an absent field'
+        : 'a declared label is a string'),
+  );
+}
+
+/** A declared list field is an array. The snapshot has already refused a `Set` or a non-list
+ * object, so what reaches here is a primitive (a string would iterate its characters). */
+function assertOptionalArray(profileId: string, legId: string, name: string, value: unknown): void {
+  if (value === undefined || Array.isArray(value)) return;
+  throw new Error(
+    `invalid profile '${profileId}': leg '${legId}' declares ${name} as ${found(value)} — ` +
+      `${name} is an array (omit the field to declare nothing)`,
+  );
+}
+
+/**
  * Structural `allowedAuthorities` validation — the settled fail-closed class
  * (`validateRequiredConsultations`'s three rules, minus the reserved-kind arm: authorities
  * are the host's own namespace): non-empty, every entry a non-empty string, pairwise
@@ -206,11 +271,76 @@ function validateAllowedAuthorities(profile: ConfirmProfile, leg: LegSpec): void
   }
 }
 
+/**
+ * A `terminalRefusals` member is legal only where something can PRODUCE it. Each row is the
+ * declaration whose seam emits the code (`kernel/finalize.ts`'s and `kernel/decline.ts`'s
+ * `refuseMaybeAppend` call sites): a member without its producer never matches, leaving a leg
+ * the operator believes terminal silently non-terminal (SPEC §9.1: inert feature
+ * configuration is a construction error). `leg-expired` and `availability` are absent on
+ * purpose — SPEC §8 names them legal-but-inert — and every other member is unconditional.
+ */
+const PRODUCER_OF: Partial<
+  Record<RefusalCode, { needs: string; declared: (p: ConfirmProfile, leg: LegSpec) => boolean }>
+> = {
+  'sod-violation': {
+    needs: 'the leg to declare sod or proposer',
+    declared: (_p, leg) => leg.sod !== undefined || leg.proposer !== undefined,
+  },
+  'policy-drift': {
+    needs: 'the profile to declare policySource',
+    declared: (p) => p.policySource !== undefined,
+  },
+  ineligible: {
+    needs: 'the leg to declare eligibility',
+    declared: (_p, leg) => leg.eligibility !== undefined,
+  },
+  'consultation-failed': {
+    needs: 'the leg to declare requiredConsultations',
+    declared: (_p, leg) => leg.requiredConsultations !== undefined,
+  },
+  'consultation-stale': {
+    needs: 'the leg to declare freshness',
+    declared: (_p, leg) => leg.freshness !== undefined,
+  },
+  'ack-missing': {
+    needs: 'the leg to declare the findings flow (ackMode and requiredAcks)',
+    declared: (_p, leg) => leg.ackMode !== undefined && leg.requiredAcks !== undefined,
+  },
+  'ack-stale': {
+    needs: 'the leg to declare the findings flow (ackMode and requiredAcks)',
+    declared: (_p, leg) => leg.ackMode !== undefined && leg.requiredAcks !== undefined,
+  },
+};
+
+/**
+ * The type and shape rules every leg field meets BEFORE any other leg rule reads it. The
+ * snapshot passes a primitive (including `null`) through in any slot, so each declared field
+ * is judged here: the lists are arrays (`allowedAuthorities` and `sod.notActorOf` keep their
+ * own messages, below), `proposer`/`eligibility` are strings, and `freshness` is a record. A
+ * `null` is a declared non-value, never an absent one, so it is named instead of read through.
+ */
+function validateLegShapes(profile: ConfirmProfile, leg: LegSpec): void {
+  const where = `leg '${leg.id}' declares `;
+  assertOptionalString(profile.id, where, 'proposer', leg.proposer);
+  assertOptionalString(profile.id, where, 'eligibility', leg.eligibility);
+  assertOptionalArray(profile.id, leg.id, 'requiredConsultations', leg.requiredConsultations);
+  assertOptionalArray(profile.id, leg.id, 'requiredAcks', leg.requiredAcks);
+  const freshness: unknown = leg.freshness;
+  if (freshness !== undefined && (typeof freshness !== 'object' || freshness === null)) {
+    throw new Error(
+      `invalid profile '${profile.id}': leg '${leg.id}' declares freshness as ${found(freshness)} — ` +
+        'freshness is a record of required kind to seconds (omit the field to declare nothing)',
+    );
+  }
+}
+
 /** Per-leg GOVERNED guards: every not-yet-enforceable leg control throws. NONE remain as
  * of the AL2 freshness increment — `freshness` was the last (`validateFreshness`, below,
  * replaces it with this build's own fail-closed structural posture). This function is
- * kept as the stray-redemption-key check's own per-leg call site. */
-function validateLeg(profileId: string, leg: LegSpec): void {
+ * kept as the stray-redemption-key check's own per-leg call site, and now also holds the
+ * `terminalRefusals` rules. */
+function validateLeg(profile: ConfirmProfile, leg: LegSpec): void {
+  const profileId = profile.id;
   assertNoStrayRedemptionKeys(profileId, 'leg', leg);
   // `terminalRefusals` members must be registry codes (SPEC §8): an unrecognized string
   // constructs inert and never matches, so a leg the operator believes configured
@@ -222,9 +352,21 @@ function validateLeg(profileId: string, leg: LegSpec): void {
   // consults the leg only after the compromise class, the availability class and the
   // fixed never-appends set have each answered, so a member from the first or the third
   // could never take effect and is rejected here — SPEC §8 names exactly two legal-but-inert
-  // members, and these are not among them. A duplicate takes the allowedAuthorities rule.
+  // members, and these are not among them. The feature-conditional members close the same
+  // space from the other side: a code no declared feature can produce (`PRODUCER_OF`) never
+  // fires either. A duplicate takes the allowedAuthorities rule. The list is an array when
+  // declared (`null` used to read as absent through `?? []`), and every member is a string
+  // BEFORE the registry lookup, since `Object.hasOwn` would coerce `['sod-violation']` to a key.
+  const listed: unknown = leg.terminalRefusals;
+  assertOptionalArray(profileId, leg.id, 'terminalRefusals', listed);
   const seen = new Set<string>();
-  for (const code of leg.terminalRefusals ?? []) {
+  for (const code of (listed ?? []) as unknown[]) {
+    if (typeof code !== 'string') {
+      throw new Error(
+        `invalid profile '${profileId}': leg '${leg.id}' lists a non-string member in terminalRefusals ` +
+          `(found ${found(code)}) — members are registry refusal code strings (SPEC §8)`,
+      );
+    }
     if (!Object.hasOwn(REGISTRY, code)) {
       throw new Error(
         `invalid profile '${profileId}': leg '${leg.id}' lists '${code}' in terminalRefusals, ` +
@@ -233,19 +375,27 @@ function validateLeg(profileId: string, leg: LegSpec): void {
           '(SPEC §9.1: inert feature configuration is a construction error)',
       );
     }
-    if (REGISTRY[code] === 'compromise') {
+    if (REGISTRY[code as RefusalCode] === 'compromise') {
       throw new Error(
         `invalid profile '${profileId}': leg '${leg.id}' lists '${code}' in terminalRefusals, ` +
           'but the compromise class appends regardless of any listing (SPEC §8) — the member ' +
           'could never take effect (SPEC §9.1: inert feature configuration is a construction error)',
       );
     }
-    if (NEVER_APPENDS.has(code)) {
+    if (NEVER_APPENDS.has(code as RefusalCode)) {
       throw new Error(
         `invalid profile '${profileId}': leg '${leg.id}' lists '${code}' in terminalRefusals, ` +
           'but that code never appends (SPEC §8) — appendsOn consults the leg only after the ' +
           'fixed never-appends set has answered, so the member could never take effect ' +
           '(SPEC §9.1: inert feature configuration is a construction error)',
+      );
+    }
+    const producer = PRODUCER_OF[code as RefusalCode];
+    if (producer !== undefined && !producer.declared(profile, leg)) {
+      throw new Error(
+        `invalid profile '${profileId}': leg '${leg.id}' lists '${code}' in terminalRefusals, ` +
+          `but nothing produces that code without ${producer.needs} (SPEC §8) — the member ` +
+          'could never take effect (SPEC §9.1: inert feature configuration is a construction error)',
       );
     }
     if (seen.has(code)) {
@@ -348,10 +498,10 @@ function validateFreshness(profile: ConfirmProfile, leg: LegSpec): void {
           'required kind of this leg — a bound on a never-gated kind is declarable-but-inert (the fail-closed ruling)',
       );
     }
-    if (!Number.isInteger(seconds) || seconds <= 0) {
+    if (!isValidBound(seconds)) {
       throw new Error(
         `invalid profile '${profile.id}': leg '${leg.id}' bounds '${kind}' at ${String(seconds)} — ` +
-          'a freshness bound is a positive integer of seconds (the ttl convention)',
+          `a freshness bound is ${BOUND_RULE}`,
       );
     }
   }
@@ -384,33 +534,30 @@ function validateBounds(profile: ConfirmProfile): void {
       // The review-hardening pass (2026-09-05): a non-TS caller's `expiry: undefined` met a raw
       // TypeError from the destructuring below; it meets this file's own message instead.
       throw new Error(
-        `invalid profile '${profile.id}': expiry is ${JSON.stringify(expiry) ?? 'undefined'} — ` +
+        `invalid profile '${profile.id}': expiry is ${show(expiry)} — ` +
           "SPEC §9.1 admits 'none' or { ttl }; anything else is malformed config, not a bound",
       );
     }
     const { ttl } = profile.expiry;
-    if (!Number.isInteger(ttl) || ttl <= 0) {
+    if (!isValidBound(ttl)) {
       throw new Error(
         `invalid profile '${profile.id}': expiry.ttl is ${String(ttl)} — ` +
-          'a bound is a positive integer of seconds (the ttl convention)',
+          `a bound is ${BOUND_RULE} ('none' for expiry)`,
       );
     }
   }
   const confirmToRedeem = profile.redeem?.confirmToRedeem;
-  if (
-    confirmToRedeem !== undefined &&
-    (!Number.isInteger(confirmToRedeem) || confirmToRedeem <= 0)
-  ) {
+  if (confirmToRedeem !== undefined && !isValidBound(confirmToRedeem)) {
     throw new Error(
       `invalid profile '${profile.id}': redeem.confirmToRedeem is ${String(confirmToRedeem)} — ` +
-        'a bound is a positive integer of seconds (the ttl convention)',
+        `a bound is ${BOUND_RULE}`,
     );
   }
   const redeemBound = profile.redeem?.redeemBound;
-  if (redeemBound !== undefined && (!Number.isInteger(redeemBound) || redeemBound <= 0)) {
+  if (redeemBound !== undefined && !isValidBound(redeemBound)) {
     throw new Error(
       `invalid profile '${profile.id}': redeem.redeemBound is ${String(redeemBound)} — ` +
-        'a bound is a positive integer of seconds (the ttl convention)',
+        `a bound is ${BOUND_RULE}`,
     );
   }
 }
@@ -486,6 +633,12 @@ function validateSodShape(profile: ConfirmProfile, index: number, leg: LegSpec):
     }
     const seen = new Set<string>();
     for (const entry of entries) {
+      if (typeof entry !== 'string' || entry.length === 0) {
+        throw new Error(
+          `invalid profile '${profile.id}': leg '${leg.id}' declares a missing or empty leg id in sod.notActorOf ` +
+            `(found ${found(entry)}) — every entry names a strictly-earlier leg (SPEC §10.1)`,
+        );
+      }
       if (seen.has(entry)) {
         throw new Error(
           `invalid profile '${profile.id}': leg '${leg.id}' names '${entry}' twice in sod.notActorOf — ` +
@@ -581,7 +734,7 @@ function validateFindingsFlow(profile: ConfirmProfile, leg: LegSpec): void {
     // mode from a non-TS caller was a silently WEAKENED gate — the fail-open direction, the
     // one shape this file exists to make loud.
     throw new Error(
-      `invalid profile '${profile.id}': leg '${leg.id}' declares ackMode ${JSON.stringify(mode)} — ` +
+      `invalid profile '${profile.id}': leg '${leg.id}' declares ackMode ${show(mode)} — ` +
         "SPEC §10.2 names three modes, 'self', 'counterparty' and 'any'; any other value would " +
         "count acknowledgments as 'any', a silently weakened gate (the fail-closed structural class)",
     );
@@ -612,8 +765,13 @@ function validateFindingsFlow(profile: ConfirmProfile, leg: LegSpec): void {
 
 /**
  * Fail-CLOSED structural validation of a single profile. Order:
+ *  0. structural: the profile's own object-shaped fields, read before anything destructures
+ *     them — `subject` an object with a `canonicalizerRef` string, `redeem` an object when
+ *     declared with `reverify` a boolean, `policySource` a string (the snapshot hands any
+ *     primitive through, so these meet a named message here, not a raw TypeError);
  *  1. structural: at least one leg (internal legId derivation must be well-defined);
- *  2. structural: unique leg ids (SPEC §10.1 keys recorded evidence by legId);
+ *  2. structural: every leg an object, then unique leg ids (SPEC §10.1 keys recorded
+ *     evidence by legId);
  *  3. structural: `captureMode:'live'` construction rules (`validateLiveCapture`, SPEC
  *     §9.2, live as of the live-capture increment) — checked at this same position,
  *     still ahead of the reverify guard below (rung 8), whose own condition now reads
@@ -621,7 +779,7 @@ function validateFindingsFlow(profile: ConfirmProfile, leg: LegSpec): void {
  *  4. structural: numeric bounds (`validateBounds`, SPEC §9.1/§4, real as of the
  *     self-test-tier increment — register row 18) — `expiry.ttl` where declared,
  *     `redeem.confirmToRedeem`/`redeem.redeemBound` where present, each a positive
- *     finite integer of seconds;
+ *     finite integer of seconds, at most `MAX_BOUND_SECONDS` (100 Julian years);
  *  4a. structural: the `redeem.result` declaration's shape (`validateResultDeclaration`,
  *     the effect-result increment) — profile-level, run immediately after the numeric
  *     bounds and before the policySource label check;
@@ -631,8 +789,12 @@ function validateFindingsFlow(profile: ConfirmProfile, leg: LegSpec): void {
  *  5a. structural: `signing` declared as anything but the literal `true` — the
  *     fail-closed guard that stops a silently-inert `signing: false` from constructing;
  *     profile-level, run before the leg loop;
- *  6. the stray-redemption-key check (inside `validateLeg` — no per-leg GOVERNED guard
- *     remains there, see below), then structural allowedAuthorities validation
+ *  6. the leg field type and shape rules (`validateLegShapes`: `proposer`/`eligibility`
+ *     strings, `requiredConsultations`/`requiredAcks` arrays, `freshness` a record), the
+ *     stray-redemption-key check and the `terminalRefusals` rules (inside `validateLeg` —
+ *     no per-leg GOVERNED guard remains there, see below: the list an array, every member
+ *     a string, then a registry code, then one whose producer the leg or profile
+ *     declares), then structural allowedAuthorities validation
  *     (`validateAllowedAuthorities`), structural SoD shape validation
  *     (`validateSodShape`), structural requiredConsultations validation
  *     (`validateRequiredConsultations`), structural eligibility validation
@@ -755,13 +917,56 @@ export function validateProfile(profile: ConfirmProfile): void {
   const mode: unknown = profile.captureMode;
   if (mode !== 'staged' && mode !== 'live') {
     throw new Error(
-      `invalid profile '${profile.id}': captureMode is ${JSON.stringify(mode) ?? 'undefined'} — ` +
+      `invalid profile '${profile.id}': captureMode is ${show(mode)} — ` +
         "SPEC §9.2 names two modes, 'staged' and 'live'; anything else would construct as staged, " +
         'a silent misdeclaration (SPEC §9.1: inert feature configuration is a construction error)',
     );
   }
+  // The snapshot passes a primitive through in any slot, so the object-shaped fields are
+  // judged here, ahead of the rules that read inside them: `subject` (an object carrying a
+  // `canonicalizerRef` string), each `legs` element (an object), `redeem` (an object when
+  // declared) with its `reverify` (a boolean), and `policySource` (a string). `null` is a
+  // declared non-value, digested and never silently dropped, so its message says to omit the
+  // field instead.
+  const subject: unknown = profile.subject;
+  const ref: unknown =
+    typeof subject === 'object' && subject !== null
+      ? (subject as { canonicalizerRef?: unknown }).canonicalizerRef
+      : undefined;
+  if (typeof ref !== 'string') {
+    throw new Error(
+      `invalid profile '${profile.id}': subject must be an object with a canonicalizerRef string ` +
+        `(found ${typeof subject === 'object' && subject !== null ? `a canonicalizerRef of ${found(ref)}` : found(subject)}) — SPEC §3 resolves the canonicalizer by that reference`,
+    );
+  }
+  const redeem: unknown = profile.redeem;
+  if (redeem !== undefined) {
+    if (typeof redeem !== 'object' || redeem === null) {
+      throw new Error(
+        `invalid profile '${profile.id}': redeem is declared but is not an object (found ${found(redeem)}) — ` +
+          'a redeem block is an object of redemption fields; omit the field to declare no effect seam',
+      );
+    }
+    const reverify: unknown = (redeem as { reverify?: unknown }).reverify;
+    if (reverify !== undefined && typeof reverify !== 'boolean') {
+      throw new Error(
+        `invalid profile '${profile.id}': redeem.reverify is ${found(reverify)} — ` +
+          (reverify === null
+            ? 'omit the field to declare nothing; null is a declared non-boolean, not an absent field'
+            : 'a declared reverify is a boolean'),
+      );
+    }
+  }
+  assertOptionalString(profile.id, '', 'policySource', profile.policySource);
   const seenLegIds = new Map<string, number>();
   for (const [index, leg] of profile.legs.entries()) {
+    const legValue: unknown = leg;
+    if (typeof legValue !== 'object' || legValue === null) {
+      throw new Error(
+        `invalid profile '${profile.id}': the leg at position ${index} is ${found(legValue)} — ` +
+          'legs is an array of leg declaration objects (SPEC §9.1)',
+      );
+    }
     const legId: unknown = leg.id;
     if (typeof legId !== 'string' || legId.length === 0) {
       throw new Error(
@@ -796,7 +1001,8 @@ export function validateProfile(profile: ConfirmProfile): void {
     );
   }
   for (const [index, leg] of profile.legs.entries()) {
-    validateLeg(profile.id, leg);
+    validateLegShapes(profile, leg);
+    validateLeg(profile, leg);
     validateAllowedAuthorities(profile, leg);
     validateSodShape(profile, index, leg);
     validateRequiredConsultations(profile, leg);
