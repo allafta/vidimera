@@ -840,6 +840,24 @@ describe('operator intake: the value checked is the value recorded', () => {
     });
     const marker = { kind: 'k2', unreachable: true };
     Object.defineProperty(marker, 'authority', once('authority', 'svc:x', EVIL));
+    // `kind` is read once: a later read that would be empty, a number or null is never recorded.
+    const kindEntry = (name: string, later: unknown) => {
+      const e = {
+        checker: { principal: 'c', authority: 'mtls:c' },
+        payloadDigest: D1,
+        verdict: 'pass',
+      };
+      Object.defineProperty(e, 'kind', once(name, name, later));
+      return e;
+    };
+    const kinds = validateConsultations(
+      [kindEntry('ka', ''), kindEntry('kb', 5), kindEntry('kc', null)] as never,
+      'finalize',
+    );
+    assert.deepEqual(
+      kinds.obtained.map((o) => o.kind),
+      ['ka', 'kb', 'kc'],
+    );
     const out = validateConsultations([entry, marker] as never, 'finalize');
     assert.deepEqual(out.obtained[0], {
       kind: 'k1',
@@ -850,6 +868,181 @@ describe('operator intake: the value checked is the value recorded', () => {
       observedAt: '2028-02-29T10:00:00Z',
     });
     assert.equal(out.unreachable[0]?.authority, 'svc:x');
+  });
+});
+
+// --- the redemption options bag is read once ---------------------------------------------------
+// `validateRedeemOptions` reads `tx` and `result` once; the prologue, the admission gate and the
+// signed payload use that read, so an accessor that answers differently on a later read changes
+// nothing.
+
+describe('operator intake: the redemption options bag is read once', () => {
+  const RESULT_OK = `sha256:${'c'.repeat(64)}`;
+  const JUNK = 'NOT A DIGEST\ud800';
+
+  function resultProfile() {
+    const p = effectSeamProfile();
+    p.redeem = { ...p.redeem, result: true };
+    return p;
+  }
+
+  async function confirmedOn(store: Store) {
+    const handles = create(makeConfig([resultProfile()], { store }));
+    const recordId = await openRecord(handles, CONTENT, 'test.effect.v1', DEFAULT_SUBJECT_REF);
+    const done = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+    assert.equal(done.status, 'ok');
+    return { handles, recordId };
+  }
+
+  /** A property that answers `first` once and `later` on every read after. */
+  const answering = (counter: { reads: number }, first: unknown, later: unknown) => ({
+    configurable: true,
+    enumerable: true,
+    get() {
+      counter.reads += 1;
+      return counter.reads === 1 ? first : later;
+    },
+  });
+
+  test('redeem: a result.digest that answers differently on a second read records the checked one', async () => {
+    const inner = new MemoryStore();
+    const { handles, recordId } = await confirmedOn(inner);
+    const counter = { reads: 0 };
+    const result = {};
+    Object.defineProperty(result, 'digest', answering(counter, RESULT_OK, JUNK));
+    const out = await handles.operator.redeem(recordId, CONTENT, { result: result as never });
+    assert.equal(out.status, 'ok');
+    assert.equal(counter.reads, 1, 'digest read once');
+    const text = JSON.stringify(await inner.readChain(recordId));
+    assert.ok(text.includes(RESULT_OK));
+    assert.ok(!text.includes('NOT A DIGEST'));
+  });
+
+  test('completeRedemption: a result.digest that answers differently on a second read records the checked one', async () => {
+    const inner = new MemoryStore();
+    const { handles, recordId } = await confirmedOn(inner);
+    const begun = await handles.operator.beginRedemption(recordId, CONTENT);
+    assert.equal(begun.status, 'ok');
+    const token = begun.status === 'ok' ? begun.value.token : '';
+    const counter = { reads: 0 };
+    const result = {};
+    Object.defineProperty(result, 'digest', answering(counter, RESULT_OK, JUNK));
+    const out = await handles.operator.completeRedemption(recordId, token, CONTENT, {
+      result: result as never,
+    });
+    assert.equal(out.status, 'ok');
+    assert.equal(counter.reads, 1, 'digest read once');
+    const text = JSON.stringify(await inner.readChain(recordId));
+    assert.ok(text.includes(RESULT_OK));
+    assert.ok(!text.includes('NOT A DIGEST'));
+  });
+
+  test('redeem and completeRedemption: a result that answers undefined at intake is never recorded later', async () => {
+    for (const seam of ['redeem', 'completeRedemption'] as const) {
+      const inner = new MemoryStore();
+      const { handles, recordId } = await confirmedOn(inner);
+      const counter = { reads: 0 };
+      const opts = {};
+      Object.defineProperty(opts, 'result', answering(counter, undefined, { digest: JUNK }));
+      let out: { status: string };
+      if (seam === 'redeem') {
+        out = await handles.operator.redeem(recordId, CONTENT, opts);
+      } else {
+        const begun = await handles.operator.beginRedemption(recordId, CONTENT);
+        assert.equal(begun.status, 'ok');
+        const token = begun.status === 'ok' ? begun.value.token : '';
+        out = await handles.operator.completeRedemption(recordId, token, CONTENT, opts);
+      }
+      assert.equal(out.status, 'ok', seam);
+      assert.equal(counter.reads, 1, `${seam}: result read once`);
+      const text = JSON.stringify(await inner.readChain(recordId));
+      assert.ok(!text.includes('NOT A DIGEST'), `${seam}: a later answer is never recorded`);
+    }
+  });
+
+  test('every redemption seam reads tx once', async () => {
+    for (const seam of ['redeem', 'beginRedemption', 'completeRedemption'] as const) {
+      const { handles, recordId } = await confirmedOn(new MemoryStore());
+      const counter = { reads: 0 };
+      const opts = {};
+      Object.defineProperty(opts, 'tx', answering(counter, undefined, null));
+      if (seam === 'redeem') {
+        await handles.operator.redeem(recordId, CONTENT, opts);
+      } else if (seam === 'beginRedemption') {
+        await handles.operator.beginRedemption(recordId, CONTENT, opts);
+      } else {
+        await handles.operator.completeRedemption(recordId, 'token', CONTENT, opts);
+      }
+      assert.equal(counter.reads, 1, `${seam}: tx read once`);
+    }
+  });
+
+  test('a tx that answers differently on a later read cannot change the answer on a tampered record', async () => {
+    const run = async (opts: object) => {
+      const inner = new MemoryStore();
+      const first = await confirmedOn(inner);
+      const tampering = new TamperingStore(inner, first.recordId, tamperNonLast);
+      const handles = create(makeConfig([resultProfile()], { store: tampering }));
+      const out = await handles.operator.redeem(first.recordId, CONTENT, opts);
+      return { status: out.status, chain: await inner.readChain(first.recordId) };
+    };
+    for (const [first, later] of [
+      [{}, null],
+      [{}, undefined],
+      [undefined, {}],
+    ] as const) {
+      const getterOpts = {};
+      Object.defineProperty(getterOpts, 'tx', answering({ reads: 0 }, first, later));
+      const viaGetter = await run(getterOpts);
+      const direct = await run({ tx: first });
+      assert.equal(viaGetter.status, direct.status);
+      assert.equal(viaGetter.chain.length, direct.chain.length);
+    }
+  });
+});
+
+// --- a single-append storage fault names the append, not a batch --------------------------------
+
+describe('operator intake: a single-append storage fault says append', () => {
+  class SeqConflictOnAppend extends MemoryStore {
+    private dead = false;
+    override async readChain(recordId: string) {
+      if (this.dead) throw new Error('store dead: connection lost');
+      return super.readChain(recordId);
+    }
+    override async appendTransition(
+      ...args: Parameters<MemoryStore['appendTransition']>
+    ): ReturnType<MemoryStore['appendTransition']> {
+      if (args[1].kind !== 'finding-raised') return super.appendTransition(...args);
+      this.dead = true;
+      return { appended: false, conflict: 'seq' };
+    }
+  }
+
+  test('raiseFinding: the fault message names "append" and an all-or-nothing append, not a batch', async () => {
+    const store = new SeqConflictOnAppend();
+    const handles = create(makeConfig([intakeProfile()], { store }));
+    const staged = await handles.agent.stage(CONTENT, 'test.intake.v1', DEFAULT_SUBJECT_REF);
+    assert.equal(staged.status, 'ok');
+    if (staged.status !== 'ok') return;
+    const opened = await handles.operator.open(staged.value.stagedRef, { policyDigest: D1 });
+    assert.equal(opened.status, 'ok');
+    if (opened.status !== 'ok') return;
+    await assert.rejects(
+      () =>
+        handles.operator.raiseFinding(
+          opened.value.recordId,
+          { findingId: 'f-1', kind: 'variance', findingDigest: D1 },
+          identity(),
+        ),
+      (err: unknown) => {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /^raiseFinding: append conflict \('seq'\)/);
+        assert.match(err.message, /The append is all-or-nothing/);
+        assert.doesNotMatch(err.message, /batch/);
+        return true;
+      },
+    );
   });
 });
 

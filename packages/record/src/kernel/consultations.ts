@@ -98,12 +98,12 @@ export function validateConsultations(
       );
     }
     const record = input as unknown as Record<string, unknown>;
-    if (!isNonEmptyString(record.kind)) {
+    const kind = record.kind;
+    if (!isNonEmptyString(kind)) {
       throw new Error(
         `${seam}: consultations[${index}] has a missing or empty kind — a malformed entry is a caller error (SPEC §11.1)`,
       );
     }
-    const kind = record.kind;
     assertWellFormedString(seam, `consultations[${index}].kind`, kind);
     if (RESERVED_CONSULTATION_KINDS.has(kind)) {
       throw new Error(

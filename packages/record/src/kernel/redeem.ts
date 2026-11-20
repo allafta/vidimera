@@ -322,6 +322,17 @@ async function prologue(
 }
 
 /**
+ * What intake read from the options bag, once. Every later rung (the prologue, the
+ * admission gate, the signed payload) uses this snapshot and never re-reads `opts`, so a
+ * getter that answers differently on a second read cannot change what was checked.
+ */
+interface RedeemSnapshot {
+  readonly tx: unknown;
+  readonly resultSupplied: boolean;
+  readonly resultDigest?: string;
+}
+
+/**
  * SPEC §11.2/§12: the redemption options bag's shape, validated at ARGUMENT depth —
  * before any chain loads — so a caller bug throws identically regardless of record
  * state (finalize's consultation-intake precedent). The `beginRedemption` rejection
@@ -331,12 +342,13 @@ async function prologue(
 function validateRedeemOptions(
   seam: 'redeem' | 'beginRedemption' | 'completeRedemption',
   opts: RedeemOptions | undefined,
-): void {
+): RedeemSnapshot {
   assertOptionsBag(seam, opts);
-  if (opts === undefined) return;
+  if (opts === undefined) return { tx: undefined, resultSupplied: false };
   // A driver's transaction handle is never a primitive: a present, non-undefined `tx` must be an
   // object or a function. Only the store can judge whether a handle is enlistable.
-  const txValue: unknown = opts.tx;
+  const tx = opts.tx;
+  const txValue: unknown = tx;
   if (
     txValue !== undefined &&
     typeof txValue !== 'function' &&
@@ -358,7 +370,8 @@ function validateRedeemOptions(
       ),
     );
   }
-  if (opts.result === undefined) return;
+  const resultValue = opts.result;
+  if (resultValue === undefined) return { tx, resultSupplied: false };
   if (seam === 'beginRedemption') {
     throw new Error(
       'beginRedemption: opts.result is not admitted at issuance — a result at ' +
@@ -366,7 +379,7 @@ function validateRedeemOptions(
         'at completeRedemption, where the executor knows it (SPEC §11.2)',
     );
   }
-  const result = opts.result as unknown;
+  const result = resultValue as unknown;
   if (result === null || typeof result !== 'object' || Array.isArray(result)) {
     throw new Error(`${seam}: opts.result must be a plain { digest } object (SPEC §11.2)`);
   }
@@ -382,6 +395,7 @@ function validateRedeemOptions(
     throw new Error(`${seam}: opts.result.digest must be a non-empty string (SPEC §11.2)`);
   }
   assertDigestForm(`${seam}: opts.result.digest`, digestValue);
+  return { tx, resultSupplied: true, resultDigest: digestValue };
 }
 
 export async function redeem(
@@ -391,10 +405,8 @@ export async function redeem(
   opts?: RedeemOptions,
 ): Promise<Outcome<{ recordId: string; state: 'redeemed'; transitionRef: Digest }>> {
   assertIdArg('redeem', 'recordId', recordId);
-  validateRedeemOptions('redeem', opts);
+  const { tx, resultSupplied, resultDigest } = validateRedeemOptions('redeem', opts);
   const { store, now } = ctx;
-  const tx = opts?.tx;
-  const resultDigest = opts?.result?.digest;
   const pro = await prologue(ctx, 'redeem', recordId, tx);
   if ('refusal' in pro) return pro.refusal;
   const { chain, record, resolved, finalLeg } = pro.gated;
@@ -403,7 +415,7 @@ export async function redeem(
   // the field. A non-declaring profile supplying one is a caller error at
   // profile-resolution depth — chain-compromise, unknown-profile and the seam gate
   // outrank it, matching finalize's own presence-contract depth.
-  if (opts?.result !== undefined && resolved.profile.redeem?.result !== true) {
+  if (resultSupplied && resolved.profile.redeem?.result !== true) {
     throw new Error(
       `redeem: opts.result supplied but profile '${record.profileId}' does not declare ` +
         'redeem.result — declaring it is what admits an outcome digest (SPEC §9.1, §11.2)',
@@ -523,9 +535,8 @@ export async function beginRedemption(
   Outcome<{ recordId: string; state: 'redeeming'; token: string; transitionRef: Digest }>
 > {
   assertIdArg('beginRedemption', 'recordId', recordId);
-  validateRedeemOptions('beginRedemption', opts);
+  const { tx } = validateRedeemOptions('beginRedemption', opts);
   const { store, now, tokenSource } = ctx;
-  const tx = opts?.tx;
   const pro = await prologue(ctx, 'beginRedemption', recordId, tx);
   if ('refusal' in pro) return pro.refusal;
   const { chain, record, resolved, finalLeg } = pro.gated;
@@ -641,10 +652,8 @@ export async function completeRedemption(
       `completeRedemption: token must be a string (got ${typeof token}) — a caller error, not a domain refusal (SPEC §8)`,
     );
   }
-  validateRedeemOptions('completeRedemption', opts);
+  const { tx, resultSupplied, resultDigest } = validateRedeemOptions('completeRedemption', opts);
   const { store, now } = ctx;
-  const tx = opts?.tx;
-  const resultDigest = opts?.result?.digest;
   const pro = await prologue(ctx, 'completeRedemption', recordId, tx);
   if ('refusal' in pro) return pro.refusal;
   const { chain, record, resolved, finalLeg } = pro.gated;
@@ -653,7 +662,7 @@ export async function completeRedemption(
   // the field. A non-declaring profile supplying one is a caller error at
   // profile-resolution depth — chain-compromise, unknown-profile and the seam gate
   // outrank it, matching finalize's own presence-contract depth.
-  if (opts?.result !== undefined && resolved.profile.redeem?.result !== true) {
+  if (resultSupplied && resolved.profile.redeem?.result !== true) {
     throw new Error(
       `completeRedemption: opts.result supplied but profile '${record.profileId}' does not declare ` +
         'redeem.result — declaring it is what admits an outcome digest (SPEC §9.1, §11.2)',

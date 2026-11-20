@@ -68,6 +68,13 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0;
 }
 
+type ValidatedInput = {
+  findingId: string;
+  kind: string | undefined;
+  findingDigest: string;
+  magnitude: string | undefined;
+};
+
 /**
  * Argument-intake validation, the validateConsultations class (SPEC §9's "throws at
  * argument intake" posture): a malformed shape is a caller error that throws
@@ -76,13 +83,6 @@ function isNonEmptyString(value: unknown): value is string {
  * the finding unacknowledgeable under `self`/`counterparty` (the counting predicate
  * fails closed on both sides) — the declarable-but-inert trap the settled class closes.
  */
-type ValidatedInput = {
-  findingId: string;
-  kind: string | undefined;
-  findingDigest: string;
-  magnitude: string | undefined;
-};
-
 function validateInput(
   seam: 'raiseFinding' | 'acknowledge',
   input: Record<string, unknown>,
