@@ -88,7 +88,8 @@ treatment). Two concrete windows are named where they bite: the separation-of-du
 evidence window and the policy-binding genesis window. Detached signing (AL2) is the named
 closure for all of it, under the three conditions `SPEC.md` §14 states — every registered
 profile signs, the key sits outside the insider's boundary, and no signature outlives an
-uncommitted append (the last not yet met).
+uncommitted append (the last met only where the sidecar is the configured store's own and
+written inside the append's atomic unit, not for any other sidecar).
 
 ## 4. The outcome model
 
@@ -236,7 +237,7 @@ ordering, and timestamp drift in one assertion.
 | Level | What it is | Closes |
 |---|---|---|
 | **AL1 — Chained** (the default) | hash-chained transitions, tamper-*evident* against non-recomputing tampering, bounded to non-head transitions | render-to-decide drift, payload-identity forgery, reordering/deletion of non-head transitions |
-| **AL2 — Signed** (operator-enabled upgrade) | detached signatures over canonical transitions + consultations | the storage-writing-insider recompute residual **and** the head/sole-genesis edit windows (SoD evidence, policy binding), under `SPEC.md` §14's three conditions (the last, no signature outliving an uncommitted append, not yet met); admits authority timestamps that make freshness gating meaningful |
+| **AL2 — Signed** (operator-enabled upgrade) | detached signatures over canonical transitions + consultations | the storage-writing-insider recompute residual **and** the head/sole-genesis edit windows (SoD evidence, policy binding), under `SPEC.md` §14's three conditions (the last, no signature outliving an uncommitted append, met only where the sidecar is the configured store's own and written inside the append's atomic unit, not for any other sidecar); admits authority timestamps that make freshness gating meaningful |
 | **AL3 — Anchored** (documented only) | external anchoring of chain heads in an independent append-only log | key-holding insiders, long-horizon disputes |
 
 The ladder is a **product of the honesty discipline**: each level names exactly what it
