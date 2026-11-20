@@ -769,7 +769,7 @@ is the summary, and that file wins on conflict.
   function on both handles is now a fresh frozen closure per handle, keeping its kernel
   function's `name` and `length`. Visible to a host: `agent.getRecord === operator.getRecord`
   is now false; attaching a property to a handle function (a tool registry's `.description`,
-  say) now throws; `toString` and the `AsyncFunction` tag differ from the kernel function's. The
+  say) now throws in strict-mode code and is silently ignored in sloppy-mode code; `toString` and the `AsyncFunction` tag differ from the kernel function's. The
   limit, stated: every function inherits from the realm's shared `Function.prototype`, so agent
   code in the same process that patches `Function.prototype.bind` — writable in a default Node
   realm — still reaches what operator code passes to it; the split confines in-process agent code

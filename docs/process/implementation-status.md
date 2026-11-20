@@ -7326,7 +7326,8 @@ fresh, frozen closure that forwards every argument, returns what the kernel retu
 kernel function's `name` and `length`; both `agent-surface.ts` and `operator-surface.ts` build
 every function on their handle with it, so no function object is shared between handles or
 instances and none can be extended. Visible to a host: `agent.getRecord === operator.getRecord`
-is now false; attaching a property to a handle function throws; `toString` and the
+is now false; attaching a property to a handle function throws in strict-mode code and is silently ignored
+in sloppy-mode code; `toString` and the
 `AsyncFunction` tag differ from the kernel function's. `create.ts`'s comment now calls each
 surface a select, wrap and freeze. ARCHITECTURE §2 (sealed) still says "pure select-and-freeze";
 read, not edited: its claim — each surface exposes exactly its selected subset, frozen — holds.

@@ -5,9 +5,11 @@
 // operator-side code that wrote `operator.getRecord.bind(operator)` ran the agent's function
 // with the operator handle as its argument — enough to decide records. Freezing the handle
 // object did not freeze the functions on it. Now every function on both handles is a fresh
-// closure per handle, frozen, so nothing on the agent handle is reachable from the operator
-// handle and nothing can be planted on either. Patching a shared primordial
-// (`Function.prototype.bind` itself) stays outside this, as SPEC §9 says: the split is
+// closure per handle, frozen, so nothing reachable from the agent handle is the same object as
+// anything on the operator handle, and nothing can be planted on either. The limit: every
+// function inherits from the realm's shared `Function.prototype`, so in-process agent code that
+// patches `Function.prototype.bind` (writable in a default Node realm) still reaches what
+// operator code passes to it; the split confines such code only where the host does. SPEC §9:
 // in-process object-capability discipline, not a sandbox.
 
 import assert from 'node:assert/strict';

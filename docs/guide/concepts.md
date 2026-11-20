@@ -52,7 +52,7 @@ same object as anything on the operator handle. What it does not cover: every fu
 `Function.prototype`, so agent code running in the same process that can patch it (in a
 default Node realm, any code can) still reaches whatever your operator code passes to `bind`,
 `call` or `apply`. The split confines in-process agent code only when you confine that code —
-frozen built-ins (for example Node's `--frozen-intrinsics`) and no ambient module loading. Handing
+frozen built-ins (for example Node's experimental `--frozen-intrinsics` flag) and no ambient module loading. Handing
 your agent framework the `agent` handle and keeping `operator` on the host side is the
 integration's one non-negotiable move.
 

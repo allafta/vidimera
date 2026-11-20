@@ -22,7 +22,7 @@ built-ins are frozen, because the planted property is on the library's own funct
 - **Calls behave as before:** each closure forwards every argument to its kernel function and
   returns what it returns (the kernel functions read no `this`), and keeps the kernel function's
   `name` and `length`. What a host can see change: identity (`agent.getRecord !==
-  operator.getRecord`), a property attached to a handle function now throws, and `toString` and
+  operator.getRecord`), a property attached to a handle function now throws in strict-mode code (and is silently ignored in sloppy-mode code), and `toString` and
   the `AsyncFunction` tag differ.
 - **Not covered, stated:** every function inherits from the realm's shared `Function.prototype`,
   so in-process agent code that can patch `Function.prototype.bind` (any code, in a default Node
