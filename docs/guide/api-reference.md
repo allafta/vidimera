@@ -187,20 +187,37 @@ Notes that save debugging time:
   which is presence-checked against the profile's `policySource` declaration (a mismatch
   throws) and bound verbatim as the operator's attestation; the drift comparison happens
   at finalize's own gate.
-- `open`'s `proposed: { stagedRef }` binds the agent's original proposal into the genesis
-  as `proposedDigest`: the ref resolves through the store exactly as `stagedRef` itself
-  does, and the resolved draft's `(profileId, subjectRef, legId)` must equal the opened
-  draft's. Both failure modes THROW, never refuse — an unresolvable ref (the ordinary
-  unknown-`stagedRef` caller-error posture) and a resolved draft naming a different
-  triple (naming both triples in the message) are host wiring bugs, not domain outcomes.
-  Same-ref is legal and meaningful — opening the proposal itself with `proposed` naming
-  that same draft records unchanged acceptance, digests equal. The honest bound, in the
-  same breath: it proves a draft with that digest existed in the store for the same
-  triple at open, and — by comparing it against `contentDigest` — whether the decision
-  matched or changed it; it never proves who authored either draft, and never that the
-  revision was sound. Nothing gates on it, ever; `DecisionRecord.proposedDigest` carries
+- `open`'s `proposed: { stagedRef }` binds into the genesis, as `proposedDigest`, the
+  digest of the draft the store holds under that reference when the record opens: the ref
+  resolves through the store exactly as `stagedRef` itself does — re-derivation check
+  included (next note) — and the resolved draft's `(profileId, subjectRef, legId)` must
+  equal the opened draft's. Both failure modes THROW, never refuse — an unresolvable ref
+  (the ordinary unknown-`stagedRef` caller-error posture) and a resolved draft naming a
+  different triple (naming both triples in the message) are host wiring bugs, not domain
+  outcomes. Same-ref is legal and meaningful — opening the proposal itself with `proposed`
+  naming that same draft records unchanged acceptance, digests equal. The honest bound, in
+  the same breath: it proves the store held a draft with that digest under the named
+  reference, re-deriving to it, for the same triple at open, and — by comparing it against
+  `contentDigest` — whether the decision matched or changed it; it never proves who
+  authored or staged either draft, and never that the revision was sound. Nothing gates on
+  it, ever; `DecisionRecord.proposedDigest` carries
   it (present-iff-supplied) and `ReviewView` does not project it (the `supersedes`
   precedent — provenance rides `getRecord`/`replay`, never the review projection).
+- `open` binds a staged draft — the opened one, and the `proposed` one — only if it
+  re-derives to the reference it was read under: the draft's `id`, and the content-derived
+  reference over its `contentDigest`, `profileId`, `subjectRef` and `legId`, must both equal
+  that reference. Otherwise `open` throws naming the reference and appends nothing — a
+  draft edited in storage is a storage fault, never a refusal — so a custom `Store`'s
+  `getStaged` must return the fields `putStaged` was given (it may add keys; `open` reads
+  only those five). The bound: this makes a draft's fields unchangeable under the
+  reference the host holds; it never authenticates who staged the draft — a whole new,
+  self-consistent draft lives under its own reference, and is bound only if the host
+  opens or proposes that one.
+- `open` reads each option it uses once, on entry — each `priorRecordRefs` entry's
+  `recordId` and `chainHead` included — and checks and binds only those values: for options
+  of the declared types, a host that changes its options object, or an accessor on it,
+  while the call is in flight changes nothing `open` verifies or records. An accessor that
+  throws propagates as a caller error.
 - `finalize`'s options carry `consultations` (the host's obtained domain checks, or
   per-kind unreachable markers) and `policy` (the live policy digest for the drift gate,
   or an unreachable marker — either unreachable form surfaces as the `unavailable`

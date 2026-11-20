@@ -116,12 +116,12 @@ any one exit.
   proved only that the step ran; this document's gate outputs were measured locally and
   stand. See the dedicated section at the end of this document; the numbers immediately
   below already include it.
-- **Measured against the current tree** (re-measured at the transactional-sidecar increment's
-  fix wave after its whole-branch review, 2026-11-20): `pnpm test` — 88 test files, 1240 tests,
+- **Measured against the current tree** (re-measured at the staged-integrity increment's record
+  commit, 2026-11-20): `pnpm test` — 89 test files, 1276 tests,
   zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
-  `pnpm lint` (`biome check .`) — 161 files checked, zero errors or warnings;
+  `pnpm lint` (`biome check .`) — 162 files checked, zero errors or warnings;
   `pnpm typecheck` — clean; `node scripts/contract-scan.mjs` — no output. Both together
   (`pnpm lint:strict`, i.e. `biome check --error-on-warnings .`) are equally clean.
   `packages/record/src/refusal-codes.ts` carries 25 refusal codes, the twenty-fifth being
@@ -7140,3 +7140,136 @@ moves. The same change records, in `docs/process/next-phases.md`, three items th
 transactional-sidecar reviews found and nobody owned yet: a failed `SqliteStore` open that
 leaves its connection open, a same-named index that silently replaces a backing's own (C1's
 backstop among them), and `PostgresStore`'s per-entry round trips under the record-row lock.
+
+## Post-build-order increment — Staged integrity
+
+**The thirty-fifth post-build-order increment (branch `staged-integrity-2026-11-20`, off `main` at
+`58f2e2a`: the design-and-plan commit `e06a8c0`, the code-and-pins commit `de004b9`, and the
+record commit after it — `git log 58f2e2a..HEAD` enumerates them).** Two findings of an external
+analysis, both sanction-free. No sealed-set edit, no marker move, no new refusal code, and no
+change to `index.ts`, either manifest, any store file, `packages/store-postgres` or any public
+type; `config.ts` changed in one comment (the `OpenOptions.proposed` doc names the new throw).
+The design is `docs/superpowers/specs/2026-11-20-staged-integrity-design.md` and the plan
+`docs/superpowers/plans/2026-11-20-staged-integrity.md`.
+
+**What it closes.**
+
+- **The staged draft was trusted as stored.** A staged reference is content-derived —
+  `deriveStagedRef` (`id.ts`) over the draft's `contentDigest`, `profileId`, `subjectRef` and
+  `legId` — but `open(stagedRef)` bound the draft `getStaged` returned without re-deriving it or
+  comparing its `id`. A storage-writing insider who edited a pending staged row between `stage()`
+  and `open()` could redirect the record to another registered profile with the same leg id, to
+  another subject, or from a successor leg to the first, or rewrite the digest it binds. Measured
+  against the unfixed tree on both `MemoryStore` and `SqliteStore`: each of those edits, and an
+  edited `id`, opened `ok`. The `proposed` draft was read the same way: an edited `contentDigest`
+  or `id` opened `ok` with the rewritten digest bound as `proposedDigest`.
+- **Options were read twice.** `verifySupersedes` and `verifyPriorLegs` recorded the reference
+  by re-reading `recordId` and `chainHead` from the caller's object after their awaits, and
+  `open()` presence-checked `policyDigest` at one point and bound it at another. Measured with
+  an accessor that changes after k reads: a `supersedes` claim recorded `rec-never-verified`
+  (k = 4, 5) and an unverified head (k = 3); a `priorRecordRefs` entry recorded
+  `rec-never-verified` (k = 2, 3) and an unverified head (k = 1); a policy-declaring genesis was
+  bound with no `policyDigest` (k = 2, 3, and a host clearing it mid-call), which then refuses
+  `policy-drift` at finalize; a `proposed.stagedRef` bound another draft's digest (k = 1).
+
+**What landed, commit by commit.**
+
+- `e06a8c0` — the design and the plan, with their `docs/superpowers/INDEX.md` row and counts.
+- `de004b9` — `kernel/open.ts`: `checkedDraft` reads a draft's five fields once, requires its
+  `id` and its re-derived reference both to equal the reference it was read under (each bound
+  field also a string, so a missing one gets the named error rather than a serializer throw),
+  and returns the four values `open()` binds; it runs after each `getStaged` null check — the
+  opened draft before the profile resolves, the `proposed` draft before the same-triple
+  comparison — and a mismatch throws `open: the persisted draft under <stagedRef | proposed
+  stagedRef> '<ref>' does not match it — …`, appending nothing. The option snapshot: after the
+  unknown-key loop, `validateSupersedesShape` (`kernel/supersedes.ts`) and
+  `validateProposedShape` return the values they checked, each read once, in the old validation
+  order; `priorRecordRefs` entries are copied (`snapshotPriorRecordRefs`); `policyDigest` is read
+  once; every later check and binding uses only these. `verifySupersedes` reads its claim's two
+  fields once before its first await and records them; `verifyPriorLegs`
+  (`kernel/prior-legs.ts`) reads every reference's two fields once, after its length checks and
+  before its first await, and records those. The pins (`test/staged-integrity.test.ts`, 36
+  tests), the fixture move below, and the `config.ts` comment.
+- the record commit — `docs/guide/integrating.md` (the provenance section: the option resolves
+  the draft the store holds under the reference, which must re-derive to it; the code sample's
+  closing comment says the same — only the comment moved, and the sample was re-executed
+  verbatim as a scratch vitest file; the third throw; the honest bound),
+  `docs/guide/api-reference.md` (the `proposed` note, and two new notes: the re-derivation throw
+  and what it asks of a custom `Store`, and the option snapshot), `docs/guide/concepts.md` (the
+  `open()` bullet and the provenance bullet), `README.md`'s provenance sentence, `CHANGELOG.md`
+  (a `Fixed` entry), this section, the "Current state" measured line and `CLAUDE.md`'s measured
+  sentence. Every page that called `proposedDigest` the agent's original now says it is the
+  digest of the draft the store held under that reference when the record opened; the
+  proposal-provenance `Added` entry in `CHANGELOG.md` is left as the history it is.
+
+**The pins, red first.** Against the unfixed tree the file's first 35 tests ran 33 red and 2
+green — the two untampered guards (an untampered draft and proposal open to exactly the genesis
+payload they always did, per backing), green by construction. The draft pins (seven edits of the
+opened draft, five of the proposed one, each on both backings: the throw naming the reference,
+and no append — append calls on the memory route, `transitions` rows on SQLite); a draft whose
+fields read true once and edited afterwards (it must bind what the check covered — the pin a
+re-read after the check would fail); the snapshot pins through `open()` (k = 1 to 7 for
+`supersedes`, `priorRecordRefs`, `policyDigest` and `proposed.stagedRef`; seven is one past the
+six reads `supersedes.recordId` took before); the mid-call `policyDigest` clear; an accessor that
+throws; and the two verifiers called directly, since `open()`'s own copy would hide a re-read
+inside either. The 36th pin — the host mutating its own options while `open()` awaits the draft —
+was added after the first green run, because nothing else caught `open()` skipping its
+`priorRecordRefs` copy (`verifyPriorLegs` reads once by itself); it ran red against `HEAD`'s
+three source files, then green.
+
+**Mutation evidence.** Eleven mutations of the new code, each run against the file and restored
+byte-for-byte: dropping the check (24 pins red), checking the `id` only (20), checking the
+derivation only (4: the `id` edits), leaving the proposed draft unchecked (10), binding a re-read
+of the opened draft's `profileId` or of the proposed draft's `contentDigest` (1 each: the
+fields-change-between-reads pin), passing the live `supersedes` claim to `verifySupersedes` (2),
+`verifySupersedes` or `verifyPriorLegs` recording a re-read (1 each: the direct pins), binding a
+re-read of `opts.policyDigest` (3), skipping the `priorRecordRefs` copy (2), and
+`validateSupersedesShape` returning a re-read (1). None survived.
+
+**A fixture setup move, assertions kept.** `test/unknown-ids.test.ts`'s "open() on a staged draft
+naming an unconfigured profileId" planted its draft by direct `putStaged` under a forged
+reference (`'sha256:deadbeef'`, `contentDigest: 'sha256:00'`). Its subject is the
+`unknown-profile` refusal on an honest draft; the check now catches the forged reference first,
+and the test went red in the first whole-suite run. Its setup now plants the same draft under its
+derived reference, with a well-formed digest and a comment at the site; every assertion is kept,
+and it passes against both the unfixed and the fixed sources — the verifier-faults increment's
+precedent (fixtures reconfigured, each assertion kept), applied at the controller's ruling. It is
+not an inversion.
+
+**Behavior changes, stated.**
+
+- An edited draft whose `profileId` names an unregistered profile, or whose `legId` names a leg
+  the profile lacks, now throws rather than refusing `unknown-profile` or `unknown-leg`: the
+  check runs before any other use of the draft. A draft that re-derives keeps both refusals
+  exactly as before.
+- An accessor that throws on a `priorRecordRefs` entry now throws on a first leg too, where the
+  entries used to go unread and the call refused `prior-leg-unverified`.
+- A `null` `priorRecordRefs` entry — input the types forbid — still throws a `TypeError`, but
+  `verifyPriorLegs` now meets it in its up-front read, before the first await, so on a profile of
+  three or more legs it can outrank an earlier entry's `prior-leg-unverified` refusal. Accepted at
+  the controller's ruling: the input is type-violating and still throws.
+- What still passes through uncopied, as it came: a `priorRecordRefs` value that is not an array,
+  and an entry that is not an object, so `verifyPriorLegs` meets them as before. For such a value
+  the at-entry copy does not hold, but `verifyPriorLegs` still records only what it verified.
+
+**What it does not do.** Authenticate who staged a draft. A whole new, self-consistent draft is
+the digest of its own fields, so it lives under a different reference and is bound only if the
+host opens or proposes that one; the check makes a draft's fields unchangeable under the
+reference the host holds. Nor does it check a `Store`'s `getStaged` beyond the five fields
+`open()` reads: extra keys are ignored.
+
+**Inversions.** None.
+
+**Gate outputs, as measured on this branch at the record commit's tree.** `pnpm` fails on this
+machine, so each gate ran through the local binaries its script names. The whole suite —
+`vitest run` with the JSON reporter, then `node scripts/ci-assert-tests.mjs` over the report —
+`ci-assert-tests: ok — 1276 tests in 89 files (97 suites): 1276 passed, 0 failed, 0 skipped, 0
+todo`. Against the 1240 in 88 measured before this increment, the difference is the 36 tests of
+`staged-integrity.test.ts`; the frozen byte-stability and byte-regression digests did not move.
+Typecheck, both packages — exit 0; `biome check .` and `biome check --error-on-warnings .` — 162
+files, exit 0 each; build, both packages' `tsconfig.build.json` — exit 0; `contract-scan`,
+`api-reference-sync` and `docs-index-sync` — exit 0, no output. **The packed-tarball smoke test
+was not run on the authoring machine** — the broken `pnpm` launcher stops
+`scripts/smoke-pack.mjs` at its adapter pack step — and runs in CI on the pull request. Nothing
+here touches either manifest or the build configuration. `CLAUDE.md`'s measured sentence moved
+to 89 files / 1276 tests.
