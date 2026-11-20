@@ -3,8 +3,12 @@
 // everything backing-generic; only what is Postgres-shaped lives here.
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
+import { canonicalize, digest } from '../../record/src/canonical.js';
 import { verifyChain } from '../../record/src/chain/replay.js';
+import { create } from '../../record/src/create.js';
+import { deriveStagedRef } from '../../record/src/id.js';
 import { storeGenesis, storeNext } from '../../record/test/helpers/chain.js';
+import { captureProfile, makeConfig, openRecord } from '../../record/test/helpers/profiles.js';
 import { newStore, nextSchemaName, sharedPool } from './helpers/pg.js';
 
 test('tx validation: a foreign object is refused loudly (not a pg client)', async () => {
@@ -212,4 +216,35 @@ test('a client whose ROLLBACK also fails is released as poisoned — `release(er
   assert.equal(releases.length, 1, 'the client was released exactly once');
   assert.ok(releases[0]?.[0] instanceof Error, 'released with an error — pg destroys the client');
   assert.equal(await store.getStaged('s-any'), null, 'the next call bootstraps on a fresh client');
+});
+
+test('subjectRef intake: a subject containing U+0000 throws at stage() and writes nothing (no raw driver error)', async () => {
+  const store = newStore();
+  const profile = captureProfile();
+  const handles = create(makeConfig([profile], { store }));
+
+  await assert.rejects(
+    handles.agent.stage({ amount: 8 }, profile.id, 'a\u0000b'),
+    /^Error: stage: subjectRef must not contain U\+0000/,
+  );
+  // The ref stage() would have derived: a draft written before the throw would sit under it.
+  const wouldBe = deriveStagedRef(
+    digest(canonicalize({ amount: 8 })),
+    profile.id,
+    'a\u0000b',
+    'approver-decide',
+  );
+  assert.equal(await store.getStaged(wouldBe), null);
+});
+
+test('subjectRef intake: a 1,024-byte multi-byte subject stages AND opens, the same as on the other backings', async () => {
+  const store = newStore();
+  const profile = captureProfile();
+  const handles = create(makeConfig([profile], { store }));
+  const subject = '\u00e9'.repeat(512);
+  assert.equal(Buffer.byteLength(subject, 'utf8'), 1024);
+
+  const recordId = await openRecord(handles, { amount: 8 }, profile.id, subject);
+
+  assert.equal(await store.findNonTerminal(profile.id, subject), recordId);
 });

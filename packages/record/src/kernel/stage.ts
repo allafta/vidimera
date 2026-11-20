@@ -1,6 +1,9 @@
 // @vidimera/record — kernel/stage.ts: the agent-reachable, PRE-RECORD staged-draft write
 // (SPEC §9 `stage(content, profileId, subjectRef, legId?)`).
 // `stage(content, profileId, subjectRef, legId?)`:
+//   0. check `subjectRef` (subject-ref.ts's one rule: a non-empty, well-formed, NUL-free string of
+//      at most 1,024 UTF-8 bytes) — a caller error that THROWS `stage: subjectRef …`, before
+//      anything else, so no draft is written for a subject the backings would store differently;
 //   1. resolve + validate the profile — an unconfigured `profileId` fails CLOSED with
 //      `refused('unknown-profile')`: NO staged draft, NO append, NO record (the only
 //      producer of `unknown-profile` on the agent surface);
@@ -21,6 +24,7 @@ import type { KernelContext } from '../create.js';
 import { deriveStagedRef } from '../id.js';
 import type { Outcome } from '../outcome.js';
 import { ok, refused } from '../outcome.js';
+import { subjectRefProblem } from '../subject-ref.js';
 
 export async function stage(
   ctx: KernelContext,
@@ -29,6 +33,13 @@ export async function stage(
   subjectRef: string,
   legId?: string,
 ): Promise<Outcome<{ stagedRef: string }>> {
+  // A caller error, not a domain refusal: SPEC §8 has no refusal code for it, and the agent
+  // surface is the untrusted one, so the subject is checked before anything reads or writes.
+  const subjectProblem = subjectRefProblem(subjectRef);
+  if (subjectProblem !== undefined) {
+    throw new Error(`stage: subjectRef ${subjectProblem}`);
+  }
+
   const resolved = ctx.profiles.get(profileId);
   if (resolved === undefined) {
     // Fail-closed: an unconfigured profile yields NOTHING — no leg to derive, no draft to
