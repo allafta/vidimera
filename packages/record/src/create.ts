@@ -338,7 +338,8 @@ export function createWithClock(
     );
   }
   if (signing !== undefined) validateSigningShape(signing);
-  for (let position = 0; position < profileList.length; position += 1) {
+  const profileCount = profileList.length;
+  for (let position = 0; position < profileCount; position += 1) {
     // One frozen plain-data copy per profile, validated and digested here; the host's own
     // object is never retained, so nothing it does afterwards reaches a seam.
     const profile = snapshotProfile(profileList[position], position);

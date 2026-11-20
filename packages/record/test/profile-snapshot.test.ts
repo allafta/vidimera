@@ -13,8 +13,9 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { transitionDigest } from '../src/chain/encoding.js';
 import type { ConfirmProfile, LegSpec } from '../src/config.js';
-import { create } from '../src/create.js';
+import { create, createWithClock } from '../src/create.js';
 import { profileDigest, projectProfile } from '../src/profile-digest.js';
+import { snapshotProfile } from '../src/profile-snapshot.js';
 import { MemoryStore } from '../src/store/memory.js';
 import {
   captureProfile,
@@ -70,7 +71,6 @@ test('mutating a registered profile after create() changes no seam outcome and n
   checker.sod = undefined;
   delete checker.requiredConsultations;
   checker.id = 'renamed';
-  (profile.expiry as { ttl: number }).ttl = 1;
   (profile as { captureMode: string }).captureMode = 'live';
   profile.legs.length = 0;
 
@@ -127,6 +127,7 @@ test('mutating a registered profile after create() changes no seam outcome and n
     facts(),
   );
   assert.equal(gated.status, 'refused', 'the registered requiredConsultations still gates');
+  if (gated.status === 'refused') assert.equal(gated.code, 'consultation-missing');
   assert.equal(await boundDigest(store, opened.value.recordId), before);
 });
 
@@ -147,7 +148,79 @@ test('deleting `signing` from the host object after create() leaves the instance
   assert.ok(report.transitions.every((t) => t.signed && t.verified));
 });
 
-test('the host object is not retained: a deep-frozen input is accepted, and the snapshot is a distinct copy', async () => {
+test('a post-create ttl mutation is never observed: the record does not expire at the mutated bound', async () => {
+  const profile = captureProfile({ id: 'test.snapshot.ttl.v1', ttl: 3600 });
+  let nowMs = Date.parse('2026-11-20T00:00:00Z');
+  const handles = createWithClock(makeConfig([profile]), () => new Date(nowMs));
+  (profile.expiry as { ttl: number }).ttl = 1;
+  const recordId = await openRecord(handles, CONTENT, 'test.snapshot.ttl.v1', DEFAULT_SUBJECT_REF);
+  nowMs += 60_000; // far past the mutated 1 s, well inside the registered 3600 s
+  const done = await handles.operator.finalize(recordId, identity(), CONTENT, facts());
+  assert.equal(done.status, 'ok');
+});
+
+/** Every node reachable from `value` is frozen (arrays and objects alike). */
+function assertDeepFrozen(value: unknown, path: string): void {
+  if (value === null || typeof value !== 'object') return;
+  assert.ok(Object.isFrozen(value), `${path} is frozen`);
+  for (const [key, member] of Object.entries(value)) assertDeepFrozen(member, `${path}.${key}`);
+}
+
+test('the snapshot is a distinct, deeply frozen copy of every node', () => {
+  const input = {
+    id: 'test.snapshot.deep.v1',
+    subject: { canonicalizerRef: DEFAULT_CANONICALIZER_REF },
+    legs: [
+      { id: 'maker-decide', allowedAuthorities: ['session:a'] },
+      {
+        id: 'checker-decide',
+        allowedAuthorities: ['session:a', 'session:b'],
+        sod: { notActorOf: ['maker-decide'] },
+        proposer: 'agent:1',
+        ackMode: 'any',
+        requiredAcks: ['risk'],
+        requiredConsultations: ['rederive'],
+        freshness: { rederive: 60 },
+        eligibility: 'eligible.v1',
+        decline: true,
+        terminalRefusals: ['availability'],
+      },
+    ],
+    captureMode: 'staged',
+    expiry: { ttl: 3600 },
+    policySource: 'policy.v1',
+    redeem: { confirmToRedeem: 60, redeemBound: 120, reverify: false, result: true },
+    signing: true,
+  };
+  const snapshot = snapshotProfile(input, 0);
+  assert.deepEqual(snapshot, input);
+  assert.notEqual(snapshot, input as unknown);
+  assert.notEqual(snapshot.subject, input.subject);
+  assert.notEqual(snapshot.legs, input.legs as unknown);
+  assertDeepFrozen(snapshot, 'profile');
+  // The walk is only as good as its reach: name the nodes it must have covered.
+  const checker = snapshot.legs[1] as LegSpec;
+  for (const node of [
+    snapshot,
+    snapshot.subject,
+    snapshot.expiry,
+    snapshot.redeem,
+    snapshot.legs,
+    snapshot.legs[0],
+    checker,
+    checker.sod,
+    checker.sod?.notActorOf,
+    checker.allowedAuthorities,
+    checker.requiredAcks,
+    checker.requiredConsultations,
+    checker.freshness,
+    checker.terminalRefusals,
+  ]) {
+    assert.ok(Object.isFrozen(node));
+  }
+});
+
+test('a deep-frozen host profile is accepted and digests as bound', async () => {
   const profile = captureProfile({ id: 'test.snapshot.frozen-input.v1' });
   Object.freeze(profile.subject);
   Object.freeze(profile.legs[0]);
@@ -530,6 +603,16 @@ test('config.profiles must be an array: a Set, an object, nothing and null each 
     assert.throws(
       () => create({ ...base, profiles: profiles as never }),
       /^Error: create: config\.profiles must be an array/,
+    );
+  }
+});
+
+test('config.canonicalizers must be an object: null, undefined and a string each throw a create: error', () => {
+  const base = makeConfig([captureProfile()]);
+  for (const canonicalizers of [null, undefined, 'c']) {
+    assert.throws(
+      () => create({ ...base, canonicalizers: canonicalizers as never }),
+      /^Error: create: config.canonicalizers must be an object keyed by canonicalizerRef/,
     );
   }
 });

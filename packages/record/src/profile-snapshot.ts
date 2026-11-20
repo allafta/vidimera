@@ -113,13 +113,29 @@ function isPlainObject(value: object): boolean {
   return proto === Object.prototype || proto === null;
 }
 
-/** Every own string-keyed property of a plain object as `[key, value]`, each descriptor read
- * once; an accessor or a non-enumerable property throws. */
-function readEntries(obj: object, ctx: Ctx, where: string): Array<[string, unknown]> {
-  const entries: Array<[string, unknown]> = [];
+type Described = Array<[string, PropertyDescriptor]>;
+
+/** Every own string-keyed property's descriptor, each read once. Nothing is judged yet, so a
+ * caller can name the object (by its own `id`, taken from THESE descriptors) before a throw. */
+function readDescriptors(obj: object): Described {
+  const described: Described = [];
   for (const key of Object.getOwnPropertyNames(obj)) {
     const descriptor = Object.getOwnPropertyDescriptor(obj, key);
-    if (descriptor === undefined) continue;
+    if (descriptor !== undefined) described.push([key, descriptor]);
+  }
+  return described;
+}
+
+/** The value of the `id` data property among `described`, if it is one. */
+function idOf(described: Described): unknown {
+  const found = described.find(([key]) => key === 'id');
+  return found !== undefined && 'value' in found[1] ? found[1].value : undefined;
+}
+
+/** `[key, value]` for every descriptor; an accessor or a non-enumerable property throws. */
+function entriesOf(described: Described, ctx: Ctx, where: string): Array<[string, unknown]> {
+  const entries: Array<[string, unknown]> = [];
+  for (const [key, descriptor] of described) {
     if (!('value' in descriptor)) {
       fail(ctx, `${key} on ${where} is an accessor — ${PLAIN_DATA}, and an accessor is read live`);
     }
@@ -132,6 +148,10 @@ function readEntries(obj: object, ctx: Ctx, where: string): Array<[string, unkno
     entries.push([key, descriptor.value]);
   }
   return entries;
+}
+
+function readEntries(obj: object, ctx: Ctx, where: string): Array<[string, unknown]> {
+  return entriesOf(readDescriptors(obj), ctx, where);
 }
 
 /** The elements of a real array, in order, each descriptor read once. A hole, an extra
@@ -218,10 +238,10 @@ function copySlot(value: unknown, slot: Slot, key: string, where: string, ctx: C
     }
     return copyObject(object, slot.object, key === 'sod' ? `sod of ${where}` : key, ctx);
   }
-  return copyLegs(object, key, where, ctx);
+  return copyLegs(object, slot.objects, key, where, ctx);
 }
 
-function copyLegs(value: object, key: string, where: string, ctx: Ctx): unknown[] {
+function copyLegs(value: object, schema: Schema, key: string, where: string, ctx: Ctx): unknown[] {
   const field = `${key} on ${where}`;
   if (!Array.isArray(value)) {
     fail(ctx, `${field} is ${describe(value)} — expected an array (${PLAIN_DATA})`);
@@ -236,19 +256,27 @@ function copyLegs(value: object, key: string, where: string, ctx: Ctx): unknown[
         `${field}: element ${index} is ${describe(object)} — expected a plain object (${PLAIN_DATA})`,
       );
     }
-    const idDescriptor = Object.getOwnPropertyDescriptor(object, 'id');
-    const legId: unknown =
-      idDescriptor !== undefined && 'value' in idDescriptor ? idDescriptor.value : undefined;
+    const described = readDescriptors(object);
+    const legId = idOf(described);
     const legWhere =
       typeof legId === 'string' && legId.length > 0 ? `leg '${legId}'` : `leg at position ${index}`;
-    return copyObject(object, LEG, legWhere, ctx);
+    return copyEntries(entriesOf(described, ctx, legWhere), schema, legWhere, ctx);
   });
   return Object.freeze(copied) as unknown[];
 }
 
 function copyObject(obj: object, schema: Schema, where: string, ctx: Ctx): object {
+  return copyEntries(readEntries(obj, ctx, where), schema, where, ctx);
+}
+
+function copyEntries(
+  entries: Array<[string, unknown]>,
+  schema: Schema,
+  where: string,
+  ctx: Ctx,
+): object {
   const copied: Array<[string, unknown]> = [];
-  for (const [key, value] of readEntries(obj, ctx, where)) {
+  for (const [key, value] of entries) {
     const slot = Object.hasOwn(schema.keys, key) ? schema.keys[key] : undefined;
     if (slot === undefined) {
       if (schema.strayWhere !== undefined && isRedemptionKey(key)) {
@@ -288,10 +316,14 @@ export function snapshotProfile(input: unknown, position: number): ConfirmProfil
   if (!isPlainObject(object)) {
     fail(byPosition, `the profile is ${describe(object)} — ${PLAIN_DATA}`);
   }
-  const idDescriptor = Object.getOwnPropertyDescriptor(object, 'id');
-  const id: unknown =
-    idDescriptor !== undefined && 'value' in idDescriptor ? idDescriptor.value : undefined;
+  const described = readDescriptors(object);
+  const id = idOf(described);
   const ctx: Ctx =
     typeof id === 'string' && id.length > 0 ? { head: `invalid profile '${id}'` } : byPosition;
-  return copyObject(object, PROFILE, 'the profile', ctx) as ConfirmProfile;
+  return copyEntries(
+    entriesOf(described, ctx, 'the profile'),
+    PROFILE,
+    'the profile',
+    ctx,
+  ) as ConfirmProfile;
 }
