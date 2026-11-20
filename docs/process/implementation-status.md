@@ -7246,8 +7246,9 @@ not an inversion.
   exactly as before.
 - An options accessor that throws — on `supersedes`, `proposed`, `policyDigest` or
   `priorRecordRefs`, or on an entry of it — now throws at `open()`'s entry, ahead of every
-  outcome, including the unknown-`stagedRef` throw and the `unknown-profile` and `unknown-leg`
-  refusals, where the value previously went unread (the snapshot reads every option once at
+  domain outcome, including the unknown-`stagedRef` throw and the `unknown-profile` and
+  `unknown-leg` refusals, where the value previously went unread (only the unknown-option-key
+  throw and a malformed `supersedes` or `proposed` shape throw still come first) (the snapshot reads every option once at
   entry). The first-leg `priorRecordRefs` entry, which used to refuse `prior-leg-unverified`
   unread, is one case of this.
 - A `null` `priorRecordRefs` entry — input the types forbid — still throws a `TypeError`, but
@@ -7260,7 +7261,7 @@ not an inversion.
 
 **The SPEC reading, recorded.** CLAUDE.md makes a difference between the code and SPEC a finding,
 so the three passages this throw touches are quoted (each checked against `docs/concept/SPEC.md`,
-whitespace collapsed). §8's closing exception, after the loud-throw paragraph on "corrupted or
+whitespace collapsed). §8's closing exception, the last sentence of the loud-throw paragraph on "corrupted or
 foreign persisted config read back at a seam": "(An unknown *profile* is the exception — it is a
 fail-closed `unknown-profile` refusal.)". §8's table, on `unknown-leg`: "`unknown-leg` has two
 producers — a caller-named leg absent from the profile at `stage()`, and a staged draft's leg
