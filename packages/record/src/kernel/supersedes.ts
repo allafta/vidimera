@@ -37,8 +37,10 @@ import { signatureLayerHolds } from './verify-signatures.js';
 export type SupersedesCheck = { ok: true; verified: SupersedesRef } | { ok: false };
 
 /** Argument-depth shape validation (the established intake class): a malformed
- * supersedes claim is a caller error that throws before any chain loads. */
-export function validateSupersedesShape(value: unknown): asserts value is SupersedesRef {
+ * supersedes claim is a caller error that throws before any chain loads. Returns the two
+ * fields it checked, each read once — open()'s snapshot of the claim (the staged-integrity
+ * increment), so the claim verified and recorded is the claim validated here. */
+export function validateSupersedesShape(value: unknown): SupersedesRef {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new Error('open: supersedes must be a plain { recordId, chainHead } object (SPEC §2)');
   }
@@ -50,12 +52,15 @@ export function validateSupersedesShape(value: unknown): asserts value is Supers
       );
     }
   }
-  if (typeof record.recordId !== 'string' || record.recordId.length === 0) {
+  const recordId = record.recordId;
+  if (typeof recordId !== 'string' || recordId.length === 0) {
     throw new Error('open: supersedes has a missing or empty recordId — a caller error (SPEC §2)');
   }
-  if (typeof record.chainHead !== 'string' || record.chainHead.length === 0) {
+  const chainHead = record.chainHead;
+  if (typeof chainHead !== 'string' || chainHead.length === 0) {
     throw new Error('open: supersedes has a missing or empty chainHead — a caller error (SPEC §2)');
   }
+  return { recordId, chainHead };
 }
 
 /**
@@ -77,16 +82,20 @@ export async function verifySupersedes(
   subjectRef: string,
 ): Promise<SupersedesCheck> {
   const { store, profiles } = ctx;
-  const chain = await store.readChain(ref.recordId);
+  // The claim's two fields, read ONCE into locals before the first await (the staged-integrity
+  // increment): the record and head every check below compares are the ones recorded, whatever
+  // the caller's object does while this awaits.
+  const { recordId, chainHead } = ref;
+  const chain = await store.readChain(recordId);
   if (chain.length === 0) return { ok: false }; // an absent claim cannot be replayed
-  // Bound to the REFERENCED id: another record's rows read back under `ref.recordId` are a
+  // Bound to the REFERENCED id: another record's rows read back under `recordId` are a
   // break at seq 1, so the claim cannot borrow that record's terminal history.
-  if (!verifyChain(chain, ref.recordId).intact) return { ok: false };
+  if (!verifyChain(chain, recordId).intact) return { ok: false };
   // The AL2 enforcement increment folds the signature layer into this same arm.
-  if (!(await signatureLayerHolds(ctx, ref.recordId, chain))) return { ok: false };
+  if (!(await signatureLayerHolds(ctx, recordId, chain))) return { ok: false };
   const last = chain.at(-1);
   if (last === undefined) return { ok: false };
-  if (transitionDigest(last) !== ref.chainHead) return { ok: false };
+  if (transitionDigest(last) !== chainHead) return { ok: false };
   const record = replay(chain);
   if (record.subjectRef !== subjectRef) return { ok: false };
   // Held by id AND binding, for every state (the profile-drift gate's comparison, the one
@@ -103,5 +112,5 @@ export async function verifySupersedes(
     if (nonTerminal('confirmed', finalLeg, resolved.effectSeam)) return { ok: false };
   }
   // refused / expired / declined / redeemed / redemption-failed: terminal by state alone.
-  return { ok: true, verified: { recordId: ref.recordId, chainHead: ref.chainHead } };
+  return { ok: true, verified: { recordId, chainHead } };
 }

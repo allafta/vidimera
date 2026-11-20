@@ -1,6 +1,8 @@
 // @vidimera/record — kernel/open.ts: the operator-only record-creating seam (SPEC §9
 // `open(stagedRef, {...})`). `open(stagedRef)`:
-//   1. read the staged draft (missing -> a caller error, THROWS — see below);
+//   0. snapshot the caller's options: each value it will use, read ONCE (see below);
+//   1. read the staged draft (missing -> a caller error, THROWS — see below) and check that it
+//      re-derives to `stagedRef` (a mismatch THROWS too — `checkedDraft`, below);
 //   2. resolve the draft's profile fail-CLOSED (unconfigured -> `refused('unknown-profile')`,
 //      NO append — open() never trusts a staged profileId blindly);
 //   3. mint an opaque `recordId`, build the genesis `opened` transition (payload carries
@@ -20,8 +22,9 @@
 import { assertChainFor } from '../chain/binding.js';
 import { genesisPrevHash } from '../chain/encoding.js';
 import { replay } from '../chain/replay.js';
-import { type OpenOptions, unknownOptionKey } from '../config.js';
+import { type OpenOptions, type PriorRecordRef, unknownOptionKey } from '../config.js';
 import type { KernelContext } from '../create.js';
+import { deriveStagedRef } from '../id.js';
 import { isFinalLeg, nonTerminal } from '../nonterminal.js';
 import type { Outcome } from '../outcome.js';
 import { ok, refused } from '../outcome.js';
@@ -29,6 +32,7 @@ import type { AppendMeta } from '../store/store.js';
 import type {
   IdentityAssertion,
   RecordedPriorLegRef,
+  StagedDraft,
   SupersedesRef,
   Transition,
 } from '../types.js';
@@ -61,29 +65,46 @@ export async function open(
       );
     }
   }
+  // --- The option snapshot (the staged-integrity increment): every caller-supplied value
+  // open() uses is read ONCE, here, into plain locals, and every later check and binding uses
+  // only those. A host that mutates its own argument mid-call, or passes an accessor whose
+  // value changes, cannot get a value into the genesis that no check saw (a recorded
+  // `supersedes` naming a record never verified; a declaring genesis bound with no
+  // `policyDigest`). An accessor that throws here propagates as the caller error it is.
+  //
   // Argument-depth shape validation for a present supersedes claim
   // (kernel/supersedes.ts's validateSupersedesShape): a malformed claim throws here,
-  // BEFORE any chain loads.
-  if (opts?.supersedes !== undefined) {
-    validateSupersedesShape(opts.supersedes);
-  }
+  // BEFORE any chain loads; a well-formed one comes back as the two fields it checked.
+  const supersedesClaim = opts?.supersedes;
+  const supersedes =
+    supersedesClaim === undefined ? undefined : validateSupersedesShape(supersedesClaim);
   // Argument-depth shape validation for a present proposed claim (SPEC §9's provenance
-  // option): a malformed claim throws here, BEFORE any store read.
-  if (opts?.proposed !== undefined) {
-    validateProposedShape(opts.proposed);
-  }
+  // option): a malformed claim throws here, BEFORE any store read; a well-formed one comes
+  // back as the stagedRef it checked.
+  const proposedClaim = opts?.proposed;
+  const proposedRef =
+    proposedClaim === undefined ? undefined : validateProposedShape(proposedClaim);
+  const priorRecordRefs = snapshotPriorRecordRefs(opts?.priorRecordRefs);
+  const policyDigest = opts?.policyDigest;
 
   const { store, profiles, now, mintId } = ctx;
 
-  const staged = await store.getStaged(stagedRef);
-  if (staged === null) {
+  const stored = await store.getStaged(stagedRef);
+  if (stored === null) {
     throw new Error(
       `open: unknown stagedRef '${stagedRef}' — no staged draft (call stage() first); ` +
         'a stagedRef that resolves to nothing is a caller error, not a domain refusal',
     );
   }
+  // Before any other use of the draft: it must re-derive to the reference it was read under
+  // (`checkedDraft`, below). Everything after this binds these four locals, never a re-read.
+  const { profileId, legId, subjectRef, contentDigest } = checkedDraft(
+    stored,
+    stagedRef,
+    'stagedRef',
+  );
 
-  const resolved = profiles.get(staged.profileId);
+  const resolved = profiles.get(profileId);
   if (resolved === undefined) {
     // Fail-closed: open() re-validates the draft's profile and never trusts it blindly.
     return refused('unknown-profile');
@@ -95,15 +116,15 @@ export async function open(
   // operator is the only party who may attest the drift baseline, and an unbound
   // declaring record (or a bound non-declaring one) is a host contract violation.
   if (resolved.profile.policySource !== undefined) {
-    if (opts?.policyDigest === undefined || opts.policyDigest.length === 0) {
+    if (policyDigest === undefined || policyDigest.length === 0) {
       throw new Error(
-        `open: profile '${staged.profileId}' declares policySource but no policyDigest was supplied — ` +
+        `open: profile '${profileId}' declares policySource but no policyDigest was supplied — ` +
           'the operator binds the drift baseline at open(), fail-closed and loud (SPEC §10.3)',
       );
     }
-  } else if (opts?.policyDigest !== undefined) {
+  } else if (policyDigest !== undefined) {
     throw new Error(
-      `open: profile '${staged.profileId}' declares no policySource but a policyDigest was supplied — ` +
+      `open: profile '${profileId}' declares no policySource but a policyDigest was supplied — ` +
         'binding a drift baseline on a non-declaring profile is a caller error (SPEC §10.3)',
     );
   }
@@ -115,7 +136,7 @@ export async function open(
   // same profile id) — without this re-check a stale legId would mint a record that can
   // never resolve a leg at finalize() time. Fail-closed, pre-record: no draft is consumed
   // into a record, no append, no transitionRef (`unknown-leg` never appends).
-  const legIndex = profile.legs.findIndex((leg) => leg.id === staged.legId);
+  const legIndex = profile.legs.findIndex((leg) => leg.id === legId);
   if (legIndex === -1) {
     return refused('unknown-leg');
   }
@@ -126,27 +147,30 @@ export async function open(
   // cross-triple proposal is wiring error, not a domain outcome. Record-only — nothing
   // downstream gates on the binding (SPEC §2: notarize, never evaluate).
   let proposedDigestBound: string | null = null;
-  if (opts?.proposed !== undefined) {
-    const proposedDraft = await store.getStaged(opts.proposed.stagedRef);
-    if (proposedDraft === null) {
+  if (proposedRef !== undefined) {
+    const storedProposal = await store.getStaged(proposedRef);
+    if (storedProposal === null) {
       throw new Error(
-        `open: unknown proposed stagedRef '${opts.proposed.stagedRef}' — no staged draft; ` +
+        `open: unknown proposed stagedRef '${proposedRef}' — no staged draft; ` +
           'a proposed reference that resolves to nothing is a caller error, not a domain refusal (SPEC §9)',
       );
     }
+    // The opened draft's check, before any other use of this one: the digest bound below is
+    // the one that re-derived to `proposedRef`.
+    const proposal = checkedDraft(storedProposal, proposedRef, 'proposed stagedRef');
     if (
-      proposedDraft.profileId !== staged.profileId ||
-      proposedDraft.subjectRef !== staged.subjectRef ||
-      proposedDraft.legId !== staged.legId
+      proposal.profileId !== profileId ||
+      proposal.subjectRef !== subjectRef ||
+      proposal.legId !== legId
     ) {
       throw new Error(
-        `open: proposed draft '${opts.proposed.stagedRef}' names ` +
-          `('${proposedDraft.profileId}', '${proposedDraft.subjectRef}', '${proposedDraft.legId}') but the opened draft names ` +
-          `('${staged.profileId}', '${staged.subjectRef}', '${staged.legId}') — the proposed reference must name the same ` +
+        `open: proposed draft '${proposedRef}' names ` +
+          `('${proposal.profileId}', '${proposal.subjectRef}', '${proposal.legId}') but the opened draft names ` +
+          `('${profileId}', '${subjectRef}', '${legId}') — the proposed reference must name the same ` +
           '(profileId, subjectRef, legId) as the opened draft (SPEC §9); a cross-triple proposal is a caller error',
       );
     }
-    proposedDigestBound = proposedDraft.contentDigest;
+    proposedDigestBound = proposal.contentDigest;
   }
 
   // --- SPEC §10.1 sequencing (first step-4 increment): verify prior-leg references BEFORE
@@ -154,13 +178,7 @@ export async function open(
   // record" — so a bad reference refuses `prior-leg-unverified` (pre-record, NO append)
   // even when a C1 blocker also holds the pair, and the blocker path below is never
   // reached with unverified references.
-  const priorCheck = await verifyPriorLegs(
-    ctx,
-    resolved,
-    legIndex,
-    staged.subjectRef,
-    opts?.priorRecordRefs,
-  );
+  const priorCheck = await verifyPriorLegs(ctx, resolved, legIndex, subjectRef, priorRecordRefs);
   if (!priorCheck.ok) {
     return refused('prior-leg-unverified');
   }
@@ -173,8 +191,8 @@ export async function open(
   // genesis append below rides the ordinary exclusivity constraint unchanged —
   // terminality is one-way, so the verified predecessor cannot be raced back.
   let supersedesCheck: SupersedesCheck | null = null;
-  if (opts?.supersedes !== undefined) {
-    supersedesCheck = await verifySupersedes(ctx, opts.supersedes, staged.subjectRef);
+  if (supersedes !== undefined) {
+    supersedesCheck = await verifySupersedes(ctx, supersedes, subjectRef);
     if (!supersedesCheck.ok) {
       return refused('supersedes-unverified');
     }
@@ -194,14 +212,14 @@ export async function open(
     supersedes?: SupersedesRef;
     proposedDigest?: string;
   } = {
-    profileId: staged.profileId,
+    profileId,
     profileDigest: resolved.profileDigest,
-    legId: staged.legId,
-    subjectRef: staged.subjectRef,
-    contentDigest: staged.contentDigest,
+    legId,
+    subjectRef,
+    contentDigest,
   };
-  if (resolved.profile.policySource !== undefined && opts?.policyDigest !== undefined) {
-    openedPayload.policyDigest = opts.policyDigest;
+  if (resolved.profile.policySource !== undefined && policyDigest !== undefined) {
+    openedPayload.policyDigest = policyDigest;
   }
   if (priorCheck.verified !== null) {
     // SPEC §4: the recorded three-field form and the library-derived actors, present
@@ -342,10 +360,62 @@ export async function open(
   return refused('record-exists');
 }
 
+/** A staged draft's four bound fields, as `checkedDraft` read and checked them. */
+type CheckedDraft = Readonly<
+  Pick<StagedDraft, 'profileId' | 'legId' | 'subjectRef' | 'contentDigest'>
+>;
+
+/**
+ * A staged reference is content-derived (SPEC §3, §12): `deriveStagedRef` over the draft's own
+ * `contentDigest`, `profileId`, `subjectRef` and `legId`. So a draft read back under `ref` is
+ * bound only if its `id` is `ref` and those four fields re-derive to `ref`. Each field is read
+ * ONCE, here, and the caller binds exactly the values checked — never a second read of the
+ * store's object. A mismatch means the draft was edited in storage between `stage()` and
+ * `open()`: corrupted or foreign persisted data, met with SPEC §8's loud-throw posture — a throw
+ * naming the reference that records nothing, never a refusal. What it does not do: authenticate
+ * who staged a draft. A whole new, self-consistent draft is the digest of its own fields, so it
+ * lives under a different reference and is bound only if the host asks for that one.
+ */
+function checkedDraft(draft: StagedDraft, ref: string, label: string): CheckedDraft {
+  const { id, profileId, legId, subjectRef, contentDigest } = draft;
+  if (
+    id !== ref ||
+    typeof profileId !== 'string' ||
+    typeof legId !== 'string' ||
+    typeof subjectRef !== 'string' ||
+    typeof contentDigest !== 'string' ||
+    deriveStagedRef(contentDigest, profileId, subjectRef, legId) !== ref
+  ) {
+    throw new Error(
+      `open: the persisted draft under ${label} '${ref}' does not match it — a staged draft's id ` +
+        'and the reference its fields re-derive to must both be the reference it is stored under ' +
+        '(SPEC §3); a draft edited in storage is corrupted or foreign persisted data, a storage ' +
+        'fault, not a domain outcome (SPEC §8)',
+    );
+  }
+  return { profileId, legId, subjectRef, contentDigest };
+}
+
+/**
+ * The `priorRecordRefs` half of open()'s option snapshot: a fresh array holding each entry's
+ * `recordId` and `chainHead`, each read once. An entry that is not an object, and a value that is
+ * not an array, pass through as they came, so `verifyPriorLegs` meets them as it always has —
+ * and it reads every reference's fields once itself, before its first await.
+ */
+function snapshotPriorRecordRefs(refs: PriorRecordRef[] | undefined): PriorRecordRef[] | undefined {
+  if (!Array.isArray(refs)) return refs;
+  return refs.map((ref) =>
+    typeof ref === 'object' && ref !== null
+      ? { recordId: ref.recordId, chainHead: ref.chainHead }
+      : ref,
+  );
+}
+
 /** SPEC §9's provenance option shape: a plain object with exactly `stagedRef`, a
  * non-empty string — the validateSupersedesShape class: malformed claims throw at
- * argument depth, before any store read. */
-function validateProposedShape(proposed: unknown): asserts proposed is { stagedRef: string } {
+ * argument depth, before any store read. Returns the `stagedRef` it checked, read once —
+ * open()'s snapshot of the claim. */
+function validateProposedShape(proposed: unknown): string {
   if (proposed === null || typeof proposed !== 'object' || Array.isArray(proposed)) {
     throw new Error('open: proposed must be a plain { stagedRef } object (SPEC §9)');
   }
@@ -360,4 +430,5 @@ function validateProposedShape(proposed: unknown): asserts proposed is { stagedR
   if (typeof ref !== 'string' || ref.length === 0) {
     throw new Error('open: proposed.stagedRef must be a non-empty string (SPEC §9)');
   }
+  return ref;
 }
