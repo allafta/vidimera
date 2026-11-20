@@ -192,6 +192,29 @@ async function assertSeqFault(
   assert.deepEqual(await store.readChain(recordId), before, `${seam}: the chain is unchanged`);
 }
 
+/**
+ * A `state-mismatch` with no racer: the re-read finds the record still in `target`, the state
+ * the append expected — the storage fault, and the chain unchanged.
+ */
+async function assertUnmovedFault(
+  seam: string,
+  target: RecordState,
+  call: () => Promise<unknown>,
+  store: Store,
+  recordId: string,
+): Promise<void> {
+  const before = await store.readChain(recordId);
+  await assert.rejects(call, (err: unknown) => {
+    assert.ok(err instanceof Error, 'the thrown value is an Error');
+    assert.match(err.message, new RegExp(`^${seam}: append conflict \\('state-mismatch'\\)`));
+    assert.ok(err.message.includes(`still '${target}'`), `names the unmoved '${target}'`);
+    assert.match(err.message, /storage fault/);
+    assert.match(err.message, /nothing was appended and the record is unchanged/);
+    return true;
+  });
+  assert.deepEqual(await store.readChain(recordId), before, `${seam}: the chain is unchanged`);
+}
+
 /** A lost CAS whose re-read failed: thrown, naming the seam, with the failure as `cause`. */
 function lostReadFault(seam: string, cause: (c: unknown) => void) {
   return (err: unknown): true => {
@@ -413,6 +436,138 @@ test('seal: a racing seal still loses to C4 and refuses unsealable-state, append
   const chain = await rig.inner.readChain(recordId);
   assert.equal(chain.filter((t) => t.kind === 'sealed').length, 1, 'only the winner sealed');
 });
+
+// ============================================================================================
+// The redemption residual: a state-mismatch at a state that never moved throws
+// ============================================================================================
+
+/** Each residual call site, its CAS target, and what the same call answers once unarmed. */
+interface UnmovedSite {
+  name: string;
+  seam: 'redeem' | 'beginRedemption' | 'completeRedemption';
+  target: 'confirmed' | 'redeeming';
+  /** Sets the record up over `rig` and returns the call, its append predicate and a check. */
+  setup(
+    rig: Rig,
+    clock: Clock,
+  ): Promise<{
+    recordId: string;
+    call: () => Promise<Outcome<unknown>>;
+    match: (e: RecordState | null, t: Transition) => boolean;
+    again: (out: Outcome<unknown>) => Promise<void>;
+  }>;
+}
+
+const UNMOVED_SITES: UnmovedSite[] = [
+  {
+    name: 'redeem (its own append)',
+    seam: 'redeem',
+    target: 'confirmed',
+    async setup(rig, clock) {
+      const { handles, recordId } = await confirmedEffect(rig, clock);
+      return {
+        recordId,
+        call: () => handles.operator.redeem(recordId, CONTENT),
+        match: (e, t) => e === 'confirmed' && t.kind === 'redeemed',
+        again: async (out) => assertOk(out),
+      };
+    },
+  },
+  {
+    name: 'beginRedemption (its own append)',
+    seam: 'beginRedemption',
+    target: 'confirmed',
+    async setup(rig, clock) {
+      const { handles, recordId } = await confirmedEffect(rig, clock);
+      return {
+        recordId,
+        call: () => handles.operator.beginRedemption(recordId, CONTENT),
+        match: (e, t) => e === 'confirmed' && t.kind === 'redeeming',
+        again: async (out) => assertOk(out),
+      };
+    },
+  },
+  {
+    name: 'completeRedemption (its own append)',
+    seam: 'completeRedemption',
+    target: 'redeeming',
+    async setup(rig, clock) {
+      const { handles, recordId } = await confirmedEffect(rig, clock);
+      const token = await begun(handles, recordId);
+      return {
+        recordId,
+        call: () => handles.operator.completeRedemption(recordId, token, CONTENT),
+        match: (e, t) => e === 'redeeming' && t.kind === 'redeemed',
+        again: async (out) => assertOk(out),
+      };
+    },
+  },
+  {
+    name: 'the clock rung (a due confirmed window)',
+    seam: 'redeem',
+    target: 'confirmed',
+    async setup(rig, clock) {
+      const { handles, recordId } = await confirmedEffect(rig, clock);
+      clock.t = T0 + CONFIRM_MS + 10_000;
+      return {
+        recordId,
+        call: () => handles.operator.redeem(recordId, CONTENT),
+        match: (e, t) => e === 'confirmed' && t.kind === 'expired',
+        again: async (out) => {
+          refusedWith(out, 'unredeemable-state');
+          assert.equal((await rig.inner.readChain(recordId)).at(-1)?.kind, 'expired');
+        },
+      };
+    },
+  },
+  {
+    name: 'the clock rung (a due redeeming window)',
+    seam: 'completeRedemption',
+    target: 'redeeming',
+    async setup(rig, clock) {
+      const { handles, recordId } = await confirmedEffect(rig, clock);
+      const token = await begun(handles, recordId);
+      clock.t += REDEEM_MS + 10_000;
+      return {
+        recordId,
+        call: () => handles.operator.completeRedemption(recordId, token, CONTENT),
+        match: (e, t) => e === 'redeeming' && t.kind === 'redemption-failed',
+        again: async (out) => {
+          refusedWith(out, 'redemption-timeout');
+          assert.equal((await rig.inner.readChain(recordId)).at(-1)?.kind, 'redemption-failed');
+        },
+      };
+    },
+  },
+  {
+    name: 'the reverify content-drift edge',
+    seam: 'redeem',
+    target: 'confirmed',
+    async setup(rig, clock) {
+      const { handles, recordId } = await confirmedLive(rig, clock);
+      return {
+        recordId,
+        call: () => handles.operator.redeem(recordId, DRIFTED),
+        match: (e, t) => e === 'confirmed' && t.kind === 'refused',
+        again: async (out) => {
+          refusedWith(out, 'content-drift');
+          assert.ok(out.status === 'refused' && out.transitionRef !== undefined, 'the edge lands');
+        },
+      };
+    },
+  },
+];
+
+for (const site of UNMOVED_SITES) {
+  test(`the redemption residual at ${site.name}: a state-mismatch with no racer (the record still '${site.target}') throws a storage fault, appends nothing, and the same call then succeeds`, async () => {
+    const clock = { t: T0 };
+    const rig = new Rig(new MemoryStore());
+    const { recordId, call, match, again } = await site.setup(rig, clock);
+    armOnce(rig, match, async () => LOST);
+    await assertUnmovedFault(site.seam, site.target, call, rig.inner, recordId);
+    await again(await call());
+  });
+}
 
 // ============================================================================================
 // The redemption residual: a lost CAS whose re-read fails throws with the failure as cause
@@ -674,6 +829,31 @@ async function dueOpen(seam: DecisionSeam) {
 }
 
 const OPEN_EXPIRE = (e: RecordState | null, t: Transition) => e === 'open' && t.kind === 'expired';
+const CONFIRMED_EXPIRE = (e: RecordState | null, t: Transition) =>
+  e === 'confirmed' && t.kind === 'expired';
+const REDEEMING_FAIL = (e: RecordState | null, t: Transition) =>
+  e === 'redeeming' && t.kind === 'redemption-failed';
+
+/** An effect-seam record confirmed (and, for 'redeeming', begun) at T0, its window now due. */
+async function dueWindow(seam: DecisionSeam, window: 'confirmed' | 'redeeming') {
+  const clock = { t: T0 };
+  const rig = new Rig(new MemoryStore());
+  const handles = on(rig, [EFFECT_PROFILE()], clock);
+  const recordId = await openRecord(
+    handles,
+    CONTENT,
+    'test.fr.effect.v1',
+    `subject:fw-${window}-${seam}`,
+  );
+  assertOk(await DECISION_SEAMS.finalize(handles, recordId));
+  if (window === 'redeeming') {
+    assertOk(await handles.operator.beginRedemption(recordId, CONTENT));
+    clock.t += REDEEM_MS + 10_000;
+  } else {
+    clock.t += CONFIRM_MS + 10_000;
+  }
+  return { rig, handles, recordId };
+}
 
 for (const seam of SEAMS) {
   test(`${seam}: losing the open-window expiry CAS to a racer that CONFIRMED refuses record-not-open, appending nothing`, async () => {
@@ -794,6 +974,59 @@ for (const seam of SEAMS) {
       },
     );
     refusedWith(await DECISION_SEAMS[seam](handles, recordId), 'record-not-open');
+  });
+
+  for (const how of READ_FAILURES) {
+    test(`${seam}: a lost confirmed-window expiry CAS whose re-read ${how === 'rejects' ? 'rejects' : 'returns a foreign chain'} throws with the failure as cause`, async () => {
+      const { rig, handles, recordId } = await dueWindow(seam, 'confirmed');
+      const other = await openRecord(handles, CONTENT, 'test.fr.effect.v1', `subject:fx-${seam}`);
+      armOnce(rig, CONFIRMED_EXPIRE, async () => {
+        await land(rig.inner, recordId, 'confirmed', 'expired', {
+          bound: new Date(T0 + CONFIRM_MS).toISOString(),
+        });
+        failReads(rig, how, other);
+        return undefined;
+      });
+      await assert.rejects(
+        () => DECISION_SEAMS[seam](handles, recordId),
+        lostReadFault(seam, causeOf(how)),
+      );
+    });
+  }
+
+  test(`${seam}: a state-mismatch with no racer on the OPEN window (the record still 'open') throws a storage fault, appends nothing, and the same call then expires it`, async () => {
+    const { rig, recordId, call } = await dueOpen(seam);
+    armOnce(rig, OPEN_EXPIRE, async () => LOST);
+    await assertUnmovedFault(seam, 'open', call, rig.inner, recordId);
+    refusedWith(await call(), 'leg-expired');
+    assert.equal((await rig.inner.readChain(recordId)).at(-1)?.kind, 'expired');
+  });
+
+  test(`${seam}: a state-mismatch with no racer on the CONFIRMED window (the record still 'confirmed') throws a storage fault, appends nothing, and the same call then expires it`, async () => {
+    const { rig, handles, recordId } = await dueWindow(seam, 'confirmed');
+    armOnce(rig, CONFIRMED_EXPIRE, async () => LOST);
+    const call = () => DECISION_SEAMS[seam](handles, recordId);
+    await assertUnmovedFault(seam, 'confirmed', call, rig.inner, recordId);
+    refusedWith(await call(), 'leg-expired');
+    assert.equal((await rig.inner.readChain(recordId)).at(-1)?.kind, 'expired');
+  });
+
+  test(`${seam}: a state-mismatch with no racer on the REDEEMING window (the record still 'redeeming') throws a storage fault, appends nothing, and the same call then resolves it`, async () => {
+    const { rig, handles, recordId } = await dueWindow(seam, 'redeeming');
+    armOnce(rig, REDEEMING_FAIL, async () => LOST);
+    const call = () => DECISION_SEAMS[seam](handles, recordId);
+    await assertUnmovedFault(seam, 'redeeming', call, rig.inner, recordId);
+    refusedWith(await call(), 'record-not-open');
+    assert.equal((await rig.inner.readChain(recordId)).at(-1)?.kind, 'redemption-failed');
+  });
+
+  test(`${seam}: a 'seq' conflict on the redeeming-window resolution edge throws a storage fault, appends nothing, and the same call then resolves it`, async () => {
+    const { rig, handles, recordId } = await dueWindow(seam, 'redeeming');
+    armOnce(rig, REDEEMING_FAIL, async () => SEQ);
+    const call = () => DECISION_SEAMS[seam](handles, recordId);
+    await assertSeqFault(seam, call, rig.inner, recordId);
+    refusedWith(await call(), 'record-not-open');
+    assert.equal((await rig.inner.readChain(recordId)).at(-1)?.kind, 'redemption-failed');
   });
 }
 

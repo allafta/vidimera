@@ -40,8 +40,9 @@
 //                            increment: `refuseCorrespondenceMismatch` below)
 //   (6) append redeemed   -> ok; a non-append residual is a racing writer -> the
 //                            family-wide CAS-residual re-read (`residualRefusal` below); a
-//                            `'seq'` conflict, which no honest writer produces here, or a
-//                            re-read that fails, THROWS (the faults-and-races increment)
+//                            `'seq'` conflict, which no honest writer produces here, a
+//                            re-read that finds the state unmoved, or a re-read that fails,
+//                            THROWS (the faults-and-races increment)
 //
 // (4) before (5): a replayed redemption refuses `already-redeemed` whatever content it
 // carries — at-most-once outranks mismatch reporting.
@@ -92,7 +93,7 @@ import { isFinalLeg, nonTerminal } from '../nonterminal.js';
 import type { Outcome } from '../outcome.js';
 import { ok, refused } from '../outcome.js';
 import type { AppendMeta, Store } from '../store/store.js';
-import type { DecisionRecord, Digest, Transition } from '../types.js';
+import type { DecisionRecord, Digest, RecordState, Transition } from '../types.js';
 import { isWellFormedUtf16 } from '../utf16.js';
 import {
   appendConflictFault,
@@ -101,6 +102,7 @@ import {
   lostCasReadFault,
   pendingWindow,
   resolveDueClock,
+  unmovedStateWhy,
 } from './expiry.js';
 import { appendChainCompromise } from './finalize.js';
 import { heldProfile } from './held-profile.js';
@@ -111,8 +113,9 @@ type RedeemSeam = 'redeem' | 'beginRedemption' | 'completeRedemption';
 
 /** Why `'seq'` has no honest producer on any append this module proposes. */
 const REDEMPTION_SEQ_WHY =
-  "every redemption append's compare-and-swap target is 'confirmed' or 'redeeming', and " +
-  'every legitimate competing append leaves that state (redeemed, redeeming, expired, ' +
+  "every redemption append's compare-and-swap target is 'confirmed' (a record awaiting " +
+  "redemption: the seam gate admits only a final leg on an effect-seam profile) or 'redeeming', " +
+  'and every legitimate competing append leaves that state (redeemed, redeeming, expired, ' +
   'redemption-failed, refused); every conforming backing checks the state before the seq, so ' +
   "a concurrent writer reaches this call as 'state-mismatch', never 'seq'";
 
@@ -131,25 +134,30 @@ const REDEMPTION_SEQ_WHY =
  * took no append result and caught every failure of its re-read — "fall through —
  * result-first either way" — and the chain-binding increment recorded that a foreign chain on
  * the re-read falls through to `unredeemable-state` the same way, since it "can never make
- * this seam say `already-redeemed`". So a `'seq'` conflict, a re-read that rejected, a foreign
- * chain and a chain that no longer replays all answered `unredeemable-state`. That code is a
- * statement about the record — SPEC §8: "no redeemable seam or state applies" — and none of
- * those four supports it: each leaves a record that may still be `confirmed` and redeemable,
- * and a token executor reading `unredeemable-state` may abandon an effect the decision
- * approved. "Result-first" governs domain outcomes; a call that cannot learn the record's
- * state has no domain outcome to return, and nothing was appended by it, which is the
- * exception scope DECISIONS.md #10 keeps for "storage faults where nothing was recorded".
- * The inverted reading, therefore:
+ * this seam say `already-redeemed`". So a `'seq'` conflict, a `state-mismatch` at a state that
+ * never moved, a re-read that rejected, a foreign chain and a chain that no longer replays all
+ * answered `unredeemable-state`. That code is a statement about the record — SPEC §8: "no
+ * redeemable seam or state applies" — and none of those five supports it: each leaves a
+ * record that may still be (or, at an unmoved state, still is) `confirmed` or `redeeming` and
+ * redeemable, and a token executor reading `unredeemable-state` may abandon an effect the
+ * decision approved. "Result-first" governs domain outcomes; a call that cannot learn the
+ * record's state, or whose store reports a conflict nothing explains, has no domain outcome to
+ * return, and nothing was appended by it, which is the exception scope DECISIONS.md #10 keeps
+ * for "storage faults where nothing was recorded". The inverted reading, therefore:
  *  - `'seq'` throws the storage fault (`REDEMPTION_SEQ_WHY`: it has no honest producer here);
- *  - `state-mismatch` re-reads as before, and a re-read that rejects, returns another record's
- *    rows or does not replay throws with that failure as `cause` (`lostCasReadFault`) — the
- *    posture `kernel/finalize.ts`'s `seqConflict` already takes with its own diagnostic
- *    re-read. Honest races are unchanged: each still answers what re-invocation would.
+ *  - `state-mismatch` re-reads as before. A re-read that finds the record still in `target`,
+ *    the state the append expected, throws the storage fault too (`unmovedStateWhy`: `target`
+ *    is never terminal here, so neither C3 nor C4 explains it, and a state never returns); a
+ *    re-read that rejects, returns another record's rows or does not replay throws with that
+ *    failure as `cause` (`lostCasReadFault`) — the posture `kernel/finalize.ts`'s
+ *    `seqConflict` already takes with its own diagnostic re-read. Honest races are unchanged:
+ *    each still answers what re-invocation would.
  */
 async function residualRefusal(
   seam: RedeemSeam,
   store: Store,
   recordId: string,
+  target: RecordState,
   lost: LostAppend,
 ): Promise<Outcome<never>> {
   if (lost.conflict !== 'state-mismatch') {
@@ -163,6 +171,9 @@ async function residualRefusal(
     fresh = replay(chain);
   } catch (err) {
     throw lostCasReadFault(seam, err);
+  }
+  if (fresh.state === target) {
+    throw appendConflictFault(seam, 'state-mismatch', unmovedStateWhy(target));
   }
   return refused(fresh.state === 'redeemed' ? 'already-redeemed' : 'unredeemable-state');
 }
@@ -217,7 +228,7 @@ async function refuseCorrespondenceMismatch(
   const res = await store.appendTransition(target, edge, meta);
   if (!res.appended) {
     // A racing writer moved the state — the family-wide CAS-residual discipline.
-    return residualRefusal(seam, store, recordId, res);
+    return residualRefusal(seam, store, recordId, target, res);
   }
   return refused('content-drift', res.transitionDigest);
 }
@@ -349,9 +360,9 @@ async function prologue(
   // with `redemption-timeout`"). A seam arriving AFTER a resolution finds the terminal
   // state at its own state gate and refuses `unredeemable-state` — nothing timed out at
   // that call. A lost resolution CAS re-reads once (the family residual discipline; a
-  // `'seq'` or a failed re-read throws, `residualRefusal` above). An ENLISTED caller
-  // reaching a due window is a further exception, guarded immediately below, before the
-  // resolver is ever called.
+  // `'seq'`, an unmoved state or a failed re-read throws, `residualRefusal` above). An
+  // ENLISTED caller reaching a due window is a further exception, guarded immediately below,
+  // before the resolver is ever called.
   if (record.state === 'confirmed' || record.state === 'redeeming') {
     // ONE clock read for the whole rung (the review-hardening pass, 2026-09-05): the enlisted
     // guard below and `resolveDueClock` judge the same instant. Read twice, a deadline falling
@@ -380,7 +391,7 @@ async function prologue(
     const due = await resolveDueClock(store, recordId, chain, resolved, instant);
     if (due.due) {
       if (!due.result.appended) {
-        return { refusal: await residualRefusal(seam, store, recordId, due.result) };
+        return { refusal: await residualRefusal(seam, store, recordId, due.window, due.result) };
       }
       return {
         refusal: refused(due.window === 'redeeming' ? 'redemption-timeout' : 'unredeemable-state'),
@@ -549,7 +560,7 @@ export async function redeem(
 
   const res = await store.appendTransition('confirmed', redeemedTransition, meta, tx);
   if (!res.appended) {
-    return residualRefusal('redeem', store, recordId, res);
+    return residualRefusal('redeem', store, recordId, 'confirmed', res);
   }
   return ok({ recordId, state: 'redeemed', transitionRef: res.transitionDigest });
 }
@@ -672,7 +683,7 @@ export async function beginRedemption(
   };
   const res = await store.appendTransition('confirmed', redeemingTransition, meta, tx);
   if (!res.appended) {
-    return residualRefusal('beginRedemption', store, recordId, res);
+    return residualRefusal('beginRedemption', store, recordId, 'confirmed', res);
   }
   return ok({ recordId, state: 'redeeming', token, transitionRef: res.transitionDigest });
 }
@@ -818,7 +829,7 @@ export async function completeRedemption(
   };
   const res = await store.appendTransition('redeeming', redeemedTransition, meta, tx);
   if (!res.appended) {
-    return residualRefusal('completeRedemption', store, recordId, res);
+    return residualRefusal('completeRedemption', store, recordId, 'redeeming', res);
   }
   return ok({ recordId, state: 'redeemed', transitionRef: res.transitionDigest });
 }

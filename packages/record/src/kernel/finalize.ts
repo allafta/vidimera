@@ -312,8 +312,9 @@ export async function finalize(
       // A loser that answers differently from re-invocation is exactly what that discipline
       // exists to prevent, and rarity does not make a false code true. So the lost CAS now
       // re-reads once and answers what re-invoking would (`lostResolutionRefusal`,
-      // kernel/expiry.ts, shared with decline and the findings seams); a `'seq'` here, which
-      // no honest writer produces against `confirmed`, throws as the storage fault it is.
+      // kernel/expiry.ts, shared with decline and the findings seams). A conflict no honest
+      // writer produces against `confirmed` or `redeeming` — a `'seq'`, or a `state-mismatch`
+      // whose re-read finds the state unmoved — throws as the storage fault it is.
       return lostResolutionRefusal('finalize', store, recordId, due.window, due.result);
     }
     return refused('record-not-open');

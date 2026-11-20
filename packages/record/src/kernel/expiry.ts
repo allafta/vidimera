@@ -175,23 +175,38 @@ export type LostAppend = Extract<AppendResult, { appended: false }>;
  * DECISIONS.md #10 reserves for "storage faults where nothing was recorded" — and never mapped
  * to a domain code, which would state something about a record this call cannot see. The
  * wording is the single-append conflict fault's (`kernel/finalize.ts`'s `seqConflict`).
- * `seqWhy` says why `'seq'` has no honest producer at the caller's own CAS target; an
- * exclusivity conflict has none on any append but a genesis. Callers: the redemption residual
+ * `why` says why this conflict has no honest producer at the caller's own CAS target (see
+ * `unmovedStateWhy` for a `state-mismatch`); an exclusivity conflict has none on any append
+ * but a genesis, and carries its own reason. Callers: the redemption residual
  * (`kernel/redeem.ts`), `seal`, and `lostResolutionRefusal` below.
  */
 export function appendConflictFault(
   seam: string,
   conflict: LostAppend['conflict'],
-  seqWhy: string,
+  why: string,
 ): Error {
-  const why =
-    conflict === 'seq'
-      ? seqWhy
-      : 'C1 exclusivity binds only a genesis append, and this append is not one';
+  const reason =
+    conflict === 'exclusivity'
+      ? 'C1 exclusivity binds only a genesis append, and this append is not one'
+      : why;
   return new Error(
     `${seam}: append conflict ('${conflict}'). A Store honouring the compare-and-swap ` +
-      `contract cannot report this: ${why}. This is a storage fault. The append is ` +
+      `contract cannot report this: ${reason}. This is a storage fault. The append is ` +
       'all-or-nothing: nothing was appended and the record is unchanged.',
+  );
+}
+
+/**
+ * Why a `state-mismatch` has no honest producer when the re-read finds the record still in the
+ * state the append expected. Every CAS target that reaches this check — `open`, a `confirmed`
+ * record awaiting redemption, `redeeming` — is non-terminal and unsealable, so neither C3 nor
+ * C4 can reject an append against it; and a record's state never returns to one it left. A
+ * mismatch at an unmoved state is therefore the store misreporting, never a racer.
+ */
+export function unmovedStateWhy(target: RecordState): string {
+  return (
+    `a re-read finds the record still '${target}', the state this append expected, and a ` +
+    'record never returns to a state it left, so no concurrent writer explains the conflict'
   );
 }
 
@@ -199,12 +214,13 @@ export function appendConflictFault(
  * The fault a lost compare-and-swap becomes when the re-read that would name the winner
  * fails — it rejects, returns another record's rows, or does not replay. The re-read is what
  * lets the loser answer what re-invoking would; without it no domain code is known to be true,
- * so the failure is thrown as this error's `cause` (`seqConflict`'s posture for its own
- * diagnostic re-read). The call's own append lost, so nothing was appended by it.
+ * and no winner is known either, so the failure is thrown as this error's `cause`
+ * (`seqConflict`'s posture for its own diagnostic re-read). The call's own append lost, so
+ * nothing was appended by it.
  */
 export function lostCasReadFault(seam: string, cause: unknown): Error {
   return new Error(
-    `${seam}: the append lost its compare-and-swap to a concurrent writer, and the re-read ` +
+    `${seam}: the append lost its compare-and-swap ('state-mismatch'), and the re-read ` +
       "that would name the record's fresh state failed (its error rides as this one's cause), " +
       'so no refusal is known to be true of the record. This call appended nothing; re-invoke ' +
       'once the store answers.',
@@ -214,24 +230,35 @@ export function lostCasReadFault(seam: string, cause: unknown): Error {
 
 /** Why `'seq'` has no honest producer on an expiry edge proposed against `confirmed`. */
 const CONFIRMED_SEQ_WHY =
-  "the expiry edge's compare-and-swap target is 'confirmed', and every legitimate append a " +
-  'confirmed record admits leaves that state; every conforming backing checks the state before ' +
-  "the seq, so a concurrent writer reaches this call as 'state-mismatch', never 'seq'";
+  "the expiry edge's compare-and-swap target is 'confirmed' on a record awaiting redemption " +
+  '(a final leg on an effect-seam profile, the only confirmed record with a window), and every ' +
+  'legitimate append such a record admits leaves that state; every conforming backing checks ' +
+  "the state before the seq, so a concurrent writer reaches this call as 'state-mismatch', " +
+  "never 'seq'";
+
+/** Why `'seq'` has no honest producer on a resolution edge proposed against `redeeming`. */
+const REDEEMING_SEQ_WHY =
+  "the resolution edge's compare-and-swap target is 'redeeming', and every legitimate append " +
+  'a redeeming record admits leaves that state (redeemed, redemption-failed, refused); every ' +
+  'conforming backing checks the state before the seq, so a concurrent writer reaches this ' +
+  "call as 'state-mismatch', never 'seq'";
 
 /**
  * A decision-progress seam's lost resolution CAS (`finalize`, `decline`, the findings seams;
  * the faults-and-races increment): the seam asked `resolveDueClock` to append a due window's
- * edge and the store did not take it. The loser answers what re-invoking would answer:
- *  - the REDEEMING window: `record-not-open`. No append out of `redeeming` leaves the record
- *    open or expired, so the code is true whatever won.
+ * edge and the store did not take it. The loser answers what re-invoking would answer, and a
+ * conflict no honest writer produces throws:
  *  - `'seq'` on the OPEN window: the state CAS passed, so the record is still `open` — a
  *    state-preserving append (a finding or an acknowledgment) took the seq — and still due.
  *    `leg-expired`: re-invoking lands the edge and says the same.
- *  - `'seq'` on the CONFIRMED window: no honest producer (`CONFIRMED_SEQ_WHY`), so the
- *    storage fault is thrown.
- *  - `state-mismatch` on either: a racer moved the state. One advisory re-read, no append:
- *    `expired` → `leg-expired` (SPEC §8: "an `expired` or due-expired record"), anything else
- *    → `record-not-open`. A re-read that fails throws `lostCasReadFault`.
+ *  - `'seq'` on the CONFIRMED or REDEEMING window: no honest producer (`CONFIRMED_SEQ_WHY`,
+ *    `REDEEMING_SEQ_WHY`), so the storage fault is thrown.
+ *  - `state-mismatch` on any window: a racer moved the state. One advisory re-read, no
+ *    append: `expired` → `leg-expired` (SPEC §8: "an `expired` or due-expired record"),
+ *    anything else → `record-not-open` (a redeeming record can only have moved to a non-open,
+ *    non-expired state). A re-read that finds the record still in the window's own state
+ *    throws the storage fault (`unmovedStateWhy`), and a re-read that fails throws
+ *    `lostCasReadFault`.
  */
 export async function lostResolutionRefusal(
   seam: 'finalize' | 'decline' | 'raiseFinding' | 'acknowledge',
@@ -240,10 +267,13 @@ export async function lostResolutionRefusal(
   window: 'open' | 'confirmed' | 'redeeming',
   lost: LostAppend,
 ): Promise<Outcome<never>> {
-  if (window === 'redeeming') return refused('record-not-open');
   if (lost.conflict !== 'state-mismatch') {
     if (lost.conflict === 'seq' && window === 'open') return refused('leg-expired');
-    throw appendConflictFault(seam, lost.conflict, CONFIRMED_SEQ_WHY);
+    throw appendConflictFault(
+      seam,
+      lost.conflict,
+      window === 'redeeming' ? REDEEMING_SEQ_WHY : CONFIRMED_SEQ_WHY,
+    );
   }
   let state: RecordState;
   try {
@@ -253,6 +283,9 @@ export async function lostResolutionRefusal(
     state = replay(chain).state;
   } catch (err) {
     throw lostCasReadFault(seam, err);
+  }
+  if (state === window) {
+    throw appendConflictFault(seam, 'state-mismatch', unmovedStateWhy(window));
   }
   return refused(state === 'expired' ? 'leg-expired' : 'record-not-open');
 }
