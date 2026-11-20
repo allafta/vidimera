@@ -512,6 +512,40 @@ is the summary, and that file wins on conflict.
   constants in two existing test files (`policy-drift.test.ts`, `staged-integrity.test.ts`), each
   feeding several tests, were placeholder digests that were not hex and were made form-valid; no
   assertion changed.
+- **Faults throw, and a lost race answers what re-invoking would** (the tampering-and-races
+  increment, 2026-11-20, branch `tamper-and-race-2026-11-20`): a seam whose append failed for a
+  reason that is not an honest race returned a domain code that was false of the record. The
+  redemption seams' lost append answered `unredeemable-state` after a `'seq'` conflict, a failed
+  re-read, a foreign chain or a record that was still `confirmed`; `seal` answered
+  `unsealable-state` after `'seq'`; `open()`'s retry answered `record-exists` for any genesis
+  conflict; `finalize`, `decline` and the findings seams answered `leg-expired` or
+  `record-not-open` whatever had won the clock-resolution append. Now each of those cases throws a
+  storage fault with nothing appended (a failed re-read carries its failure as `cause`), and an
+  honest race answers what the next call would: `already-redeemed` where a racer redeemed,
+  `leg-expired` where a racer expired the record, `record-not-open` where a racer confirmed or
+  refused it. `open()` over a blocker that is already terminal when read, or a `confirmed` blocker
+  terminal under the held profile, takes its one retry instead of answering `record-exists`; its
+  retried genesis, when it fails after this call expired the blocker, throws an error that names
+  the blocker whose expiry edge stands, with the store's or signer's error as `cause`.
+  `operator.listDue` rejects instead of throwing synchronously. The redemption seams check
+  `opts.result` admission before the clock, so a stray `result` on a profile that does not declare
+  `redeem.result` throws on a due record too, where it used to resolve the clock and refuse. The
+  exception contract is narrowed to "storage faults where the failing write recorded nothing": a
+  call can append a clock edge en passant before it fails, and that edge stands. The limits,
+  stated: the honest-race answers assume a store that checks state before seq, as every backing
+  here does; `open()` whose own expiry append loses a race still answers `record-exists` without
+  a retry (an inherited pinned behaviour, held for the owner's decision); a batch append that
+  loses its state check at the success rung still answers `record-not-open`, as SPEC §9
+  prescribes. Upgrading: host code that matched `unredeemable-state` or `record-exists` for what
+  were really faults now sees a thrown error on those paths and should treat it as a storage
+  fault; no recorded chain changes, and no existing assertion changed except the
+  chain-binding census's tally line, which gained the new helper's one read.
+- **A custom `Store` that returns non-plain data now reads as tampering** (same increment): the
+  chain-verify read path used to throw on a class instance, a `Map` or a number with no JSON
+  form in a returned row. `verifyChain` now reports the break and a verifying seam refuses
+  `chain-compromise`, appending a terminal edge where the head still digests. The contract is
+  unchanged and now stated: a custom Store returns plain data. The limit: `verifySignatures`
+  and a store's `chainHead` over its head row still throw.
 
 ### Fixed
 
@@ -991,6 +1025,33 @@ is the summary, and that file wins on conflict.
   still passes intake, is never caught on a refusal path (where it counts as enlisted and
   suppresses the evidence edge) and is only caught at the store on success; strings already
   recorded, and a persisted identity read back, are not re-judged.
+- **Tampering that crashed verification, and a compromise edge that could never land** (the
+  tampering-and-races increment, 2026-11-20, branch `tamper-and-race-2026-11-20`):
+  `verifyChain` threw on a row it could not digest, a `null` row or a number with no JSON form
+  such as `Infinity` (which a SQL backing parses back from a stored `1e999`), the head included,
+  so a seam that should have refused `chain-compromise` threw instead; and
+  `appendChainCompromise` threw on a head whose `prevHash` was malformed, recording nothing while
+  the record kept holding its (profile, subject) pair. A deleted middle row or genesis made the
+  edge propose `chain.length + 1` while every backing adjudicates `max(seq) + 1`, so the edge
+  never landed, the record stayed open and non-terminal for good, and `open()` on its subject
+  answered `record-exists` forever (or threw once the genesis was gone). Now `verifyChain` throws
+  only on an empty chain: a row it cannot read or digest is the reported break (a non-object at
+  its position, an undigestable row at its own seq), and "intact" means every row digests. The
+  compromise edge is proposed at the head's own seq plus one, then at the chain's length plus
+  one, so after a deleted row it lands, the record becomes `refused` and its subject is
+  released, while `verifyChain` still reports the original break and every later seam refuses
+  with no further edge. A head with no digest to chain onto refuses `chain-compromise` with no
+  edge, no signature minted and nothing written to a sidecar. At AL2 the cold decorator signs
+  the edge when the genesis is missing, not an object or not a genesis, where a deleted
+  genesis would have landed it unsigned. The rung-(4.5) throw in `finalize` is reachable, by a
+  storage edit of a sole genesis inside the AL1 head-bound window; its message and comment now
+  say so, and AL2 closes it as `chain-compromise`. The limits, stated: the seq is the kernel's
+  estimate, not a store-reported `max(seq)`, so a head whose own seq was rewritten and a
+  length that is also wrong lands no edge; in separate-mode signing an extra seq attempt leaves
+  an orphaned sidecar entry only when the head's own seq was also rewritten; paths that never
+  verify (`replay`, `getRecord`, `review`, `verifySignatures`, `chainHead`, `open()`'s blocker
+  read) keep their storage-fault throws on a garbled chain; and a hash break at AL1 is still
+  tamper-evident only against non-recomputing edits.
 
 ### Known not-done
 
