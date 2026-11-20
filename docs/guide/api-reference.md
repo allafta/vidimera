@@ -44,7 +44,20 @@ Validation also covers what the types already rule out for a
 JavaScript caller — an unrecognized `captureMode` or `ackMode`, an `expiry` or `sod` of the
 wrong shape, an empty profile or leg id, a `terminalRefusals` member that could never take
 effect — each with the same `invalid profile` message, never a raw `TypeError` (the
-review-hardening pass, 2026-09-05). Returns the two frozen capability-split handles. Profiles are
+review-hardening pass, 2026-09-05). Each profile is read once into a frozen plain-data copy,
+and the instance keeps only the copy: a profile must be plain data (object literals, arrays,
+primitives — a class instance, accessor, `Object.create` object, `Set`, `Map` or sparse array
+throws, naming what it found); an unknown data-valued key throws (a function-valued key is
+ignored); an explicit `undefined` is an absent field and `null` is refused; each of
+`expiry.ttl`, `redeem.confirmToRedeem`, `redeem.redeemBound` and every `freshness` value is a
+positive integer of at most 3,155,760,000 seconds (100 years), the unbounded spelling being to
+omit the field (`'none'` for expiry); a `terminalRefusals` member must be producible by the
+leg (`sod-violation` needs `sod` or `proposer`, `policy-drift` a `policySource`,
+`ineligible` `eligibility`, `consultation-failed` `requiredConsultations`,
+`consultation-stale` `freshness`, `ack-missing`/`ack-stale` `ackMode` with `requiredAcks`); and
+a canonicalizer registry entry must be a function. Mutating your profile object after
+`create()` changes nothing the instance enforces or digests, and `profileDigest(profile)` on a
+profile `create()` accepted equals the digest the instance binds. Returns the two frozen capability-split handles. Profiles are
 never persisted. (`createWithClock` exists in source as an internal test seam and is
 deliberately not exported — that absence is a decision of record, not an omission.)
 
@@ -69,11 +82,12 @@ interface ConfirmProfile {
   legs: LegSpec[];                           // ordered; >1 switches on separation of duties;
                                              // an array with at least one leg, or construction throws
   captureMode: 'staged' | 'live';            // anything else throws at construction
-  expiry: { ttl: number } | 'none';          // ttl in seconds; any other shape throws at construction
+  expiry: { ttl: number } | 'none';          // ttl in seconds, at most 3155760000; any other shape
+                                             // throws at construction
   policySource?: string;                     // switches on policy-drift notarization
   redeem?: {                                 // presence declares the effect seam
-    confirmToRedeem?: number;                // seconds: confirm → redemption start
-    redeemBound?: number;                    // seconds: a redeeming record may dangle
+    confirmToRedeem?: number;                // seconds (at most 3155760000): confirm → redemption start
+    redeemBound?: number;                    // seconds (at most 3155760000): a redeeming record may dangle
     reverify?: boolean;                      // live mode's re-verification tail
     result?: true;                           // literal true — admits a result digest at
                                              // redeem()/completeRedemption() (below)
@@ -91,12 +105,14 @@ interface LegSpec {
   ackMode?: 'self' | 'counterparty' | 'any'; // anything else throws at construction
   requiredAcks?: string[];                   // finding kinds whose acks gate finalize
   requiredConsultations?: string[];          // consultation kinds required, in order
-  freshness?: Record<string, number>;        // per-kind max age (seconds) of observedAt claims
+  freshness?: Record<string, number>;        // per-kind max age (seconds, at most 3155760000)
+                                             // of observedAt claims
   eligibility?: string;                      // eligibility authority — implicit-first consultation
   decline?: true;                            // literal true — opts this leg into operator.decline()
   terminalRefusals?: RefusalCode[];          // codes that append open → refused; a member that is
                                              // not a registry code, a never-appends code,
-                                             // `chain-compromise`, or a duplicate throws at
+                                             // `chain-compromise`, a duplicate, or one this leg
+                                             // cannot produce throws at
                                              // construction (leg-expired and availability stay
                                              // legal — SPEC §8 names them inert)
 }
