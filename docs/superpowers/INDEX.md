@@ -18,7 +18,7 @@ the increment was written, which the code and the status doc may have since move
 A reader chasing current behavior reads the code and the status doc; a reader chasing how
 a past decision was reached reads the matching row below.
 
-**54 files in `specs/`, 57 in `plans/`** — not one-to-one. Three
+**55 files in `specs/`, 58 in `plans/`** — not one-to-one. Three
 plans carry no spec: the two step-1 completion/remediation plans
 (`2026-08-03-autonomous-step-1-completion.md`, `2026-08-03-step-1-remediation.md`) and
 this housekeeping plan's own (`2026-08-18-post-build-order-housekeeping.md`). Each is
@@ -92,3 +92,4 @@ close.
 | 2026-11-19 | Transactional sidecar — call 2 of the 2026-11-17 sanction calls: each reference store exposes its own `signatures` sidecar and writes a signed append's entries inside that append's atomic unit, after its compare-and-swap and only then, when the configured sidecar is the store's own; a separate sidecar keeps today's order; retires deferral-register row 22 on measured behavior; the seventeenth self-authored inversion | Post-build-order (no step) | [design](specs/2026-11-19-transactional-sidecar-design.md) | [plan](plans/2026-11-19-transactional-sidecar.md) |
 | 2026-11-20 | AL2 restatement, follow-up — call 3.2 of the 2026-11-17 sanction calls: the five call-3.1 sentences that called condition (iii) unmet say it holds where the sidecar is the configured store's own and written inside the append's atomic unit, and fails for any other sidecar; call 3 spent; three owner's-grant sentences left for the owner's word; no marker moves | Post-build-order (no step) | [design](specs/2026-11-20-al2-restatement-followup-design.md) | [plan](plans/2026-11-20-al2-restatement-followup.md) |
 | 2026-11-20 | Staged integrity — `open()` binds only a staged draft (the opened one and the `proposed` one) that re-derives to the reference it was asked for, throwing on a mismatch (SPEC §8's loud-throw posture), and reads each caller-supplied option once into a snapshot, so the genesis never carries a value that was not verified | Post-build-order (no step) | [design](specs/2026-11-20-staged-integrity-design.md) | [plan](plans/2026-11-20-staged-integrity.md) |
+| 2026-11-20 | Per-handle frozen closures — every function on the agent and operator handles is that handle's own frozen closure, so the handles share no function object and code holding only the agent handle can no longer plant `bind`/`call`/`apply` on a read the operator invokes with its own handle | Post-build-order (no step) | [design](specs/2026-11-20-surface-closures-design.md) | [plan](plans/2026-11-20-surface-closures.md) |

@@ -355,6 +355,15 @@ is the summary, and that file wins on conflict.
 
 ### Fixed
 
+- **Each handle's functions are its own, frozen** (2026-11-20, branch `surface-closures-2026-11-20`):
+  the agent and operator handles used to carry the kernel's read closures (`getRecord`,
+  `readChain`, `chainHead`) as the same unfrozen function objects, so code holding only the agent
+  handle could plant an own `bind`, `call` or `apply` that operator code calling
+  `operator.getRecord.bind(operator)` would run with the operator handle as its argument. Every
+  function on both handles is now a fresh frozen closure per handle. The limit, stated: code that
+  can patch a shared built-in such as `Function.prototype.bind` in the same realm is outside the
+  capability split, which is in-process object-capability discipline, not a sandbox (SPEC §9).
+
 - **The verifier registry could be satisfied with no key** (2026-09-03, branch
   `security-findings-2026-09-03`, found by a security review of the tree): `verifySignatures`
   and the enforcement primitive behind every seam looked a sidecar entry's `keyRef` up with a

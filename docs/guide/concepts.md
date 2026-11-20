@@ -46,7 +46,10 @@ re-canonicalizes and re-digests it, and a mismatch is refused as `content-drift`
   functions.
 
 This is in-process object-capability discipline, not a sandbox: the agent handle simply
-*has no method* that decides anything, and the handles are frozen plain objects. Handing
+*has no method* that decides anything, the handles are frozen plain objects, and every function
+on them is that handle's own frozen closure, so nothing reachable from the agent handle is the
+same object as anything on the operator handle. What it does not cover: code that can patch a
+shared built-in, such as `Function.prototype.bind` itself, in the same realm. Handing
 your agent framework the `agent` handle and keeping `operator` on the host side is the
 integration's one non-negotiable move.
 

@@ -41,6 +41,7 @@
 import type { ChainVerifyReport } from './chain/replay.js';
 import type { DeclineOptions, FinalizeOptions, OpenOptions, RedeemOptions } from './config.js';
 import type { Kernel } from './create.js';
+import { handleFn } from './handle-fn.js';
 import type { AckInput, FindingInput } from './kernel/findings-seams.js';
 import type { SignatureReport } from './kernel/verify-signatures.js';
 import type { Outcome } from './outcome.js';
@@ -146,26 +147,27 @@ export interface OperatorSurface {
 
 /**
  * Selects the operator-reachable subset of the shared kernel closures and freezes it. The
- * returned object is a FROZEN plain-object literal carrying the full operator surface.
+ * returned object is a FROZEN plain-object literal carrying the full operator surface, each
+ * function this handle's own frozen closure (`handle-fn.ts`), never shared with the agent handle.
  */
 export function makeOperatorSurface(kernel: Kernel): OperatorSurface {
   return Object.freeze({
-    open: kernel.open,
-    review: kernel.review,
-    finalize: kernel.finalize,
-    decline: kernel.decline,
-    raiseFinding: kernel.raiseFinding,
-    acknowledge: kernel.acknowledge,
-    redeem: kernel.redeem,
-    beginRedemption: kernel.beginRedemption,
-    completeRedemption: kernel.completeRedemption,
-    seal: kernel.seal,
-    replay: kernel.replay,
-    verifyChain: kernel.verifyChain,
-    getRecord: kernel.getRecord,
-    readChain: kernel.readChain,
-    chainHead: kernel.chainHead,
-    listDue: kernel.listDue,
-    verifySignatures: kernel.verifySignatures,
+    open: handleFn(kernel.open),
+    review: handleFn(kernel.review),
+    finalize: handleFn(kernel.finalize),
+    decline: handleFn(kernel.decline),
+    raiseFinding: handleFn(kernel.raiseFinding),
+    acknowledge: handleFn(kernel.acknowledge),
+    redeem: handleFn(kernel.redeem),
+    beginRedemption: handleFn(kernel.beginRedemption),
+    completeRedemption: handleFn(kernel.completeRedemption),
+    seal: handleFn(kernel.seal),
+    replay: handleFn(kernel.replay),
+    verifyChain: handleFn(kernel.verifyChain),
+    getRecord: handleFn(kernel.getRecord),
+    readChain: handleFn(kernel.readChain),
+    chainHead: handleFn(kernel.chainHead),
+    listDue: handleFn(kernel.listDue),
+    verifySignatures: handleFn(kernel.verifySignatures),
   });
 }

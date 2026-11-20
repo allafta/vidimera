@@ -8,6 +8,7 @@
 // agent-unreachability.test.ts.
 
 import type { Kernel } from './create.js';
+import { handleFn } from './handle-fn.js';
 import type { Outcome } from './outcome.js';
 import type { DecisionRecord, Digest, Transition } from './types.js';
 
@@ -33,13 +34,14 @@ export interface AgentSurface {
  * Selects the agent-reachable subset of the shared kernel closures and freezes it. The
  * returned object is a FROZEN plain-object literal (prototype `Object.prototype`, no class
  * instance) carrying EXACTLY `{stage, getRecord, readChain, chainHead}` — no
- * transitioning method is present, own or inherited.
+ * transitioning method is present, own or inherited. Each function is this handle's own
+ * frozen closure (`handle-fn.ts`), never the kernel closure the operator handle also wraps.
  */
 export function makeAgentSurface(kernel: Kernel): AgentSurface {
   return Object.freeze({
-    stage: kernel.stage,
-    getRecord: kernel.getRecord,
-    readChain: kernel.readChain,
-    chainHead: kernel.chainHead,
+    stage: handleFn(kernel.stage),
+    getRecord: handleFn(kernel.getRecord),
+    readChain: handleFn(kernel.readChain),
+    chainHead: handleFn(kernel.chainHead),
   });
 }

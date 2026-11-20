@@ -116,8 +116,8 @@ any one exit.
   proved only that the step ran; this document's gate outputs were measured locally and
   stand. See the dedicated section at the end of this document; the numbers immediately
   below already include it.
-- **Measured against the current tree** (re-measured at the staged-integrity increment's record
-  commit, 2026-11-20): `pnpm test` — 89 test files, 1276 tests,
+- **Measured against the current tree** (re-measured at the per-handle closures increment,
+  2026-11-20): `pnpm test` — 90 test files, 1281 tests,
   zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
@@ -7303,3 +7303,42 @@ was not run on the authoring machine** — the broken `pnpm` launcher stops
 `scripts/smoke-pack.mjs` at its adapter pack step — and runs in CI on the pull request. Nothing
 here touches either manifest or the build configuration. `CLAUDE.md`'s measured sentence moved
 to 89 files / 1276 tests.
+
+## Post-build-order increment — Per-handle frozen closures
+
+**The thirty-sixth post-build-order increment (branch `surface-closures-2026-11-20`, off `main` at
+`49b4417`).** The design is `docs/superpowers/specs/2026-11-20-surface-closures-design.md` and the
+plan `docs/superpowers/plans/2026-11-20-surface-closures.md`. No sealed-set edit, no new export, no
+change to any recorded byte.
+
+**What it closes.** The agent and operator handles carried the kernel's read closures —
+`getRecord`, `readChain`, `chainHead` — as the same, unfrozen function objects; freezing a
+handle froze the object, not the functions on it. Code holding only the agent handle could define
+an own `bind`, `call` or `apply` on a shared read, and operator-side code that wrote
+`operator.getRecord.bind(operator)` then ran the agent's function with the operator handle as
+its argument — enough to decide records, and possible even with the realm's built-ins frozen,
+because the planted property sat on the library's own function. SPEC §9's capability split and
+`SECURITY.md`'s "the agent handle reaching any record-transitioning capability" are the
+requirements it broke.
+
+**What landed.** `packages/record/src/handle-fn.ts`'s `handleFn` wraps one kernel function in a
+fresh, frozen closure that forwards every argument and returns what the kernel returns; both
+`agent-surface.ts` and `operator-surface.ts` build every function on their handle with it, so no
+function object is shared between handles or instances and none can be extended. Behavior is
+otherwise unchanged (the kernel functions read no `this`). The guide's capability-split
+paragraph (`docs/guide/concepts.md`) says so, with the limit: code that can patch a shared
+built-in, such as `Function.prototype.bind` itself, in the same realm, is outside the guarantee —
+SPEC §9 already disclaims a sandbox.
+
+**Pins.** `packages/record/test/surface-closures.test.ts`: no shared function object between the
+handles or between instances; every function on both handles frozen; planting `bind`, `call` or
+`apply` on each agent read throws `TypeError`, and the operator's `.bind(operator)` and
+`.call(operator, …)` read the real record with no planted function ever called; the per-handle
+reads answer as the kernel does. Three of the five were red against the old source (measured by
+stashing the change); the other two pin behavior that already held.
+
+**Inversions.** None. No existing assertion changed.
+
+**Gates, measured on the authoring machine.** `ci-assert-tests: ok — 1281 tests in 90 files (98
+suites): 1281 passed, 0 failed, 0 skipped, 0 todo`; typecheck, biome (`--error-on-warnings`, 164
+files), `contract-scan`, `api-reference-sync` and `docs-index-sync` exit 0.
