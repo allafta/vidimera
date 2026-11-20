@@ -100,7 +100,8 @@ picture cuts both ways:
   by replaying its own chain. The insider-recompute threat closes at **AL2 signing**,
   under the three conditions `SPEC.md` §14 states — every registered profile signs, the key
   sits outside the insider's boundary, and no signature outlives an uncommitted append (the
-  last not yet met).
+  last met only where the sidecar is the configured store's own and written inside the
+  append's atomic unit, not for any other sidecar).
 - **Adopt clearly wins when:** the host needs **multi-party SoD** (restart-surviving
   four-eyes evidence, verify-by-replay references, and the retry-is-not-self-approval
   false-positive are subtle); **effect-binding redemption** (at-most-once under crashes and

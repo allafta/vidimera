@@ -155,8 +155,9 @@ flip from a hand-maintained enumeration into a grep recipe;
   intact, or it runs separate. The row is retired; `docs/process/implementation-status.md`'s
   section of that name carries the account. The sealed-set restatement of condition (iii) that
   call 3.2 reserved for this increment landed on 2026-11-20 for call 3.1's five sentences (the
-  AL2 restatement follow-up); three sentences the owner's grant conditioned (ARCHITECTURE §3 and
-  §9, SCOPING-GUIDE §5) still say "not yet met", pending the owner's explicit word.
+  AL2 restatement follow-up); the three sentences the owner's grant conditioned (ARCHITECTURE §3
+  and §9, SCOPING-GUIDE §5) followed the same day under the owner's word (`df7a32e`, the AL2
+  grant sentences).
 
 ### Decline's rung-(1) coverage gap — register row 20, retired 2026-08-23
 
@@ -451,13 +452,14 @@ commit message on `code-review-fixes`; for the fourth, in
   own outcome, appending nothing — would widen that class's producer list, touch §14's AL2
   bullet, and reopen OPEN-QUESTIONS §1's key-custody tail. Real, and the 2026-09-05 review's
   one High-rated finding that survived triage; not decided here.
-- **Three sealed sentences that still call AL2's third condition unmet — awaiting the owner's
-  word (raised 2026-11-20).** ARCHITECTURE §3, ARCHITECTURE §9's ladder cell and SCOPING-GUIDE §5,
-  conditioned under the owner's 2026-11-19 grant, say no signature outliving an uncommitted
-  append is "not yet met". Since the transactional sidecar it holds where the sidecar is the
-  configured store's own (SPEC §14, restated by the AL2 restatement follow-up), so the three
-  understate and now differ from the normative text. The owner's grant is recorded as spent;
-  editing them needs the owner's explicit word.
+- **Three sealed sentences that called AL2's third condition unmet — GRANTED and landed
+  2026-11-20** (the owner: "granted, update the three sentences too"; sealed commit `df7a32e`,
+  `docs/process/implementation-status.md`'s "AL2 grant sentences" section). ARCHITECTURE §3,
+  ARCHITECTURE §9's ladder cell and SCOPING-GUIDE §5, conditioned under the owner's 2026-11-19
+  grant, said no signature outliving an uncommitted append is "not yet met". Since the
+  transactional sidecar it holds where the sidecar is the configured store's own (SPEC §14,
+  restated by the AL2 restatement follow-up); the three now say so in ASSURANCE §6's wording.
+  The owner's 2026-11-20 word is spent at that commit.
 
 (A fourth, a never-appends contention refusal code, was decided the same day: `record-contended`,
 minted under its own sanction — `docs/superpowers/specs/2026-09-02-record-contended-design.md`.)
