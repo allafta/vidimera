@@ -309,8 +309,9 @@ binding — `contentDigest`, fixed at open from whichever staged draft you open 
 only the revised content. Staging is idempotent by content, so a real revision always
 mints a distinct `stagedRef`; without saying more, the agent's original proposal survives
 nowhere on the chain. Bind it explicitly with `open`'s `proposed: { stagedRef }` option:
-it resolves the agent's original staged draft through the store, exactly as `stagedRef`
-itself is resolved, and binds its digest into the genesis as `proposedDigest`:
+it resolves the staged draft the store holds under that reference, exactly as `stagedRef`
+itself is resolved — the draft must re-derive to the reference it is read under — and binds
+that draft's digest into the genesis as `proposedDigest`:
 
 ```ts
 // The agent drafts and stages a proposal:
@@ -329,14 +330,19 @@ const opened = await operator.open(revised.value.stagedRef, {
 if (opened.status !== 'ok') return handle(opened);
 
 const record = await operator.getRecord(opened.value.recordId);
-// record.contentDigest is the revision's digest; record.proposedDigest is the agent's
-// original — different here, because review changed the draft.
+// record.contentDigest is the revision's digest; record.proposedDigest is the digest of the
+// draft the store held under the proposal's stagedRef when the record opened, which had to
+// re-derive to that ref — different here, because review changed the draft.
 ```
 
 Both failure modes are caller errors, thrown rather than refused (`open`'s own
 unknown-`stagedRef` posture): an unresolvable `proposed.stagedRef`, and a resolved draft
 naming a different `(profileId, subjectRef, legId)` than the draft being opened — the
-message names both triples, fail-closed against host wiring bugs. **Same-ref is legal and
+message names both triples, fail-closed against host wiring bugs. A third throw is a
+storage fault rather than a wiring bug: a staged draft — the opened one or the proposed
+one — whose `id`, or the reference its fields re-derive to, is not the reference it was
+read under was edited in storage, and `open` throws naming that reference, appending
+nothing. **Same-ref is legal and
 meaningful:** opening a draft with `proposed` naming that very same `stagedRef` records
 unchanged acceptance — `proposedDigest` equal to `contentDigest`, no special case.
 
@@ -368,10 +374,13 @@ is a `revision` consultation attached at `finalize` or `decline`: `checker` name
 editor's identity, and `payloadDigest` digests the prior version — an ordinary
 consultation, not a new field.
 
-The honest bound, in the same breath: the binding proves a draft with that digest existed
-in the store for the same `(profile, subject, leg)` when the record opened, and — by
-comparing it against `contentDigest` — whether the decision matched or changed it. It
-never proves who authored either draft, and never that the revision was an improvement.
+The honest bound, in the same breath: the binding proves the store held, under the
+reference the host named, a draft with that digest for the same `(profile, subject, leg)`
+when the record opened — a draft that re-derives to that reference, so its fields were not
+edited under it — and, by comparing it against `contentDigest`, whether the decision matched
+or changed it. It never proves who authored or staged either draft (anyone who can write the
+store can stage a whole new, self-consistent draft under its own reference), and never that
+the revision was an improvement.
 Correction analysis over proposed-vs-decided digests stays aggregate control assurance,
 never per-named-reviewer scoring — the same posture the privacy section below states.
 

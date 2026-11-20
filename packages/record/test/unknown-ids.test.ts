@@ -21,6 +21,7 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
 import { create } from '../src/create.js';
+import { deriveStagedRef } from '../src/id.js';
 import {
   captureProfile,
   DEFAULT_SUBJECT_REF,
@@ -83,16 +84,26 @@ test('stage() naming a legId absent from a SINGLE-leg profile -> refused unknown
 test('open() on a staged draft naming an unconfigured profileId -> refused unknown-profile, no append', async () => {
   // Arrange a staged draft whose profileId is NOT in the config — the fail-closed guard
   // in open() (it never trusts a staged profileId blindly) is the only producer here.
-  // Direct putStaged is legitimate for arranging store state in a test.
+  // Direct putStaged is legitimate for arranging store state in a test. The draft is an
+  // HONEST one — planted under the reference its own fields derive to — because this test's
+  // subject is the unknown-profile refusal on an honest draft. Until the staged-integrity
+  // increment it was planted under a forged reference ('sha256:deadbeef'); open() now checks
+  // that a draft re-derives to its reference before any other use of it, so a forged one
+  // throws first (staged-integrity.test.ts pins that). Setup only: every assertion is kept.
   const store = new CountingStore();
-  const stagedRef = 'sha256:deadbeef';
-  await store.putStaged({
-    id: stagedRef,
+  const draft = {
     profileId: 'no.such.profile.v1',
     legId: 'approver-decide',
     subjectRef: DEFAULT_SUBJECT_REF,
-    contentDigest: 'sha256:00',
-  });
+    contentDigest: `sha256:${'0'.repeat(64)}`,
+  };
+  const stagedRef = deriveStagedRef(
+    draft.contentDigest,
+    draft.profileId,
+    draft.subjectRef,
+    draft.legId,
+  );
+  await store.putStaged({ id: stagedRef, ...draft });
   const appendsBefore = store.appendCalls;
 
   const { operator } = create(makeConfig([captureProfile()], { store }));

@@ -54,26 +54,38 @@ export async function verifyPriorLegs(
   // One entry per prior leg, in leg order — exactly legIndex of them.
   if (refs === undefined || refs.length !== legIndex) return { ok: false };
 
+  // Every reference's two fields, read ONCE into locals before the first await (the
+  // staged-integrity increment): the record and head each check below compares are the ones
+  // recorded, whatever the caller's objects do while this awaits.
+  const claims: ({ recordId: string; chainHead: string } | undefined)[] = [];
+  for (let i = 0; i < legIndex; i += 1) {
+    const ref = refs[i];
+    claims.push(
+      ref === undefined ? undefined : { recordId: ref.recordId, chainHead: ref.chainHead },
+    );
+  }
+
   const priorRecordRefs: RecordedPriorLegRef[] = [];
   const priorLegActors: IdentityAssertion[] = [];
   for (let i = 0; i < legIndex; i += 1) {
-    const ref = refs[i];
+    const claim = claims[i];
     const expectedLeg = resolved.profile.legs[i];
-    if (ref === undefined || expectedLeg === undefined) return { ok: false };
+    if (claim === undefined || expectedLeg === undefined) return { ok: false };
+    const { recordId, chainHead } = claim;
 
-    const chain = await store.readChain(ref.recordId);
+    const chain = await store.readChain(recordId);
     if (chain.length === 0) return { ok: false }; // unknown recordId — and the
     // destroyed-prior posture: a chain that no longer exists cannot be replayed (§10.1)
-    // Bound to the REFERENCED id: another record's rows read back under `ref.recordId` are a
+    // Bound to the REFERENCED id: another record's rows read back under `recordId` are a
     // break at seq 1, so the reference cannot borrow that record's confirmed history.
-    if (!verifyChain(chain, ref.recordId).intact) return { ok: false };
+    if (!verifyChain(chain, recordId).intact) return { ok: false };
     // The AL2 enforcement increment folds the signature layer into this same arm.
-    if (!(await signatureLayerHolds(ctx, ref.recordId, chain))) return { ok: false };
+    if (!(await signatureLayerHolds(ctx, recordId, chain))) return { ok: false };
     const last = chain.at(-1);
     if (last === undefined) return { ok: false };
     // "its recomputed head must equal the supplied `chainHead`" — the host's claim is
     // checked against the recomputation, never adopted.
-    if (transitionDigest(last) !== ref.chainHead) return { ok: false };
+    if (transitionDigest(last) !== chainHead) return { ok: false };
 
     const prior = replay(chain);
     if (prior.profileId !== resolved.profile.id) return { ok: false };
@@ -91,7 +103,7 @@ export async function verifyPriorLegs(
 
     if (prior.actor === undefined) {
       throw new Error(
-        `verifyPriorLegs: prior leg record '${ref.recordId}' replays 'confirmed' with no actor in its confirmed payload — a garbled or foreign chain is a storage/config fault, not a domain outcome (SPEC §8)`,
+        `verifyPriorLegs: prior leg record '${recordId}' replays 'confirmed' with no actor in its confirmed payload — a garbled or foreign chain is a storage/config fault, not a domain outcome (SPEC §8)`,
       );
     }
     // The same fault when the recorded actor is present but not a valid identity: a recorded
@@ -102,14 +114,10 @@ export async function verifyPriorLegs(
     const priorActor = identitySnapshot(prior.actor);
     if (priorActor === null) {
       throw new Error(
-        `verifyPriorLegs: prior leg record '${ref.recordId}' replays 'confirmed' with an actor that is not a valid identity in its confirmed payload — a garbled or foreign chain is a storage/config fault, not a domain outcome (SPEC §8)`,
+        `verifyPriorLegs: prior leg record '${recordId}' replays 'confirmed' with an actor that is not a valid identity in its confirmed payload — a garbled or foreign chain is a storage/config fault, not a domain outcome (SPEC §8)`,
       );
     }
-    priorRecordRefs.push({
-      recordId: ref.recordId,
-      chainHead: ref.chainHead,
-      legId: expectedLeg.id,
-    });
+    priorRecordRefs.push({ recordId, chainHead, legId: expectedLeg.id });
     priorLegActors.push(priorActor);
   }
   return { ok: true, verified: { priorRecordRefs, priorLegActors } };

@@ -95,9 +95,10 @@ call declares it, and a non-declaring chain stays byte-identical either way. A *
 human decline** (the operator-only `open → declined` seam) binds a rejection with
 confirmation's own evidentiary weight: it proves who declined what they saw, never that
 the decline was sound — a "no" never routed to the seam does not exist. **Proposal
-provenance** binds the agent's original staged draft's digest into the genesis at open,
-proving a draft existed for the same decision and, by comparing digests, whether it
-changed — never who authored either draft, never that the revision was sound.
+provenance** binds into the genesis at open the digest of the staged draft the host names
+as the proposal — a draft that must re-derive to its reference — proving the store held it
+for the same decision and, by comparing digests, whether the decision changed it — never
+who authored or staged either draft, never that the revision was sound.
 **Effect-result notarization** binds a host-claimed outcome digest into the `redeemed`
 payload at redemption: it notarizes that the host asserted an outcome when the coupling
 closed, never observing or verifying the effect, never mirroring business state that

@@ -845,9 +845,12 @@ export interface OpenOptions {
   /** SPEC §9's provenance option (§2's proposedDigest): the staged reference the
    * proposal arrived as, resolved through the store at open() and required to name the
    * SAME (profileId, subjectRef, legId) as the opened draft — both failure modes THROW
-   * (the unknown-stagedRef caller-error posture). Binds the resolved draft's
-   * contentDigest into the genesis, present-iff-supplied. Record-only: nothing gates
-   * on it (notarize, never evaluate). Real as of the proposal-provenance increment. */
+   * (the unknown-stagedRef caller-error posture). The resolved draft must also re-derive
+   * to that reference, as the opened draft must to its own (the staged-integrity
+   * increment): a persisted draft that does not is a storage fault, and THROWS too.
+   * Binds the resolved draft's contentDigest into the genesis, present-iff-supplied.
+   * Record-only: nothing gates on it (notarize, never evaluate). Real as of the
+   * proposal-provenance increment. */
   proposed?: { stagedRef: string };
 }
 

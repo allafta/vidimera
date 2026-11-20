@@ -729,6 +729,38 @@ is the summary, and that file wins on conflict.
   at `create()`. No refusal code, public type or sealed-set document changed; nine existing test
   fixtures that minted with a key their own instance could not verify were reconfigured, each
   assertion kept.
+- **`open()` binds a staged draft only if it re-derives to its reference, and reads its options
+  once** (the staged-integrity increment, 2026-11-20, branch `staged-integrity-2026-11-20`, two
+  findings of an external analysis): a staged reference is content-derived — the digest of the
+  draft's `contentDigest`, `profileId`, `subjectRef` and `legId` — but `open()` bound the draft
+  it read back under that reference as stored. A storage-writing insider who edited a pending
+  staged row between `stage()` and `open()` could redirect the record to another registered
+  profile with the same leg id (skipping the intended profile's required consultations), to
+  another subject (escaping the intended pair's exclusivity), or from a successor leg to the
+  first (skipping the prior-leg sequencing), or rewrite the digest it binds; the genesis was
+  bound, signed at AL2, and verified clean. The `proposed` draft was read the same way, so its
+  digest could be rewritten into `proposedDigest`. Now `open()` reads each draft's five fields
+  once, requires its `id` and its re-derived reference both to equal the reference it was read
+  under — for the opened draft and the `proposed` one, before any other use of either — and
+  binds exactly the values it checked; a mismatch throws naming the reference and appends
+  nothing, the loud-throw posture SPEC §8 gives corrupted or foreign persisted data, never a
+  refusal. Separately, `open()` read some caller options more than once with awaits between:
+  an accessor whose value changed, or a host mutating its own argument mid-call, could record a
+  `supersedes` or prior-leg reference that was never verified, or leave a policy-declaring
+  genesis bound with no `policyDigest` (which then refuses `policy-drift`). `open()` now copies
+  every option it uses at entry and checks and binds only the copy, and `verifySupersedes` and
+  `verifyPriorLegs` read each reference once before their first await and record what they
+  verified; an options accessor that throws during that copy propagates as a caller error — so it now
+  throws at `open()`'s entry, ahead of every domain outcome (the unknown-`stagedRef` throw and the
+  `unknown-profile`/`unknown-leg` refusals included), where the value used to go unread; a
+  throwing first-leg `priorRecordRefs` entry, which used to refuse `prior-leg-unverified`
+  unread, is one case. The honest bound, in the same breath: the check makes a
+  draft's fields unchangeable under the reference the host holds; it does not authenticate who
+  staged a draft — an insider who writes a whole new, self-consistent draft has written it under
+  its own reference, bound only if the host opens or proposes that one. No refusal code, public
+  type or sealed-set document changed, and no honest genesis byte moved; one existing test
+  fixture that planted its draft under a forged reference was re-planted under its derived one,
+  every assertion kept. Pre-publication, so there is no advisory to issue.
 
 ### Known not-done
 

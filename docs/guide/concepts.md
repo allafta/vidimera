@@ -109,11 +109,12 @@ stage (agent)  →  open (operator)  →  review (operator, pure read)  →  fin
 - `stage(content, profileId, subjectRef)` digests the content and stores an inert staged
   draft — digest only, no record yet, nothing to approve against yet.
 - `open(stagedRef)` mints the record: the genesis transition binds profile, leg, subject,
-  and content digest. Options carry multi-leg prior references and the `supersedes`
-  recovery claim — both verified by replay before anything is appended — a policy
-  digest, which is presence-checked and bound as the operator's attestation (the drift
-  comparison against it happens at finalize), and a `proposed` reference, resolved
-  through the store and bound as `proposedDigest`.
+  and content digest — from a staged draft that must re-derive to `stagedRef`, so a draft
+  edited in storage throws instead of binding. Options carry multi-leg prior references
+  and the `supersedes` recovery claim — both verified by replay before anything is
+  appended — a policy digest, which is presence-checked and bound as the operator's
+  attestation (the drift comparison against it happens at finalize), and a `proposed`
+  reference, resolved through the store and bound as `proposedDigest`.
 - `review(recordId)` is the content-free projection a review surface renders from: digests
   and state, never content.
 - `finalize(recordId, identity, content, facts, opts?)` is the decision. `identity` is the
@@ -223,11 +224,12 @@ The other governed controls, one line each — the catalog with tiers and honest
   afterward.
 - **Recovery** (`supersedes`, §2): a new record verifiably linked to the terminal
   predecessor it replaces.
-- **Proposal provenance** (`proposed`, §9/§2): the agent's original staged draft, resolved
-  at `open()` and bound as `proposedDigest`, so the record shows whether the decision
-  matched or changed what was proposed. Record-only — nothing gates on it; it proves the
-  draft existed for that same (profile, subject, leg), never who authored either draft nor
-  that the revision was sound.
+- **Proposal provenance** (`proposed`, §9/§2): the staged draft the host names as the
+  proposal, resolved at `open()` — it must re-derive to that reference — with its digest
+  bound as `proposedDigest`, so the record shows whether the decision matched or changed
+  what was proposed. Record-only — nothing gates on it; it proves the store held that draft
+  under that reference for the same (profile, subject, leg) when the record opened, never
+  who authored or staged either draft nor that the revision was sound.
 - **Live capture** (§9.2): decide-what-exists mode for content that cannot be staged
   inert, with mandatory re-derivation consultation and redemption tail.
 
