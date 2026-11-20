@@ -516,30 +516,41 @@ is the summary, and that file wins on conflict.
   increment, 2026-11-20, branch `tamper-and-race-2026-11-20`): a seam whose append failed for a
   reason that is not an honest race returned a domain code that was false of the record. The
   redemption seams' lost append answered `unredeemable-state` after a `'seq'` conflict, a failed
-  re-read, a foreign chain or a record that was still `confirmed`; `seal` answered
+  re-read, a foreign chain or a record that was still `confirmed` or `redeeming`; `seal` answered
   `unsealable-state` after `'seq'`; `open()`'s retry answered `record-exists` for any genesis
-  conflict; `finalize`, `decline` and the findings seams answered `leg-expired` or
-  `record-not-open` whatever had won the clock-resolution append. Now each of those cases throws a
-  storage fault with nothing appended (a failed re-read carries its failure as `cause`), and an
-  honest race answers what the next call would: `already-redeemed` where a racer redeemed,
-  `leg-expired` where a racer expired the record, `record-not-open` where a racer confirmed or
-  refused it. `open()` over a blocker that is already terminal when read, or a `confirmed` blocker
-  terminal under the held profile, takes its one retry instead of answering `record-exists`; its
-  retried genesis, when it fails after this call expired the blocker, throws an error that names
+  conflict, and its own expiry of a due blocker answered `record-exists` after an exclusivity
+  conflict or a `'seq'` conflict on a confirmed blocker; `finalize`, `decline` and the findings
+  seams answered `leg-expired` or `record-not-open` whatever had won the clock-resolution append,
+  and the findings seams' own append answered `record-not-open` whatever had moved the record. Now
+  each of those cases throws a storage fault with nothing appended (a failed re-read carries its
+  failure as `cause`), and an honest race answers what the next call would: `already-redeemed` where
+  a racer redeemed, `leg-expired` where a racer expired the record, `record-not-open` where a racer
+  confirmed or refused it. One case keeps its old answer by ruling: an ENLISTED redemption
+  (`opts.tx` supplied) whose re-read finds the record still in the state its append expected answers
+  `unredeemable-state`, as before, because `PostgresStore`'s reads skip the host transaction
+  (deferral-register row 23) and a second enlisted redemption call on one record inside one host
+  transaction meets exactly that on a conforming store; the unmoved-state throw assumes the re-read
+  sees at least the state the compare-and-swap was judged against, which the reference stores give
+  un-enlisted calls. `open()` over a blocker that is already terminal when read, or a `confirmed`
+  blocker terminal under the held profile, takes its one retry instead of answering `record-exists`;
+  its retried genesis, when it fails after this call expired the blocker, throws an error that names
   the blocker whose expiry edge stands, with the store's or signer's error as `cause`.
   `operator.listDue` rejects instead of throwing synchronously. The redemption seams check
   `opts.result` admission before the clock, so a stray `result` on a profile that does not declare
   `redeem.result` throws on a due record too, where it used to resolve the clock and refuse. The
   exception contract is narrowed to "storage faults where the failing write recorded nothing": a
-  call can append a clock edge en passant before it fails, and that edge stands. The limits,
-  stated: the honest-race answers assume a store that checks state before seq, as every backing
-  here does; `open()` whose own expiry append loses a race still answers `record-exists` without
-  a retry (an inherited pinned behaviour, held for the owner's decision); a batch append that
-  loses its state check at the success rung still answers `record-not-open`, as SPEC §9
-  prescribes. Upgrading: host code that matched `unredeemable-state` or `record-exists` for what
-  were really faults now sees a thrown error on those paths and should treat it as a storage
-  fault; no recorded chain changes, and no existing assertion changed except the
-  chain-binding census's tally line, which gained the new helper's one read.
+  call can append a clock edge en passant before it fails, and that edge stands. The limits, stated:
+  the honest-race answers assume a store that checks state before seq, as every backing here does;
+  `open()` whose own expiry append loses a race still answers `record-exists` without a retry (an
+  inherited pinned behaviour, held for the owner's decision), and that arm also answers
+  `record-exists` for a lost state check whose blocker never moved; an enlisted redemption answers
+  `unredeemable-state` for a genuine unmoved-state fault too, on a store whose reads do see the
+  transaction (`SqliteStore`); a batch append that loses its state check at the success rung still
+  answers `record-not-open`, as SPEC §9 prescribes. Upgrading: host code that matched
+  `unredeemable-state`, `record-not-open` or `record-exists` for what were really faults now sees a
+  thrown error on those paths and should treat it as a storage fault; no persisted chain's bytes or
+  format change, and no existing assertion changed except the chain-binding census's tally line,
+  which gained the new helper's one read.
 - **A custom `Store` that returns non-plain data now reads as tampering** (same increment): the
   chain-verify read path used to throw on a class instance, a `Map` or a number with no JSON
   form in a returned row. `verifyChain` now reports the break and a verifying seam refuses
@@ -1038,20 +1049,29 @@ is the summary, and that file wins on conflict.
   only on an empty chain: a row it cannot read or digest is the reported break (a non-object at
   its position, an undigestable row at its own seq), and "intact" means every row digests. The
   compromise edge is proposed at the head's own seq plus one, then at the chain's length plus
-  one, so after a deleted row it lands, the record becomes `refused` and its subject is
+  one, so after a deleted non-head row, where the state admits an append, the first verifying
+  seam to run on the record lands it, the record becomes `refused` and its subject is
   released, while `verifyChain` still reports the original break and every later seam refuses
   with no further edge. A head with no digest to chain onto refuses `chain-compromise` with no
-  edge, no signature minted and nothing written to a sidecar. At AL2 the cold decorator signs
+  edge, no signature minted and nothing written to a sidecar, and the record keeps its state, so
+  a non-terminal one keeps holding its (profile, subject) pair. At AL2 the cold decorator signs
   the edge when the genesis is missing, not an object or not a genesis, where a deleted
   genesis would have landed it unsigned. The rung-(4.5) throw in `finalize` is reachable, by a
   storage edit of a sole genesis inside the AL1 head-bound window; its message and comment now
   say so, and AL2 closes it as `chain-compromise`. The limits, stated: the seq is the kernel's
   estimate, not a store-reported `max(seq)`, so a head whose own seq was rewritten and a
   length that is also wrong lands no edge; in separate-mode signing an extra seq attempt leaves
-  an orphaned sidecar entry only when the head's own seq was also rewritten; paths that never
-  verify (`replay`, `getRecord`, `review`, `verifySignatures`, `chainHead`, `open()`'s blocker
-  read) keep their storage-fault throws on a garbled chain; and a hash break at AL1 is still
-  tamper-evident only against non-recomputing edits.
+  an orphaned sidecar entry only when the head's own seq was also rewritten; the pair is
+  released only once a verifying seam runs on the record holding it, because `open()` does not
+  verify its blocker (with a middle row deleted it answers `record-exists` until then, or throws
+  a storage fault where it would expire a due confirmed holder; with the holder's genesis
+  deleted its blocker read throws a replay error that does not name the holder); the reads that
+  never digest (`replay`, `getRecord`, `review`, `open()`'s blocker read) throw only on a row
+  they cannot read (`null`, a primitive, another record's row, no genesis first) and return a
+  state with no throw over a row with no canonical encoding, so a successful replay is not
+  evidence that the chain digests, while `verifySignatures` and a store's `chainHead` throw on a
+  row they cannot digest; and a hash break at AL1 is still tamper-evident only against
+  non-recomputing edits.
 
 ### Known not-done
 

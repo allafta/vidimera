@@ -321,7 +321,11 @@ the 0.1 cut." It does not gate the cut, so it sits here beside the rows that do 
 than among them. Two related signals ride with it: the `seq` conflict arms carrying the
 head seq the store adjudicated against, which would make the kernel's contention-versus-fault
 split exact rather than inferred from a later re-read; and a detected pool-size floor for
-enlisted use, which the guide states today.
+enlisted use, which the guide states today. The same `headSeq` signal would also make the
+compromise edge's seq exact (the tampering, faults and lost races increment proposes the head's
+own `seq` plus one, then the chain's length plus one), removing its second variant and the one
+separate-mode orphan a rewritten head seq can leave; it is recorded here, under this row, rather
+than as an item of its own.
 
 ### The embedded-postgres exit-hook workaround — register row 24, opened 2026-09-03
 
@@ -481,7 +485,15 @@ commit message on `code-review-fixes`; for the fourth, in
   one genesis attempt)"), and `CLAUDE.md` requires the owner's explicit authorization to invert an
   inherited pin. It is not a sealed edit and moves no marker; it waits for the owner's word. What
   bounds it meanwhile: the answer is the conservative one (the host re-invokes and the next call
-  sees the freed pair), and no record is ever opened twice.
+  sees the freed pair), and no record is ever opened twice. The same arm carries two further
+  cases that the decision would settle with it, both answering `record-exists` today: a `'seq'`
+  loss on an OPEN blocker (a finding or acknowledgment took the seq in a race that straddled the
+  deadline; the blocker is still open and due, so re-invoking would expire it), and a
+  `state-mismatch` whose blocker never moved — a fault no racer explains, which the other seams
+  re-read and throw on, but which this arm cannot tell from the pinned race without the re-read
+  the retry question decides. Since the fix wave after this increment's whole-branch review, a
+  `'seq'` loss on a CONFIRMED blocker (no honest producer) and an exclusivity conflict throw a
+  storage fault instead; neither sits inside the pinned arm.
 - **Four sealed wording items the tampering, faults and lost races increment found — sanction-gated,
   not decided** (recorded 2026-11-20). Each is a place where the sealed text and the code differ,
   and the non-sealed docs now state the code's reading. Changing the sealed text needs a fresh pass
@@ -500,13 +512,15 @@ commit message on `code-review-fixes`; for the fourth, in
     those seams" is `leg-expired`: a batch append that loses its state check at the success rung
     after a racer expired the record answers `record-not-open`, as §9 prescribes. The kernel
     follows §9; the other seams re-read and follow §8.
-- **A store-reported adjudicated `max(seq)` — not a sanction question, a follow-up** (recorded
-  2026-11-20). The compromise edge now proposes the head's own `seq` plus one, then the chain's
-  length plus one, which lands on every deletion shape tested but is the kernel's estimate. A
-  signal from the backing (the `max(seq)` it adjudicates against, returned with a `'seq'`
-  conflict) would make it exact and remove the second variant, and with it the one separate-mode
-  orphan a rewritten head seq can leave. It is a `Store`-contract change across three backings, so
-  it is not made here; it is not a sealed edit.
+- **`open()` should name the blocking record when its read of it throws — a follow-up, not a
+  sanction question** (recorded 2026-11-20, from the whole-branch review of the tampering, faults
+  and lost races increment). `open()` reads and replays the record holding its pair without
+  verifying it, and when that read throws on a row it cannot read (the holder's genesis deleted, a
+  row that is not an object) the error is replay's own, or a `TypeError`, and does not name the
+  holder. A host then cannot find the record to run a verifying seam on,
+  which is what lands the compromise edge and releases the pair. Wrapping the blocker read so its
+  failure names `blockingRecordId`, with the original error as `cause`, would close that; it
+  changes an error message only.
 
 (A fourth, a never-appends contention refusal code, was decided the same day: `record-contended`,
 minted under its own sanction — `docs/superpowers/specs/2026-09-02-record-contended-design.md`.)
@@ -554,9 +568,12 @@ as the break instead of throwing; the compromise edge lands after a deleted row 
 store's next seq, and releases the subject; a seam whose append failed for a reason that is not an
 honest race throws instead of answering a false domain code; a lost race answers what
 re-invocation would; `open()` retries over a blocker already terminal when read. The limits,
-stated: the edge's seq is an estimate; a head with no digest still refuses with no edge; and the
-items above (the lost own-expire compare-and-swap, the four sealed wording items, the `max(seq)`
-signal) stay open. The record is `docs/process/implementation-status.md`'s "Tampering, faults and
+stated: the edge's seq is an estimate; a head with no digest still refuses with no edge; the
+release waits for a verifying seam on the holder, since `open()` does not verify its blocker; an
+enlisted redemption keeps its domain answer where the re-read finds the record unmoved (register
+row 23's enlisted reads); and the items above (the lost own-expire compare-and-swap, the four
+sealed wording items, the edge's seq under row 23's `headSeq` signal, the blocker-read error that
+does not name the holder) stay open. The record is `docs/process/implementation-status.md`'s "Tampering, faults and
 lost races" section.
 
 ### OQ §2 — decided in code; the recording gap closed 2026-08-19; the corner itself

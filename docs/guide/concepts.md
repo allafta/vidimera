@@ -21,18 +21,23 @@ id at genesis). Two operator functions make the chain useful:
 - `verifyChain(recordId)` recomputes every link, checks that every transition is
   `recordId`'s own and that every row, the head included, has a canonical encoding, and reports
   `{ intact: true }` or the first break's sequence number. It does not throw on a damaged chain:
-  a row it cannot read or digest is the reported break (an empty chain, the one caller error,
-  still throws).
+  a row it cannot read or digest is the reported break. It still throws on a caller error (an
+  ill-formed `recordId`, or one with no chain) and on a failing store read.
 
 The guarantee, with its limit in the same breath: the chain is **tamper-evident against
 non-recomputing edits**. Deleting, reordering, or editing a non-head transition breaks the
 next link and is caught on verify. Another record's rows copied unrewritten under this
 record's id are caught too: `verifyChain` reports a break (at seq 1 for a whole copied
-chain), the seams refuse `chain-compromise`, and the non-verifying reads throw. A deleted row
-is caught too, and the seam's compromise edge still lands, at the store's next seq: the record
-becomes `refused` and its subject is released, while `verifyChain` keeps reporting the original
-break. The limit: a head with no digest to chain onto (a malformed `prevHash`, a non-canonical
-payload) refuses with no edge. A tamper
+chain), the seams refuse `chain-compromise`, and the non-verifying reads throw. A deleted
+non-head row is caught too, and where the persisted state still admits an append, the first
+verifying seam to run on the record lands its compromise edge at the store's next seq: the
+record becomes `refused` and its subject is released, while `verifyChain` keeps reporting the
+original break. The limits: the release waits for a verifying seam, because `open()` reads the
+record holding its pair without verifying it (with a middle row deleted it answers
+`record-exists` until then, or throws a storage fault where it would expire a due confirmed
+holder; with the holder's genesis deleted its read throws a replay error that does not name the
+holder); and a head with no digest to chain onto (a malformed `prevHash`, a non-canonical
+payload) refuses with no edge, so a non-terminal record keeps holding its pair. A tamper
 to the *last* transition — or to a transition's own `prevHash` field — is indistinguishable
 from that transition never having existed, because a singly-linked chain protects each
 transition through the *next* link.
