@@ -116,8 +116,8 @@ any one exit.
   proved only that the step ran; this document's gate outputs were measured locally and
   stand. See the dedicated section at the end of this document; the numbers immediately
   below already include it.
-- **Measured against the current tree** (re-measured at the staged-integrity increment's record
-  commit, 2026-11-20): `pnpm test` — 89 test files, 1276 tests,
+- **Measured against the current tree** (re-measured at the per-handle closures increment,
+  2026-11-20): `pnpm test` — 90 test files, 1282 tests,
   zero skips
   (the record and store-postgres vitest projects together, the latter over a real embedded
   Postgres its own globalSetup starts per run);
@@ -7303,3 +7303,60 @@ was not run on the authoring machine** — the broken `pnpm` launcher stops
 `scripts/smoke-pack.mjs` at its adapter pack step — and runs in CI on the pull request. Nothing
 here touches either manifest or the build configuration. `CLAUDE.md`'s measured sentence moved
 to 89 files / 1276 tests.
+
+## Post-build-order increment — Per-handle frozen closures
+
+**The thirty-sixth post-build-order increment (branch `surface-closures-2026-11-20`, off `main` at
+`49b4417`).** The design is `docs/superpowers/specs/2026-11-20-surface-closures-design.md` and the
+plan `docs/superpowers/plans/2026-11-20-surface-closures.md`. No sealed-set edit, no new export, no
+change to any recorded byte.
+
+**What it closes.** The agent and operator handles carried the kernel's read closures —
+`getRecord`, `readChain`, `chainHead` — as the same, unfrozen function objects; freezing a
+handle froze the object, not the functions on it. Code holding only the agent handle could define
+an own `bind`, `call` or `apply` on a shared read, and operator-side code that wrote
+`operator.getRecord.bind(operator)` then ran the agent's function with the operator handle as
+its argument — enough to decide records, and possible even with the realm's built-ins frozen,
+because the planted property sat on the library's own function. SPEC §9's capability split and
+`SECURITY.md`'s "The agent handle reaching any record-transitioning capability" are the
+requirements it broke.
+
+**What landed.** `packages/record/src/handle-fn.ts`'s `handleFn` wraps one kernel function in a
+fresh, frozen closure that forwards every argument, returns what the kernel returns, and keeps the
+kernel function's `name` and `length`; both `agent-surface.ts` and `operator-surface.ts` build
+every function on their handle with it, so no function object is shared between handles or
+instances and none can be extended. Visible to a host: `agent.getRecord === operator.getRecord`
+is now false; attaching a property to a handle function throws in strict-mode code and is silently ignored
+in sloppy-mode code; `toString` and the
+`AsyncFunction` tag differ from the kernel function's. `create.ts`'s comment now calls each
+surface a select, wrap and freeze. ARCHITECTURE §2 (sealed) still says "pure select-and-freeze";
+read, not edited: its claim — each surface exposes exactly its selected subset, frozen — holds.
+
+**The limit, in the same breath.** This closes the library's own channel only. Every function
+inherits from the realm's shared `Function.prototype`, so agent code in the same process that
+patches `Function.prototype.bind` — which any code can in a default Node realm — still reaches
+what operator code passes to it (measured by the review: with this change, in a default realm,
+patching `Function.prototype.bind` captured the operator handle; under `--frozen-intrinsics` it
+did not). The split confines in-process agent code only where the host confines it: frozen
+built-ins, no ambient module loading. The guide's capability-split paragraph, `SECURITY.md`'s
+in-scope bullet and the CHANGELOG say so; SPEC §9 already disclaims a sandbox.
+
+**Pins.** `packages/record/test/surface-closures.test.ts`, six: no shared function object between
+the handles or between instances; every function on both handles frozen; an agent's attempts to
+plant `bind`, `call` or `apply` on its reads all fail, and the operator's `.bind(operator)`,
+`.call(operator, …)` and `.apply(operator, …)` hand the operator to no planted function and read
+the real record, head and chain; the two handles read the same answers; every handle function
+keeps its kernel function's `name` and `length`. Against `49b4417`'s surfaces three fail — the
+leak pin with "no planted function ever received the operator handle" — and against a `handleFn`
+without the name and length step the last one fails.
+
+**Amended after review.** An independent review found the limit stated too narrowly, `name` and
+`length` lost, the host-visible changes unlisted, a leak pin whose `captured` check could not fail
+on its own, and `create.ts`'s comment stale; all fixed as above.
+
+**Inversions.** None. No existing assertion changed.
+
+**Gates, measured on the authoring machine.** `ci-assert-tests: ok — 1282 tests in 90 files (98
+suites): 1282 passed, 0 failed, 0 skipped, 0 todo`; typecheck, biome (`--error-on-warnings`, 164
+files), `contract-scan`, `api-reference-sync` and `docs-index-sync` exit 0; `smoke` cannot run
+here and runs in CI.

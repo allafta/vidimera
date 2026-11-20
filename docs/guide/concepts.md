@@ -46,7 +46,13 @@ re-canonicalizes and re-digests it, and a mismatch is refused as `content-drift`
   functions.
 
 This is in-process object-capability discipline, not a sandbox: the agent handle simply
-*has no method* that decides anything, and the handles are frozen plain objects. Handing
+*has no method* that decides anything, the handles are frozen plain objects, and every function
+on them is that handle's own frozen closure, so nothing reachable from the agent handle is the
+same object as anything on the operator handle. What it does not cover: every function inherits from the realm's shared
+`Function.prototype`, so agent code running in the same process that can patch it (in a
+default Node realm, any code can) still reaches whatever your operator code passes to `bind`,
+`call` or `apply`. The split confines in-process agent code only when you confine that code —
+frozen built-ins (for example Node's experimental `--frozen-intrinsics` flag) and no ambient module loading. Handing
 your agent framework the `agent` handle and keeping `operator` on the host side is the
 integration's one non-negotiable move.
 

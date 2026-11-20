@@ -31,8 +31,11 @@ violations of the claims it *does* make. Examples that are squarely in scope:
 - `verifyChain` accepting a chain the documented model says is detectably broken (a
   non-head, non-recomputing tamper going unreported). (`replay` deliberately folds without
   verifying linkage — that split is design, not a gap.)
-- The agent handle reaching any record-transitioning capability — the capability split is
-  a guarantee, not a convention.
+- The agent handle reaching any record-transitioning capability through the library — the
+  capability split is a guarantee, not a convention. It is in-process object-capability
+  discipline, not a sandbox: agent code in the same process that patches a shared built-in
+  (`Function.prototype.bind`, which is writable in a default Node realm) is outside it, and
+  confining such code — frozen built-ins, no ambient module loading — is the host's job.
 - A refusal gate bypass: a finalize that should refuse (content drift, identity authority,
   separation of duties, required consultations, eligibility, policy drift, ack coverage)
   going through.
