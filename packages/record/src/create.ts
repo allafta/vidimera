@@ -6,7 +6,8 @@
 // surface factories.
 //
 // The "shared kernel closures" all live here so the capability split
-// (agent-surface.ts / operator-surface.ts) stays a pure select-and-freeze. Every
+// (agent-surface.ts / operator-surface.ts) stays a select, wrap and freeze — each surface
+// picks its subset and gives every function its own frozen closure (handle-fn.ts). Every
 // record-transitioning closure (`stage`/`open`/`review`/`finalize`/`decline`/`redeem`/
 // `raiseFinding`/`acknowledge`/`seal`) calls into `kernel/*.ts` — `decline` delegates to
 // `kernel/decline.ts`, SPEC §9's operator-only `open → declined` seam (the

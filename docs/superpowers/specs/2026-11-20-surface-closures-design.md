@@ -19,16 +19,34 @@ built-ins are frozen, because the planted property is on the library's own funct
 - **Every function on both handles is a fresh closure per handle, frozen** (`handle-fn.ts`'s
   `handleFn`): nothing on one handle is the same object as anything on another, and nothing can
   be planted on either. All functions, not only the three shared reads, so the rule is uniform.
-- **Behavior is unchanged:** each closure forwards every argument to its kernel function and
-  returns what it returns; the kernel functions read no `this`.
-- **Not covered, stated:** patching a shared built-in (`Function.prototype.bind`) in the same
-  realm — SPEC §9 already disclaims a sandbox.
+- **Calls behave as before:** each closure forwards every argument to its kernel function and
+  returns what it returns (the kernel functions read no `this`), and keeps the kernel function's
+  `name` and `length`. What a host can see change: identity (`agent.getRecord !==
+  operator.getRecord`), a property attached to a handle function now throws, and `toString` and
+  the `AsyncFunction` tag differ.
+- **Not covered, stated:** every function inherits from the realm's shared `Function.prototype`,
+  so in-process agent code that can patch `Function.prototype.bind` (any code, in a default Node
+  realm) still reaches what operator code passes to it. Confining in-process agent code is the
+  host's job (frozen built-ins, no ambient module loading); SPEC §9 already disclaims a sandbox.
+- **ARCHITECTURE §2's "pure select-and-freeze" (sealed), read, not edited:** each surface now
+  selects, wraps and freezes; the sentence's claim — the surface exposes exactly the selected
+  subset, frozen — still holds, and no sealed sentence changes.
 - **No sealed edit.** SPEC §9's sentence is the requirement this meets.
 
 ## 3. Pins
 
 `packages/record/test/surface-closures.test.ts`: no function object is shared between the two
-handles or between instances; every function on both handles is frozen; planting `bind`, `call`
-or `apply` on any agent read throws `TypeError`, and the operator's `.bind(operator)` and
-`.call(operator, …)` read the real record; the per-handle reads answer exactly as the kernel does.
-Red first against the old source (three of five).
+handles or between instances; every function on both handles is frozen; an agent's attempts to
+plant `bind`, `call` or `apply` on its reads all fail, and the operator's `.bind(operator)`,
+`.call(operator, …)` and `.apply(operator, …)` hand the operator to no planted function and read
+the real record, head and chain; the two handles read the same answers; every handle function
+keeps its kernel function's `name` and `length`. Against the old source three of the six fail,
+the leak pin with "no planted function ever received the operator handle".
+
+## 4. Amended after review
+
+The review found the limit stated too narrowly (it read as a stronger attacker than any in-process
+agent code in a default realm), name and length lost, host-visible changes unlisted, a leak pin
+that could not fail on its own, and `create.ts`'s "pure select-and-freeze" comment stale. All
+fixed: the limit, here and in the guide, `SECURITY.md`, the CHANGELOG and the record; `handleFn`
+keeps `name` and `length`; the leak pin now fails on the old source for the leak itself.

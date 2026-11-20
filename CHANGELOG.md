@@ -355,15 +355,6 @@ is the summary, and that file wins on conflict.
 
 ### Fixed
 
-- **Each handle's functions are its own, frozen** (2026-11-20, branch `surface-closures-2026-11-20`):
-  the agent and operator handles used to carry the kernel's read closures (`getRecord`,
-  `readChain`, `chainHead`) as the same unfrozen function objects, so code holding only the agent
-  handle could plant an own `bind`, `call` or `apply` that operator code calling
-  `operator.getRecord.bind(operator)` would run with the operator handle as its argument. Every
-  function on both handles is now a fresh frozen closure per handle. The limit, stated: code that
-  can patch a shared built-in such as `Function.prototype.bind` in the same realm is outside the
-  capability split, which is in-process object-capability discipline, not a sandbox (SPEC §9).
-
 - **The verifier registry could be satisfied with no key** (2026-09-03, branch
   `security-findings-2026-09-03`, found by a security review of the tree): `verifySignatures`
   and the enforcement primitive behind every seam looked a sidecar entry's `keyRef` up with a
@@ -770,6 +761,20 @@ is the summary, and that file wins on conflict.
   type or sealed-set document changed, and no honest genesis byte moved; one existing test
   fixture that planted its draft under a forged reference was re-planted under its derived one,
   every assertion kept. Pre-publication, so there is no advisory to issue.
+- **Each handle's functions are its own, frozen** (2026-11-20, branch `surface-closures-2026-11-20`):
+  the agent and operator handles used to carry the kernel's read closures (`getRecord`,
+  `readChain`, `chainHead`) as the same unfrozen function objects, so code holding only the agent
+  handle could plant an own `bind`, `call` or `apply` that operator code calling
+  `operator.getRecord.bind(operator)` would run with the operator handle as its argument. Every
+  function on both handles is now a fresh frozen closure per handle, keeping its kernel
+  function's `name` and `length`. Visible to a host: `agent.getRecord === operator.getRecord`
+  is now false; attaching a property to a handle function (a tool registry's `.description`,
+  say) now throws; `toString` and the `AsyncFunction` tag differ from the kernel function's. The
+  limit, stated: every function inherits from the realm's shared `Function.prototype`, so agent
+  code in the same process that patches `Function.prototype.bind` — writable in a default Node
+  realm — still reaches what operator code passes to it; the split confines in-process agent code
+  only where the host confines it (frozen built-ins, no ambient module loading), being in-process
+  object-capability discipline, not a sandbox (SPEC §9).
 
 ### Known not-done
 
