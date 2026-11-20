@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import vm from 'node:vm';
 import { test } from 'vitest';
+import { digest } from '../src/canonical.js';
 import { serializeJcs } from '../src/jcs.js';
 
 test('sorts object keys recursively by UTF-16 code unit', () => {
@@ -62,4 +64,66 @@ test('drops symbol-keyed properties and rejects genuine cycles only', () => {
   const cyclic: Record<string, unknown> = {};
   cyclic.self = cyclic;
   assert.throws(() => serializeJcs(cyclic), /circular/i);
+});
+
+class Holder {
+  #hidden = 1;
+  get hidden() {
+    return this.#hidden;
+  }
+}
+
+test('refuses objects with no JSON form, naming the constructor, in both modes', () => {
+  for (const options of [undefined, { wellFormed: true }]) {
+    assert.throws(() => serializeJcs(new Map([['a', 1]]), options), /Map/);
+    assert.throws(() => serializeJcs({ s: new Set([1]) }, options), /Set/);
+    assert.throws(() => serializeJcs([Promise.resolve(1)], options), /Promise/);
+    assert.throws(() => serializeJcs(new Holder(), options), /Holder/);
+    assert.throws(() => serializeJcs(new String('a'), options), /String/);
+    assert.throws(() => serializeJcs({ n: new Number(7) }, options), /Number/);
+  }
+});
+
+test('accepts a null-prototype object, another realm plain object, and a Date through toJSON', () => {
+  const bare = Object.create(null) as Record<string, unknown>;
+  bare.b = 1;
+  bare.a = 2;
+  assert.equal(serializeJcs(bare), '{"a":2,"b":1}');
+  assert.equal(serializeJcs(vm.runInNewContext('({ k: 1 })')), '{"k":1}');
+  assert.equal(serializeJcs(new Date('2030-01-15T10:03:44.612Z')), '"2030-01-15T10:03:44.612Z"');
+});
+
+test('default mode still escapes a lone surrogate exactly as before (the read path)', () => {
+  // The expected text holds a literal backslash, u, d, 8, 0, 0: an ESCAPE, not the character.
+  assert.equal(serializeJcs('a\ud800b'), `"a${'\\'}ud800b"`);
+  assert.equal(serializeJcs({ 'k\udc00': 'v\ud83d' }), `{"k${'\\'}udc00":"v${'\\'}ud83d"}`);
+  assert.equal(serializeJcs('😀'), '"😀"');
+});
+
+test('wellFormed mode refuses a lone surrogate in a key, a value or a toJSON result', () => {
+  const strict = { wellFormed: true };
+  assert.throws(() => serializeJcs('a\ud800b', strict), TypeError);
+  assert.throws(() => serializeJcs({ k: ['x\udc00'] }, strict), /lone surrogate/);
+  assert.throws(() => serializeJcs({ 'k\ud800': 1 }, strict), /lone surrogate/);
+  assert.throws(() => serializeJcs({ toJSON: () => '\ud83d' }, strict), /lone surrogate/);
+  assert.equal(serializeJcs({ k: '\u{1F600}é' }, strict), '{"k":"\u{1F600}é"}');
+});
+
+test('digest refuses an ill-formed string and still hashes bytes as given', () => {
+  assert.throws(() => digest('a\ud800b'), /lone surrogate/);
+  assert.match(digest(new TextEncoder().encode('a\ud800b')), /^sha256:[0-9a-f]{64}$/);
+  assert.match(digest('a\u{1F600}b'), /^sha256:[0-9a-f]{64}$/);
+});
+
+test('refuses a Map and a class instance built in another realm', () => {
+  assert.throws(() => serializeJcs(vm.runInNewContext('new Map()')), /Map/);
+  assert.throws(() => serializeJcs(vm.runInNewContext('new (class Foo {})()')), /Foo/);
+});
+
+test('names a typed array without a wrong article', () => {
+  assert.throws(
+    () => serializeJcs({ b: new Uint8Array(2) }),
+    /^TypeError: serializeJcs: an instance of 'Uint8Array' has no JCS representation/,
+  );
+  assert.throws(() => serializeJcs(new Map()), /an instance of 'Map' has no JCS representation/);
 });

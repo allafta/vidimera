@@ -1,6 +1,9 @@
 // @vidimera/record — kernel/stage.ts: the agent-reachable, PRE-RECORD staged-draft write
 // (SPEC §9 `stage(content, profileId, subjectRef, legId?)`).
 // `stage(content, profileId, subjectRef, legId?)`:
+//   0. check `subjectRef` (subject-ref.ts's one rule: a non-empty, well-formed, NUL-free string of
+//      at most 1,024 UTF-8 bytes) — a caller error that THROWS `stage: subjectRef …`, before
+//      anything else, so no draft is written for a subject the backings would store differently;
 //   1. resolve + validate the profile — an unconfigured `profileId` fails CLOSED with
 //      `refused('unknown-profile')`: NO staged draft, NO append, NO record (the only
 //      producer of `unknown-profile` on the agent surface);
@@ -8,19 +11,20 @@
 //      sites stay byte-compatible); a legId the CALLER NAMES that is absent from the
 //      resolved profile's legs fails CLOSED with `refused('unknown-leg')` — pre-record,
 //      BEFORE any `putStaged` (the FIRST `unknown-leg` producer; SPEC §8);
-//   3. bind the content: `contentDigest = digest(canonicalize(adopterCanonicalizer(content)))`
-//      — the adopter canonicalizer projects domain content to a JSON-safe structure, then
-//      library JCS + digest; content itself is NEVER persisted, only its digest;
+//   3. bind the content: `contentDigest = bindContent(...)` (canonical.ts)
+//      — the adopter canonicalizer projects domain content to a JSON-safe structure (it must
+//      be synchronous), then library JCS in the strict well-formed mode (stage() alone is strict) + digest; content itself is NEVER persisted, only its digest;
 //   4. derive the content-derived, idempotent `stagedRef` (id.ts `deriveStagedRef`, now
 //      leg-folded) and write the digest-only draft via the idempotent `putStaged`.
 // It APPENDS NOTHING and creates NO record — `open()` (kernel/open.ts) is what mints the
 // record and appends the genesis `opened` transition.
 
-import { canonicalize, digest } from '../canonical.js';
+import { bindContent } from '../canonical.js';
 import type { KernelContext } from '../create.js';
 import { deriveStagedRef } from '../id.js';
 import type { Outcome } from '../outcome.js';
 import { ok, refused } from '../outcome.js';
+import { subjectRefProblem } from '../subject-ref.js';
 
 export async function stage(
   ctx: KernelContext,
@@ -29,6 +33,13 @@ export async function stage(
   subjectRef: string,
   legId?: string,
 ): Promise<Outcome<{ stagedRef: string }>> {
+  // A caller error, not a domain refusal: SPEC §8 has no refusal code for it, and the agent
+  // surface is the untrusted one, so the subject is checked before anything reads or writes.
+  const subjectProblem = subjectRefProblem(subjectRef);
+  if (subjectProblem !== undefined) {
+    throw new Error(`stage: subjectRef ${subjectProblem}`);
+  }
+
   const resolved = ctx.profiles.get(profileId);
   if (resolved === undefined) {
     // Fail-closed: an unconfigured profile yields NOTHING — no leg to derive, no draft to
@@ -58,7 +69,9 @@ export async function stage(
 
   // Content binding (SPEC §3): adopter canonicalizer -> library JCS -> digest. The digest
   // is all that is persisted; the raw content never crosses into the Store.
-  const contentDigest = digest(canonicalize(canonicalizer(content)));
+  const contentDigest = bindContent(canonicalizer, profile.subject.canonicalizerRef, content, {
+    wellFormed: true,
+  });
 
   // Content-derived + idempotent (same content+profile+subject+leg -> same ref); putStaged
   // is idempotent by this id (SPEC §12). Leg-folded: two different legs staging identical

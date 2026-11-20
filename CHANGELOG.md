@@ -420,6 +420,56 @@ is the summary, and that file wins on conflict.
   model.
   No existing assertion changed.
 
+- **`stage()` checks `subjectRef`, and content binding is strict at stage** (2026-11-20, branch
+  `subject-content-intake-2026-11-20`; no sealed-set edit, no marker, no new export): the
+  agent's one free-form input and the content-binding path took whatever arrived. `stage()`
+  now requires `subjectRef` to be a string, non-empty, well-formed UTF-16, free of U+0000 and
+  at most 1,024 bytes in UTF-8, and otherwise throws `stage: subjectRef …` naming the rule,
+  before the profile is resolved and with no draft written. It is a caller error, as `open()`'s
+  unknown `stagedRef` is; no refusal code is minted. `open()` applies the same rule to the draft
+  it resolves and to a `proposed` draft, after the existing re-derivation check, so a persisted
+  draft that breaks it throws (an open record's subject is never re-checked). A host whose
+  natural key can exceed the cap digests it into one string. The six sites that bind content
+  (`stage`, `finalize`, `decline` and the three redemption seams) now share one helper that
+  refuses a thenable, serializes and digests; only `stage()` serializes in the strict
+  well-formed mode, and the five re-bind seams use the default (escaping) mode. `serializeJcs` and the exported
+  `canonicalize` now throw on any object with no JSON form: a `Map`, a `Set`, a Promise, a class
+  instance (`#private`-only state included) or a boxed primitive (`new String('a')` used to
+  serialize as `{"0":"a"}`), naming the constructor ("an instance of 'Name'"); a plain object, a null-prototype object and
+  an array serialize as before and `toJSON` is still honored, so a `Date` is its ISO string.
+  Visible to a host: a `facts.figures` entry holding a `Map` used to digest as `{}` and now
+  refuses `consultation-missing`, the documented answer for non-canonicalizable figures. A
+  canonicalizer's output that holds an ill-formed string (a lone surrogate in a key, a value or
+  a `toJSON` result) now throws at `stage()`'s binding (and at the other seams is ordinary content drift, below), and `digest(string)` throws a `TypeError` on an
+  ill-formed string instead of collapsing each lone surrogate to U+FFFD; the bytes of a
+  well-formed string are unchanged. The limits, stated: the default serializer, which reads
+  persisted data and serves every re-bind seam, still escapes a lone surrogate, so a chain
+  recorded with one still verifies and replays, and a record bound by an older build from such
+  content re-binds as before — strictness is at `stage()`, not at re-bind or read — while an
+  ill-formed value arriving after staging is recorded as `content-drift` (the redemption seams
+  on a profile without `reverify` refuse `effect-mismatch`, as for any content mismatch);
+  `verifyChain` reports a break, never throws, on a tampered genesis id with one; the three
+  reference backings return plain data, and a custom `Store` must too, or `verifyChain` would
+  throw on a class-instance payload; other strings that enter transitions (identities,
+  consultation kinds, finding fields, labels) are operator inputs and are still not checked for
+  well-formedness; the rejection handler is attached to a native top-level promise only (any other thenable is
+  refused without its `then` being called, so a lazy one never runs; an eager non-native thenable's
+  own rejection stays the host's); a `null` `legId` at `stage()` still means the first leg. Upgrading, by what the
+  canonicalizer returned: (i) void output (an `async` canonicalizer's Promise, a `Map`, a `Set`,
+  a `#private`-only class, all serialized as `{}`) cannot re-bind under this build — its seams
+  throw a configuration fault until the canonicalizer is fixed, and a fixed one digests
+  differently, which refuses `content-drift`; drive those records to a terminal state first;
+  (ii) non-plain output that carried content (a class instance with public fields, a boxed
+  primitive, a typed array) re-binds exactly once the canonicalizer returns a plain object with the
+  same own enumerable fields (`{ ...instance }`, or the numbered-key object), so those records
+  need not be driven to a terminal state; (iii) content holding a lone surrogate re-binds as
+  before at the re-bind seams, and at `stage()` new such content throws — a host that wants it
+  accepted makes agent-sourced strings well-formed in its canonicalizer
+  (`String.prototype.toWellFormed()`, Node 20 or later); a staged draft whose subject breaks the
+  rule throws at `open()`. A subject error now says what was received and, for the cap, to digest a
+  longer natural key into one; subjects compare exactly (no normalization or case folding). No
+  existing assertion changed.
+
 ### Fixed
 
 - **The verifier registry could be satisfied with no key** (2026-09-03, branch
@@ -856,6 +906,28 @@ is the summary, and that file wins on conflict.
   `create()` accepts, `profileDigest(profile)` on the profile as you passed it to `create()`
   equals the digest the instance binds. The limit: a host that mutates its object and expects
   the change to take effect now gets no effect, and no error either — register a new profile id.
+
+- **An `async` canonicalizer, and subjects that split or crashed** (2026-11-20, branch
+  `subject-content-intake-2026-11-20`): a canonicalizer whose output is a Promise serialized as
+  `{}`, so every record under that profile bound the same content digest and content drift
+  could never fire; the Promise's rejection was never observed, so content an agent could
+  choose to make it reject ended the host process under Node's default unhandled-rejection
+  policy, after `stage()` had persisted a draft bound to that digest; a canonicalizer that was
+  only sometimes async produced a false terminal `content-drift`. A thenable output is now
+  refused as a configuration fault with its rejection observed, and nothing is written or
+  appended. C1 exclusivity could split for one real subject: `42` and `"42"` were two subjects
+  on `MemoryStore` and on a file-backed `SqliteStore`, both opened, confirmed and redeemed, and
+  an object subject with a stateful `toJSON` could redirect another stager's draft; both now
+  throw at `stage()`. A deeply nested object subject left a `MemoryStore` record that
+  `listDue` returned forever, aborting the guide's sweep. A subject containing U+0000 opened on
+  `MemoryStore` and `SqliteStore` but made `PostgresStore` throw a raw driver error, and a
+  lone surrogate was collapsed to U+FFFD by `SqliteStore` and kept by `MemoryStore`; a subject
+  of unbounded length was written as given. The limits, stated: a draft staged before this
+  build is only re-checked when `open()` resolves it; a staged-draft prune would be a new
+  `Store` method, a sealed edit awaiting the owner's sanction; operator-side inputs are the
+  next increment's (digest-field formats, `observedAt` calendar validity, a `null` options bag,
+  `RedeemOptions.tx`, the shape of `priorRecordRefs`, id-argument types and well-formedness
+  of operator strings).
 
 ### Known not-done
 

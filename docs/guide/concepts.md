@@ -123,7 +123,8 @@ stage (agent)  →  open (operator)  →  review (operator, pure read)  →  fin
 ```
 
 - `stage(content, profileId, subjectRef)` digests the content and stores an inert staged
-  draft — digest only, no record yet, nothing to approve against yet.
+  draft — digest only, no record yet, nothing to approve against yet. The subject must be a
+  non-empty, well-formed string with no U+0000 and at most 1,024 UTF-8 bytes, or `stage` throws.
 - `open(stagedRef)` mints the record: the genesis transition binds profile, leg, subject,
   and content digest — from a staged draft that must re-derive to `stagedRef`, so a draft
   edited in storage throws instead of binding. Options carry multi-leg prior references

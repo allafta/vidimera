@@ -1,8 +1,9 @@
 // @vidimera/record — kernel/open.ts: the operator-only record-creating seam (SPEC §9
 // `open(stagedRef, {...})`). `open(stagedRef)`:
 //   0. snapshot the caller's options: each value it will use, read ONCE (see below);
-//   1. read the staged draft (missing -> a caller error, THROWS — see below) and check that it
-//      re-derives to `stagedRef` (a mismatch THROWS too — `checkedDraft`, below);
+//   1. read the staged draft (missing -> a caller error, THROWS — see below), check that it
+//      re-derives to `stagedRef` and that its subject meets stage()'s rule (either failing
+//      THROWS too — `checkedDraft`, below);
 //   2. resolve the draft's profile fail-CLOSED (unconfigured -> `refused('unknown-profile')`,
 //      NO append — open() never trusts a staged profileId blindly);
 //   3. mint an opaque `recordId`, build the genesis `opened` transition (payload carries
@@ -29,6 +30,7 @@ import { isFinalLeg, nonTerminal } from '../nonterminal.js';
 import type { Outcome } from '../outcome.js';
 import { ok, refused } from '../outcome.js';
 import type { AppendMeta } from '../store/store.js';
+import { subjectRefProblem } from '../subject-ref.js';
 import type {
   IdentityAssertion,
   RecordedPriorLegRef,
@@ -396,6 +398,17 @@ function checkedDraft(draft: StagedDraft, ref: string, label: string): CheckedDr
         '(SPEC §12); a persisted draft that does not match its reference was edited in storage, ' +
         'or came back from a Store that does not round-trip it — corrupted or foreign persisted ' +
         'data, a storage fault, not a domain outcome (SPEC §8)',
+    );
+  }
+  // After the re-derivation, so a draft failing both reports the mismatch: a tampered draft's
+  // fields are not worth reading further. A draft that is intact but carries a subject stage()
+  // would now refuse was persisted before that rule, or by a writer other than stage().
+  const subjectProblem = subjectRefProblem(subjectRef);
+  if (subjectProblem !== undefined) {
+    throw new Error(
+      `open: subjectRef ${subjectProblem} — the persisted draft under ${label} '${ref}' carries a ` +
+        'subject stage() would not accept; it was persisted before that rule or by a writer other ' +
+        'than stage(), a storage fault, not a domain outcome (SPEC §8)',
     );
   }
   return { profileId, legId, subjectRef, contentDigest };

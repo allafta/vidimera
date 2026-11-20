@@ -98,15 +98,84 @@ the library's own canonical JSON encoding digests it. Rules of thumb:
   fields (fetch timestamps, cache keys) — anything left in changes the digest and will
   refuse as drift later.
 - JSON-safe: plain objects, arrays, strings, finite numbers, booleans, null. No `BigInt`,
-  no class instances, no functions.
+  no class instances, no functions. Three parts of this are enforced when content is bound
+  (the first two at `stage`, `finalize`, `decline` and the three redemption seams; the third
+  at `stage` alone), each as a throw of the kind the next rule describes, with nothing written
+  or appended:
+  - **Synchronous.** An output with a callable `then` (an `async` canonicalizer returns a
+    Promise) throws `canonicalizer for '<ref>' returned a thenable`. When that output
+    is a native Promise, the library attaches a rejection handler to it before it throws, so a
+    Promise that later rejects cannot reach Node's unhandled-rejection policy and end your
+    process. Any other thenable is refused without its `then` being called, so a lazy one is
+    never run. The limit: only a native Promise's rejection is observed. A non-native thenable
+    that rejects on its own (eagerly), and a Promise nested deeper (refused by the serializer),
+    keep their rejection, which stays yours.
+  - **Plain objects only.** A `Map`, a `Set`, a class instance (one holding only `#private`
+    state included) or a boxed primitive anywhere in the output throws, naming the constructor.
+    Before this build the result depended on the kind: a `Map`, a `Set`, a Promise or a class
+    holding only `#private` state serialized as `{}` and bound a digest that ignored the content,
+    while a class instance with public fields serialized its own enumerable fields
+    (`new Point(1, 2)` as `{"x":1,"y":2}`) and a boxed string or a typed array serialized
+    numbered keys, both of which carry the content. `toJSON` is still honored, so a `Date` is its ISO string. Objects from another
+    realm that are plain by shape, and objects with a `null` prototype, are accepted.
+  - **Well-formed strings, at `stage` only.** A lone surrogate (an ill-formed UTF-16 string) in
+    any key, any value or any string a `toJSON` returns throws at `stage`, so every new binding
+    is well-formed. `finalize`, `decline` and the redemption seams re-bind in the default
+    (escaping) mode, which only compares: a record bound by an older build from content holding a
+    lone surrogate re-binds exactly as before and is not stranded, and an ill-formed value that
+    shows up after staging is recorded as `content-drift` (a refusal, not an unrecorded throw).
+    If you want agent-sourced content with a lone surrogate accepted at `stage`, make the
+    strings well-formed inside your canonicalizer (`String.prototype.toWellFormed()`, Node 20 or
+    later); that replaces each lone surrogate with U+FFFD, so two strings differing only there
+    share a digest, which is your call to make.
 - Total: it must return for any content a seam will hand it. A canonicalizer is your
   registered code, not caller data, so a throw at `finalize`, `decline` or a redemption seam
   propagates as a configuration fault — nothing is appended and no refusal is minted; it is
-  never read as `content-drift`. (The `facts.figures` side is the deliberate contrast: those
-  are caller data, and a non-canonicalizable payload there refuses `consultation-missing`.)
+  never read as `content-drift`. The three JSON-safe throws above take this path where they apply. (The
+  `facts.figures` side is the deliberate contrast: those are caller data, and a
+  non-canonicalizable payload there, a `Map` included, refuses `consultation-missing`.)
 - Versioned: the ref is part of the profile (`'finance.invoice.v1'`); when the projection
   changes meaningfully, mint a new ref and a new profile version rather than silently
   changing what old records' digests meant.
+
+**The subject reference.** `stage()` is the agent's one free-form input, so it checks
+`subjectRef` before anything else, before the profile is even resolved: it must be a string,
+non-empty, well-formed UTF-16 (no lone surrogate), free of U+0000, and at most 1,024 bytes
+in UTF-8. Anything else throws `stage: subjectRef …`, naming the rule — a caller error, as
+`open`'s unknown `stagedRef` is, with no refusal code and no draft written. A number is not a
+subject: `42` and `"42"` used to be two subjects on two live records, which split exclusivity
+for one real thing; pass the string. If your natural key can exceed the cap, digest it into
+one string (a hex or base64url digest of the key) and use that as the subject; keep the
+mapping back to the natural key in your own store. Subjects compare exactly: there is no
+Unicode normalization or case folding, so the NFC and NFD forms of one name are two different
+subjects, and the equivalence policy is yours to apply before you call `stage`. `open()` re-checks the rule on the staged
+draft it resolves and on a `proposed` draft, and throws when a persisted draft breaks it. Such
+a draft was persisted before this rule or written by something other than `stage()`.
+
+The limits, stated. The rule governs the subject only: other strings that reach the chain
+through operator-side calls (identities, consultation kinds, finding fields, labels) are not
+yet checked for well-formedness, and are the host's to keep clean. And an open record's
+`subjectRef` is never re-checked: only drafts are.
+
+**Upgrading.** What changes for records already open depends on what their canonicalizer
+returned. Nothing is migrated.
+
+- **Void output**: an `async` canonicalizer (its output is a Promise), a `Map`, a `Set`, or a
+  class holding only `#private` state serialized as `{}`. Such a record cannot re-bind under this
+  build: its seams throw a configuration fault until the canonicalizer is fixed, and a fixed
+  canonicalizer digests differently, so the record then refuses `content-drift`. Drive these to a
+  terminal state first, or keep running the old build until they are.
+- **Non-plain output that carried content**: a class instance with public fields, a boxed
+  primitive, a typed array. These throw now, but returning a plain object with the same own
+  enumerable fields (`{ ...instance }`, or the numbered-key object) reproduces the old digest
+  exactly, so such records do not need driving to a terminal state; change the canonicalizer and
+  they keep re-binding. The limit: the fields must be the same ones, own and enumerable, in the
+  same values.
+- **A lone surrogate in content**: a record bound by an older build from such content re-binds as
+  before at `finalize`, `decline` and the redemption seams. New content holding one throws at
+  `stage()`; see the well-formed strings rule above for the `toWellFormed()` option.
+
+A staged draft whose subject breaks the rule above throws at `open()`.
 
 ## Profile design
 

@@ -107,7 +107,7 @@
 // availability arms are a DIFFERENT outcome status entirely (`unavailable`, never `refused`)
 // and never append, `terminalRefusals` notwithstanding (SPEC §8).
 
-import { canonicalize, digest } from '../canonical.js';
+import { bindContent, canonicalize, digest } from '../canonical.js';
 import { assertChainFor } from '../chain/binding.js';
 import { transitionDigest } from '../chain/encoding.js';
 import { replay, verifyChain } from '../chain/replay.js';
@@ -341,7 +341,12 @@ export async function finalize(
   }
 
   // --- (4) content-drift ----------------------------------------------------------------
-  const recomputed = digest(canonicalize(resolved.canonicalizer(content)));
+  const recomputed = bindContent(
+    resolved.canonicalizer,
+    resolved.profile.subject.canonicalizerRef,
+    content,
+    { wellFormed: false },
+  );
   if (recomputed !== record.contentDigest) {
     return refuseMaybeAppend(store, recordId, 'content-drift', leg, chain, resolved, finalLeg, now);
   }

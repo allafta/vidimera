@@ -76,7 +76,7 @@
 // is not state drift. Every non-reverify profile's behavior is byte-identical to before
 // this increment.
 
-import { canonicalize, digest } from '../canonical.js';
+import { bindContent, digest } from '../canonical.js';
 import { assertChainFor } from '../chain/binding.js';
 import { transitionDigest } from '../chain/encoding.js';
 import { replay, verifyChain } from '../chain/replay.js';
@@ -87,6 +87,7 @@ import type { Outcome } from '../outcome.js';
 import { ok, refused } from '../outcome.js';
 import type { AppendMeta, Store } from '../store/store.js';
 import type { DecisionRecord, Digest, Transition } from '../types.js';
+import { isWellFormedUtf16 } from '../utf16.js';
 import { deadlineIso, pendingWindow, resolveDueClock } from './expiry.js';
 import { appendChainCompromise } from './finalize.js';
 import { heldProfile } from './held-profile.js';
@@ -416,7 +417,12 @@ export async function redeem(
   // §11.2: refuse "any mismatch with `effect-mismatch`" — on a non-reverify profile. A
   // reverify-declaring profile (SPEC §9.2, the live-capture increment) maps the mismatch
   // to `content-drift` instead, appended terminal (`refuseCorrespondenceMismatch` below).
-  const recomputed = digest(canonicalize(resolved.canonicalizer(content)));
+  const recomputed = bindContent(
+    resolved.canonicalizer,
+    resolved.profile.subject.canonicalizerRef,
+    content,
+    { wellFormed: false },
+  );
   if (recomputed !== record.contentDigest) {
     return refuseCorrespondenceMismatch(
       store,
@@ -526,7 +532,12 @@ export async function beginRedemption(
   // --- (5) effect-content correspondence (this build's addition — doc comment above) ----
   // Same mapping as the direct shape's rung (5): `content-drift` on a reverify-declaring
   // profile (SPEC §9.2, the live-capture increment), `effect-mismatch` otherwise.
-  const recomputed = digest(canonicalize(resolved.canonicalizer(content)));
+  const recomputed = bindContent(
+    resolved.canonicalizer,
+    resolved.profile.subject.canonicalizerRef,
+    content,
+    { wellFormed: false },
+  );
   if (recomputed !== record.contentDigest) {
     return refuseCorrespondenceMismatch(
       store,
@@ -674,10 +685,17 @@ export async function completeRedemption(
   // the secret is the PREIMAGE, protected by the digest's preimage resistance. A timing
   // oracle on `===` can only ever recover the non-secret side; `timingSafeEqual` here
   // would defend nothing. (Written down so nobody "fixes" it.)
-  if (digest(token) !== persisted) {
+  // A presented token that is not well-formed UTF-16 can never be the minted one (base64url),
+  // and `digest` refuses such a string, so it is a mismatch here rather than a throw.
+  if (!isWellFormedUtf16(token) || digest(token) !== persisted) {
     return refused('effect-mismatch');
   }
-  const recomputed = digest(canonicalize(resolved.canonicalizer(content)));
+  const recomputed = bindContent(
+    resolved.canonicalizer,
+    resolved.profile.subject.canonicalizerRef,
+    content,
+    { wellFormed: false },
+  );
   if (recomputed !== record.contentDigest) {
     return refuseCorrespondenceMismatch(
       store,
