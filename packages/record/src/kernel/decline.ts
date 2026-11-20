@@ -16,7 +16,7 @@
 // not established). Every refusal reuses an existing §8 code through the same
 // refuseMaybeAppend/appendsOn rule — the registry does not grow at this increment.
 
-import { canonicalize, digest } from '../canonical.js';
+import { bindContent, digest } from '../canonical.js';
 import { transitionDigest } from '../chain/encoding.js';
 import { replay, verifyChain } from '../chain/replay.js';
 import { type DeclineOptions, unknownOptionKey } from '../config.js';
@@ -164,7 +164,11 @@ export async function decline(
   }
 
   // --- (4) content-drift — the decline is about THIS content or it does not land -------
-  const recomputed = digest(canonicalize(resolved.canonicalizer(content)));
+  const recomputed = bindContent(
+    resolved.canonicalizer,
+    resolved.profile.subject.canonicalizerRef,
+    content,
+  );
   if (recomputed !== record.contentDigest) {
     return refuseMaybeAppend(store, recordId, 'content-drift', leg, chain, resolved, finalLeg, now);
   }

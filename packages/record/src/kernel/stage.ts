@@ -19,7 +19,7 @@
 // It APPENDS NOTHING and creates NO record — `open()` (kernel/open.ts) is what mints the
 // record and appends the genesis `opened` transition.
 
-import { canonicalize, digest } from '../canonical.js';
+import { bindContent } from '../canonical.js';
 import type { KernelContext } from '../create.js';
 import { deriveStagedRef } from '../id.js';
 import type { Outcome } from '../outcome.js';
@@ -69,7 +69,7 @@ export async function stage(
 
   // Content binding (SPEC §3): adopter canonicalizer -> library JCS -> digest. The digest
   // is all that is persisted; the raw content never crosses into the Store.
-  const contentDigest = digest(canonicalize(canonicalizer(content)));
+  const contentDigest = bindContent(canonicalizer, profile.subject.canonicalizerRef, content);
 
   // Content-derived + idempotent (same content+profile+subject+leg -> same ref); putStaged
   // is idempotent by this id (SPEC §12). Leg-folded: two different legs staging identical

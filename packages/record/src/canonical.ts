@@ -5,6 +5,7 @@
 import { createHash } from 'node:crypto';
 
 import { serializeJcs } from './jcs.js';
+import { isWellFormedUtf16 } from './subject-ref.js';
 
 import type { Digest } from './types.js';
 
@@ -76,18 +77,57 @@ export function canonicalize(structure: unknown): Uint8Array {
 }
 
 /**
+ * Content binding (SPEC §3), the one path every seam uses: runs the adopter canonicalizer over
+ * `content`, serializes its output as library JCS in the strict well-formed mode, and digests
+ * the bytes. A canonicalizer is SYNCHRONOUS, so an output with a callable `then` is refused;
+ * a rejection handler is attached to it first, so a later rejection is observed instead of
+ * ending the process as an unhandled rejection (only the top-level output is observed — a
+ * promise nested deeper is refused by `serializeJcs` and its rejection stays the host's).
+ * Any throw propagates: it is a configuration fault, never read as content drift. Internal:
+ * not exported from the package index.
+ */
+export function bindContent(
+  canonicalizer: Canonicalizer,
+  canonicalizerRef: string,
+  content: unknown,
+): Digest {
+  const out = canonicalizer(content);
+  if ((typeof out === 'object' && out !== null) || typeof out === 'function') {
+    const then = (out as { then?: unknown }).then;
+    if (typeof then === 'function') {
+      try {
+        Promise.resolve(out).then(undefined, () => {});
+      } catch {
+        // an exotic thenable that throws while being adopted: the refusal below still stands
+      }
+      throw new TypeError(
+        `canonicalizer for '${canonicalizerRef}' returned a thenable — a canonicalizer is synchronous (SPEC §3); return the projected content, not a promise`,
+      );
+    }
+  }
+  return digest(UTF8.encode(serializeJcs(out, { wellFormed: true })));
+}
+
+/**
  * `digest()`: hashes `input`
  * (raw bytes, or a string UTF-8-encoded first) under `algorithm` (default `sha256`,
  * the only MINTING algorithm this build supports) via `node:crypto`, returning
  * `"<alg>:<lowercase-hex>"`. An `algorithm` outside `SUPPORTED_ALGORITHMS` THROWS
  * rather than silently deferring to `node:crypto`'s own much larger algorithm list —
  * digest agility (SPEC §7) means the library controls which algorithms are recordable, not
- * every algorithm the underlying runtime happens to support.
+ * every algorithm the underlying runtime happens to support. A string with a lone surrogate
+ * THROWS too: UTF-8 encoding would collapse each one to U+FFFD, so two different strings would
+ * share a digest. (Bytes are hashed as given.)
  */
 export function digest(input: Uint8Array | string, algorithm: DigestAlgorithm = 'sha256'): Digest {
   if (!isSupportedAlgorithm(algorithm)) {
     throw new Error(
       `digest: unsupported algorithm '${algorithm}' (supported: ${SUPPORTED_ALGORITHMS.join(', ')})`,
+    );
+  }
+  if (typeof input === 'string' && !isWellFormedUtf16(input)) {
+    throw new TypeError(
+      'digest: the string holds a lone surrogate — it is not well-formed UTF-16, and UTF-8 encoding would collapse it',
     );
   }
   const bytes = typeof input === 'string' ? UTF8.encode(input) : input;

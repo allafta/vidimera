@@ -14,6 +14,19 @@
 // precisely RFC 8785 section 3.2.3's requirement — so the sort is deliberately the
 // default one, never `localeCompare` (locale-sensitive) and never a codepoint sort.
 
+import { isWellFormedUtf16 } from './subject-ref.js';
+
+/** Options for `serializeJcs`. Internal: not exported from the package index. */
+export interface SerializeJcsOptions {
+  /**
+   * When true, every string written (each key, each value, and any string a `toJSON` returns)
+   * must be well-formed UTF-16, or the call throws. The default (false) keeps the ES2019
+   * escaping of a lone surrogate, which is what lets a persisted chain that carries one keep
+   * verifying: intake paths opt in, the read path never does.
+   */
+  wellFormed?: boolean;
+}
+
 /**
  * Serializes `value` to RFC 8785 canonical JSON **text**. Always returns a `string`:
  * every input with no JCS representation throws instead of yielding `undefined`, so
@@ -45,14 +58,31 @@
  * - **Functions** behave identically to `undefined` (throw / `null` / omitted).
  * - **Circular references throw.** Only genuine cycles: the same object appearing
  *   twice in sibling positions is a finite tree and serializes fine.
- * - **No special case for boxed primitives** (`new String('a')`, `new Number(7)`):
- *   they serialize as ordinary objects over their own enumerable keys.
+ * - **Only plain objects serialize.** An object that is not an array, carries no callable
+ *   `toJSON`, and whose prototype is not `Object.prototype`, `null`, or another realm's
+ *   `Object.prototype` throws, naming its constructor: a `Map`, a `Set`, a Promise, a class
+ *   instance (including one holding only `#private` state) and a boxed primitive
+ *   (`new String('a')`, which once serialized as `{"0":"a"}`) have no JSON form. A `Date`
+ *   still serializes through its `toJSON`. Data read back from a store is always plain.
+ * - **Lone surrogates are escaped by default** (the ES2019 well-formed escaping, so the read
+ *   path is byte-identical to before) and **refused under `wellFormed: true`**, the strict
+ *   mode content intake uses. It checks every key, every string value and every string a
+ *   `toJSON` returns.
  */
-export function serializeJcs(value: unknown): string {
-  return write(value, new Set<object>());
+export function serializeJcs(value: unknown, options?: SerializeJcsOptions): string {
+  return write(value, new Set<object>(), options?.wellFormed === true);
 }
 
-function write(value: unknown, open: Set<object>): string {
+function checked(text: string, strict: boolean, what: string): string {
+  if (strict && !isWellFormedUtf16(text)) {
+    throw new TypeError(
+      `serializeJcs: ${what} holds a lone surrogate — it is not well-formed UTF-16`,
+    );
+  }
+  return text;
+}
+
+function write(value: unknown, open: Set<object>, strict: boolean): string {
   if (value === null) return 'null';
   switch (typeof value) {
     case 'boolean':
@@ -65,7 +95,7 @@ function write(value: unknown, open: Set<object>): string {
       }
       return JSON.stringify(value);
     case 'string':
-      return JSON.stringify(value);
+      return JSON.stringify(checked(value, strict, 'a string value'));
     case 'bigint':
       throw new TypeError('serializeJcs: a BigInt has no JCS representation');
     case 'undefined':
@@ -75,11 +105,11 @@ function write(value: unknown, open: Set<object>): string {
     case 'function':
       throw new TypeError('serializeJcs: a function has no JCS representation');
     default:
-      return writeContainer(value, open);
+      return writeContainer(value, open, strict);
   }
 }
 
-function writeContainer(container: object, open: Set<object>): string {
+function writeContainer(container: object, open: Set<object>, strict: boolean): string {
   if (open.has(container)) {
     throw new TypeError('serializeJcs: circular reference — the input is not a finite JSON tree');
   }
@@ -87,20 +117,27 @@ function writeContainer(container: object, open: Set<object>): string {
   try {
     const toJson = (container as { toJSON?: unknown }).toJSON;
     if (typeof toJson === 'function') {
-      return write((toJson as (this: object) => unknown).call(container), open);
+      return write((toJson as (this: object) => unknown).call(container), open, strict);
     }
     if (Array.isArray(container)) {
       const elements: string[] = [];
       for (const element of container as readonly unknown[]) {
-        elements.push(hasNoJsonForm(element) ? 'null' : write(element, open));
+        elements.push(hasNoJsonForm(element) ? 'null' : write(element, open, strict));
       }
       return `[${elements.join(',')}]`;
+    }
+    if (!isPlainObject(container)) {
+      throw new TypeError(
+        `serializeJcs: a ${constructorName(container)} has no JCS representation — only plain objects, arrays and values with a toJSON serialize`,
+      );
     }
     const members: string[] = [];
     for (const key of Object.keys(container).sort()) {
       const member: unknown = (container as Record<string, unknown>)[key];
       if (hasNoJsonForm(member)) continue;
-      members.push(`${JSON.stringify(key)}:${write(member, open)}`);
+      members.push(
+        `${JSON.stringify(checked(key, strict, 'an object key'))}:${write(member, open, strict)}`,
+      );
     }
     return `{${members.join(',')}}`;
   } finally {
@@ -110,4 +147,28 @@ function writeContainer(container: object, open: Set<object>): string {
 
 function hasNoJsonForm(value: unknown): boolean {
   return value === undefined || typeof value === 'symbol' || typeof value === 'function';
+}
+
+/**
+ * True for an object whose prototype is `Object.prototype`, null, or another realm's
+ * `Object.prototype` (a prototype that itself has no prototype and whose `constructor` is
+ * a function named 'Object'). Anything else is a class instance, a collection, a Promise
+ * or a boxed primitive.
+ */
+function isPlainObject(value: object): boolean {
+  const proto: unknown = Object.getPrototypeOf(value);
+  if (proto === null || proto === Object.prototype) return true;
+  if (Object.getPrototypeOf(proto) !== null) return false;
+  const ctor = Object.getOwnPropertyDescriptor(proto, 'constructor')?.value as unknown;
+  return typeof ctor === 'function' && ctor.name === 'Object';
+}
+
+function constructorName(value: object): string {
+  try {
+    const ctor = (Object.getPrototypeOf(value) as { constructor?: unknown } | null)?.constructor;
+    if (typeof ctor === 'function' && ctor.name !== '') return ctor.name;
+  } catch {
+    // fall through to the generic name
+  }
+  return 'non-plain object';
 }
